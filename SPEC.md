@@ -638,7 +638,7 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [ ] Domain: interim plan is a `.org` through Cloudflare Registrar; a university domain is under discussion (the site name is SleepSteps)
 - [ ] Bot Fight Mode and cookies: whether to allow Cloudflare's bot-protection cookie and injected script, disclosed on the privacy page, with the CSP change it needs (§16.3; research on GDPR/ePrivacy and disclosure practice in progress)
 - [x] Content licence: CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`, §22)
-- [ ] Code licence: the owner asked about CC BY 4.0 for the code too; Creative Commons advises against CC licences for software, so the code stays MIT until confirmed
+- [x] Code licence: stays MIT (Creative Commons advises against CC licences for software)
 - [ ] Copyright holder: `Behavioural Medicine Lab` is used in both licence files; confirm with the university's IP policy who owns staff-created materials
 - [ ] Whether to move to Workers Paid (US$5/month) at launch, for no daily cut-off and 30-day recovery (§17)
 - [x] Whether ratings appear on non-video pages: no, ratings are per video (§12)
