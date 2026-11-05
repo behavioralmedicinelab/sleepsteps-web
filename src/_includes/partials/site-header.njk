@@ -1,0 +1,79 @@
+{#-
+  SiteHeader and MobileHeader (HANDOFF §5; boards SiteHeader.dc.html and
+  PhoneHeader.dc.html). One banner landmark holds both variants; CSS shows the
+  desktop bar from 600px and the phone bar below it, so only one copy of each
+  landmark is ever exposed.
+
+  The current nav item comes from page.url (aria-current="page", or "true" on
+  pages inside the Sleep problems section).
+
+  Phone menu: a native <details>/<summary>, so it opens with JavaScript off.
+  src/js/menu.js upgrades it to a <button aria-expanded aria-controls> with
+  Escape-to-close.
+
+  Both search forms submit GET /search/?q=... (SPEC §8.1). `data-site-search`
+  is the hook for the M2 search module.
+-#}
+{%- from "partials/icons.njk" import icon -%}
+{%- from "partials/topic-nav.njk" import topicNav -%}
+{%- set topicAreas = collections.problems | groupByArea(areas) -%}
+<header class="site-header">
+  <div class="site-header__desktop">
+    <div class="site-header__inner container">
+      <a class="site-logo" href="/"><img src="/img/sleepsteps-logo.svg" alt="SleepSteps home" width="91" height="68"></a>
+      <nav class="site-nav" aria-label="Main">
+        <ul class="site-nav__list" role="list">
+          {%- for item in [
+            { href: '/start/', label: 'Start here' },
+            { href: '/problems/', label: 'Sleep problems' },
+            { href: '/about/', label: 'About' },
+            { href: '/contact/', label: 'Contact' }
+          ] %}
+          <li><a class="site-nav__link" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href, 'section') | safe }}>{{ item.label }}</a></li>
+          {%- endfor %}
+        </ul>
+      </nav>
+      <form class="header-search" role="search" action="/search/" method="get">
+        <label class="visually-hidden" for="site-q">Search sleep problems</label>
+        <input class="header-search__input" id="site-q" name="q" type="search" placeholder="Search sleep problems" autocomplete="off" enterkeyhint="search" data-site-search>
+        <button class="header-search__submit" type="submit">{{ icon('search', 18) }}<span class="visually-hidden">Search</span></button>
+      </form>
+      <a class="site-header__urgent" href="/urgent-help/">Get urgent help</a>
+    </div>
+  </div>
+
+  <div class="mobile-header">
+    <div class="mobile-header__bar">
+      <a class="site-logo site-logo--phone" href="/"><img src="/img/sleepsteps-logo.svg" alt="SleepSteps home" width="75" height="56"></a>
+    </div>
+    <details class="mobile-menu" data-mobile-menu>
+      <summary class="mobile-menu__toggle">
+        <span class="mobile-menu__toggle-inner">
+          {{- icon('menu', 18, 'mobile-menu__icon when-closed') -}}
+          {{- icon('close', 18, 'mobile-menu__icon when-open') -}}
+          <span class="when-closed">Menu</span><span class="when-open">Close</span>
+        </span>
+      </summary>
+      <div class="mobile-menu__panel" id="mobile-menu-panel">
+        <form class="mobile-search" role="search" action="/search/" method="get">
+          <label class="mobile-search__label" for="ph-q">Search sleep problems</label>
+          <input class="mobile-search__input" id="ph-q" name="q" type="search" placeholder="e.g. waking too early" autocomplete="off" enterkeyhint="search" data-site-search>
+        </form>
+        <nav class="mobile-nav" aria-label="Main">
+          <ul class="mobile-nav__grid" role="list">
+            {%- for item in [
+              { href: '/problems/', label: 'Sleep problems', primary: true },
+              { href: '/start/', label: 'Start here' },
+              { href: '/about/', label: 'About' },
+              { href: '/contact/', label: 'Contact' }
+            ] %}
+            <li><a class="mobile-nav__link{% if item.primary %} mobile-nav__link--primary{% endif %}" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href, 'section') | safe }}>{{ item.label }}</a></li>
+            {%- endfor %}
+          </ul>
+        </nav>
+        {{ topicNav(topicAreas, page_id, area, chapters, 'm-', page.url) }}
+        <a class="mobile-menu__urgent" href="/urgent-help/">Get urgent help</a>
+      </div>
+    </details>
+  </div>
+</header>

@@ -1,4 +1,21 @@
-/* Minimal base styles. Visual design is an open decision (SPEC §21). */
+/*
+ * SleepSteps site styles: base, shell components and page layouts
+ * (SPEC §7.5; docs/design/HANDOFF.md §4-§6, §10, §11).
+ *
+ * Values come from tokens.css. No colour literals here (a test enforces it).
+ * Mobile first: the base rules are for phones; `min-width: 37.5em` (600px)
+ * switches to the desktop header and wider spacing. Two-column layouts stack
+ * through flex-wrap alone, below about 900px (HANDOFF §11).
+ *
+ * Contents
+ *   1. Base            6. Footer             11. Problem page (stub)
+ *   2. Utilities       7. Title band, arc    12. Sleep problems list (stub)
+ *   3. Desktop header  8. Page layouts       13. Start here (stub)
+ *   4. Phone header    9. Information pages  14. Urgent help shell
+ *   5. TopicNav       10. Shared blocks      15. Motion, forced colours, print
+ */
+
+/* 1. Base ------------------------------------------------------------------ */
 
 *,
 *::before,
@@ -6,27 +23,1297 @@
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  line-height: 1.6;
-  color: #1a1a1a;
-  background: #fff;
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-.site-header,
-main,
-.site-footer {
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 1rem;
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+dl,
+dd,
+figure,
+blockquote {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-regular);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+img {
+  height: auto;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--deep-teal);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--night-teal);
+}
+
+/* One focus style everywhere: a 2px ring with a 2px offset, deep-teal on
+   light grounds and paper on teal or ink (set --focus-colour). The two
+   exceptions, the urgent notice and the header search input, are in
+   SPEC §7.5. */
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus-colour);
+  outline-offset: var(--focus-offset);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* 2. Utilities ------------------------------------------------------------- */
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: calc(-1 * var(--border-width));
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .skip-link {
   position: absolute;
-  left: -9999px;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid var(--deep-teal);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--deep-teal);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
 }
 
-.skip-link:focus {
-  position: static;
+.skip-link:not(:focus) {
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Page container. Widths match the boards' content-box max-widths: 1200px by
+   default, 1280px (page--medium) or 1360px (page--wide), plus gutters. */
+.container {
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.page--medium {
+  --content-max: var(--content-max-medium);
+}
+
+.page--wide {
+  --content-max: var(--content-max-wide);
+}
+
+.eyebrow {
+  font-size: var(--fs-eyebrow);
+  line-height: var(--lh-eyebrow);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--deep-teal);
+}
+
+/* Placeholder copy awaiting content or a later milestone. */
+.placeholder {
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width) dashed var(--slate-grey);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--slate-grey);
+}
+
+.link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-7);
+  padding: 0;
+  list-style: none;
+}
+
+.link-list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  font-weight: var(--weight-semibold);
+}
+
+/* 3. Desktop header (SiteHeader; 600px and up) ----------------------------- */
+
+.site-header__desktop {
+  display: none;
+  background: var(--white);
+  border-bottom: var(--border-width) solid var(--keyline);
+}
+
+.site-header__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+  padding-block: var(--space-4);
+}
+
+.site-logo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  text-decoration: none;
+}
+
+.site-logo img {
+  display: block;
+  width: auto;
+  max-width: none;
+  height: var(--logo-height);
+}
+
+.site-logo--phone img {
+  height: var(--logo-height-phone);
+}
+
+.site-nav {
+  flex: 1 1 auto;
+}
+
+.site-nav__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-8);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+.site-nav__link {
+  display: inline-block;
+  min-width: var(--target-min);
+  padding-block: var(--space-4);
+  color: var(--ink);
+  text-align: center;
+  text-decoration: none;
+}
+
+.site-nav__link:hover {
+  color: var(--deep-teal);
+}
+
+/* The current item: deep-teal with a 2px underline at the bottom of the 44px
+   box. A border (not the board's inset shadow) survives forced colours. */
+.site-nav__link[aria-current] {
+  padding-bottom: calc(var(--space-4) - var(--current-underline));
+  border-bottom: var(--current-underline) solid var(--deep-teal);
+  color: var(--deep-teal);
+}
+
+.header-search {
+  display: flex;
+  align-items: stretch;
+}
+
+.header-search__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--header-search-width);
+  min-height: var(--target-min);
+  margin: 0;
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--slate-grey);
+  border-right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}
+
+/* The input is joined to its deep-teal submit button, so its ring is drawn
+   just inside its own box: at the usual 2px offset the ring's right side
+   would lie on the button and disappear (SPEC §7.5). */
+.header-search__input:focus-visible {
+  outline-offset: calc(-1 * (var(--focus-width) + var(--border-width)));
+}
+
+.header-search__submit {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--target-min);
+  min-height: var(--target-min);
+  margin: 0;
+  padding: 0;
+  /* Transparent border so the button keeps an edge in forced colours. */
+  border: var(--border-width) solid transparent;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--deep-teal);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.header-search__submit:hover {
+  background: var(--night-teal);
+}
+
+.site-header__urgent {
+  display: inline-block;
+  padding-block: var(--space-4);
+  color: var(--clay-deep);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+.site-header__urgent:hover {
+  color: var(--clay-deep);
+  text-decoration-thickness: 2px;
+}
+
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+input::placeholder {
+  color: var(--slate-grey);
+  opacity: 1;
+}
+
+/* 4. Phone header (MobileHeader; below 600px) ------------------------------ */
+
+.mobile-header {
+  position: relative;
+}
+
+.mobile-header__bar {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--gutter);
+  background: var(--white);
+  border-bottom: var(--border-width) solid var(--keyline);
+}
+
+/* The toggle is a <summary> (no JavaScript) or, after src/js/menu.js runs, a
+   <button>. It is placed in the bar, vertically centred on the 56px logo; the
+   panel below it stays in the page flow and pushes the page down, so it
+   never covers focused content. The summary's display is left alone: some
+   browsers drop its button semantics when display is changed. */
+.mobile-menu__toggle {
+  position: absolute;
+  top: calc(var(--space-3) + (var(--logo-height-phone) - var(--target-min)) / 2);
+  right: var(--gutter);
+  min-height: var(--target-min);
+  margin: 0;
+  padding: 0 var(--space-5);
+  border: var(--border-width) solid var(--deep-teal);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--deep-teal);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  list-style: none;
+  cursor: pointer;
+}
+
+.mobile-menu__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.mobile-menu__toggle:hover {
+  background: var(--teal-wash);
+}
+
+.mobile-menu__toggle-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--target-min) - 2 * var(--border-width));
+}
+
+details.mobile-menu:not([open]) > summary .when-open,
+details.mobile-menu[open] > summary .when-closed,
+.mobile-menu__toggle[aria-expanded="false"] .when-open,
+.mobile-menu__toggle[aria-expanded="true"] .when-closed {
+  display: none;
+}
+
+.mobile-menu__icon {
+  flex: none;
+}
+
+.mobile-menu__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  background: var(--paper);
+  border-bottom: var(--border-width) solid var(--keyline);
+}
+
+.mobile-search__label {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+/* 17px text: iOS zooms the page when an input under 16px gets focus. */
+.mobile-search__input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: var(--target-lg);
+  margin: 0;
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--slate-grey);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+}
+
+.mobile-nav__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.mobile-nav__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: var(--target-lg);
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--deep-teal);
+  border-radius: var(--radius-sm);
+  color: var(--deep-teal);
+  font-weight: var(--weight-semibold);
+  text-align: center;
+  text-decoration: none;
+}
+
+.mobile-nav__link:hover {
+  background: var(--teal-wash);
+  color: var(--deep-teal);
+}
+
+/* "Sleep problems" is always filled: emphasis, not the current page. */
+.mobile-nav__link--primary {
+  background: var(--deep-teal);
+  color: var(--paper);
+}
+
+.mobile-nav__link--primary:hover {
+  border-color: var(--night-teal);
+  background: var(--night-teal);
+  color: var(--paper);
+}
+
+.mobile-nav__link[aria-current] {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.mobile-menu__urgent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-lg);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--clay-wash);
+  color: var(--clay-deep);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.mobile-menu__urgent:hover {
+  color: var(--clay-deep);
+  text-decoration: underline;
+}
+
+@media (min-width: 37.5em) {
+  .site-header__desktop {
+    display: block;
+  }
+
+  .mobile-header {
+    display: none;
+  }
+}
+
+/* 5. TopicNav (HANDOFF §5; board TopicNav.dc.html) ------------------------- */
+
+.topic-nav {
+  /* Problem and chapter links line up with the area names:
+     16px padding + 16px chevron + 8px gap. */
+  --topic-indent: calc(var(--space-5) + var(--icon-sm) + var(--space-3));
+  width: 100%;
+  padding-block: var(--space-4);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}
+
+.topic-nav ul,
+.topic-nav ol {
+  padding: 0;
+  list-style: none;
+}
+
+.topic-nav__section + .topic-nav__section {
+  margin-top: var(--space-3);
+  border-top: var(--border-width) solid var(--keyline);
+}
+
+.topic-nav__label {
+  margin: var(--space-3) var(--space-5);
+  font-size: var(--fs-eyebrow);
+  line-height: var(--lh-eyebrow);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--deep-teal);
+}
+
+.topic-nav__section + .topic-nav__section .topic-nav__label {
+  margin-top: var(--space-4);
+}
+
+.topic-nav__start {
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding-inline: var(--space-5);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.topic-nav__link {
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: var(--space-3) var(--space-5) var(--space-3) var(--topic-indent);
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.topic-nav__start:hover,
+.topic-nav__link:hover,
+.topic-nav__toggle:hover {
+  background: var(--teal-wash);
+  color: var(--ink);
+}
+
+/* Current item: teal-wash, night-teal, and a 3px deep-teal bar. The bar is a
+   border on the current item only, so it shows in forced colours. */
+.topic-nav__start[aria-current],
+.topic-nav__link[aria-current] {
+  border-inline-start: var(--current-bar) solid var(--deep-teal);
+  background: var(--teal-wash);
+  color: var(--night-teal);
+  font-weight: var(--weight-semibold);
+}
+
+.topic-nav__start[aria-current] {
+  padding-inline-start: calc(var(--space-5) - var(--current-bar));
+}
+
+.topic-nav__link[aria-current] {
+  padding-inline-start: calc(var(--topic-indent) - var(--current-bar));
+}
+
+.topic-nav__toggle {
+  padding-inline: var(--space-5);
+  list-style: none;
+  cursor: pointer;
+}
+
+.topic-nav__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.topic-nav__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--target-min);
+  padding-block: var(--space-3);
+}
+
+.topic-nav__chevron {
+  flex: none;
+  color: var(--deep-teal);
+}
+
+.topic-nav__area[open] > .topic-nav__toggle .topic-nav__chevron {
+  transform: rotate(90deg);
+}
+
+.topic-nav__area-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.topic-nav__count {
+  flex: none;
+  color: var(--slate-grey);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+.topic-nav__problems {
+  margin-bottom: var(--space-2);
+}
+
+.topic-nav .topic-nav__info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+  padding: var(--space-3) var(--space-5) var(--space-1);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+.topic-nav__info a {
+  display: inline-flex;
+  align-items: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  color: var(--deep-teal);
+}
+
+.topic-nav__info a:hover {
+  color: var(--night-teal);
+}
+
+.topic-nav__info a[aria-current] {
+  font-weight: var(--weight-semibold);
+}
+
+/* 6. Footer (SiteFooter; board SiteFooter.dc.html) ------------------------- */
+
+.site-footer {
+  --focus-colour: var(--paper);
+  margin-top: auto;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.site-footer__inner {
+  padding-block: var(--space-9) var(--space-8);
+}
+
+.site-footer__top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-8) var(--space-10);
+}
+
+.site-footer__about {
+  flex: 2 1 300px;
+}
+
+.site-footer__name {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-medium);
+}
+
+.site-footer__tagline {
+  max-width: 380px;
+}
+
+.site-footer__col {
+  flex: 1 1 180px;
+}
+
+.site-footer ul {
+  padding: 0;
+  list-style: none;
+}
+
+/* Links are 28px text + 2 x 8px padding = 44px targets. */
+.site-footer a,
+.site-footer__feedback {
+  display: inline-flex;
+  align-items: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding-block: var(--space-3);
+  color: var(--paper);
+}
+
+.site-footer a:hover,
+.site-footer__feedback:hover {
+  color: var(--paper);
+  text-decoration-thickness: 2px;
+}
+
+/* M5 swaps the "Send feedback" link for a <button>; it must look the same. */
+button.site-footer__feedback {
+  margin: 0;
+  padding-inline: 0;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.site-footer__urgent {
+  font-weight: var(--weight-semibold);
+}
+
+.site-footer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-8);
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--slate-grey);
+}
+
+/* 7. Title band and settling arc ------------------------------------------ */
+
+/* Teal grounds: paper text and a paper focus ring. */
+.on-dark {
+  --focus-colour: var(--paper);
+  background: var(--deep-teal);
+  color: var(--paper);
+}
+
+.on-dark a,
+.on-dark a:hover {
+  color: var(--paper);
+}
+
+.on-dark a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.band__inner {
+  padding-block: var(--space-8) var(--space-7);
+}
+
+.band__eyebrow {
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-eyebrow);
+  line-height: var(--lh-eyebrow);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.band__title {
+  font-size: var(--fs-display-phone);
+  line-height: var(--lh-display-phone);
+  letter-spacing: var(--tracking-heading);
+  overflow-wrap: break-word;
+}
+
+.band__lede {
+  max-width: var(--measure);
+  margin-top: var(--space-4);
+  font-weight: var(--weight-light);
+}
+
+/* Hero variant (About): lede beside the H1, arc at the base. */
+.band--hero {
+  --arc-height: 40px;
+  position: relative;
+}
+
+.band__inner--split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5) var(--space-9);
+  padding-block: var(--space-9) calc(var(--space-7) + var(--arc-height));
+}
+
+.band__main {
+  flex: 3 1 520px;
+  min-width: 0;
+}
+
+.band__aside {
+  flex: 2 1 320px;
+  max-width: none;
+  margin-top: 0;
+}
+
+.band--hero .band__eyebrow {
+  margin-bottom: var(--space-4);
+}
+
+.arc {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: var(--arc-height, 40px);
+  pointer-events: none;
+}
+
+.arc path {
+  fill: var(--arc-fill, var(--paper));
+}
+
+@media (min-width: 37.5em) {
+  .band__inner {
+    padding-block: var(--space-10) var(--space-9);
+  }
+
+  .band__eyebrow {
+    margin-bottom: var(--space-4);
+  }
+
+  .band__title {
+    font-size: var(--fs-display-interior);
+    line-height: var(--lh-display);
+  }
+
+  .band__lede {
+    font-size: var(--fs-lede);
+    line-height: var(--lh-lede);
+  }
+
+  .band--hero {
+    --arc-height: 80px;
+  }
+
+  .band__inner--split {
+    padding-block: var(--space-11) var(--space-14);
+  }
+}
+
+/* 8. Page layouts ---------------------------------------------------------- */
+
+.page-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding-block: var(--space-8) var(--space-12);
+}
+
+/* TopicNav beside the content (problem pages, Start here). Below 600px the
+   sidebar is hidden: TopicNav is in the Menu panel instead, and only one
+   "All topics" landmark is ever exposed. */
+.with-sidebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-8);
+  padding-block: var(--space-4) var(--space-12);
+}
+
+.with-sidebar__side {
+  display: none;
+  flex: 1 1 280px;
+  max-width: 320px;
+}
+
+.with-sidebar__main {
+  flex: 999 1 600px;
+  min-width: 0;
+}
+
+.with-sidebar--roomy {
+  gap: var(--space-9);
+}
+
+.with-sidebar--roomy > .with-sidebar__side {
+  flex-basis: 260px;
+  max-width: 300px;
+}
+
+.with-sidebar--roomy > .with-sidebar__main {
+  flex-basis: 560px;
+}
+
+@media (min-width: 37.5em) {
+  .page-body {
+    padding-block: var(--space-9) var(--space-12);
+  }
+
+  .with-sidebar {
+    padding-block: var(--space-8) var(--space-13);
+  }
+
+  .with-sidebar--roomy {
+    padding-top: var(--space-9);
+  }
+
+  .with-sidebar__side {
+    display: block;
+  }
+}
+
+/* 9. Information pages ----------------------------------------------------- */
+
+.info-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-9);
+  padding-block: var(--space-8) var(--space-12);
+}
+
+.info-page--hero .info-layout {
+  padding-top: var(--space-7);
+}
+
+.info-nav {
+  flex: 1 1 240px;
+  padding-block: var(--space-3);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  line-height: var(--lh-snug);
+}
+
+.info-nav ul {
+  padding: 0;
+  list-style: none;
+}
+
+.info-nav a {
+  display: block;
+  padding: var(--space-4) var(--space-6);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.info-nav a:hover {
+  background: var(--teal-wash);
+  color: var(--ink);
+}
+
+.info-nav a[aria-current="page"] {
+  padding-inline-start: calc(var(--space-6) - var(--current-bar));
+  border-inline-start: var(--current-bar) solid var(--deep-teal);
+  background: var(--teal-wash);
+  color: var(--night-teal);
+  font-weight: var(--weight-semibold);
+}
+
+.info-nav .info-nav__urgent,
+.info-nav .info-nav__urgent:hover {
+  color: var(--clay-deep);
+  font-weight: var(--weight-semibold);
+}
+
+.info-nav .info-nav__urgent:hover {
+  background: var(--clay-wash);
+}
+
+.info-body {
+  display: flex;
+  flex: 999 1 560px;
+  flex-direction: column;
+  gap: var(--space-9);
+  min-width: 0;
+}
+
+/* Default content styles. Pages refine them in their own stylesheet. */
+.info-body h2 {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  letter-spacing: var(--tracking-heading);
+  color: var(--night-teal);
+}
+
+.info-body h3 {
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+}
+
+.info-body section > * + * {
+  margin-top: var(--space-4);
+}
+
+.info-body :is(ul, ol):not([role="list"]) {
+  padding-inline-start: var(--space-7);
+}
+
+.info-body :is(ul, ol):not([role="list"]) > li + li {
+  margin-top: var(--space-2);
+}
+
+@media (min-width: 37.5em) {
+  .info-layout {
+    padding-top: var(--space-9);
+  }
+
+  .info-nav {
+    max-width: 280px;
+  }
+}
+
+/* 10. Shared blocks -------------------------------------------------------- */
+
+.card {
+  padding: var(--space-7);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.panel {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.panel--wash {
+  background: var(--teal-wash);
+}
+
+/* Urgent-help notice: clay-deep on clay-wash, the only pair tokens.json
+   lists for that ground, so its focus ring is clay-deep too, not the usual
+   deep-teal (SPEC §7.5). */
+.notice--urgent {
+  --focus-colour: var(--clay-deep);
+  padding: var(--space-6) var(--space-7);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--clay-wash);
+  color: var(--clay-deep);
+}
+
+.notice--urgent a,
+.notice--urgent a:hover {
+  color: var(--clay-deep);
+  font-weight: var(--weight-semibold);
+}
+
+.notice--urgent a:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Links inside a sentence still get a 44px-tall target (SPEC §7.5): the
+   urgent notice, the search page's no-JavaScript route to Sleep problems,
+   and a link set on its own line (.link-standalone). */
+.notice--urgent a,
+.search-fallback a,
+.link-standalone a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.link-standalone a {
+  font-weight: var(--weight-semibold);
+}
+
+/* The SPEC §15.1 notices under ratings and in the feedback dialog. */
+.notice-text {
+  color: var(--slate-grey);
+}
+
+/* 11. Problem page (M1a stub) ---------------------------------------------- */
+
+.problem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0;
+  list-style: none;
+  color: var(--slate-grey);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+}
+
+.breadcrumb a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.breadcrumb__sep {
+  margin-inline: var(--space-2);
+}
+
+.problem__title {
+  font-size: var(--fs-display-phone);
+  line-height: var(--lh-display-phone);
+  letter-spacing: var(--tracking-heading);
+  color: var(--night-teal);
+  overflow-wrap: break-word;
+}
+
+.problem__statement {
+  margin-top: var(--space-3);
+  font-family: var(--font-heading);
+  font-size: var(--fs-lede);
+  font-style: italic;
+  line-height: var(--lh-quote);
+}
+
+@media (min-width: 37.5em) {
+  .problem__title {
+    font-size: var(--fs-display-problem);
+    line-height: var(--lh-display);
+  }
+
+  .problem__statement {
+    font-size: var(--fs-quote-problem);
+  }
+}
+
+/* 12. Sleep problems list (M1a stub; no-JavaScript baseline) --------------- */
+
+.area-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.area-list__area {
+  padding: var(--space-6) var(--space-5);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  scroll-margin-top: var(--space-5);
+}
+
+.area-list__name {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  color: var(--night-teal);
+}
+
+.area-list__description {
+  margin-top: var(--space-1);
+  color: var(--slate-grey);
+}
+
+.area-list__problems {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.area-list__link {
+  display: block;
+  height: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.area-list__link:hover {
+  border-color: var(--deep-teal);
+  color: var(--ink);
+}
+
+.area-list__title {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  color: var(--night-teal);
+}
+
+.area-list__statement {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--slate-grey);
+}
+
+@media (min-width: 37.5em) {
+  .area-list__area {
+    padding: var(--space-6) var(--space-7);
+  }
+}
+
+/* 13. Start here (M1a stub) ------------------------------------------------ */
+
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+}
+
+.chapter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  scroll-margin-top: var(--space-5);
+}
+
+.chapter__title {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  letter-spacing: var(--tracking-heading);
+}
+
+/* 14. Getting urgent help: minimal header and column ------------------- */
+
+.minimal-header {
+  background: var(--white);
+  border-bottom: var(--border-width) solid var(--keyline);
+}
+
+.minimal-header__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-8);
+  padding-block: var(--space-3);
+}
+
+.minimal-header .site-logo img {
+  height: var(--logo-height-phone);
+}
+
+.minimal-header__back {
+  display: inline-block;
+  padding-block: var(--space-4);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+/* The page's own content styles are in pages/urgent-help.css. */
+.urgent-page__inner {
+  max-width: calc(880px + 2 * var(--gutter));
+  padding-block: var(--space-8) var(--space-10);
+}
+
+@media (min-width: 37.5em) {
+  .minimal-header__inner {
+    padding-block: var(--space-5);
+  }
+
+  .minimal-header .site-logo img {
+    height: var(--logo-height);
+  }
+
+  .urgent-page__inner {
+    padding-block: var(--space-11) var(--space-13);
+  }
+}
+
+/* 15. Motion, forced colours, print ----------------------------------------- */
+
+/* Motion is limited to short transitions, and only when the user hasn't
+   asked for less (HANDOFF §10). */
+@media (prefers-reduced-motion: no-preference) {
+  .topic-nav__chevron {
+    transition: transform var(--duration);
+  }
+}
+
+@media (forced-colors: active) {
+  /* Forced colours would repaint the arc as a solid block. */
+  .arc {
+    display: none;
+  }
+}
+
+@media print {
+  .skip-link,
+  .site-header,
+  .minimal-header,
+  .site-footer,
+  .with-sidebar__side,
+  .info-nav {
+    display: none;
+  }
 }

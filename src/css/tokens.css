@@ -1,0 +1,137 @@
+/*
+ * SleepSteps design tokens (SPEC §7.5).
+ *
+ * Source: docs/design/reference/tokens.json and docs/design/HANDOFF.md §4.
+ * This is the only stylesheet allowed to contain colour values; everything
+ * else uses these custom properties (a test enforces this).
+ *
+ * Colour pairs: use only the pairs tokens.json lists as passing (HANDOFF §10).
+ * Text on deep-teal or night-teal is paper. keyline is decorative only.
+ */
+
+:root {
+  /* ---- Colour ---------------------------------------------------------- */
+  --deep-teal: #0f6e56;     /* primary; links; focus ring on light grounds */
+  --night-teal: #0a4438;    /* teal-voiced headings; video frame ground */
+  --teal-500: #2e8b72;      /* decorative only */
+  --teal-200: #a8cfc3;      /* decorative only */
+  --teal-wash: #e8f1ed;     /* quiet panels; selected menu item */
+  --warm-clay: #c4714e;     /* fills only (filled stars) */
+  --clay-deep: #8a4a2c;     /* text form of clay: "Get urgent help" */
+  --clay-wash: #f0e4d6;     /* "New" badge, star hover, urgent notices */
+  --sand: #e7d9c4;          /* warm panels */
+  --paper: #fbf9f5;         /* page background; text on teal */
+  --white: #ffffff;         /* cards, header, inputs */
+  --panel: #f6f4ef;         /* notes and disclaimer panels */
+  --ink: #17211e;           /* body text; footer ground */
+  --slate-grey: #5a6b65;    /* secondary text; input borders */
+  --keyline: #dce4e0;       /* 1px decorative borders only */
+  --on-teal-muted: #c8ddd6; /* secondary text on deep-teal, 17px and up */
+  /* Alternate accents from the design system. Not used. */
+  --apricot: #e39b5f;
+  --dusty-rose: #b8656b;
+  --honey: #d8a657;
+
+  /* Focus ring colour. Components on teal or ink grounds set it to paper. */
+  --focus-colour: var(--deep-teal);
+
+  /* ---- Type ------------------------------------------------------------ */
+  /* System font stacks only: no web fonts are loaded (SPEC §7.5, §16.2). */
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-heading: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  /* Sizes are in rem (written as px / 16) so text follows the browser's
+     font-size setting. Token styles from tokens.json: */
+  --fs-display: calc(56rem / 16);          /* display 56/1.1 400, home hero only */
+  --lh-display: 1.1;
+  --fs-section: calc(32rem / 16);          /* section-heading 32/1.2 400 */
+  --lh-section: 1.2;
+  --fs-title: calc(24rem / 16);            /* title 24/1.3 500 */
+  --lh-title: 1.3;
+  --fs-card-title: calc(20rem / 16);       /* card-title 20/1.3 400 */
+  --lh-card-title: 1.3;
+  --fs-quote: calc(24rem / 16);            /* quote 24/1.45 italic */
+  --lh-quote: 1.45;
+  --fs-body: calc(17rem / 16);             /* body 17/28: the minimum for running text */
+  --lh-body: calc(28rem / 16);
+  --fs-label: calc(15rem / 16);            /* label 15/20 600 */
+  --lh-label: calc(20rem / 16);
+  --fs-helper: calc(14rem / 16);           /* helper 14/20 400 */
+  --lh-helper: calc(20rem / 16);
+  --fs-eyebrow: calc(13rem / 16);          /* eyebrow 13/16 600 uppercase 0.1em */
+  --lh-eyebrow: calc(16rem / 16);
+  --tracking-eyebrow: 0.1em;
+  --tracking-heading: -0.01em;
+
+  /* Type values from HANDOFF §4/§6 and the boards, not in tokens.json: */
+  --fs-display-interior: calc(48rem / 16); /* interior page H1 (HANDOFF: 44-48) */
+  --fs-display-problem: calc(44rem / 16);  /* problem page H1 (HANDOFF §6.4) */
+  --fs-display-phone: calc(34rem / 16);    /* H1 below 600px (phone boards) */
+  --lh-display-phone: 1.12;
+  --fs-quote-problem: calc(22rem / 16);    /* problem statement (HANDOFF §6.4) */
+  --fs-lede: calc(19rem / 16);             /* body-light at 19/30 (HANDOFF: 17-19) */
+  --lh-lede: calc(30rem / 16);
+  --lh-snug: calc(22rem / 16);             /* menu rows in the boards */
+
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---- Spacing ----------------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+  /* Layout steps above the token scale, for page padding and section gaps.
+     Board values off the scale snap up to the next step (SPEC §7.5). */
+  --space-9: 40px;
+  --space-10: 48px;
+  --space-11: 56px;
+  --space-12: 64px;
+  --space-13: 72px;
+  --space-14: 96px;
+
+  /* ---- Radius ------------------------------------------------------------ */
+  --radius-xs: 4px;     /* duration badges */
+  --radius-sm: 6px;     /* buttons and inputs */
+  --radius-md: 8px;     /* cards, panels, video frames */
+  --radius-lane: 24px;  /* time-of-night lane header top corners */
+  --radius-pill: 999px; /* chips and pills */
+
+  /* ---- Shadow ------------------------------------------------------------ */
+  --shadow-hover: 0 0 0 1px #dce4e0, 0 6px 20px rgba(15, 110, 86, 0.12); /* hover only */
+
+  /* ---- Sizes and layout (not design tokens; defined once here) ----------- */
+  --target-min: 44px;        /* minimum touch target */
+  --target-lg: 48px;         /* phone menu buttons and inputs */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --border-width: 1px;
+  --current-bar: 3px;        /* left bar on the current menu item */
+  --current-underline: 2px;  /* underline on the current header link */
+  --logo-height: 68px;       /* HANDOFF §4: 68px desktop, 56px phones */
+  --logo-height-phone: 56px;
+  --icon-sm: 16px;
+  --icon-md: 18px;
+  --header-search-width: 220px;
+
+  --gutter: 16px;            /* page side gutter: 16px on phones, 24px from 600px */
+  --content-max: 1200px;     /* page width: 1200 default, set per page */
+  --content-max-medium: 1280px;
+  --content-max-wide: 1360px;
+  --measure: 640px;          /* lede line length */
+
+  /* Motion: fades and expand/collapse only, 120-320ms (HANDOFF §10). */
+  --duration: 200ms;
+}
+
+@media (min-width: 37.5em) {
+  :root {
+    --gutter: 24px;
+  }
+}

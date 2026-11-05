@@ -1,0 +1,169 @@
+/*
+ * About SleepSteps (/about/): SPEC §7.4, §7.5; HANDOFF §6.5; board
+ * Info-About.dc.html. Loaded through `styles` front matter in
+ * content/pages/about.md. Values come from tokens.css; board spacing off the
+ * token scale snaps up to the next step (SPEC §7.5), and the board's 15px
+ * running text is 17px body.
+ *
+ * The hero band and settling arc, the layout, the side menu, section
+ * headings and cards come from site.css (§7, §9 and §10).
+ */
+
+.info-body--about {
+  gap: var(--space-10); /* board 48 */
+}
+
+/* "Why we made SleepSteps" */
+.about-why {
+  max-width: 720px; /* reading measure (board) */
+}
+
+.info-body--about .about-why p + p {
+  margin-top: var(--space-5); /* board 14 */
+}
+
+/* Lived-experience quote on sand: ink text only (slate-grey fails on sand). */
+.about-quote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6) var(--space-8);
+  padding: var(--space-7);
+  /* Transparent border: the panel keeps its edge in forced colours. */
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--sand);
+  color: var(--ink);
+}
+
+.about-quote__text {
+  flex: 3 1 420px;
+  min-width: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-quote);
+  line-height: var(--lh-quote);
+  font-style: italic;
+}
+
+.about-quote__caption {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+/* "Who we are" */
+.info-body--about .about-intro {
+  max-width: var(--measure);
+  margin-top: var(--space-2); /* board 6 */
+  color: var(--slate-grey);
+}
+
+.info-body--about .about-team {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+  padding: 0;
+  list-style: none;
+}
+
+/* Nothing inside a team card can take focus, so overflow can be clipped to
+   round the photo's top corners. */
+.info-body--about .about-person {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Placeholder until there are photos: a 4:3 block cycling teal-wash, sand
+   and panel (the board's colour cycle), hidden from screen readers. */
+.about-person__photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  background: var(--teal-wash);
+  color: var(--ink);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+.about-person:nth-child(3n + 2) .about-person__photo {
+  background: var(--sand);
+}
+
+.about-person:nth-child(3n) .about-person__photo {
+  background: var(--panel);
+}
+
+.about-person__body {
+  padding: var(--space-5); /* board 14 x 16 */
+}
+
+.info-body--about .about-person__name {
+  color: var(--ink);
+}
+
+/* The role is metadata under the name: helper size. */
+.about-person__role {
+  margin-top: var(--space-1);
+  color: var(--slate-grey);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+/* "About the trial": a card with a panel title (the title token). */
+.info-body--about .about-trial {
+  padding: var(--space-7);
+}
+
+.info-body--about .about-trial h2 {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--weight-medium);
+}
+
+.info-body--about .about-facts {
+  margin-top: var(--space-5); /* board 14 */
+}
+
+.about-facts dt {
+  font-weight: var(--weight-semibold);
+}
+
+.about-facts dd + dt {
+  margin-top: var(--space-4);
+}
+
+/* The links are 44px tall, which adds about 8px above the text, so the
+   margin is 12px for the board's 18px gap. */
+.info-body--about .about-trial__links {
+  margin-top: var(--space-4);
+}
+
+.about-trial__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  font-weight: var(--weight-semibold);
+}
+
+@media (min-width: 37.5em) {
+  .about-quote {
+    padding: var(--space-8) var(--space-9); /* board 32 x 36 */
+  }
+
+  .info-body--about .about-trial {
+    padding: var(--space-8); /* board 28 x 32 */
+  }
+
+  /* Term beside its description once there is room (at 320px the
+     description column would be about 24px wide). */
+  .about-facts {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) 1fr;
+    gap: var(--space-4) var(--space-7);
+  }
+
+  .about-facts dd + dt {
+    margin-top: 0;
+  }
+}

@@ -1,0 +1,47 @@
+{#-
+  SiteFooter (HANDOFF §5, board SiteFooter.dc.html). Shown on every page
+  except Getting urgent help (`footer: false`).
+
+  "Send feedback" (SPEC §13) appears when features.feedback is on. Until the
+  feedback dialog lands (M5) it links to the Contact page, which stays its
+  fallback when JavaScript is off or the dialog's script fails.
+
+  Secondary text is paper rather than the board's on-teal-muted: tokens.json
+  lists on-teal-muted only on deep-teal and night-teal, not on ink.
+-#}
+<footer class="site-footer">
+  <div class="site-footer__inner container">
+    <div class="site-footer__top">
+      <div class="site-footer__about">
+        <p class="site-footer__name">{{ site.siteName }}</p>
+        <p class="site-footer__tagline">Short videos and practical ideas for sleep during and after cancer. SleepSteps does not replace care from your treating team.</p>
+      </div>
+      <nav class="site-footer__col" aria-label="Footer">
+        <ul role="list">
+          {%- for item in [
+            { href: '/start/', label: 'Start here' },
+            { href: '/problems/', label: 'Sleep problems' },
+            { href: '/about/', label: 'About' },
+            { href: '/contact/', label: 'Contact' }
+          ] %}
+          <li><a href="{{ item.href }}"{{ page.url | ariaCurrent(item.href) | safe }}>{{ item.label }}</a></li>
+          {%- endfor %}
+          {%- if site.features.feedback %}
+          <li><a class="site-footer__feedback" href="/contact/" data-feedback-trigger>Send feedback</a></li>
+          {%- endif %}
+        </ul>
+      </nav>
+      <nav class="site-footer__col" aria-label="Help and policies">
+        <ul role="list">
+          <li><a href="/help/"{{ page.url | ariaCurrent('/help/') | safe }}>Getting more help</a></li>
+          <li><a href="/privacy/"{{ page.url | ariaCurrent('/privacy/') | safe }}>Privacy and your data</a></li>
+          <li><a class="site-footer__urgent" href="/urgent-help/">Get urgent help</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="site-footer__meta">
+      <p>[Acknowledgement of Country]</p>
+      <p>[Trial registration number] <span aria-hidden="true">·</span> [Ethics approval number]</p>
+    </div>
+  </div>
+</footer>

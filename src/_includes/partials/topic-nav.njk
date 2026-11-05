@@ -1,0 +1,72 @@
+{#-
+  TopicNav (HANDOFF §5, board TopicNav.dc.html): the "All topics" side menu.
+
+  Used twice from one source: as the sidebar on Start here and problem pages
+  (600px and up) and inside the phone Menu panel (below 600px). CSS shows one
+  copy at a time, so only one "All topics" landmark is exposed.
+
+  Areas are native <details>/<summary> disclosures: they open and close by
+  mouse, touch, Enter and Space with JavaScript off, the browser exposes the
+  expanded state, and the current problem's area is rendered open on the
+  server, so nothing shifts on load (SPEC §2, §11). Several areas can be open
+  at once, so the <details> have no `name`.
+
+  Arguments:
+    areas        the `collections.problems | groupByArea(areas)` list
+    current      the page's page_id ('start', a problem slug, or anything else)
+    currentArea  the current problem's area_id (opens that area)
+    chapters     Start here chapters [{ title }], linked as #v1, #v2, ...
+    idPrefix     keeps ids unique between the two copies ('s-', 'm-')
+    pageUrl      page.url, for aria-current on the info links
+-#}
+{%- from "partials/icons.njk" import icon -%}
+{%- macro topicNav(areas, current='', currentArea='', chapters=[], idPrefix='', pageUrl='') -%}
+<nav class="topic-nav" aria-label="All topics">
+  <div class="topic-nav__section">
+    <p class="topic-nav__label">Start here</p>
+    <a class="topic-nav__start" href="/start/"{% if current == 'start' %} aria-current="page"{% endif %}>Introduction videos</a>
+    {%- if current == 'start' and chapters and chapters.length %}
+    <ol class="topic-nav__chapters" role="list">
+      {%- for chapter in chapters %}
+      <li><a class="topic-nav__link" href="#v{{ loop.index }}">{{ loop.index }}. {{ chapter.title }}</a></li>
+      {%- endfor %}
+    </ol>
+    {%- endif %}
+  </div>
+  <div class="topic-nav__section">
+    <p class="topic-nav__label" id="{{ idPrefix }}topic-nav-problems">Sleep problems</p>
+    <ul class="topic-nav__areas" role="list" aria-labelledby="{{ idPrefix }}topic-nav-problems">
+      {%- for area in areas %}
+      {%- set count = area.problems.length %}
+      <li>
+        <details class="topic-nav__area"{% if area.area_id == currentArea %} open{% endif %}>
+          <summary class="topic-nav__toggle">
+            <span class="topic-nav__row">
+              {{- icon('chevron-right', 16, 'topic-nav__chevron') -}}
+              <span class="topic-nav__area-name">{{ area.name }}</span>
+              <span class="topic-nav__count">{{ count }}<span class="visually-hidden"> {{ 'topic' if count == 1 else 'topics' }}</span></span>
+            </span>
+          </summary>
+          <ul class="topic-nav__problems" role="list">
+            {%- for problem in area.problems %}
+            <li><a class="topic-nav__link" href="{{ problem.url }}"{% if problem.slug == current %} aria-current="page"{% endif %}>{{ problem.title }}</a></li>
+            {%- endfor %}
+          </ul>
+        </details>
+      </li>
+      {%- endfor %}
+    </ul>
+  </div>
+  <div class="topic-nav__section">
+    <ul class="topic-nav__info" role="list">
+      {%- for item in [
+        { href: '/help/', label: 'Getting more help' },
+        { href: '/about/', label: 'About' },
+        { href: '/contact/', label: 'Contact' }
+      ] %}
+      <li><a href="{{ item.href }}"{% if pageUrl == item.href %} aria-current="page"{% endif %}>{{ item.label }}</a></li>
+      {%- endfor %}
+    </ul>
+  </div>
+</nav>
+{%- endmacro -%}

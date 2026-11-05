@@ -1,0 +1,30 @@
+---
+layout: layouts/page.njk
+page_id: problems
+page_width: medium
+title: Sleep problems
+band: standard
+eyebrow: Step 2
+heading: What's keeping you up?
+summary: Open an area to see its topics, or search in your own words. Choose as many as sound like you.
+---
+{#-
+  Sleep problems (SPEC §7.2; HANDOFF §6.3). M1a stub: every problem, grouped
+  by area, as plain lists. This is the no-JavaScript baseline; M1b adds the
+  accordion, the "When it happens" view and the live filter. Area sections
+  have ids, so /problems/#core links to an area.
+-#}
+{%- set topicAreas = collections.problems | groupByArea(areas) -%}
+<div class="area-list">
+  {%- for area in topicAreas %}
+  <section class="area-list__area" id="{{ area.area_id }}">
+    <h2 class="area-list__name">{{ area.name }}</h2>
+    <p class="area-list__description">{{ area.description }}</p>
+    <ul class="area-list__problems" role="list">
+      {%- for problem in area.problems %}
+      <li><a class="area-list__link" href="{{ problem.url }}"><span class="area-list__title">{{ problem.title }}</span> <span class="area-list__statement">{{ problem.statement }}</span></a></li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endfor %}
+</div>
