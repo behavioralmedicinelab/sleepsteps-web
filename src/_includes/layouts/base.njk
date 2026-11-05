@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if title %}{{ title }} | {% endif %}{{ site.siteName }}</title>
+  {% if summary %}<meta name="description" content="{{ summary }}">{% endif %}
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body{% if page_id %} data-page-id="{{ page_id }}"{% endif %}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a href="/" class="site-name">{{ site.siteName }}</a>
+  </header>
+  <main id="main">
+    {{ content | safe }}
+  </main>
+  <footer class="site-footer">
+    <p>{{ site.siteName }}</p>
+  </footer>
+</body>
+</html>

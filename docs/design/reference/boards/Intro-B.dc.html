@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Introduction videos · Chapters on one page</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>
+body{margin:0;background:#fbf9f5}
+a{color:#0f6e56}a:hover{color:#0a4438}
+a:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid #0f6e56;outline-offset:2px}
+.star{background:transparent;border:0;padding:2px;width:40px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer}
+.star:hover{background:#f0e4d6}
+.jump:hover{background:#e8f1ed}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#fbf9f5;color:#17211e;font-family:'Source Sans 3',system-ui,sans-serif;font-size:17px;line-height:28px">
+
+<dc-import name="SiteHeader" current="start" max-width="1280" hint-size="100%,93px"></dc-import>
+
+<section style="background:#0f6e56;color:#fbf9f5">
+<div style="max-width:1280px;margin:0 auto;padding:48px 24px 40px">
+<p style="margin:0 0 12px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase">Start here</p>
+<h1 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:48px;line-height:1.1;letter-spacing:-0.01em">The introduction</h1>
+<p style="margin:14px 0 24px;font-weight:300;font-size:19px;line-height:30px;max-width:640px">Three short videos everyone watches first. Watch them in order, in one sitting or over a few days.</p>
+<ol style="list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px">
+<li><a href="#v1" style="display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:4px 16px 4px 6px;box-sizing:border-box;border-radius:999px;background:#fbf9f5;color:#0a4438;text-decoration:none;font-size:15px;font-weight:600"><span style="width:28px;height:28px;border-radius:999px;background:#0f6e56;color:#fbf9f5;display:inline-flex;align-items:center;justify-content:center;font-size:13px">1</span>How sleep works</a></li>
+<li><a href="#v2" style="display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:4px 16px 4px 6px;box-sizing:border-box;border-radius:999px;border:1px solid #fbf9f5;color:#fbf9f5;text-decoration:none;font-size:15px;font-weight:600"><span style="width:28px;height:28px;border-radius:999px;background:#fbf9f5;color:#0a4438;display:inline-flex;align-items:center;justify-content:center;font-size:13px">2</span>Why cancer can change sleep</a></li>
+<li><a href="#v3" style="display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:4px 16px 4px 6px;box-sizing:border-box;border-radius:999px;border:1px solid #fbf9f5;color:#fbf9f5;text-decoration:none;font-size:15px;font-weight:600"><span style="width:28px;height:28px;border-radius:999px;background:#fbf9f5;color:#0a4438;display:inline-flex;align-items:center;justify-content:center;font-size:13px">3</span>How to use SleepSteps</a></li>
+</ol>
+</div>
+</section>
+
+<div style="max-width:1280px;margin:0 auto;padding:40px 24px 72px;display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+<div style="flex:1 1 260px;max-width:300px">
+<dc-import name="TopicNav" current="start" open-area="none" hint-size="100%,700px"></dc-import>
+</div>
+<div style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:40px">
+<sc-for list="{{chapters}}" as="c" hint-placeholder-count="3">
+<article id="{{c.id}}" style="display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;align-items:baseline;gap:16px">
+<span aria-hidden="true" style="font-family:Figtree,sans-serif;font-size:56px;line-height:1;color:#a8cfc3">{{c.num}}</span>
+<div>
+<p style="margin:0 0 4px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#0f6e56">Video {{c.num}} of 3 · [mm:ss]</p>
+<h2 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:32px;line-height:1.2">{{c.title}}</h2>
+<p style="margin:6px 0 0;color:#5a6b65">{{c.desc}}</p>
+</div>
+</div>
+<div role="img" aria-label="Embedded YouTube video" style="aspect-ratio:16/9;border-radius:8px;background:#0a4438;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden">
+<svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;left:0;right:0;bottom:0;width:100%;height:100px"><path d="M0 120 L0 80 Q480 10 960 80 L960 120 Z" fill="#0f6e56"></path></svg>
+<span style="position:relative;width:80px;height:80px;border-radius:999px;background:#fbf9f5;display:flex;align-items:center;justify-content:center"><svg width="26" height="30" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.5v13l11-6.5z" fill="#0f6e56"></path></svg></span>
+</div>
+<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px 24px;background:#ffffff;border:1px solid #dce4e0;border-radius:8px;padding:12px 16px">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px">
+<span style="font-size:15px;font-weight:600">Was this helpful?</span>
+<div role="group" aria-label="Rate this video" style="display:flex">
+<sc-for list="{{c.stars}}" as="s" hint-placeholder-count="5">
+<button type="button" class="star" onClick="{{s.pick}}" aria-label="{{s.label}}" aria-pressed="{{s.on}}"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" fill="{{s.fill}}" stroke="{{s.stroke}}" stroke-width="1.6" stroke-linejoin="round"></path></svg></button>
+</sc-for>
+</div>
+<span style="font-size:14px;color:#5a6b65">{{c.msg}}</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px 20px;font-size:15px;font-weight:600">
+<a href="#" style="display:inline-block;padding:10px 0">Transcript</a>
+<a href="#" style="display:inline-block;padding:10px 0">Handout (PDF)</a>
+<a href="#" style="display:inline-block;padding:10px 0;color:#8a4a2c">Send feedback</a>
+</div>
+</div>
+<sc-if value="{{c.fb}}" hint-placeholder-val="{{false}}">
+<div style="background:#e8f1ed;border-radius:8px;padding:20px 24px;margin-top:-8px">
+<label for="{{c.fbId}}" style="display:block;font-size:15px;font-weight:600;line-height:20px;margin-bottom:6px">Thanks. Anything you'd like to add? (optional)</label>
+<textarea id="{{c.fbId}}" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #5a6b65;border-radius:6px;padding:10px 12px;font:inherit;font-size:16px;background:#ffffff;resize:vertical"></textarea>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><button type="button" style="height:44px;padding:0 20px;border:0;border-radius:6px;background:#0f6e56;color:#fbf9f5;font:inherit;font-size:15px;font-weight:600">Send</button><span style="font-size:14px;line-height:20px;color:#5a6b65">Anonymous. Please don't include your name.</span></div>
+</div>
+</sc-if>
+</article>
+</sc-for>
+
+<section>
+<div style="background:#0f6e56;color:#fbf9f5;border-radius:8px;padding:32px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between">
+<div style="flex:1 1 420px">
+<p style="margin:0 0 6px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase">Next</p>
+<h2 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:30px;line-height:1.2">Choose what's keeping you up</h2>
+<p style="margin:8px 0 0;font-size:17px;color:#fbf9f5">36 sleep problems, grouped into ten areas. Pick as many as sound like you.</p>
+</div>
+<a href="Problems-A.dc.html" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:6px;background:#fbf9f5;color:#0a4438;text-decoration:none;font-size:16px;font-weight:600">See sleep problems</a>
+</div>
+</section>
+</div>
+</div>
+<dc-import name="SiteFooter" max-width="1280" hint-size="100%,260px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = this.state || {};
+    const ratings = st.ratings || { 0: 4 };
+    const base = [
+      { title: 'How sleep works', desc: 'What happens while we sleep, and what makes us feel sleepy at night.' },
+      { title: 'Why cancer can change sleep', desc: 'How diagnosis, treatment and recovery can affect your nights and days.' },
+      { title: 'How to use SleepSteps', desc: 'Finding the sleep problems that fit you, and trying one idea at a time.' }
+    ];
+    const chapters = base.map((b, i) => {
+      const r = ratings[i] || 0;
+      return {
+        ...b, num: i + 1, id: 'v' + (i + 1), fbId: 'fb' + (i + 1),
+        fb: r > 0,
+        msg: r ? 'You rated this ' + r + ' out of 5' : 'Anonymous',
+        stars: [1, 2, 3, 4, 5].map(n => ({
+          label: 'Rate ' + n + ' out of 5',
+          on: n <= r ? 'true' : 'false',
+          fill: n <= r ? '#c4714e' : 'none',
+          stroke: n <= r ? '#8a4a2c' : '#5a6b65',
+          pick: () => this.setState({ ratings: { ...ratings, [i]: n } })
+        }))
+      };
+    });
+    return { chapters };
+  }
+}
+</script>
+</body>
+</html>

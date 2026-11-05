@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Topic menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<nav aria-label="All topics" style="width:100%;box-sizing:border-box;background:#ffffff;border:1px solid #dce4e0;border-radius:8px;padding:12px 0;font-family:'Source Sans 3',system-ui,sans-serif;font-size:15px;line-height:20px;color:#17211e">
+<p style="margin:8px 16px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#0f6e56">Start here</p>
+<a href="Intro-B.dc.html" aria-current="{{startCur}}" style="{{startStyle}}">Introduction videos</a>
+<sc-if value="{{isStart}}" hint-placeholder-val="{{false}}">
+<ul style="list-style:none;margin:0;padding:0">
+<li><a href="#v1" style="display:block;padding:8px 16px 8px 40px;color:#17211e;text-decoration:none">1. How sleep works</a></li>
+<li><a href="#v2" style="display:block;padding:8px 16px 8px 40px;color:#17211e;text-decoration:none">2. Why cancer can change sleep</a></li>
+<li><a href="#v3" style="display:block;padding:8px 16px 8px 40px;color:#17211e;text-decoration:none">3. How to use SleepSteps</a></li>
+</ul>
+</sc-if>
+<div style="border-top:1px solid #dce4e0;margin:8px 0"></div>
+<p style="margin:12px 16px 8px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#0f6e56">Sleep problems</p>
+<ul style="list-style:none;margin:0;padding:0">
+<sc-for list="{{cats}}" as="c" hint-placeholder-count="10">
+<li>
+<button type="button" onClick="{{c.toggle}}" aria-expanded="{{c.expanded}}" style="width:100%;min-height:44px;display:flex;align-items:center;gap:8px;padding:8px 16px;border:0;background:transparent;font:inherit;font-size:15px;line-height:20px;text-align:left;color:#17211e;cursor:pointer">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.chev}}"></path></svg>
+<span style="flex:1;font-weight:600">{{c.name}}</span><span style="font-size:14px;color:#5a6b65">{{c.count}}</span>
+</button>
+<sc-if value="{{c.isOpen}}" hint-placeholder-val="{{false}}">
+<ul style="list-style:none;margin:0 0 6px;padding:0">
+<sc-for list="{{c.items}}" as="p" hint-placeholder-count="4">
+<li><a href="{{p.href}}" aria-current="{{p.cur}}" style="{{p.style}}">{{p.name}}</a></li>
+</sc-for>
+</ul>
+</sc-if>
+</li>
+</sc-for>
+</ul>
+<div style="border-top:1px solid #dce4e0;margin:8px 0"></div>
+<ul style="list-style:none;margin:0;padding:0 16px 4px;display:flex;flex-wrap:wrap;gap:0 16px;font-size:14px">
+<li><a href="Info-Help.dc.html" style="display:inline-block;padding:10px 0;color:#0f6e56">Getting more help</a></li>
+<li><a href="Info-About.dc.html" style="display:inline-block;padding:10px 0;color:#0f6e56">About</a></li>
+<li><a href="Info-Contact.dc.html" style="display:inline-block;padding:10px 0;color:#0f6e56">Contact</a></li>
+</ul>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"current":{"editor":"text","default":"Tired but wired"},"openArea":{"editor":"enum","options":["none","core","day","clock","mind","med","env","social","hard","relapse","dis"],"default":"core"},"$preview":{"width":320,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const current = this.props.current ?? 'Tired but wired';
+    const openArea = this.props.openArea ?? 'core';
+    const st = this.state || {};
+    const open = st.open || { [openArea]: true };
+    const isStart = current === 'start';
+    const pages = { 'Tired but wired': 'Problem-A.dc.html' };
+    const catsRaw = [
+      ['core', 'Falling and staying asleep', ['Tired but wired', 'Not sleepy at bedtime', 'Can’t get back to sleep', 'Waking too early', 'Broken or restless sleep', 'Not refreshed in the morning']],
+      ['day', 'Getting through the day', ['Tiredness and fatigue', 'Sleepiness during the day']],
+      ['clock', 'Body clock and timing', ['Sleep timing all over the place', 'Falling asleep too early']],
+      ['mind', 'Thoughts, feelings and bedtime', ['Anxiety about not sleeping', 'Fear or panic at night: past experiences', 'Fear or panic at night: physical symptoms', 'Dreading bed: expecting a hard night', 'Dreading bed: symptoms worse at night', 'Dreading bed: an active mind', 'Putting off going to bed', 'No time to wind down', 'Pressure to sleep well', 'Stress and worries', 'Accepting changes to my sleep']],
+      ['med', 'Symptoms and treatment effects', ['Pain', 'Treatment or medication side effects', 'Hot flushes and night sweats']],
+      ['env', 'Where you sleep', ['An uncomfortable sleep environment', 'Sleeping in hospital']],
+      ['social', 'Partners, family and others', ['Sharing a bed', 'Parents of young children', 'Involving others']],
+      ['hard', 'When it feels hard', ['My sleep is not improving yet', 'Setbacks and bad nights', 'Following sleep advice']],
+      ['relapse', 'Keeping sleep on track', ['If sleep problems return']],
+      ['dis', 'Other sleep conditions', ['Dreams and nightmares', 'Snoring', 'Restless legs']]
+    ];
+    const cats = catsRaw.map(([id, name, items]) => ({
+      name, count: String(items.length),
+      isOpen: !!open[id], expanded: open[id] ? 'true' : 'false',
+      chev: open[id] ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6',
+      toggle: () => this.setState({ open: { ...open, [id]: !open[id] } }),
+      items: items.map(p => {
+        const on = p === current;
+        return {
+          name: p, href: pages[p] || '#', cur: on ? 'page' : undefined,
+          style: 'display:block;padding:8px 16px 8px 40px;text-decoration:none;font-size:15px;line-height:20px;' + (on ? 'background:#e8f1ed;color:#0a4438;font-weight:600;box-shadow:inset 3px 0 0 #0f6e56' : 'color:#17211e')
+        };
+      })
+    }));
+    return {
+      cats, isStart,
+      startCur: isStart ? 'page' : undefined,
+      startStyle: 'display:flex;align-items:center;min-height:44px;padding:0 16px;text-decoration:none;font-weight:600;' + (isStart ? 'background:#e8f1ed;color:#0a4438;box-shadow:inset 3px 0 0 #0f6e56' : 'color:#17211e')
+    };
+  }
+}
+</script>
+</body>
+</html>

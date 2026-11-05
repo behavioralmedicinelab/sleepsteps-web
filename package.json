@@ -1,0 +1,26 @@
+{
+  "name": "sleepsteps-web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Educational website for a stepped-care sleep intervention trial",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "eleventy",
+    "predev": "eleventy",
+    "dev": "eleventy --watch --quiet & wrangler dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate:local": "wrangler d1 migrations apply sleep-site --local",
+    "db:migrate:remote": "wrangler d1 migrations apply sleep-site --remote"
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "3.1.7",
+    "@cloudflare/vitest-plugin": "1.4.8",
+    "vitest": "4.1.12",
+    "wrangler": "4.153.0"
+  }
+}

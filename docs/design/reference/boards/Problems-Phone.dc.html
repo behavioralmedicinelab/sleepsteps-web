@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sleep problems · Phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>
+body{margin:0;background:#fbf9f5}
+a{color:#0f6e56}a:hover{color:#0a4438}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #0f6e56;outline-offset:2px}
+.on-teal input:focus-visible{outline-color:#fbf9f5}
+.area:hover,.prob:hover{background:#e8f1ed}
+</style>
+</helmet>
+<div style="width:390px;min-height:2200px;background:#fbf9f5;color:#17211e;font-family:'Source Sans 3',system-ui,sans-serif;font-size:17px;line-height:28px">
+
+<dc-import name="PhoneHeader" current="" open-area="none" hint-size="390px,73px"></dc-import>
+
+<section class="on-teal" style="background:#0f6e56;color:#fbf9f5;padding:28px 16px 24px">
+<p style="margin:0 0 8px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase">Step 2</p>
+<h1 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:34px;line-height:1.12">What's keeping you up?</h1>
+<label for="pm" style="display:block;margin:18px 0 6px;font-size:15px;line-height:20px;font-weight:600">Search sleep problems</label>
+<input id="pm" type="search" value="{{q}}" onChange="{{onQ}}" placeholder="e.g. night sweats" style="width:100%;height:52px;box-sizing:border-box;border:0;border-radius:6px;padding:0 14px;font:inherit;background:#fbf9f5;color:#17211e">
+<p style="margin:10px 0 0;font-size:15px;line-height:20px" aria-live="polite">{{resultMsg}}</p>
+</section>
+
+<div style="padding:16px 12px 32px;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{areas}}" as="a" hint-placeholder-count="10">
+<section style="background:#ffffff;border:1px solid #dce4e0;border-radius:8px;overflow:hidden">
+<h2 style="margin:0"><button type="button" class="area" onClick="{{a.toggle}}" aria-expanded="{{a.expanded}}" style="width:100%;min-height:60px;display:flex;align-items:center;gap:12px;padding:12px 14px;border:0;background:transparent;font:inherit;text-align:left;color:#17211e;cursor:pointer">
+<span style="flex:1;font-family:Figtree,sans-serif;font-weight:400;font-size:19px;line-height:1.3;color:#0a4438">{{a.name}}</span>
+<span style="font-size:14px;font-weight:600;color:#0f6e56">{{a.count}}</span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{a.chev}}"></path></svg>
+</button></h2>
+<sc-if value="{{a.isOpen}}" hint-placeholder-val="{{false}}">
+<ul style="list-style:none;margin:0;padding:0 0 6px">
+<sc-for list="{{a.shown}}" as="p" hint-placeholder-count="4">
+<li style="border-top:1px solid #dce4e0"><a href="{{p.href}}" class="prob" style="display:flex;align-items:center;gap:10px;padding:12px 14px;text-decoration:none;color:#17211e">
+<span style="flex:1"><span style="display:block;font-size:17px;line-height:22px;font-weight:600;color:#0a4438">{{p.title}}</span><span style="display:block;font-size:15px;line-height:21px;color:#5a6b65">{{p.line}}</span></span>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+</a></li>
+</sc-for>
+</ul>
+</sc-if>
+</section>
+</sc-for>
+</div>
+<dc-import name="SiteFooter" hint-size="390px,520px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2200}}'>
+class Component extends DCLogic {
+  data() {
+    return [
+      ['core', 'Falling and staying asleep', [['Tired but wired', 'I’m tired, but I can’t fall asleep'], ['Not sleepy at bedtime', 'My body is awake and wants to keep going'], ['Can’t get back to sleep', 'I struggle to get back to sleep in the night'], ['Waking too early', 'I wake up too early'], ['Broken or restless sleep', 'Light, broken or restless sleep'], ['Not refreshed in the morning', 'Even when I sleep, I don’t feel refreshed']]],
+      ['day', 'Getting through the day', [['Tiredness and fatigue', 'Fatigue affects how I function'], ['Sleepiness during the day', 'I struggle to stay awake']]],
+      ['clock', 'Body clock and timing', [['Sleep timing all over the place', 'I sleep at odd times'], ['Falling asleep too early', 'I fall asleep early in the evening']]],
+      ['mind', 'Thoughts, feelings and bedtime', [['Anxiety about not sleeping', 'I worry about what poor sleep will do'], ['Fear or panic: past experiences', 'Linked to treatment or hard memories'], ['Fear or panic: physical symptoms', 'Linked to breathlessness or pain'], ['Dreading bed: a hard night ahead', 'I expect another difficult night'], ['Dreading bed: symptoms worse at night', 'My body feels worse at night'], ['Dreading bed: an active mind', 'My mind gets busier at night'], ['Putting off going to bed', 'Even when I’m tired'], ['No time to wind down', 'Busy right up until bedtime'], ['Pressure to sleep well', 'I feel like I’m failing when sleep is hard'], ['Stress and worries', 'About cancer or life'], ['Accepting changes to my sleep', 'Since cancer, my sleep is different']]],
+      ['med', 'Symptoms and treatment effects', [['Pain', 'Pain is affecting my sleep'], ['Treatment or medication side effects', 'Treatment or medicines affect my sleep'], ['Hot flushes and night sweats', 'They wake me up']]],
+      ['env', 'Where you sleep', [['An uncomfortable sleep environment', 'Noise, light or discomfort'], ['Sleeping in hospital', 'I struggle to sleep on the ward']]],
+      ['social', 'Partners, family and others', [['Sharing a bed', 'Sleep with a bed partner'], ['Parents of young children', 'Sleep while caring for little ones'], ['Involving others', 'In your sleep and recovery']]],
+      ['hard', 'When it feels hard', [['My sleep is not improving yet', 'I’ve been trying, but it isn’t better yet'], ['Setbacks and bad nights', 'What to do after a bad night'], ['Following sleep advice', 'I find the advice hard to follow']]],
+      ['relapse', 'Keeping sleep on track', [['If sleep problems return', 'What if my sleep problems come back?']]],
+      ['dis', 'Other sleep conditions', [['Dreams and nightmares', 'Distressing or vivid dreams'], ['Snoring', 'I’m concerned about snoring'], ['Restless legs', 'My legs feel restless at night']]]
+    ];
+  }
+  renderVals() {
+    const st = this.state || {};
+    const q = st.q || '';
+    const ql = q.trim().toLowerCase();
+    const open = st.open || { core: true };
+    let total = 0;
+    const areas = this.data().map(([id, name, items]) => {
+      const all = items.map(([title, line]) => ({ title, line, href: title === 'Tired but wired' ? 'Problem-Phone.dc.html' : '#' }));
+      const shown = ql ? all.filter(p => (p.title + ' ' + p.line + ' ' + name).toLowerCase().includes(ql)) : all;
+      total += shown.length;
+      const isOpen = ql ? shown.length > 0 : !!open[id];
+      return {
+        name, shown, isOpen, hide: ql && !shown.length,
+        count: ql ? shown.length + '/' + all.length : String(all.length),
+        expanded: isOpen ? 'true' : 'false',
+        chev: isOpen ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6',
+        toggle: () => this.setState({ open: { ...open, [id]: !open[id] } })
+      };
+    }).filter(a => !a.hide);
+    return {
+      q, areas,
+      onQ: (e) => this.setState({ q: e.target.value }),
+      resultMsg: ql ? (total ? total + ' matching topics' : 'No matches. Try another word.') : '36 topics in 10 areas'
+    };
+  }
+}
+</script>
+</body>
+</html>
