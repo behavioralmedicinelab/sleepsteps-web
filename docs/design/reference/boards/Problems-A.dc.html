@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sleep problems · Accordion with search</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>
+body{margin:0;background:#fbf9f5}
+a{color:#0f6e56}a:hover{color:#0a4438}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #0f6e56;outline-offset:2px}
+.on-teal input:focus-visible,.on-teal button:focus-visible{outline-color:#fbf9f5}
+.area:hover{background:#e8f1ed}
+.prob{transition:box-shadow 200ms,border-color 200ms}
+.prob:hover{border-color:#0f6e56;box-shadow:0 6px 20px rgba(15,110,86,0.12)}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#fbf9f5;color:#17211e;font-family:'Source Sans 3',system-ui,sans-serif;font-size:17px;line-height:28px">
+
+<dc-import name="SiteHeader" current="problems" max-width="1280" hint-size="100%,93px"></dc-import>
+
+<section class="on-teal" style="background:#0f6e56;color:#fbf9f5">
+<div style="max-width:1000px;margin:0 auto;padding:48px 24px 40px">
+<p style="margin:0 0 12px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase">Step 2</p>
+<h1 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:48px;line-height:1.1;letter-spacing:-0.01em">What's keeping you up?</h1>
+<p style="margin:14px 0 28px;font-weight:300;font-size:19px;line-height:30px;max-width:640px">Open an area to see its topics, or search in your own words. Choose as many as sound like you.</p>
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+<div style="flex:1 1 420px">
+<label for="ps" style="display:block;font-size:15px;line-height:20px;font-weight:600;margin-bottom:6px">Search sleep problems</label>
+<input id="ps" type="search" value="{{q}}" onChange="{{onQ}}" placeholder="Try: night sweats, 3am, partner" style="width:100%;height:52px;box-sizing:border-box;border:0;border-radius:6px;padding:0 16px;font:inherit;font-size:17px;background:#fbf9f5;color:#17211e">
+</div>
+<div role="group" aria-label="Group topics by" style="display:inline-flex;border:1px solid #fbf9f5;border-radius:6px;overflow:hidden">
+<button type="button" onClick="{{byArea}}" aria-pressed="{{areaPressed}}" style="{{areaBtn}}">By area</button>
+<button type="button" onClick="{{byTime}}" aria-pressed="{{timePressed}}" style="{{timeBtn}}">When it happens</button>
+</div>
+<sc-if value="{{isArea}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{toggleAll}}" style="height:52px;padding:0 20px;border:1px solid #fbf9f5;border-radius:6px;background:transparent;color:#fbf9f5;font:inherit;font-size:15px;font-weight:600;cursor:pointer">{{allLabel}}</button>
+</sc-if>
+</div>
+<p style="margin:12px 0 0;font-size:15px;line-height:20px;color:#fbf9f5" aria-live="polite">{{resultMsg}}</p>
+</div>
+</section>
+
+<sc-if value="{{showTime}}" hint-placeholder-val="{{false}}">
+<section style="max-width:1280px;margin:0 auto;padding:32px 24px 24px">
+<ol style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+<sc-for list="{{lanes}}" as="l" hint-placeholder-count="6">
+<li style="display:flex;flex-direction:column;gap:8px">
+<h2 style="{{l.head}}">{{l.name}}<span style="display:block;font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:20px;font-weight:400;margin-top:2px">{{l.count}}</span></h2>
+<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{l.items}}" as="p" hint-placeholder-count="3">
+<li><a href="{{p.href}}" class="prob" style="display:block;background:#ffffff;border:1px solid #dce4e0;border-radius:8px;padding:12px 14px;text-decoration:none;color:#17211e"><span style="display:block;font-family:Figtree,sans-serif;font-size:18px;line-height:1.3;color:#0a4438">{{p.title}}</span><span style="display:block;font-size:14px;line-height:20px;color:#5a6b65;margin-top:2px">{{p.line}}</span></a></li>
+</sc-for>
+</ul>
+</li>
+</sc-for>
+</ol>
+</section>
+</sc-if>
+
+<sc-if value="{{showArea}}" hint-placeholder-val="{{true}}">
+<div style="max-width:1000px;margin:0 auto;padding:32px 24px 24px;display:flex;flex-direction:column;gap:12px">
+<sc-for list="{{areas}}" as="a" hint-placeholder-count="10">
+<section style="background:#ffffff;border:1px solid #dce4e0;border-radius:8px;overflow:hidden">
+<h2 style="margin:0">
+<button type="button" class="area" onClick="{{a.toggle}}" aria-expanded="{{a.expanded}}" style="width:100%;display:flex;align-items:center;gap:20px;padding:20px 24px;border:0;background:transparent;font:inherit;text-align:left;color:#17211e;cursor:pointer">
+<span style="flex:1;min-width:0">
+<span style="display:block;font-family:Figtree,sans-serif;font-weight:400;font-size:24px;line-height:1.3;color:#0a4438">{{a.name}}</span>
+<span style="display:block;font-size:15px;line-height:22px;color:#5a6b65;font-weight:400">{{a.desc}}</span>
+</span>
+<span style="font-size:14px;line-height:20px;font-weight:600;color:#0f6e56;white-space:nowrap">{{a.countLabel}}</span>
+<span style="flex:0 0 36px;height:36px;border-radius:999px;background:#e8f1ed;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{a.chev}}"></path></svg></span>
+</button>
+</h2>
+<sc-if value="{{a.isOpen}}" hint-placeholder-val="{{false}}">
+<ul style="list-style:none;margin:0;padding:4px 24px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:10px">
+<sc-for list="{{a.shown}}" as="p" hint-placeholder-count="4">
+<li><a href="{{p.href}}" class="prob" style="height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid #dce4e0;border-radius:8px;background:#fbf9f5;text-decoration:none;color:#17211e">
+<span>
+<span style="display:flex;align-items:center;gap:8px;font-family:Figtree,sans-serif;font-size:19px;line-height:1.3;color:#0a4438">{{p.title}}<sc-if value="{{p.isNew}}" hint-placeholder-val="{{false}}"><span style="font-family:'Source Sans 3',sans-serif;font-size:13px;line-height:16px;font-weight:600;padding:2px 8px;border-radius:999px;background:#f0e4d6;color:#8a4a2c">New</span></sc-if></span>
+<span style="display:block;font-size:15px;line-height:22px;color:#5a6b65;margin-top:2px">{{p.line}}</span>
+</span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 auto"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+</a></li>
+</sc-for>
+</ul>
+</sc-if>
+</section>
+</sc-for>
+</div>
+</sc-if>
+
+<section style="max-width:1000px;margin:0 auto;padding:16px 24px 64px">
+<div style="background:#f6f4ef;border-radius:8px;padding:24px 28px;display:flex;flex-wrap:wrap;gap:12px 32px;align-items:center;justify-content:space-between">
+<p style="margin:0;flex:1 1 420px">Haven't watched the introduction yet? It explains the ideas the other videos build on.</p>
+<a href="Intro-B.dc.html" style="font-weight:600">Go to the introduction</a>
+</div>
+</section>
+<dc-import name="SiteFooter" max-width="1280" hint-size="100%,260px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2200}}'>
+class Component extends DCLogic {
+  data() {
+    return [
+      ['core', 'Falling and staying asleep', 'Trouble getting to sleep, staying asleep, or waking unrefreshed.', [
+        ['Tired but wired', 'I’m tired, but I can’t fall asleep'],
+        ['Not sleepy at bedtime', 'My body is awake at bedtime and wants to keep going'],
+        ['Can’t get back to sleep', 'I struggle to get back to sleep in the night'],
+        ['Waking too early', 'I wake up too early'],
+        ['Broken or restless sleep', 'I wake a lot, or my sleep is light, broken or restless'],
+        ['Not refreshed in the morning', 'Even when I sleep, I don’t feel refreshed']]],
+      ['day', 'Getting through the day', 'Fatigue and sleepiness while you’re awake.', [
+        ['Tiredness and fatigue', 'Tiredness or fatigue affects how I function during the day'],
+        ['Sleepiness during the day', 'I struggle to stay awake during the day']]],
+      ['clock', 'Body clock and timing', 'Sleep that happens at the wrong times.', [
+        ['Sleep timing all over the place', 'I can’t sleep until morning, or I sleep at odd times'],
+        ['Falling asleep too early', 'I fall asleep too early in the evening']]],
+      ['mind', 'Thoughts, feelings and bedtime', 'Worry, fear and dread at night, and the habits around bedtime.', [
+        ['Anxiety about not sleeping', 'I worry about not sleeping and what it will do to me'],
+        ['Fear or panic at night: past experiences', 'Linked to treatment, cancer, or other hard memories'],
+        ['Fear or panic at night: physical symptoms', 'Linked to symptoms like breathlessness or pain'],
+        ['Dreading bed: expecting a hard night', 'I dread bed because I expect another difficult night'],
+        ['Dreading bed: symptoms worse at night', 'I dread bed because symptoms feel worse at night'],
+        ['Dreading bed: an active mind', 'My mind gets busier or more emotional at night'],
+        ['Putting off going to bed', 'I put off going to bed, even when I’m tired'],
+        ['No time to wind down', 'I’m busy right up until bedtime'],
+        ['Pressure to sleep well', 'I feel I must sleep well for my recovery, and like I’m failing when I don’t'],
+        ['Stress and worries', 'Stress or worry about cancer or life is affecting my sleep'],
+        ['Accepting changes to my sleep', 'It’s hard to accept how my sleep has changed since cancer', true]]],
+      ['med', 'Symptoms and treatment effects', 'When your body or your treatment keeps you awake.', [
+        ['Pain', 'Pain is affecting my sleep'],
+        ['Treatment or medication side effects', 'Treatment or medicines are affecting my sleep'],
+        ['Hot flushes and night sweats', 'Hot flushes or night sweats wake me up']]],
+      ['env', 'Where you sleep', 'Your bedroom, or sleeping somewhere else.', [
+        ['An uncomfortable sleep environment', 'Noise, light or physical discomfort where I sleep'],
+        ['Sleeping in hospital', 'I struggle to sleep in hospital']]],
+      ['social', 'Partners, family and others', 'Sleep and the people around you.', [
+        ['Sharing a bed', 'Managing sleep when you have a bed partner'],
+        ['Parents of young children', 'Sleep when you’re caring for young children'],
+        ['Involving others', 'Bringing others into your sleep and recovery']]],
+      ['hard', 'When it feels hard', 'When the program, or progress, is a struggle.', [
+        ['My sleep is not improving yet', 'I’ve been trying, but my sleep isn’t better yet'],
+        ['Setbacks and bad nights', 'What to do after a bad night or a setback'],
+        ['Following sleep advice', 'I find it hard to follow the sleep advice']]],
+      ['relapse', 'Keeping sleep on track', 'Looking after your sleep from here on.', [
+        ['If sleep problems return', 'What if my sleep problems come back?']]],
+      ['dis', 'Other sleep conditions', 'Things worth knowing about, and when to check with a doctor.', [
+        ['Dreams and nightmares', 'Distressing, vivid dreams or nightmares'],
+        ['Snoring', 'I’m concerned about snoring'],
+        ['Restless legs', 'My legs feel restless at night']]]
+    ];
+  }
+  renderVals() {
+    const st = this.state || {};
+    const q = st.q || '';
+    const open = st.open || { core: true };
+    const ql = q.trim().toLowerCase();
+    let total = 0;
+    const areas = this.data().map(([id, name, desc, items]) => {
+      const all = items.map(([title, line, isNew]) => ({ title, line, isNew: !!isNew, href: title === 'Tired but wired' ? 'Problem-A.dc.html' : '#' }));
+      const shown = ql ? all.filter(p => (p.title + ' ' + p.line + ' ' + name).toLowerCase().includes(ql)) : all;
+      total += shown.length;
+      const isOpen = ql ? shown.length > 0 : !!open[id];
+      return {
+        id, name, desc, shown, isOpen,
+        hide: ql && shown.length === 0,
+        countLabel: ql ? shown.length + ' of ' + all.length : all.length + (all.length === 1 ? ' topic' : ' topics'),
+        expanded: isOpen ? 'true' : 'false',
+        chev: isOpen ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6',
+        toggle: () => this.setState({ open: { ...open, [id]: !open[id] } })
+      };
+    }).filter(a => !a.hide);
+    const allOpen = areas.every(a => open[a.id]);
+    const lens = st.lens || 'area';
+    const lookup = {};
+    this.data().forEach(d => d[3].forEach(([t, l]) => { lookup[t] = l; }));
+    const headBase = 'margin:0;padding:16px 16px 14px;border-radius:24px 24px 8px 8px;font-family:Figtree,sans-serif;font-weight:500;font-size:20px;line-height:1.3;';
+    const lanes = [
+      ['In the evening', 'background:#0f6e56;color:#fbf9f5;', ['Falling asleep too early', 'No time to wind down', 'Putting off going to bed']],
+      ['At bedtime', 'background:#0a4438;color:#fbf9f5;', ['Tired but wired', 'Not sleepy at bedtime', 'Anxiety about not sleeping', 'Dreading bed: expecting a hard night', 'Dreading bed: symptoms worse at night', 'Dreading bed: an active mind']],
+      ['During the night', 'background:#17211e;color:#fbf9f5;', ['Can’t get back to sleep', 'Broken or restless sleep', 'Fear or panic at night: past experiences', 'Fear or panic at night: physical symptoms', 'Hot flushes and night sweats', 'Pain', 'Dreams and nightmares', 'Restless legs', 'Snoring']],
+      ['Early morning', 'background:#e8f1ed;color:#0a4438;', ['Waking too early', 'Not refreshed in the morning']],
+      ['During the day', 'background:#e7d9c4;color:#17211e;', ['Tiredness and fatigue', 'Sleepiness during the day', 'Sleep timing all over the place']],
+      ['Any time', 'background:#f6f4ef;color:#17211e;border:1px solid #dce4e0;', ['Stress and worries', 'Pressure to sleep well', 'Accepting changes to my sleep', 'Treatment or medication side effects', 'An uncomfortable sleep environment', 'Sleeping in hospital', 'Sharing a bed', 'Parents of young children', 'Involving others', 'My sleep is not improving yet', 'Setbacks and bad nights', 'Following sleep advice', 'If sleep problems return']]
+    ].map(([name, c, titles]) => {
+      const items = titles.map(t => ({ title: t, line: lookup[t] || '', href: t === 'Tired but wired' ? 'Problem-A.dc.html' : '#' })).filter(p => !ql || (p.title + ' ' + p.line).toLowerCase().includes(ql));
+      return { name, head: headBase + c, items, count: items.length + (items.length === 1 ? ' topic' : ' topics') };
+    });
+    const segOn = 'height:50px;padding:0 18px;border:0;background:#fbf9f5;color:#0a4438;font:inherit;font-size:15px;font-weight:600;cursor:pointer';
+    const segOff = 'height:50px;padding:0 18px;border:0;background:transparent;color:#fbf9f5;font:inherit;font-size:15px;font-weight:600;cursor:pointer';
+    return {
+      lanes,
+      isArea: lens === 'area', showArea: lens === 'area', showTime: lens === 'time',
+      areaPressed: lens === 'area' ? 'true' : 'false', timePressed: lens === 'time' ? 'true' : 'false',
+      areaBtn: lens === 'area' ? segOn : segOff, timeBtn: lens === 'time' ? segOn : segOff,
+      byArea: () => this.setState({ lens: 'area' }), byTime: () => this.setState({ lens: 'time' }),
+      q, areas,
+      onQ: (e) => this.setState({ q: e.target.value }),
+      allLabel: allOpen ? 'Close all areas' : 'Open all areas',
+      toggleAll: () => {
+        const next = {};
+        if (!allOpen) this.data().forEach(d => { next[d[0]] = true; });
+        this.setState({ open: next, q: '' });
+      },
+      resultMsg: ql ? (total ? total + ' topics match “' + q + '”' : 'Nothing matches yet. Try a different word, or open an area below.') : '36 topics in 10 areas'
+    };
+  }
+}
+</script>
+</body>
+</html>

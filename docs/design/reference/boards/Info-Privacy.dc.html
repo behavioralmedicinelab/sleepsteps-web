@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Privacy and your data</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>
+body{margin:0;background:#fbf9f5}
+a{color:#0f6e56}a:hover{color:#0a4438}
+a:focus-visible{outline:2px solid #0f6e56;outline-offset:2px}
+.side a:hover{background:#e8f1ed}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#fbf9f5;color:#17211e;font-family:'Source Sans 3',system-ui,sans-serif;font-size:17px;line-height:28px">
+
+<dc-import name="SiteHeader" current="info" max-width="1200" hint-size="100%,93px"></dc-import>
+
+<section style="background:#0f6e56;color:#fbf9f5">
+<div style="max-width:1200px;margin:0 auto;padding:44px 24px 36px">
+<p style="margin:0 0 10px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase">Information</p>
+<h1 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:48px;line-height:1.1;letter-spacing:-0.01em">Privacy and your data</h1>
+<p style="margin:12px 0 0;font-weight:300;font-size:19px;line-height:30px;max-width:640px">You don't need an account to use SleepSteps. Here is what we collect, and what we don't.</p>
+</div>
+</section>
+
+<div style="max-width:1200px;margin:0 auto;padding:36px 24px 64px;display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+<nav class="side" aria-label="Information pages" style="flex:1 1 240px;max-width:280px;background:#ffffff;border:1px solid #dce4e0;border-radius:8px;padding:8px 0;font-size:16px;line-height:22px">
+<a href="Info-Help.dc.html" style="display:block;padding:12px 18px;text-decoration:none;color:#17211e">Getting more help</a>
+<a href="Info-About.dc.html" style="display:block;padding:12px 18px;text-decoration:none;color:#17211e">About SleepSteps</a>
+<a href="Info-Contact.dc.html" style="display:block;padding:12px 18px;text-decoration:none;color:#17211e">Contact us</a>
+<a href="Info-Privacy.dc.html" aria-current="page" style="display:block;padding:12px 18px;text-decoration:none;color:#0a4438;font-weight:600;background:#e8f1ed;box-shadow:inset 3px 0 0 #0f6e56">Privacy and your data</a>
+<a href="Info-Urgent.dc.html" style="display:block;padding:12px 18px;text-decoration:none;color:#8a4a2c;font-weight:600">Getting urgent help</a>
+</nav>
+
+<main style="flex:999 1 560px;min-width:0;max-width:780px;display:flex;flex-direction:column;gap:32px">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px">
+<section style="background:#ffffff;border:1px solid #dce4e0;border-top:4px solid #0f6e56;border-radius:8px;padding:24px">
+<h2 style="margin:0 0 10px;font-family:Figtree,sans-serif;font-weight:500;font-size:22px">What we collect</h2>
+<ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+<li>Star ratings you give a video</li>
+<li>Written feedback, if you choose to send it</li>
+<li>[Anonymous visit statistics, e.g. pages viewed]</li>
+</ul>
+</section>
+<section style="background:#ffffff;border:1px solid #dce4e0;border-top:4px solid #a8cfc3;border-radius:8px;padding:24px">
+<h2 style="margin:0 0 10px;font-family:Figtree,sans-serif;font-weight:500;font-size:22px">What we don't collect</h2>
+<ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+<li>Your name or email</li>
+<li>Accounts or passwords</li>
+<li>[Anything that identifies you, unless you write it in feedback]</li>
+</ul>
+</section>
+</div>
+
+<section>
+<h2 style="margin:0 0 10px;font-family:Figtree,sans-serif;font-weight:400;font-size:30px;line-height:1.2;color:#0a4438">Our videos are on YouTube</h2>
+<p style="margin:0 0 12px">The videos on this site are hosted on YouTube and shown here in an embedded player. [We use YouTube's privacy-enhanced mode, so YouTube does not store information about you until you press play.] When you play a video, YouTube's own privacy policy applies.</p>
+<p style="margin:0"><a href="#" style="font-weight:600">YouTube privacy policy</a></p>
+</section>
+
+<section>
+<h2 style="margin:0 0 10px;font-family:Figtree,sans-serif;font-weight:400;font-size:30px;line-height:1.2;color:#0a4438">How we use ratings and feedback</h2>
+<p style="margin:0">[How ratings and feedback are stored, who can see them, how long they're kept, and how they're used to improve SleepSteps and in the trial.]</p>
+</section>
+
+<section style="background:#f6f4ef;border-radius:8px;padding:24px 28px">
+<h2 style="margin:0 0 8px;font-family:Figtree,sans-serif;font-weight:500;font-size:22px">Questions or concerns</h2>
+<p style="margin:0">Contact the team at [email], or [the ethics committee contact for complaints].</p>
+</section>
+</main>
+</div>
+<dc-import name="SiteFooter" max-width="1200" hint-size="100%,260px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

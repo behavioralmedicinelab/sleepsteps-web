@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Problem page · Tired but wired · Phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>
+body{margin:0;background:#fbf9f5}
+a{color:#0f6e56}a:hover{color:#0a4438}
+a:focus-visible,button:focus-visible{outline:2px solid #0f6e56;outline-offset:2px}
+.star{background:transparent;border:0;padding:0;width:48px;height:48px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer}
+</style>
+</helmet>
+<div style="width:390px;min-height:3400px;background:#fbf9f5;color:#17211e;font-family:'Source Sans 3',system-ui,sans-serif;font-size:17px;line-height:28px">
+
+<dc-import name="PhoneHeader" current="Tired but wired" open-area="core" hint-size="390px,73px"></dc-import>
+
+<div style="padding:12px 16px 0">
+<a href="Problems-Phone.dc.html" style="display:inline-flex;align-items:center;gap:4px;min-height:44px;font-size:15px;font-weight:600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Falling and staying asleep</a>
+<h1 style="margin:4px 0 0;font-family:Figtree,sans-serif;font-weight:400;font-size:34px;line-height:1.12;color:#0a4438">Tired but wired</h1>
+<p style="margin:6px 0 14px;font-family:Figtree,sans-serif;font-style:italic;font-size:19px;line-height:1.45">“I'm tired, but I can't fall asleep.”</p>
+<nav aria-label="On this page" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:12px">
+<a href="#about" style="flex:0 0 auto;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;background:#0f6e56;color:#fbf9f5;text-decoration:none;font-size:15px;font-weight:600">About this</a>
+<a href="#main" style="flex:0 0 auto;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid #0f6e56;text-decoration:none;font-size:15px;font-weight:600">3 main solutions</a>
+<a href="#more" style="flex:0 0 auto;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid #0f6e56;text-decoration:none;font-size:15px;font-weight:600">2 more</a>
+</nav>
+</div>
+
+<section id="about">
+<div role="img" aria-label="Embedded YouTube video: about this problem" style="aspect-ratio:16/9;background:#0a4438;position:relative;display:flex;align-items:center;justify-content:center">
+<span style="width:64px;height:64px;border-radius:999px;background:#fbf9f5;display:flex;align-items:center;justify-content:center"><svg width="22" height="26" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.5v13l11-6.5z" fill="#0f6e56"></path></svg></span>
+<span style="position:absolute;left:12px;bottom:12px;background:#17211e;color:#fbf9f5;border-radius:4px;padding:0 6px;font-size:14px;line-height:20px">[mm:ss]</span>
+</div>
+<div style="padding:12px 16px 0">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<span style="font-size:15px;font-weight:600">Helpful?</span>
+<div role="group" aria-label="Rate this video" style="display:flex">
+<sc-for list="{{probStars}}" as="s" hint-placeholder-count="5"><button type="button" class="star" onClick="{{s.pick}}" aria-label="{{s.label}}" aria-pressed="{{s.on}}"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" fill="{{s.fill}}" stroke="{{s.stroke}}" stroke-width="1.6" stroke-linejoin="round"></path></svg></button></sc-for>
+</div>
+</div>
+<div style="display:flex;gap:20px;font-size:15px;font-weight:600"><a href="#" style="display:inline-block;padding:10px 0">Transcript</a><a href="#" style="display:inline-block;padding:10px 0">Handout</a><a href="#" style="display:inline-block;padding:10px 0;color:#8a4a2c">Feedback</a></div>
+<div style="margin-top:8px;background:#e8f1ed;border-radius:8px;padding:16px">
+<h2 style="margin:0 0 6px;font-family:Figtree,sans-serif;font-weight:500;font-size:20px">Is this you?</h2>
+<p style="margin:0;font-size:16px;line-height:26px">You feel worn out by the evening, but once you're in bed your body or mind won't switch off. This is common during and after cancer treatment.</p>
+</div>
+</div>
+</section>
+
+<sc-for list="{{sections}}" as="sec" hint-placeholder-count="2">
+<section id="{{sec.id}}" style="padding:28px 16px 0">
+<p style="margin:0 0 2px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#0f6e56">{{sec.eyebrow}}</p>
+<h2 style="margin:0 0 4px;font-family:Figtree,sans-serif;font-weight:400;font-size:26px;line-height:1.2">{{sec.title}}</h2>
+<p style="margin:0 0 12px;font-size:15px;line-height:22px;color:#5a6b65">{{sec.intro}}</p>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{sec.sols}}" as="s" hint-placeholder-count="3">
+<article style="{{s.cardStyle}}">
+<button type="button" onClick="{{s.toggle}}" aria-expanded="{{s.exp}}" style="width:100%;display:flex;gap:12px;align-items:center;padding:12px;border:0;background:transparent;font:inherit;text-align:left;color:#17211e;cursor:pointer">
+<span style="flex:0 0 36px;height:36px;border-radius:999px;background:#0f6e56;color:#fbf9f5;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px">{{s.num}}</span>
+<span style="flex:1"><span style="display:block;font-family:Figtree,sans-serif;font-size:19px;line-height:1.3;color:#0a4438">{{s.title}}</span><span style="display:block;font-size:15px;line-height:21px;color:#5a6b65">{{s.blurb}}</span></span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{s.chev}}"></path></svg>
+</button>
+<sc-if value="{{s.open}}" hint-placeholder-val="{{false}}">
+<div role="img" aria-label="Embedded YouTube video" style="aspect-ratio:16/9;background:#0a4438;position:relative;display:flex;align-items:center;justify-content:center">
+<span style="width:56px;height:56px;border-radius:999px;background:#fbf9f5;display:flex;align-items:center;justify-content:center"><svg width="18" height="22" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.5v13l11-6.5z" fill="#0f6e56"></path></svg></span>
+<span style="position:absolute;left:10px;bottom:10px;background:#17211e;color:#fbf9f5;border-radius:4px;padding:0 6px;font-size:14px;line-height:20px">[mm:ss]</span>
+</div>
+<div style="padding:10px 12px 14px">
+<div role="group" aria-label="Rate this video" style="display:flex;justify-content:center">
+<sc-for list="{{s.stars}}" as="t" hint-placeholder-count="5"><button type="button" class="star" onClick="{{t.pick}}" aria-label="{{t.label}}" aria-pressed="{{t.on}}"><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" fill="{{t.fill}}" stroke="{{t.stroke}}" stroke-width="1.6" stroke-linejoin="round"></path></svg></button></sc-for>
+</div>
+<p style="margin:0 0 10px;text-align:center;font-size:14px;line-height:20px;color:#5a6b65">{{s.msg}}</p>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<a href="#" style="min-height:48px;display:flex;align-items:center;justify-content:center;border:1px solid #0f6e56;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">Transcript</a>
+<a href="#" style="min-height:48px;display:flex;align-items:center;justify-content:center;border:1px solid #0f6e56;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">Handout</a>
+<a href="#" style="min-height:48px;display:flex;align-items:center;justify-content:center;border:1px solid #0f6e56;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">Audio</a>
+</div>
+</div>
+</sc-if>
+</article>
+</sc-for>
+</div>
+</section>
+</sc-for>
+
+<section style="padding:32px 16px 40px">
+<h2 style="margin:0 0 10px;font-family:Figtree,sans-serif;font-weight:500;font-size:20px">Related topics</h2>
+<ul style="list-style:none;margin:0;padding:0;background:#ffffff;border:1px solid #dce4e0;border-radius:8px">
+<li style="border-bottom:1px solid #dce4e0"><a href="#" style="display:flex;align-items:center;min-height:52px;padding:0 14px;text-decoration:none;color:#17211e">Not sleepy at bedtime</a></li>
+<li style="border-bottom:1px solid #dce4e0"><a href="#" style="display:flex;align-items:center;min-height:52px;padding:0 14px;text-decoration:none;color:#17211e">Dreading bed: an active mind</a></li>
+<li><a href="#" style="display:flex;align-items:center;min-height:52px;padding:0 14px;text-decoration:none;color:#17211e">No time to wind down</a></li>
+</ul>
+<a href="Problems-Phone.dc.html" style="margin-top:16px;display:flex;align-items:center;justify-content:center;height:52px;border-radius:6px;background:#0f6e56;color:#fbf9f5;text-decoration:none;font-size:16px;font-weight:600">All sleep problems</a>
+</section>
+<dc-import name="SiteFooter" hint-size="390px,520px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3400}}'>
+class Component extends DCLogic {
+  stars(r, onPick) {
+    return [1, 2, 3, 4, 5].map(n => ({
+      label: 'Rate ' + n + ' out of 5', on: n <= r ? 'true' : 'false',
+      fill: n <= r ? '#c4714e' : 'none', stroke: n <= r ? '#8a4a2c' : '#5a6b65',
+      pick: () => onPick(n)
+    }));
+  }
+  renderVals() {
+    const st = this.state || {};
+    const openId = st.openId === undefined ? 'm1' : st.openId;
+    const ratings = st.ratings || {};
+    const mk = (list, p) => list.map((s, i) => {
+      const id = p + (i + 1);
+      const open = openId === id;
+      const r = ratings[id] || 0;
+      return {
+        ...s, num: i + 1, open, exp: open ? 'true' : 'false',
+        chev: open ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6',
+        cardStyle: 'background:#ffffff;border-radius:8px;overflow:hidden;' + (open ? 'border:2px solid #0f6e56' : 'border:1px solid #dce4e0'),
+        toggle: () => this.setState({ openId: open ? null : id }),
+        stars: this.stars(r, n => this.setState({ ratings: { ...ratings, [id]: n } })),
+        msg: r ? 'Thanks. You rated this ' + r + ' of 5.' : 'How helpful was this? Ratings are anonymous.'
+      };
+    });
+    return {
+      probStars: this.stars(st.pr || 0, n => this.setState({ pr: n })),
+      sections: [
+        { id: 'main', eyebrow: 'Things to try', title: 'Main solutions', intro: 'Pick the one that sounds most doable.',
+          sols: mk([
+            { title: 'A wind-down hour before bed', blurb: 'Signal to your body that the day is ending.' },
+            { title: 'If you can’t sleep, get up', blurb: 'What to do instead of lying awake.' },
+            { title: 'Settling your body', blurb: 'A short guided exercise for when you feel keyed up.' }
+          ], 'm') },
+        { id: 'more', eyebrow: 'If you want more', title: 'Other things that can help', intro: 'Extras, or for when you want more.',
+          sols: mk([
+            { title: 'Giving worries an earlier slot', blurb: 'So worries have somewhere to go.' },
+            { title: 'Caffeine, alcohol and timing', blurb: 'Small changes to what you drink, and when.' }
+          ], 's') }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

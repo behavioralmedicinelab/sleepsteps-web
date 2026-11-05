@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone header with menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="font-family:'Source Sans 3',system-ui,sans-serif;font-size:16px;line-height:22px;color:#17211e">
+<header style="background:#ffffff;border-bottom:1px solid #dce4e0;padding:8px 16px;display:flex;align-items:center;justify-content:space-between">
+<a href="Landing-Phone.dc.html" style="display:flex;align-items:center;text-decoration:none"><img src="/_blob/6da5d0e61d3aa9e61eb16b7ed2bce3e2" alt="SleepSteps home" style="height:56px;width:auto;display:block"></a>
+<button type="button" onClick="{{toggle}}" aria-expanded="{{exp}}" style="height:44px;padding:0 14px;border:1px solid #0f6e56;border-radius:6px;background:#ffffff;color:#0f6e56;font:inherit;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="{{icon}}"></path></svg>{{label}}</button>
+</header>
+<sc-if value="{{open}}" hint-placeholder-val="{{false}}">
+<div style="background:#fbf9f5;border-bottom:1px solid #dce4e0;padding:12px 12px 16px;display:flex;flex-direction:column;gap:12px">
+<form role="search" style="margin:0">
+<label for="ph-q" style="display:block;font-size:15px;font-weight:600;margin-bottom:4px">Search sleep problems</label>
+<input id="ph-q" type="search" placeholder="e.g. waking too early" style="width:100%;height:48px;box-sizing:border-box;border:1px solid #5a6b65;border-radius:6px;padding:0 12px;font:inherit;background:#ffffff">
+</form>
+<nav aria-label="Main" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+<a href="Problems-Phone.dc.html" style="display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:6px;background:#0f6e56;color:#fbf9f5;text-decoration:none;font-weight:600">Sleep problems</a>
+<a href="Intro-B.dc.html" style="display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:6px;border:1px solid #0f6e56;color:#0f6e56;text-decoration:none;font-weight:600">Start here</a>
+<a href="Info-About.dc.html" style="display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:6px;border:1px solid #0f6e56;color:#0f6e56;text-decoration:none;font-weight:600">About</a>
+<a href="Info-Contact.dc.html" style="display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:6px;border:1px solid #0f6e56;color:#0f6e56;text-decoration:none;font-weight:600">Contact</a>
+</nav>
+<dc-import name="TopicNav" current="{{current}}" open-area="{{openArea}}" hint-size="100%,600px"></dc-import>
+<a href="Info-Urgent.dc.html" style="display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:6px;background:#f0e4d6;color:#8a4a2c;text-decoration:none;font-weight:600">Get urgent help</a>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"current":{"editor":"text","default":""},"openArea":{"editor":"enum","options":["none","core","day","clock","mind","med","env","social","hard","relapse","dis"],"default":"none"},"startOpen":{"editor":"boolean","default":false},"$preview":{"width":390,"height":73}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = this.state || {};
+    const open = st.open ?? !!this.props.startOpen;
+    return {
+      open, exp: open ? 'true' : 'false',
+      label: open ? 'Close' : 'Menu',
+      icon: open ? 'M6 6l12 12M18 6L6 18' : 'M4 7h16M4 12h16M4 17h16',
+      toggle: () => this.setState({ open: !open }),
+      current: this.props.current ?? '',
+      openArea: this.props.openArea ?? 'none'
+    };
+  }
+}
+</script>
+</body>
+</html>

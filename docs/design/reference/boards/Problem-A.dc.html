@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Problem page · Tired but wired · Cards expand</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Sans+3:wght@300;400;600&amp;display=swap">
+<style>
+body{margin:0;background:#fbf9f5}
+a{color:#0f6e56}a:hover{color:#0a4438}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #0f6e56;outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.navbtn:hover,.navlink:hover{background:#e8f1ed}
+.star{background:transparent;border:0;padding:0;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer}
+.star:hover{background:#f0e4d6}
+.fmt:hover{background:#e8f1ed}
+.sol{transition:box-shadow 200ms}
+.sol:hover{box-shadow:0 0 0 1px #dce4e0,0 6px 20px rgba(15,110,86,0.12)}
+.rel:hover{border-color:#0f6e56}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#fbf9f5;color:#17211e;font-family:'Source Sans 3',system-ui,sans-serif;font-size:17px;line-height:28px">
+
+<dc-import name="SiteHeader" current="problems" max-width="1360" hint-size="100%,93px"></dc-import>
+
+<div style="max-width:1360px;margin:0 auto;padding:28px 24px 72px;display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+
+<div style="flex:1 1 280px;max-width:320px">
+<dc-import name="TopicNav" current="Tired but wired" open-area="core" hint-size="100%,900px"></dc-import>
+</div>
+
+<main style="flex:999 1 600px;min-width:0;display:flex;flex-direction:column;gap:40px">
+
+<section style="display:flex;flex-direction:column;gap:20px">
+<nav aria-label="Breadcrumb" style="font-size:14px;line-height:20px;color:#5a6b65"><a href="Problems-A.dc.html">Sleep problems</a> › <a href="Problems-A.dc.html">Falling and staying asleep</a> › <span aria-current="page">Tired but wired</span></nav>
+<div>
+<h1 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:44px;line-height:1.1;letter-spacing:-0.01em;color:#0a4438">Tired but wired</h1>
+<p style="margin:8px 0 0;font-family:Figtree,sans-serif;font-style:italic;font-size:22px;line-height:1.45;color:#17211e">“I'm tired, but I can't fall asleep.”</p>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+<div style="flex:3 1 460px;min-width:0;display:flex;flex-direction:column;gap:10px">
+<div role="img" aria-label="Embedded YouTube video: about this problem" style="aspect-ratio:16/9;border-radius:8px;background:#0a4438;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden">
+<svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;left:0;right:0;bottom:0;width:100%;height:90px"><path d="M0 120 L0 80 Q480 10 960 80 L960 120 Z" fill="#0f6e56"></path></svg>
+<span style="position:relative;width:76px;height:76px;border-radius:999px;background:#fbf9f5;display:flex;align-items:center;justify-content:center"><svg width="26" height="30" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.5v13l11-6.5z" fill="#0f6e56"></path></svg></span>
+<span style="position:absolute;left:14px;bottom:14px;background:#17211e;color:#fbf9f5;border-radius:4px;padding:0 6px;font-size:14px;line-height:20px">[mm:ss]</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0 8px">
+<span id="pr" style="font-size:15px;font-weight:600">Was this helpful?</span>
+<div role="group" aria-labelledby="pr" style="display:flex">
+<sc-for list="{{probStars}}" as="s" hint-placeholder-count="5">
+<button type="button" class="star" onClick="{{s.pick}}" aria-label="{{s.label}}" aria-pressed="{{s.on}}"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" fill="{{s.fill}}" stroke="{{s.stroke}}" stroke-width="1.6" stroke-linejoin="round"></path></svg></button>
+</sc-for>
+</div>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:0 18px;font-size:15px;font-weight:600"><a href="#" style="display:inline-block;padding:10px 0">Transcript</a><a href="#" style="display:inline-block;padding:10px 0">Handout</a><a href="#" style="display:inline-block;padding:10px 0;color:#8a4a2c">Feedback</a></div>
+</div>
+</div>
+<aside style="flex:2 1 300px;background:#e8f1ed;border-radius:8px;padding:24px">
+<h2 style="margin:0 0 8px;font-family:Figtree,sans-serif;font-weight:500;font-size:22px;line-height:1.3">Is this you?</h2>
+<p style="margin:0 0 12px">You feel worn out by the evening, but once you're in bed your body or mind won't switch off. This is common during and after cancer treatment.</p>
+<p style="margin:0 0 6px;font-size:15px;font-weight:600">This topic may help if you:</p>
+<ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+<li>[feel exhausted but alert in bed]</li>
+<li>[take a long time to fall asleep]</li>
+<li>[feel restless or keyed up at night]</li>
+</ul>
+<p style="margin:14px 0 0;font-size:15px;line-height:22px">Not quite? Try <a href="#">Not sleepy at bedtime</a>.</p>
+</aside>
+</div>
+</section>
+
+<sc-for list="{{sections}}" as="sec" hint-placeholder-count="2">
+<section aria-labelledby="{{sec.hid}}" style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 24px">
+<div>
+<p style="margin:0 0 4px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#0f6e56">{{sec.eyebrow}}</p>
+<h2 id="{{sec.hid}}" style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:32px;line-height:1.2">{{sec.title}}</h2>
+</div>
+<p style="margin:0;color:#5a6b65;max-width:460px;font-size:16px;line-height:24px">{{sec.intro}}</p>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px">
+<sc-for list="{{sec.sols}}" as="s" hint-placeholder-count="3">
+<article class="sol" style="{{s.cardStyle}}">
+<sc-if value="{{s.closed}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{s.toggle}}" aria-expanded="false" style="display:flex;flex-direction:column;width:100%;padding:0;border:0;background:transparent;font:inherit;text-align:left;color:#17211e;cursor:pointer">
+<span style="position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;background:{{s.band}};width:100%">
+<span style="width:52px;height:52px;border-radius:999px;background:#fbf9f5;display:flex;align-items:center;justify-content:center"><svg width="16" height="18" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.5v13l11-6.5z" fill="#0f6e56"></path></svg></span>
+<span style="position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 2px;border-radius:999px;background:#fbf9f5;color:#0a4438;font-size:13px;line-height:20px;font-weight:600"><span style="width:20px;height:20px;border-radius:999px;background:#0f6e56;color:#fbf9f5;display:inline-flex;align-items:center;justify-content:center;font-size:12px">{{s.num}}</span>{{s.kind}}</span>
+<span style="position:absolute;right:12px;bottom:12px;background:#17211e;color:#fbf9f5;border-radius:4px;padding:0 6px;font-size:14px;line-height:20px">[mm:ss]</span>
+</span>
+<span style="padding:16px 18px 8px;display:flex;flex-direction:column;gap:6px">
+<span style="font-family:Figtree,sans-serif;font-size:20px;line-height:1.3;color:#0a4438">{{s.title}}</span>
+<span style="font-size:15px;line-height:22px;color:#5a6b65">{{s.blurb}}</span>
+</span>
+</button>
+<div style="margin-top:auto;padding:4px 18px 12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;font-size:14px;line-height:20px">
+<span style="color:#5a6b65">{{s.ratedMsg}}</span>
+<span style="display:flex;gap:14px;font-weight:600"><a href="#" style="display:inline-block;padding:10px 0">Transcript</a><a href="#" style="display:inline-block;padding:10px 0">Handout</a></span>
+</div>
+</sc-if>
+<sc-if value="{{s.open}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;flex-wrap:wrap;gap:24px;padding:20px">
+<div role="img" aria-label="Embedded YouTube video" style="flex:3 1 420px;aspect-ratio:16/9;border-radius:8px;background:#0a4438;position:relative;display:flex;align-items:center;justify-content:center">
+<span style="width:72px;height:72px;border-radius:999px;background:#fbf9f5;display:flex;align-items:center;justify-content:center"><svg width="24" height="28" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.5v13l11-6.5z" fill="#0f6e56"></path></svg></span>
+<span style="position:absolute;left:12px;bottom:12px;background:#17211e;color:#fbf9f5;border-radius:4px;padding:0 6px;font-size:14px;line-height:20px">[mm:ss]</span>
+</div>
+<div style="flex:2 1 280px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+<span style="display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 2px;border-radius:999px;background:#e8f1ed;color:#0a4438;font-size:13px;line-height:20px;font-weight:600"><span style="width:20px;height:20px;border-radius:999px;background:#0f6e56;color:#fbf9f5;display:inline-flex;align-items:center;justify-content:center;font-size:12px">{{s.num}}</span>{{s.kind}}</span>
+<button type="button" onClick="{{s.toggle}}" aria-expanded="true" style="height:44px;padding:0 14px;border:1px solid #5a6b65;border-radius:6px;background:#ffffff;color:#17211e;font:inherit;font-size:15px;font-weight:600;cursor:pointer">Close</button>
+</div>
+<h3 style="margin:0;font-family:Figtree,sans-serif;font-weight:400;font-size:26px;line-height:1.25;color:#0a4438">{{s.title}}</h3>
+<p style="margin:0;color:#17211e">{{s.blurb}}</p>
+<div>
+<p style="margin:0;font-size:15px;line-height:20px;font-weight:600">How helpful was this?</p>
+<div role="group" aria-label="Rate this video" style="display:flex;align-items:center;margin-left:-6px">
+<sc-for list="{{s.stars}}" as="t" hint-placeholder-count="5">
+<button type="button" class="star" onClick="{{t.pick}}" aria-label="{{t.label}}" aria-pressed="{{t.on}}"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" fill="{{t.fill}}" stroke="{{t.stroke}}" stroke-width="1.6" stroke-linejoin="round"></path></svg></button>
+</sc-for>
+<span style="margin-left:6px;font-size:14px;color:#5a6b65">{{s.ratedMsg}}</span>
+</div>
+</div>
+<div role="group" aria-label="Other formats" style="display:flex;flex-wrap:wrap;gap:8px">
+<button type="button" class="fmt" onClick="{{s.toggleTx}}" aria-expanded="{{s.txExp}}" style="height:44px;padding:0 14px;border:1px solid #0f6e56;border-radius:6px;background:#ffffff;color:#0f6e56;font:inherit;font-size:15px;font-weight:600;cursor:pointer">{{s.txLabel}}</button>
+<a href="#" class="fmt" style="height:44px;box-sizing:border-box;padding:0 14px;border:1px solid #0f6e56;border-radius:6px;background:#ffffff;color:#0f6e56;text-decoration:none;font-size:15px;font-weight:600;display:inline-flex;align-items:center">Handout</a>
+<a href="#" class="fmt" style="height:44px;box-sizing:border-box;padding:0 14px;border:1px solid #0f6e56;border-radius:6px;background:#ffffff;color:#0f6e56;text-decoration:none;font-size:15px;font-weight:600;display:inline-flex;align-items:center">Audio only</a>
+</div>
+<sc-if value="{{s.txOpen}}" hint-placeholder-val="{{false}}">
+<div style="background:#f6f4ef;border-radius:8px;padding:14px 16px;font-size:15px;line-height:22px">[Transcript of “{{s.title}}”.]</div>
+</sc-if>
+<sc-if value="{{s.rated}}" hint-placeholder-val="{{false}}">
+<div>
+<label for="{{s.fbId}}" style="display:block;font-size:15px;line-height:20px;font-weight:600;margin-bottom:4px">Anything to add? (optional, anonymous)</label>
+<textarea id="{{s.fbId}}" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #5a6b65;border-radius:6px;padding:8px 10px;font:inherit;font-size:16px;resize:vertical"></textarea>
+<button type="button" style="margin-top:8px;height:44px;padding:0 18px;border:0;border-radius:6px;background:#0f6e56;color:#fbf9f5;font:inherit;font-size:15px;font-weight:600">Send</button>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+</article>
+</sc-for>
+</div>
+</section>
+</sc-for>
+
+<section style="border-top:1px solid #dce4e0;padding-top:28px">
+<h2 style="margin:0 0 14px;font-family:Figtree,sans-serif;font-weight:500;font-size:22px">Related topics</h2>
+<ul style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+<li><a href="#" class="rel" style="display:block;height:100%;box-sizing:border-box;background:#ffffff;border:1px solid #dce4e0;border-radius:8px;padding:14px 16px;text-decoration:none;color:#17211e"><span style="display:block;font-family:Figtree,sans-serif;font-size:18px;color:#0a4438">Not sleepy at bedtime</span><span style="font-size:14px;line-height:20px;color:#5a6b65">My body is awake and wants to keep going</span></a></li>
+<li><a href="#" class="rel" style="display:block;height:100%;box-sizing:border-box;background:#ffffff;border:1px solid #dce4e0;border-radius:8px;padding:14px 16px;text-decoration:none;color:#17211e"><span style="display:block;font-family:Figtree,sans-serif;font-size:18px;color:#0a4438">Dreading bed: an active mind</span><span style="font-size:14px;line-height:20px;color:#5a6b65">My mind gets busier at night</span></a></li>
+<li><a href="#" class="rel" style="display:block;height:100%;box-sizing:border-box;background:#ffffff;border:1px solid #dce4e0;border-radius:8px;padding:14px 16px;text-decoration:none;color:#17211e"><span style="display:block;font-family:Figtree,sans-serif;font-size:18px;color:#0a4438">No time to wind down</span><span style="font-size:14px;line-height:20px;color:#5a6b65">Busy right up until bedtime</span></a></li>
+</ul>
+<p style="margin:20px 0 0"><a href="Problems-A.dc.html" style="font-weight:600;color:#8a4a2c">Back to all sleep problems</a></p>
+</section>
+</main>
+</div>
+<dc-import name="SiteFooter" max-width="1360" hint-size="100%,260px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3000}}'>
+class Component extends DCLogic {
+  stars(r, onPick) {
+    return [1, 2, 3, 4, 5].map(n => ({
+      label: 'Rate ' + n + ' out of 5', on: n <= r ? 'true' : 'false',
+      fill: n <= r ? '#c4714e' : 'none', stroke: n <= r ? '#8a4a2c' : '#5a6b65',
+      pick: () => onPick(n)
+    }));
+  }
+  renderVals() {
+    const st = this.state || {};
+    const openId = st.openId === undefined ? 'm1' : st.openId;
+    const ratings = st.ratings || {};
+    const tx = st.tx || {};
+    const mk = (kind, list, prefix) => list.map((s, i) => {
+      const id = prefix + (i + 1);
+      const open = openId === id;
+      const r = ratings[id] || 0;
+      return {
+        ...s, id, num: i + 1, kind, open, closed: !open,
+        band: prefix === 'm' ? '#0a4438' : '#2e8b72',
+        cardStyle: 'background:#ffffff;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;' + (open ? 'grid-column:1/-1;border:2px solid #0f6e56' : 'border:1px solid #dce4e0'),
+        toggle: () => this.setState({ openId: open ? null : id }),
+        stars: this.stars(r, n => this.setState({ ratings: { ...ratings, [id]: n } })),
+        rated: r > 0,
+        ratedMsg: r ? 'You rated this ' + r + ' of 5' : 'Not rated yet',
+        fbId: 'fb-' + id,
+        txOpen: !!tx[id], txExp: tx[id] ? 'true' : 'false',
+        txLabel: tx[id] ? 'Hide transcript' : 'Read transcript',
+        toggleTx: () => this.setState({ tx: { ...tx, [id]: !tx[id] } })
+      };
+    });
+    const sections = [
+      { hid: 'main-h', eyebrow: 'Things to try', title: 'Main solutions', intro: 'Most people start here. Pick the one that sounds most doable for you.',
+        sols: mk('Main', [
+          { title: 'A wind-down hour before bed', blurb: 'Give your body a signal that the day is ending. Good if you go straight from busy to bed.' },
+          { title: 'If you can’t sleep, get up', blurb: 'What to do instead of lying awake, and how it helps bed feel sleepy again.' },
+          { title: 'Settling your body', blurb: 'A short guided exercise to ease tension when you feel keyed up.' }
+        ], 'm') },
+      { hid: 'more-h', eyebrow: 'If you want more', title: 'Other things that can help', intro: 'Useful extras, or for when the main ideas aren’t quite enough.',
+        sols: mk('Extra', [
+          { title: 'Giving worries an earlier slot', blurb: 'Set aside time in the evening so worries have somewhere to go.' },
+          { title: 'Caffeine, alcohol and timing', blurb: 'Small changes to what you drink, and when.' }
+        ], 's') }
+    ];
+    const pr = st.pr || 0;
+    return {
+      sections,
+      probStars: this.stars(pr, n => this.setState({ pr: n }))
+    };
+  }
+}
+</script>
+</body>
+</html>
