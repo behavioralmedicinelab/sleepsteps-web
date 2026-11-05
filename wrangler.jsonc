@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sleep-site",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-30",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sleep-site",
+      // Placeholder until the human setup task in SPEC §18.4 step 4.
+      // Local development (`wrangler dev`, `--local`) does not need a real ID.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com",
+    "ACCESS_AUD": "<AUD_TAG>"
+  }
+  // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET
+}

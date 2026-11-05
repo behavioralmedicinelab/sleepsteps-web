@@ -1,6 +1,20 @@
+# Local Claude Code settings
 .claude/
-CLAUDE.md
+
+# OS files
 .DS_Store
-.dev.vars
+
+# Dependencies and tooling
+node_modules/
+.wrangler/
+
+# Build output (SPEC §6)
 dist/
 worker/generated/
+
+# Secrets — never commit
+.dev.vars
+
+# Data exports — never commit (SPEC §6)
+exports/
+*.csv.export
