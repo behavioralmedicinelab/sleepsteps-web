@@ -1,0 +1,162 @@
+/*
+ * Getting urgent help (/urgent-help/): SPEC §7.4, §7.5, §11; HANDOFF §6.5;
+ * board Info-Urgent.dc.html. Loaded through `styles` front matter in
+ * content/pages/urgent-help.md. Values come from tokens.css; board spacing
+ * off the token scale snaps up to the next step, and the board's 15-16px
+ * text is 17px body (SPEC §7.5).
+ *
+ * The minimal header, the 880px column and its padding come from site.css
+ * (§14, layouts/urgent.njk).
+ *
+ * Colour pairs are the listed ones: paper on ink and on deep-teal (the
+ * board's on-teal-muted description on ink is not listed), ink and
+ * slate-grey on white, and slate-grey on paper.
+ */
+
+.urgent-help {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8); /* board 28 */
+}
+
+.urgent-help__title {
+  font-size: var(--fs-display-phone);
+  line-height: var(--lh-display-phone);
+  letter-spacing: var(--tracking-heading);
+  color: var(--night-teal);
+}
+
+.urgent-help__lead {
+  margin-top: var(--space-4);
+}
+
+.urgent-help__calls,
+.urgent-help__more {
+  padding: 0;
+  list-style: none;
+}
+
+.urgent-help__calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8); /* board 28 */
+}
+
+/* Call cards: the whole card is the tel: link. The first contact (the
+   emergency number) is on ink, the rest on deep-teal. */
+.call-card a {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-7);
+  padding: var(--space-7);
+  /* Transparent border: the card keeps its outline in forced colours. */
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--deep-teal);
+  text-decoration: none;
+}
+
+.call-card a,
+.call-card a:hover {
+  color: var(--paper);
+}
+
+.call-card--first a {
+  background: var(--ink);
+}
+
+.call-card a:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.call-card__text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.call-card__title {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+}
+
+/* The board's numbers are 44px (000) and 36px (13 11 14); 36 is not on the
+   type scale, so the others use the nearest size, 34px (SPEC §7.5). */
+.call-card__number {
+  font-family: var(--font-heading);
+  font-size: var(--fs-display-phone);
+  line-height: 1;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.call-card--first .call-card__number {
+  font-size: var(--fs-display-problem);
+}
+
+/* "Your treating team" and the cancer support line. A card with a phone
+   number is a tel: link with the call cards' hover; "Your treating team" has
+   no number, so it is information with no hover (SPEC §7.4). Titles are ink,
+   the pair tokens.json lists for card titles on white (the board has
+   night-teal). */
+.urgent-help__more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: var(--space-5);
+}
+
+.contact-card {
+  display: block;
+  height: 100%;
+  padding: var(--space-7); /* board 22 x 24 */
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.contact-card--link,
+.contact-card--link:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.contact-card--link:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.contact-card__title {
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  color: var(--ink);
+}
+
+.contact-card__text {
+  color: var(--slate-grey);
+}
+
+/* The number is ink and semibold so it stands out from the hours. */
+.contact-card__number {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.urgent-help__note {
+  color: var(--slate-grey);
+}
+
+@media (min-width: 37.5em) {
+  .urgent-help__title {
+    font-size: var(--fs-display-interior);
+    line-height: var(--lh-display);
+  }
+
+  .urgent-help__lead {
+    font-size: var(--fs-lede);
+    line-height: var(--lh-lede);
+  }
+
+  .call-card a {
+    padding: var(--space-8); /* board 28 x 32 */
+  }
+}

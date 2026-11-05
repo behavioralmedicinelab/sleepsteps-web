@@ -1,22 +1,38 @@
+{#-
+  Base document shell: head, skip link, header, page content, footer.
+  Child layouts (page, info, topics, urgent) provide <main id="main">.
+
+  Front matter read here:
+    title       page title; <title> is "title | SleepSteps"
+    summary     meta description
+    page_id     rendered as <body data-page-id> (SPEC §7, §13)
+    page_width  "medium" (1280px) or "wide" (1360px); default 1200px
+    styles      extra stylesheets under src/css/, e.g. ["pages/help.css"]
+    header      "minimal" for the logo-and-back-link header (urgent help)
+    footer      false to drop the footer (urgent help)
+-#}
 <!doctype html>
 <html lang="en-AU">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if title %}{{ title }} | {% endif %}{{ site.siteName }}</title>
-  {% if summary %}<meta name="description" content="{{ summary }}">{% endif %}
+  {%- if summary %}
+  <meta name="description" content="{{ summary }}">
+  {%- endif %}
+  <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/site.css">
+  {%- for href in styles | stylesheets %}
+  <link rel="stylesheet" href="{{ href }}">
+  {%- endfor %}
+  {%- if header != 'minimal' %}
+  <script type="module" src="/js/menu.js"></script>
+  {%- endif %}
 </head>
-<body{% if page_id %} data-page-id="{{ page_id }}"{% endif %}>
+<body{% if page_width %} class="page--{{ page_width }}"{% endif %}{% if page_id %} data-page-id="{{ page_id }}"{% endif %}>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <a href="/" class="site-name">{{ site.siteName }}</a>
-  </header>
-  <main id="main">
-    {{ content | safe }}
-  </main>
-  <footer class="site-footer">
-    <p>{{ site.siteName }}</p>
-  </footer>
+  {% if header == 'minimal' %}{% include "partials/minimal-header.njk" %}{% else %}{% include "partials/site-header.njk" %}{% endif %}
+  {{ content | safe }}
+  {% if footer !== false %}{% include "partials/site-footer.njk" %}{% endif %}
 </body>
 </html>

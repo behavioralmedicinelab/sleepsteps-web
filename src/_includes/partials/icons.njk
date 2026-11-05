@@ -1,0 +1,30 @@
+{#-
+  Icons (HANDOFF §4 "Brand devices"): simple rounded stroke SVGs, decorative
+  only (aria-hidden). Colour comes from `currentColor`; no fill or stroke
+  colours and no style attributes, so they are CSP-safe (SPEC §16.1).
+
+  Usage:
+    {% from "partials/icons.njk" import icon %}
+    {{ icon('search') }}  {{ icon('chevron-right', 16, 'topic-nav__chevron') }}
+
+  Names: search, menu, close, chevron-right, chevron-left, chevron-down,
+  arrow-right, play, star, download, transcript, headphones.
+-#}
+{%- macro icon(name, size=18, class='') -%}
+{%- set paths = {
+  'search': '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  'menu': '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  'close': '<path d="M6 6l12 12M18 6L6 18"/>',
+  'chevron-right': '<path d="M9 6l6 6-6 6"/>',
+  'chevron-left': '<path d="M15 6l-6 6 6 6"/>',
+  'chevron-down': '<path d="M6 9l6 6 6-6"/>',
+  'arrow-right': '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  'play': '<path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/>',
+  'star': '<path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/>',
+  'download': '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  'transcript': '<path d="M5 6h14M5 10h14M5 14h10M5 18h8"/>',
+  'headphones': '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 15h3v5H5a1 1 0 0 1-1-1zM20 15h-3v5h2a1 1 0 0 0 1-1z"/>'
+} -%}
+{%- set strokeWidth = '2.2' if name.startsWith('chevron') else '2' -%}
+<svg class="icon{% if class %} {{ class }}{% endif %}" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ strokeWidth }}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{{ paths[name] | safe }}</svg>
+{%- endmacro -%}

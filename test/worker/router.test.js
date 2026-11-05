@@ -1,6 +1,6 @@
 import { SELF, createExecutionContext } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
-import worker from '../worker/index.js';
+import worker from '../../worker/index.js';
 
 describe('Worker router (M0 scaffold)', () => {
   it.each(['/api/event', '/api/rate', '/admin/', '/admin'])(

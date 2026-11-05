@@ -1,0 +1,320 @@
+// Site shell (SPEC §20 M1a): header, phone menu, TopicNav, footer, info
+// layout and the urgent-help page, checked on the built HTML.
+import { readFileSync } from 'node:fs';
+import { describe, expect, inject, it } from 'vitest';
+import { parseCsvRecords } from '../../scripts/lib/csv.js';
+import { attr, currentLinks, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
+
+const site = inject('builtSite');
+const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
+const handoffProblems = JSON.parse(
+  readFileSync('docs/design/HANDOFF.md', 'utf8').match(/```json\n([\s\S]*?)\n```/)[1],
+);
+const areaNames = Object.fromEntries(
+  parseCsvRecords(readFileSync('data/areas.csv', 'utf8')).map((a) => [a.area_id, a.name]),
+);
+const linkTexts = (html) => [...html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)].map((m) => text(m[1]));
+
+// Page URL -> expected current item in the main nav ([label, aria-current]).
+const NAV_CURRENT = {
+  '/': null,
+  '/start/': ['Start here', 'page'],
+  '/problems/': ['Sleep problems', 'page'],
+  '/problems/tired-but-wired/': ['Sleep problems', 'true'],
+  '/problems/restless-legs/': ['Sleep problems', 'true'],
+  '/about/': ['About', 'page'],
+  '/contact/': ['Contact', 'page'],
+  '/help/': null,
+  '/privacy/': null,
+  '/search/': null,
+  '/404.html': null,
+};
+
+const menuPanel = (html) => elementByClass(html, 'mobile-menu__panel', 'div');
+// The two TopicNav copies: the sidebar and the one in the phone menu panel.
+const sidebarNav = (html) => elementByClass(html, 'with-sidebar__side', 'div');
+const panelNav = (html) => elementByClass(menuPanel(html), 'topic-nav', 'nav');
+
+describe('SiteHeader and MobileHeader', () => {
+  it.each(Object.entries(NAV_CURRENT))('marks the current item on %s', (url, expected) => {
+    const html = pageAt(site, url);
+    for (const nav of [elementByClass(html, 'site-nav', 'nav'), elementByClass(html, 'mobile-nav', 'nav')]) {
+      const current = currentLinks(nav).map((l) => [l.label, l.value]);
+      expect(current).toEqual(expected ? [expected] : []);
+    }
+  });
+
+  it('has the nav items, search forms and urgent link in the handoff order', () => {
+    const html = pageAt(site, '/');
+    const desktop = elementByClass(html, 'site-header__desktop', 'div');
+    expect(tags(desktop, 'a').map((t) => attr(t, 'href'))).toEqual([
+      '/', '/start/', '/problems/', '/about/', '/contact/', '/urgent-help/',
+    ]);
+    const grid = elementByClass(html, 'mobile-nav', 'nav');
+    expect(tags(grid, 'a').map((t) => attr(t, 'href'))).toEqual(['/problems/', '/start/', '/about/', '/contact/']);
+
+    const forms = tags(html, 'form');
+    expect(forms).toHaveLength(2);
+    for (const form of forms) {
+      expect(attr(form, 'role')).toBe('search');
+      expect(attr(form, 'action')).toBe('/search/');
+      expect(attr(form, 'method')).toBe('get');
+    }
+    for (const input of tags(html, 'input')) {
+      expect(attr(input, 'name')).toBe('q');
+      expect(attr(input, 'type')).toBe('search');
+      expect(attr(input, 'autocomplete')).toBe('off');
+    }
+    expect(text(elementByClass(html, 'header-search__submit', 'button'))).toBe('Search');
+  });
+
+  it('has one banner, with one "Main" nav per header variant', () => {
+    const html = pageAt(site, '/');
+    expect(tags(html, 'header')).toHaveLength(1);
+    expect(elementByClass(elementByClass(html, 'site-header__desktop', 'div'), 'site-nav', 'nav')).toBeTruthy();
+    expect(elementByClass(elementByClass(html, 'mobile-header', 'div'), 'mobile-nav', 'nav')).toBeTruthy();
+    expect(tags(html, 'nav').filter((t) => attr(t, 'aria-label') === 'Main')).toHaveLength(2);
+  });
+
+  it('renders the phone menu as a closed native <details>, so it opens without JavaScript', () => {
+    const html = pageAt(site, '/problems/tired-but-wired/');
+    const details = tags(html, 'details').find((t) => attr(t, 'class') === 'mobile-menu');
+    expect(details).toBeTruthy();
+    expect(attr(details, 'open')).toBeUndefined();
+    const summary = elementByClass(html, 'mobile-menu__toggle', 'summary');
+    expect(text(summary)).toBe('Menu Close');
+    expect(summary).not.toMatch(/aria-expanded|aria-label/);
+    const panel = menuPanel(html);
+    expect(panel).toMatch(/<form class="mobile-search"/);
+    expect(panel).toMatch(/aria-label="All topics"/);
+    expect(panel).toMatch(/<a class="mobile-menu__urgent" href="\/urgent-help\/">Get urgent help<\/a>/);
+    expect(html).toMatch(/<script type="module" src="\/js\/menu\.js"><\/script>/);
+  });
+
+  it('uses the logo at the handoff sizes', () => {
+    const html = pageAt(site, '/');
+    const logos = tags(html, 'img').filter((t) => attr(t, 'src') === '/img/sleepsteps-logo.svg');
+    expect(logos.map((t) => [attr(t, 'alt'), attr(t, 'height')])).toEqual([
+      ['SleepSteps home', '68'],
+      ['SleepSteps home', '56'],
+    ]);
+  });
+});
+
+describe('TopicNav', () => {
+  it.each(handoffProblems.map((p) => [p.slug, p]))('on /problems/%s/ highlights the problem and opens its area', (slug, p) => {
+    const html = pageAt(site, `/problems/${slug}/`);
+    for (const nav of [sidebarNav(html), panelNav(html)]) {
+      const open = tags(nav, 'details').filter((t) => attr(t, 'open') !== undefined);
+      expect(open).toHaveLength(1);
+      const openArea = elementByClass(nav.slice(nav.indexOf(open[0])), 'topic-nav__area', 'details');
+      expect(currentLinks(openArea)).toEqual([{ href: `/problems/${slug}/`, value: 'page', label: p.shortTitle }]);
+      expect(text(elementByClass(openArea, 'topic-nav__area-name'))).toBe(areaNames[p.areaId]);
+      expect(currentLinks(nav)).toHaveLength(1);
+      expect(nav).not.toMatch(/topic-nav__chapters/);
+    }
+  });
+
+  it('lists 10 areas and 36 problems, with counts', () => {
+    const nav = panelNav(pageAt(site, '/'));
+    const counts = [...nav.matchAll(/<span class="topic-nav__count">(\d+)<span class="visually-hidden"> (topics?)<\/span>/g)];
+    expect(counts).toHaveLength(10);
+    expect(counts.reduce((sum, m) => sum + Number(m[1]), 0)).toBe(36);
+    for (const [, n, unit] of counts) expect(unit).toBe(n === '1' ? 'topic' : 'topics');
+    expect(tags(nav, 'a').filter((t) => attr(t, 'class') === 'topic-nav__link')).toHaveLength(36);
+  });
+
+  it('on /start/ marks "Introduction videos" current and shows the chapter links', () => {
+    const html = pageAt(site, '/start/');
+    for (const nav of [sidebarNav(html), panelNav(html)]) {
+      expect(currentLinks(nav)).toEqual([{ href: '/start/', value: 'page', label: 'Introduction videos' }]);
+      const chapters = elementByClass(nav, 'topic-nav__chapters', 'ol');
+      expect(tags(chapters, 'a').map((t) => attr(t, 'href'))).toEqual(['#v1', '#v2', '#v3']);
+      expect(tags(nav, 'details').filter((t) => attr(t, 'open') !== undefined)).toHaveLength(0);
+    }
+    for (const id of ['v1', 'v2', 'v3']) expect(html).toContain(`id="${id}"`);
+  });
+
+  it.each(['/', '/problems/', '/help/', '/about/', '/contact/', '/privacy/', '/search/', '/404.html'])(
+    'on %s is only in the menu panel, with all areas closed',
+    (url) => {
+      const html = pageAt(site, url);
+      expect(sidebarNav(html)).toBeUndefined();
+      expect(tags(html, 'nav').filter((t) => attr(t, 'aria-label') === 'All topics')).toHaveLength(1);
+      const nav = panelNav(html);
+      expect(tags(nav, 'details').filter((t) => attr(t, 'open') !== undefined)).toHaveLength(0);
+      const expected = ['/help/', '/about/', '/contact/'].includes(url) ? [url] : [];
+      expect(currentLinks(nav).map((l) => l.href)).toEqual(expected);
+    },
+  );
+
+  it('keeps TopicNav outside <main> on problem pages, so the skip link passes it', () => {
+    const html = pageAt(site, '/problems/pain/');
+    const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+    expect(main).not.toMatch(/aria-label="All topics"/);
+    expect(main).toMatch(/<h1 class="problem__title">Pain<\/h1>/);
+  });
+});
+
+describe('problem pages and the Sleep problems page', () => {
+  it.each(handoffProblems.map((p) => [p.slug, p]))('/problems/%s/ shows the breadcrumb, title and statement', (slug, p) => {
+    const html = pageAt(site, `/problems/${slug}/`);
+    expect(html).toContain(`data-page-id="${slug}"`);
+    expect(html).toContain('class="page--wide"');
+    expect(text(html.match(/<h1[^>]*>[\s\S]*?<\/h1>/)[0])).toBe(p.shortTitle);
+    const statement = text(elementByClass(html, 'problem__statement', 'p'));
+    expect(statement).toBe(`“${/[.?!]$/.test(p.statement) ? p.statement : `${p.statement}.`}”`);
+    const crumbs = elementByClass(html, 'breadcrumb', 'nav');
+    expect(tags(crumbs, 'a').map((t) => attr(t, 'href'))).toEqual(['/problems/', `/problems/#${p.areaId}`]);
+    expect(linkTexts(crumbs)).toEqual(['Sleep problems', areaNames[p.areaId]]);
+    expect(crumbs).toContain(`<span aria-current="page">`);
+  });
+
+  it('lists every problem under its area, in order, with area anchors', () => {
+    const html = pageAt(site, '/problems/');
+    const sections = [...html.matchAll(/<section class="area-list__area" id="([a-z]+)">([\s\S]*?)<\/section>/g)];
+    expect(sections.map((m) => m[1])).toEqual(['core', 'day', 'clock', 'mind', 'med', 'env', 'social', 'hard', 'relapse', 'dis']);
+    const listed = sections.flatMap(([, area, body]) =>
+      tags(body, 'a').map((t) => [area, attr(t, 'href')]),
+    );
+    expect(listed).toEqual(handoffProblems.map((p) => [p.areaId, `/problems/${p.slug}/`]));
+  });
+});
+
+describe('information pages', () => {
+  const INFO = {
+    '/help/': 'Getting more help',
+    '/about/': 'About SleepSteps',
+    '/contact/': 'Contact us',
+    '/privacy/': 'Privacy and your data',
+  };
+
+  it.each(Object.entries(INFO))('%s has the title band, the side menu and its page_id', (url, label) => {
+    const html = pageAt(site, url);
+    expect(html).toContain(`data-page-id="${url.slice(1, -1)}"`);
+    const band = elementByClass(html, 'band', 'div');
+    expect(band).toMatch(/<h1 class="band__title">/);
+    expect(band).toMatch(/<p class="band__lede">|<p class="band__lede band__aside">/);
+    const nav = elementByClass(html, 'info-nav', 'nav');
+    expect(tags(nav, 'a').map((t) => attr(t, 'href'))).toEqual(['/help/', '/about/', '/contact/', '/privacy/', '/urgent-help/']);
+    expect(currentLinks(nav)).toEqual([{ href: url, value: 'page', label }]);
+    expect(html).toContain(`class="info-body info-body--${url.slice(1, -1)}"`);
+    // The band and side menu are inside <main>, so the skip link lands on the H1.
+    const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+    expect(main).toMatch(/<h1/);
+    expect(main).toMatch(/aria-label="Information pages"/);
+  });
+
+  it('says on Privacy and Contact that emailing or phoning the team is not anonymous', () => {
+    // "Send feedback" leads to Contact until M5 and without JavaScript (SPEC §13, §15.2).
+    const privacy = text(pageAt(site, '/privacy/'));
+    expect(privacy).toContain('Your name, email or other contact details, unless you email or phone us (see below)');
+    expect(privacy).toMatch(/If you email or phone us Emails and phone calls are not anonymous\./);
+    expect(text(pageAt(site, '/contact/'))).toContain("Emails and phone calls aren't anonymous");
+  });
+
+  it('links Privacy to the YouTube privacy policy', () => {
+    expect(pageAt(site, '/privacy/')).toContain(
+      '<p class="link-standalone"><a href="https://policies.google.com/privacy" rel="noreferrer">YouTube privacy policy</a></p>',
+    );
+  });
+
+  it('shows the GP summary on Getting more help as a link only once gp_summary is set', () => {
+    const file = readFileSync('content/pages/help.md', 'utf8').match(/^gp_summary:\s*"([^"]*)"/m)[1];
+    const line = elementByClass(pageAt(site, '/help/'), 'help-print', 'p');
+    if (file) {
+      expect(tags(line, 'a').map((t) => attr(t, 'href'))).toEqual([`/media/pdf/${file}`]);
+      expect(text(line)).toBe('Print a one-page summary for your GP');
+    } else {
+      expect(line).not.toMatch(/<a\b/);
+      expect(text(line)).toBe('[Print a one-page summary for your GP]');
+    }
+  });
+
+  it('gives About the hero band with the settling arc', () => {
+    const html = pageAt(site, '/about/');
+    expect(html).toMatch(/<div class="band band--hero on-dark">/);
+    expect(html).toMatch(/<svg class="arc" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="[^"]+"\/><\/svg>/);
+  });
+});
+
+describe('footer', () => {
+  const pages = readHtmlPages(site).filter((p) => p.file !== 'urgent-help/index.html');
+
+  it.each(pages.map((p) => [p.file, p.html]))('%s has the footer with "Send feedback"', (file, html) => {
+    const footer = elementByClass(html, 'site-footer', 'footer');
+    expect(footer).toBeTruthy();
+    expect(tags(footer, 'nav').map((t) => attr(t, 'aria-label'))).toEqual(['Footer', 'Help and policies']);
+    const feedback = tags(footer, 'a').filter((t) => attr(t, 'class') === 'site-footer__feedback');
+    expect(feedback.map((t) => attr(t, 'href'))).toEqual(config.features.feedback ? ['/contact/'] : []);
+    expect(text(footer)).toContain('[Acknowledgement of Country]');
+    expect(text(footer)).toContain('[Trial registration number] · [Ethics approval number]');
+  });
+});
+
+describe('Getting urgent help', () => {
+  const html = pageAt(site, '/urgent-help/');
+
+  it('has the minimal header and no footer, search, menu or script', () => {
+    const header = elementByClass(html, 'minimal-header', 'header');
+    expect(tags(header, 'a').map((t) => attr(t, 'href'))).toEqual(['/', '/']);
+    expect(linkTexts(header)).toEqual(['', 'Back to SleepSteps']);
+    expect(tags(header, 'img').map((t) => attr(t, 'alt'))).toEqual(['SleepSteps home']);
+    expect(html).not.toMatch(/<footer|<form|<nav|<details|<script/);
+    expect(html).toContain('data-page-id="urgent-help"');
+  });
+
+  it('shows each crisis contact from site.config.json as a tel: link', () => {
+    const links = [...html.matchAll(/<a href="(tel:[^"]+)">([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
+    expect(links).toEqual(
+      config.crisisContacts.map((c) => [
+        `tel:${c.value.replace(/[^0-9]/g, '')}`,
+        `${c.heading} ${c.description} Call ${c.value}`,
+      ]),
+    );
+    expect(text(html)).toContain(`Numbers shown are for ${config.crisisRegion};`);
+  });
+
+  it('shows the smaller cards, linking only those with a confirmed number', () => {
+    const cards = [...elementByClass(html, 'urgent-help__more', 'ul').matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+    expect(text(cards[0])).toMatch(/^Your treating team /);
+    expect(cards[0]).toMatch(/^<div class="contact-card">/);
+    for (const card of cards) {
+      const number = elementByClass(card, 'contact-card__number', 'span');
+      if (!number || text(number).startsWith('[')) {
+        expect(card).not.toMatch(/<a\b/);
+      } else {
+        const digits = text(number).replace(/^Call /, '').replace(/[^0-9+]/g, '');
+        expect(tags(card, 'a').map((t) => [attr(t, 'class'), attr(t, 'href')])).toEqual([
+          ['contact-card contact-card--link', `tel:${digits}`],
+        ]);
+      }
+    }
+  });
+
+  it('stays minimal: no draft or developer notes', () => {
+    expect(html).not.toMatch(/class="placeholder"/);
+  });
+});
+
+describe('other pages', () => {
+  it.each([
+    ['/', 'home'],
+    ['/start/', 'start'],
+    ['/problems/', 'problems'],
+    ['/search/', 'search'],
+  ])('%s has page_id %s', (url, id) => {
+    expect(pageAt(site, url)).toContain(`data-page-id="${id}"`);
+  });
+
+  it('serves the 404 page at /404.html with no page_id', () => {
+    const html = pageAt(site, '/404.html');
+    expect(html).not.toContain('data-page-id');
+    expect(html).toMatch(/<title>Page not found \| SleepSteps<\/title>/);
+  });
+
+  it('gives the search page a no-JavaScript route to the Sleep problems page', () => {
+    const fallback = elementByClass(pageAt(site, '/search/'), 'search-fallback', 'div');
+    expect(fallback).toMatch(/<a href="\/problems\/">Sleep problems<\/a>/);
+  });
+});

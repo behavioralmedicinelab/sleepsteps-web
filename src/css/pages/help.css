@@ -1,0 +1,109 @@
+/*
+ * Getting more help (/help/): SPEC §7.4, §7.5; HANDOFF §6.5; board
+ * Info-Help.dc.html. Loaded through `styles` front matter in
+ * content/pages/help.md. Values come from tokens.css; board spacing off the
+ * token scale snaps up to the next step (SPEC §7.5), and the board's 15-16px
+ * running text is 17px body.
+ *
+ * The layout, side menu, section headings, plain lists, cards and the urgent
+ * notice come from site.css (§9 and §10).
+ */
+
+.info-body--help {
+  --help-step-disc: 32px; /* numbered disc (board) */
+  max-width: 760px;       /* content measure (board) */
+  gap: var(--space-9);    /* board 36 */
+}
+
+/* "When to talk to your doctor" */
+.info-body--help .help-note {
+  margin-top: var(--space-5); /* board 14 */
+  color: var(--slate-grey);
+}
+
+/* "Seeing a sleep specialist" */
+.info-body--help .help-intro + .help-steps {
+  margin-top: var(--space-5);
+}
+
+.help-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.info-body--help .help-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);         /* board 14 */
+  padding: var(--space-5) var(--space-6); /* board 16 x 18 */
+}
+
+.help-step__num {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--help-step-disc);
+  height: var(--help-step-disc);
+  /* Transparent border: the disc keeps its outline in forced colours. */
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--deep-teal);
+  color: var(--paper);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+
+.help-step > div {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Step titles are H3s set as bold body text, as on the board. */
+.info-body--help .help-step__title {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--weight-semibold);
+}
+
+.help-step__text {
+  color: var(--slate-grey);
+}
+
+.info-body--help .help-print {
+  margin-top: var(--space-5);
+  font-weight: var(--weight-semibold);
+}
+
+/* As a link (once `gp_summary` is set) its 44px target adds about 8px above
+   the text, so the margin is smaller for the board's 16px gap. */
+.info-body--help .help-print.link-standalone {
+  margin-top: var(--space-3);
+}
+
+/* "Other support" */
+.info-body--help .help-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--space-5);
+  margin-top: var(--space-5); /* board 14 */
+  padding: 0;
+  list-style: none;
+}
+
+.info-body--help .help-service {
+  padding: var(--space-6);
+}
+
+.info-body--help .help-service__name {
+  margin-bottom: var(--space-1);
+  color: var(--ink);
+}
+
+.help-service__details {
+  color: var(--slate-grey);
+}

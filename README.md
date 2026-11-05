@@ -19,4 +19,19 @@ npm test        # run tests
 
 ## Content editing
 
-A content editing guide is added in milestone M1 (see `SPEC.md` §19.2 for adding a video).
+A full content editing guide is added in milestone M1b (see `SPEC.md` §19.2 for adding a video). For now:
+
+- **Problem areas:** `data/areas.csv` (edit in Excel, save as CSV UTF-8).
+- **Sleep problems:** one file per problem in `content/problems/<slug>.md` (SPEC §7.2).
+- **Information pages:** `content/pages/*.md`. The front matter they take is described at the top of `src/_includes/layouts/info.njk`.
+- **Crisis numbers** on Getting urgent help: `crisisContacts` in `site.config.json`. The smaller cards under them (your treating team, the cancer support line) are `other_contacts` in `content/pages/urgent-help.md`; a card becomes a phone link once its `value` is a real number.
+- **GP summary** on Getting more help: put the PDF in `media/pdf/` and its file name in `gp_summary` in `content/pages/help.md`.
+
+## Tests
+
+`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime) and `node` (the CSV parser, content data, and checks on a fresh build of the whole site). `npm test -- --project node` runs one of them.
+
+## Licence
+
+- **Content** (page text, transcripts, data files, handouts, audio and thumbnails): [CC BY 4.0](LICENSE-CONTENT.md). The SleepSteps name and logo, and third-party material, are not covered.
+- **Code:** [MIT](LICENSE).

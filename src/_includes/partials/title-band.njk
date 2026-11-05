@@ -1,0 +1,35 @@
+{#-
+  Teal title band (boards Info-Help, Info-About, Intro-B, Problems-A).
+  Reads from the page's front matter:
+    eyebrow   small uppercase label above the heading (default "Information")
+    heading   the H1 (default: title)
+    summary   the lede under the H1
+    band      "standard" (default) or "hero": the About-style hero, with the
+              lede beside the H1 and the settling arc at the base
+-#}
+{%- set bandHeading = heading or title -%}
+{%- set bandEyebrow = eyebrow if eyebrow is defined else 'Information' -%}
+{%- if band == 'hero' %}
+<div class="band band--hero on-dark">
+  <div class="band__inner band__inner--split container">
+    <div class="band__main">
+      {%- if bandEyebrow %}<p class="band__eyebrow">{{ bandEyebrow }}</p>{% endif %}
+      <h1 class="band__title">{{ bandHeading }}</h1>
+    </div>
+    {%- if summary %}
+    <p class="band__lede band__aside">{{ summary }}</p>
+    {%- endif %}
+  </div>
+  {% include "partials/arc.njk" %}
+</div>
+{%- else %}
+<div class="band on-dark">
+  <div class="band__inner container">
+    {%- if bandEyebrow %}<p class="band__eyebrow">{{ bandEyebrow }}</p>{% endif %}
+    <h1 class="band__title">{{ bandHeading }}</h1>
+    {%- if summary %}
+    <p class="band__lede">{{ summary }}</p>
+    {%- endif %}
+  </div>
+</div>
+{%- endif %}

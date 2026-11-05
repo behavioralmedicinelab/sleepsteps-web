@@ -1,7 +1,7 @@
 # Sleep Intervention Website — Technical Specification
 
 Status: Draft v1 (2026-11-05)
-Owner: <TEAM / PI NAME>
+Owner: Joshua Wiley
 Domain: `<DOMAIN>` (placeholder throughout)
 
 This document is the source of truth for what the site does and how it is built. When a decision here changes, update this file in the same commit as the code change.
@@ -87,6 +87,8 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 ├── CLAUDE.md                  # Instructions for Claude Code
 ├── SPEC.md                    # This file
 ├── README.md                  # Human quick start + content editing guide
+├── LICENSE                    # Code: MIT
+├── LICENSE-CONTENT.md         # Content: CC BY 4.0 (§22)
 ├── package.json
 ├── wrangler.jsonc
 ├── eleventy.config.js
@@ -98,7 +100,7 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   ├── start.md               # "Start here" intro videos (§7.3)
 │   ├── problems.njk           # Sleep problems browser (§7.2)
 │   └── index.njk              # Home page
-├── data/
+├── data/                      # Eleventy global data: each CSV becomes an array of row objects
 │   ├── areas.csv              # The 10 problem areas (§7.2)
 │   └── keywords.csv           # Search synonyms (§8.2)
 ├── media/
@@ -106,13 +108,14 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   ├── pdf/                   # Handouts
 │   └── thumbs/                # Self-hosted video thumbnails (optional)
 ├── src/
-│   ├── _includes/             # Layouts and partials (components in §7.5)
+│   ├── _includes/             # layouts/, partials/ (components in §7.5), notices/ (§15)
 │   ├── img/                   # Logo and site images
-│   ├── css/
-│   └── js/                    # search.js, rating.js, feedback.js, events.js, players.js, api.js
+│   ├── css/                   # tokens.css, site.css, pages/<page>.css (§7.5)
+│   └── js/                    # menu.js, search.js, rating.js, feedback.js, events.js, players.js, api.js
 ├── scripts/
 │   ├── build-data.js          # Builds search-index.json + pages.json, validates CSVs
-│   └── validate-content.js    # Front matter + media file checks
+│   ├── validate-content.js    # Front matter + media file checks
+│   └── lib/csv.js             # Dependency-free RFC 4180 CSV parser (Excel CSV UTF-8 exports)
 ├── worker/
 │   ├── index.js               # Router
 │   ├── routes/                # rate.js, feedback.js, event.js, admin.js
@@ -122,6 +125,8 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 ├── docs/
 │   └── design/                # Claude Design handoff: HANDOFF.md, tokens, logo, mockups (§7.5)
 ├── test/
+│   ├── worker/                # Vitest project "worker": runs in workerd
+│   └── node/                  # Vitest project "node": build scripts and built-site checks
 └── dist/                      # Build output (git-ignored)
 ```
 
@@ -192,13 +197,30 @@ Lists the intro videos in order, each with a `video` (video_id) and a one-line `
 
 ### 7.4 Information pages (`content/pages/*.md`)
 
-Standard Eleventy pages with `title` and `summary`. They are included in the search index unless `search: false` is set.
+Standard Eleventy pages with `title` and `summary`. They are included in the search index unless `search: false` is set. A page's `page_id` is its file name and it renders at `/<file name>/` (`content/pages/pages.11tydata.js`).
 
-Required pages: Getting more help (`/help/`), About (`/about/`), Contact (`/contact/`), Privacy and your data (`/privacy/`, §15), Getting urgent help (`/urgent-help/`, with the crisis contacts from `site.config.json`), and 404.
+They use the information layout (`src/_includes/layouts/info.njk`, whose header comment is the full contract): a teal title band, the "Information pages" side menu and the content column. Front matter: `title` and `summary` (required; the summary is the lede under the H1 and the meta description), and optionally `eyebrow` (default "Information"), `heading` (H1 text when it differs from the title), `band: hero` (the About hero with the settling arc) and `styles` (extra stylesheets, e.g. `["pages/help.css"]`). Any page can list `styles`; only paths under `src/css/` are accepted.
+
+Required pages: Getting more help (`/help/`), About (`/about/`), Contact (`/contact/`), Privacy and your data (`/privacy/`, §15), Getting urgent help (`/urgent-help/`, with the crisis contacts from `site.config.json`), and 404 (`content/404.njk`, output as `/404.html`, no `page_id`).
+
+**Getting urgent help is deliberately minimal** (design handoff §6.5): it uses `layouts/urgent.njk`, which sets `header: minimal` (the logo and "Back to SleepSteps" only: no nav, search box or menu script) and `footer: false`. It is the one exception to the header search box (§8.1) and the footer "Send feedback" link (§13). Under the crisis cards (§11), smaller white cards come from the page's `other_contacts` front matter (`heading`, `description`, optional `value`): a card whose `value` is a confirmed number (not a `[placeholder]`) is a whole-card `tel:` link with the hover shadow. "Your treating team" has no number (it is on each person's care plan), so its card is information, not a link. The page carries no draft or developer notes (a test checks this); what the team still has to confirm is tracked in §21.
 
 ### 7.5 Visual design and components
 
-Layouts, copy and components follow the design handoff in `docs/design/` (start with `HANDOFF.md`; the boards in `reference/boards/` give exact spacing and copy, but their design-tool runtime is not copied). Its colour, type-scale, spacing and radius tokens are CSS custom properties in `src/css/`; components never hard-code values. Exceptions to the handoff, recorded in §22:
+Layouts, copy and components follow the design handoff in `docs/design/` (start with `HANDOFF.md`; the boards in `reference/boards/` give exact spacing and copy, but their design-tool runtime is not copied). Its colour, type-scale, spacing and radius tokens are CSS custom properties defined once in `src/css/tokens.css`, the only stylesheet allowed to contain colour values (a test enforces this); components never hard-code values. `src/css/site.css` holds the base styles, the shell components and the page layouts; a page adds its own CSS through `styles` front matter (§7.4).
+
+Token rules:
+
+- **Spacing:** the token scale (4–32px) plus layout steps `space-9` to `space-14` (40, 48, 56, 64, 72, 96px) for page padding and section gaps. Board values off the scale snap up to the next step (10→12, 14→16, 18→20, 22→24, 28→32, 36→40, 44→48).
+- **Type:** the tokens.json styles, plus values the handoff gives outside it: interior H1 48px, problem H1 44px, phone H1 34px, the 19/30 lede and the problem statement at 22px. All running text is at least 17px; the boards' 15–16px running text is raised to 17px.
+- **Colour pairs:** only pairs tokens.json lists as passing. So the footer's secondary text is `paper` (the board's `on-teal-muted` on `ink` is not listed) and the urgent-help notice text is `clay-deep` on `clay-wash`.
+- **Focus ring:** 2px solid with a 2px offset, `deep-teal` on light grounds and `paper` on teal or ink (handoff §10), with two exceptions. On the urgent-help notice's `clay-wash` ground the ring is `clay-deep`, the only colour tokens.json lists on that ground. The header search input is joined to its `deep-teal` submit button, so its ring is drawn just inside the input's box (at the usual offset its right side would sit on the button and vanish).
+- **Page width:** 1200px by default, 1280px (`page_width: medium`: Start here, Sleep problems) or 1360px (`page_width: wide`: problem pages), as on the boards.
+- **Targets:** every link and control is at least 44×44px, so TopicNav's problem, chapter and info links are 44px tall (36–40px on the board). This includes links inside a sentence (stricter than WCAG 2.5.8): they are `inline-flex` with a 44px minimum height, as on the urgent-help notice, the search page's no-JavaScript link and `.link-standalone`.
+- **Logo:** the stacked logo only (there is no horizontal lockup). If a header ever can't fit it, it drops the logo for a "SleepSteps" text link to the home page rather than shrinking or altering it.
+- **Disclosures without JavaScript:** TopicNav areas and the phone Menu are native `<details>`/`<summary>`. `src/js/menu.js` upgrades the Menu to a `<button aria-expanded aria-controls>` with Escape-to-close; TopicNav ships no JavaScript.
+
+Exceptions to the handoff, recorded in §22:
 
 - **System fonts** instead of Figtree and Source Sans 3: no web fonts are loaded.
 - **Ratings** follow §12, with no client ID.
@@ -208,13 +230,13 @@ Layouts, copy and components follow the design handoff in `docs/design/` (start 
 
 ### 8.1 Behaviour
 
-- A search box in the header on every page. Submitting goes to `/search/?q=<query>`.
+- A search box in the header on every page except Getting urgent help (§7.4). Submitting goes to `/search/?q=<query>` (a plain GET form, so it works without JavaScript).
 - The search page loads `search-index.json` and MiniSearch lazily, i.e. only on the search page or when the header box is focused.
 - Results show title (linked), summary and content type. Show the top 10.
 - With no results, show a message plus a link to the Sleep problems page.
 - The query is kept in the URL so results are shareable and the Back button works.
 - Log a `search` event with the query (truncated to 100 characters) and result count (§10).
-- With JavaScript disabled, the search box links to the Sleep problems page.
+- With JavaScript disabled, the search box still submits to `/search/`, whose static HTML says that results need JavaScript and links to the Sleep problems page.
 - **Problems page filter** (separate from the site search): a live filter on `/problems/` matching each problem's short title, statement, area name and keywords. It filters both views as you type, hides areas with no matches and opens areas with matches, and announces the count ("4 topics match 'night'") in an `aria-live="polite"` region. It does not log events.
 
 ### 8.2 Keywords (`data/keywords.csv`)
@@ -280,10 +302,12 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 ### 9.4 Media tracking (`src/js/players.js`)
 
-- Log `video_play` / `audio_play` on the first play per page load.
-- Log `video_progress` / `audio_progress` at milestones 25/50/75/100%, each once per page load. These are based on the furthest position reached, not on watch time.
+- Log **one `video_play` / `audio_play` event per media item per page load**, carrying the furthest point reached: `0` (played, but under 25%), `25`, `50`, `75` or `100`. It is based on the furthest position reached, not on watch time. There are no separate progress events.
+  - Send it immediately on reaching 100%. Otherwise send it when the page is hidden (`visibilitychange` to hidden, or `pagehide`) if the item was played at all.
+  - If the page is hidden and shown again and the item later reaches a higher point, send one more event with the new value. Analysis takes the highest value per session, page and item.
+  - A play is lost if the tab is killed without being hidden first, which is rare.
 - Video: poll `getCurrentTime()` / `getDuration()` every 5 seconds while the state is PLAYING. Audio: use the `timeupdate` event.
-- Log `pdf_download` on a handout click.
+- Log `pdf_download` when a handout link is clicked (whether the browser opens or downloads it).
 
 ## 10. Analytics events
 
@@ -298,15 +322,12 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 | type | page | detail (JSON) |
 |---|---|---|
-| `page_view` | page_id or path | `{}` |
+| `page_view` | page_id: **only** problem pages, `start` and `urgent-help` (a template sets `track_page_view: true`; no other page sends one) | `{}` |
 | `search` | `search` | `{ "q": string ≤100, "results": int }` |
-| `problem_click` | `problems` | `{ "problem_id": slug }` |
-| `video_play` | page_id | `{ "media": video_id }` |
-| `video_progress` | page_id | `{ "media": video_id, "milestone": 25\|50\|75\|100 }` |
-| `audio_play` | page_id | `{ "media": filename }` |
-| `audio_progress` | page_id | `{ "media": filename, "milestone": 25\|50\|75\|100 }` |
+| `video_play` | page_id | `{ "media": video_id, "furthest": 0\|25\|50\|75\|100 }` (§9.4) |
+| `audio_play` | page_id | `{ "media": filename, "furthest": 0\|25\|50\|75\|100 }` (§9.4) |
 | `pdf_download` | page_id | `{ "media": filename }` |
-| `transcript_open` | page_id | `{}` |
+| `transcript_open` | page_id | `{ "media": video_id }`: which video's transcript, since problem pages hold several videos |
 
 ## 11. Feature switches and failure handling
 
@@ -314,16 +335,21 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 ```json
 {
-  "siteName": "<SITE_NAME>",
+  "siteName": "SleepSteps",
   "siteUrl": "https://<DOMAIN>",
   "features": { "ratings": true, "feedback": true, "events": true },
   "turnstileSiteKey": "<PUBLIC_SITE_KEY>",
+  "crisisRegion": "[Australia]",
   "crisisContacts": [
-    { "label": "Emergency", "value": "000" },
-    { "label": "Lifeline", "value": "13 11 14" }
+    { "label": "Emergency", "value": "000",
+      "heading": "If you are in danger, or need emergency care", "description": "Police, ambulance or fire" },
+    { "label": "Lifeline", "value": "13 11 14",
+      "heading": "To talk to someone now", "description": "Lifeline · crisis support, 24 hours" }
   ]
 }
 ```
+
+The Getting urgent help page renders one card per `crisisContacts` entry, in order: `heading` (falls back to `label`), `description`, and `value` as a `tel:` link (digits and a leading `+` only). `crisisRegion` names the region the numbers apply to.
 
 - **Build time:** templates render a widget only if its feature is on. Its JS is loaded only if needed.
 - **Worker:** imports the same file. A disabled feature's route returns `404`. Turning features off is therefore one config edit plus a push.
@@ -341,7 +367,8 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 ## 13. Feedback widget (`src/js/feedback.js`)
 
-- A "Send feedback" link in the footer on every page opens a `<dialog>`. This is the only feedback entry point; there are no per-video feedback forms (§7.5).
+- A "Send feedback" link in the footer on every page except Getting urgent help (§7.4) opens a `<dialog>`. This is the only feedback entry point; there are no per-video feedback forms (§7.5).
+- The link is an `<a href="/contact/">` in the HTML, rendered only when `features.feedback` is on. `feedback.js` replaces it with a `<button>` that opens the dialog; until then (M1a–M4), and whenever JavaScript is off or the script fails, it leads to the Contact page.
 - The dialog contains: the notice (§15.1), a `<textarea maxlength="2000">` with a label, a Turnstile widget, a Submit button and a Cancel button.
 - Submit: `POST /api/feedback { page_id, message, turnstile_token }`. `page_id` comes from a `data-page-id` attribute on `<body>`; for pages without one, use the path.
 - On success, show "Thanks — your feedback has been sent", then close the dialog.
@@ -377,14 +404,16 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 ### 14.4 Admin
 
-- `/admin/*` is protected by a Cloudflare Access application (dashboard configuration, §18).
+- `/admin` and `/admin/*` are protected by a Cloudflare Access application (dashboard configuration, §18.4). The application lists **both** paths, because `admin/*` alone does not cover `/admin`, and its policy allows named emails only, never a whole email domain.
+- The Worker must run first for these paths (`run_worker_first`, §18.2). Otherwise a browser opening `/admin/` gets the static 404 page without the Worker running.
 - As defence in depth, the Worker also verifies the `Cf-Access-Jwt-Assertion` header against the team's Access certificates (`https://<TEAM>.cloudflareaccess.com/cdn-cgi/access/certs`) and the application's AUD tag (`env.ACCESS_AUD`, `env.ACCESS_TEAM_DOMAIN`). Return `403` if missing or invalid.
 - The summary page shows, for a selectable date range (default: last 30 days):
-  - page views and visits (distinct `session_id`) per page
+  - page views and visits (distinct `session_id`) per tracked page: problem pages, Start here and Getting urgent help (§10.2). Visits that touch only other pages are not counted.
   - rating count and mean per video (and per page)
   - top 20 searches with zero results
   - the 20 most recent feedback items
-  - media plays and 100% completions per item
+  - media plays per item, and how far people got (the highest `furthest` per session, page and item, grouped as under 25%, 25%, 50%, 75% and 100%)
+  - transcript opens and handout clicks per item
 - CSV export is UTF-8 with a header row, and fields are escaped properly.
 
 ## 15. Privacy, notices and data
@@ -402,7 +431,8 @@ In the feedback dialog:
 ### 15.2 Privacy and data page (`/privacy/`) must cover
 
 - **What we collect:** star ratings, feedback text, search terms, and anonymous usage events (pages viewed, media played, downloads), each with the page and time.
-- **What we don't collect:** names, contact details, cookies, or stored IP addresses. A temporary random code held in the browser tab, and deleted when the tab closes, is used to count visits; it cannot identify you.
+- **What we don't collect:** names, contact details (except as below), cookies, or stored IP addresses. A temporary random code held in the browser tab, and deleted when the tab closes, is used to count visits; it cannot identify you.
+- **If you email or phone the team** (the Contact page, which is also where "Send feedback" leads until M5 and without JavaScript, §13): this is not anonymous. The team receives the email address or phone number with the message, uses it only to reply, and keeps it outside the site's data (never in D1) and unlinked to it, for <RETENTION PERIOD>. The Contact page says so too.
 - **Who processes data:** Cloudflare (hosting, database, spam protection); YouTube/Google when you choose to play a video (Google's privacy policy applies). Some processing may occur outside Australia.
 - **Use:** improving these resources. This is separate from the trial's research data.
 - **Retention:** <RETENTION PERIOD>. Collection stops when the funded project ends (§19).
@@ -430,6 +460,7 @@ In the feedback dialog:
   style-src 'self';
   base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   ```
+- **Links to other sites** load nothing, so the CSP doesn't cover them. They are kept deliberate instead: a build test allows `<a href>` only to hosts on its allowlist (`www.youtube.com` for "Watch on YouTube", §9.1; `policies.google.com` for Google's privacy policy, §15.2), over `https`, with `rel="noreferrer"` so the other site isn't told the visitor came from SleepSteps. Every other attribute that loads something (`src`, `srcset`, `poster`, `<link href>`, `action`, …) must be same-origin.
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `X-Content-Type-Options: nosniff`
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
@@ -440,10 +471,12 @@ Only the YouTube IFrame API (loaded on click) and Turnstile (loaded when the fee
 
 ### 16.3 Cloudflare dashboard settings (manual, see §18)
 
+These apply to the custom domain only, never to `workers.dev` or preview URLs.
+
 - DNS records proxied; Always Use HTTPS
-- AI crawler controls: Search allowed, Training blocked, Agent at team discretion; managed robots.txt on
-- Bot Fight Mode on, then test that the forms still submit
-- Rate-limiting rule: `/api/*`, e.g. 20 requests per 10 seconds per IP → block
+- AI Crawler and Agent access policies: Search **Allow**; Training **Disallow** (not Block, which also catches crawlers used for both search and training) with "Bot Preference Sync" on, which writes the managed robots.txt; Agent and Personal Agents at team discretion (§21)
+- Bot Fight Mode: **decision pending (§21).** It sets a `__cf_bm` cookie and injects a script into every page, which conflicts with §2, §15.2 and the CSP in §16.1 as currently written. On the Free plan it can't be skipped for `/api/*`. Leave it off until decided.
+- Rate-limiting rule: URI path starts with `/api/`, 20 requests per 10 seconds per IP → block for 10 seconds. The Free plan allows one rule, can't match on method, and returns Cloudflare's default 429. It limits each IP, not the total.
 - Search engines allowed. Verify crawling in Google Search Console after launch.
 
 ## 17. Database
@@ -475,16 +508,18 @@ CREATE TABLE events (
   type TEXT NOT NULL,
   detail TEXT
 );
-CREATE INDEX idx_ratings_page_ts ON ratings(page, ts);
-CREATE INDEX idx_ratings_video_ts ON ratings(video, ts);
+CREATE INDEX idx_ratings_ts ON ratings(ts);
 CREATE INDEX idx_feedback_ts ON feedback(ts);
 CREATE INDEX idx_events_type_ts ON events(type, ts);
-CREATE INDEX idx_events_page_ts ON events(page, ts);
 ```
+
+One secondary index per table: every insert writes 2 rows (the row plus one index entry). Admin queries filter events by `type IN (...)` and a `ts` window so they use `idx_events_type_ts`, and ratings and feedback by a `ts` window (§14.4).
 
 Schema changes go through new migration files only (`wrangler d1 migrations create`, then `apply --local` before `apply --remote`). Never edit an applied migration.
 
-Free plan limits (Nov 2026): 100,000 row writes/day and 5 million row reads/day; queries fail for the rest of the UTC day once a limit is exceeded. The free plan's point-in-time recovery covers only 7 days, so monthly CSV exports are the real backup. If limits become a problem, upgrade to Workers Paid (US$5/month); no code changes are needed.
+Free plan limits (Nov 2026): 100,000 rows written/day and 5 million rows read/day **per account**, and a 500 MB database. Each secondary index adds a written row, so one insert costs 2 rows (§17 schema): the real ceiling is about 50,000 events a day. Once either daily limit is hit, **every** D1 query fails until 00:00 UTC (10:00 AEST): saving, the admin page and the export. Pages and media keep working, and there is never a bill. The 500 MB cap does not reset. The free plan's point-in-time recovery covers only 7 days, so monthly CSV exports are the real backup.
+
+If limits become a problem, upgrade to Workers Paid (US$5/month): no daily cut-off, 10 GB per database and 30-day point-in-time recovery. The plan switch itself needs no code changes. Export paging, index-friendly admin queries and any retention job are needed on either plan (§14.4). Use a Cloudflare account dedicated to this project, since the limits are shared across the account.
 
 ## 18. Build, deploy and setup
 
@@ -494,7 +529,7 @@ Free plan limits (Nov 2026): 100,000 row writes/day and 5 million row reads/day;
 |---|---|
 | `npm run build` | `validate-content` → `build-data` → Eleventy → `dist/` |
 | `npm run dev` | Eleventy watch + `wrangler dev` (local D1) |
-| `npm test` | Vitest (Worker routes, validation, search queries, CSV parsing) |
+| `npm test` | Vitest, two projects: `worker` (Worker routes and validation, in workerd via `@cloudflare/vitest-plugin`) and `node` (build scripts, CSV parsing, search queries, and checks on a fresh build of the site in a temporary directory) |
 | `npm run db:migrate:local` / `db:migrate:remote` | Apply migrations |
 
 ### 18.2 `wrangler.jsonc` (skeleton)
@@ -504,7 +539,10 @@ Free plan limits (Nov 2026): 100,000 row writes/day and 5 million row reads/day;
   "name": "sleep-site",
   "main": "worker/index.js",
   "compatibility_date": "<DATE OF SETUP>",
-  "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "404-page" },
+  "assets": {
+    "directory": "./dist", "binding": "ASSETS", "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*", "/admin", "/admin/*"]
+  },
   "d1_databases": [
     { "binding": "DB", "database_name": "sleep-site", "database_id": "<ID>", "migrations_dir": "migrations" }
   ],
@@ -514,24 +552,35 @@ Free plan limits (Nov 2026): 100,000 row writes/day and 5 million row reads/day;
 ```
 
 - `compatibility_date` must be no later than the newest date the pinned Wrangler's bundled workerd supports; otherwise `wrangler dev` refuses to start. Raise it when upgrading Wrangler.
-- The `ASSETS` binding lets the Worker hand non-`/api/`, non-`/admin/` requests back to static assets. When a Worker script is present, unmatched requests reach the Worker, so without this fallthrough unknown paths would not get the 404 page.
+- **Routing.** With this compatibility date, a browser *navigation* to a path with no matching file gets the 404 page straight from static assets, without the Worker running. Other unmatched requests (fetch, beacons, crawlers' `robots.txt`) reach the Worker, and the `ASSETS` binding lets it hand non-`/api/`, non-`/admin/` ones back to static assets. `run_worker_first` sends `/api/*` and `/admin*` to the Worker first; `/admin/` page loads need it (M6).
+- **Previews.** Worker Previews do not inherit bindings or vars. A `previews` block gives them their own `d1_databases` binding (the `sleep-site-preview` database) and vars. Preview migrations use a separate config file, and preview secrets are set with `wrangler preview base-config secret put`. The setup PR adds these before Workers Builds is connected (§18.3).
+- **At launch**, `"workers_dev": false` stops production answering on `workers.dev` (switching it off in the dashboard is undone by the next deploy), and `preview_urls` stays on.
 
 ### 18.3 Deployment
 
-Workers Builds is connected to the GitHub repo. Pushes to `main` build and deploy to production; other branches get preview URLs. Preview deployments share the production D1 binding unless a separate preview database is configured. **Decision: use a separate `sleep-site-preview` database for previews.**
+Workers Builds is connected to the GitHub repo. Pushes to `main` build and deploy to production; other branches get preview URLs. **Previews use a separate `sleep-site-preview` database** (§18.2).
+
+- **Build command:** `npm test && npm run build`, so a failing test stops the deploy. Deploy command `npx wrangler deploy`. Builds ignores `engines`, so the Node version is pinned in `.node-version` (Builds defaults to an older Node).
+- **The setup PR merges first.** The real D1 IDs and the `previews` block must be on `main` before Builds is connected, or the first deploy fails.
+- **Before launch the site is unlisted.** Production is public at `<worker>.<subdomain>.workers.dev` as soon as Builds deploys, and zone settings (§16.3) don't apply there. Until launch:
+  - production on `workers.dev` sends `X-Robots-Tag: noindex` (preview URLs already do);
+  - data collection (`features`) stays off in production until the privacy officer's go-ahead (§15).
+- **At launch** the custom domain is added and `workers_dev` is turned off (§18.2).
 
 ### 18.4 Manual setup tasks (human only; Claude Code must not attempt dashboard changes)
 
-1. Create the Cloudflare account (institutional email) and add a second admin.
-2. Create a GitHub organisation and transfer the repo to it.
-3. Buy the domain (10 years) and set nameservers to Cloudflare.
-4. Run `wrangler login`, then create the production and preview D1 databases; put the IDs in `wrangler.jsonc`.
-5. Create a Turnstile widget for the domain: put the site key in `site.config.json` and set the secret with `wrangler secret put TURNSTILE_SECRET`.
-6. Create a Zero Trust team, an Access application for `<DOMAIN>/admin/*`, and a policy allowing team emails via one-time PIN; copy the AUD tag into `wrangler.jsonc`.
-7. Connect Workers Builds to the repo.
-8. Apply the security settings in §16.3.
-9. Add the custom domain to the Worker.
-10. Verify the domain in Google Search Console.
+1. Create a Cloudflare account dedicated to this project (institutional role mailbox, app-based 2FA) and add a second Super Administrator.
+2. ~~Create a GitHub organisation and transfer the repo to it.~~ Done (`behavioralmedicinelab/sleepsteps-web`). Also: require 2FA, have two owners, and add a ruleset on `main` (pull request required, only named people can merge, since every merge deploys).
+3. Register the domain. **Interim plan: a `.org` through Cloudflare Registrar** (multi-year term, auto-renew on an institutional card); a university domain is under discussion (§21). A `.au` licence runs at most 5 years and Cloudflare Registrar doesn't sell `.au`.
+4. Run `wrangler login`, then create the production and preview D1 databases (`--location=oc`, without `--update-config`) and send Claude both IDs for the setup PR.
+5. Create a Turnstile widget (Managed mode, **Pre-clearance off**, since it sets a cookie): hostnames are the `workers.dev` address until the domain exists, then the domain. Put the site key in `site.config.json`; set the secret with `wrangler secret put TURNSTILE_SECRET`, and the preview secret to Turnstile's always-pass test value with `wrangler preview base-config secret put TURNSTILE_SECRET`.
+6. Create a Zero Trust team (Free plan), add the One-time PIN login method, and create an Access application for `<DOMAIN>/admin` **and** `<DOMAIN>/admin/*` with a policy listing named emails; send Claude the AUD tag.
+7. Merge the setup PR, then connect Workers Builds (§18.3 settings) and turn on preview builds.
+8. Apply the security settings in §16.3 once the domain is active on Cloudflare.
+9. Add the custom domain to the Worker (Claude's launch PR sets `workers_dev: false`).
+10. Verify the domain in Google Search Console (DNS TXT record).
+
+Order matters: the D1 IDs must be on `main` before step 7; the domain must be active on Cloudflare before steps 8–9; the Access application and the Turnstile hostname must exist before step 9.
 
 ## 19. Operations
 
@@ -540,6 +589,11 @@ Workers Builds is connected to the GitHub repo. Pushes to `main` build and deplo
 - Export all three tables from `/admin/export` and store them in team storage (not the repo).
 - Review the zero-result searches on `/admin/` and update `keywords.csv`.
 - Read new feedback.
+- Check the D1 dashboard: daily rows written and database size against the free limits (§17).
+
+**Quarterly:** remove people who have left from Cloudflare, Access policies, GitHub, YouTube and Search Console, and check that the second admins can still sign in.
+
+**Yearly:** recheck crisis and support numbers and external links; check the domain expiry and that the renewal card is valid; upgrade Wrangler and raise `compatibility_date` (§18.2). Sign in to the Google accounts that own YouTube and Search Console at least every 2 years, or Google may delete them as inactive.
 
 ### 19.2 Adding a video
 
@@ -568,12 +622,12 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | M1a | Design system + site shell | Tokens as CSS custom properties; system fonts; logo; header, mobile header and menu, footer and topic menu match the handoff and work without JS; the information pages and 404 render; keyboard and 320px-width checks pass |
 | M1b | Content model + page templates | Areas, the 36 problems (placeholder text) and sample videos load; build fails on missing fields, unknown references, bad solution counts or missing media; Sleep problems page (both views, live filter, no-JS fallback); problem page with expanding solution cards for 1–3 main and 0–3 extras; video facade; Start here; Home |
 | M2 | Search | Index built from content + keywords; search page works with fuzzy matching; query tests pass; no-JS fallback |
-| M3 | Database + events | Migration applied locally; `/api/event` validates and inserts; page views and media milestones logged; origin check; feature switch off → 404 and no client calls |
+| M3 | Database + events | Migration applied locally; `/api/event` validates and inserts; page views and media plays (with the furthest point reached) logged; origin check; feature switch off → 404 and no client calls |
 | M4 | Ratings | Widget accessible by keyboard and screen reader; inserts rows; failure message shown when the API is stopped |
 | M5 | Feedback | Dialog, Turnstile (using test keys locally), validation, notice text, failure handling |
 | M6 | Admin | Summary page and CSV export; requests without a valid Access JWT get 403 |
 | M7 | Hardening | Headers/CSP enforced without console errors; accessibility pass (axe, keyboard-only walkthrough); all features tested off and with API failure |
-| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved |
+| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved; urgent-help numbers, cancer support line and region confirmed (§21) |
 
 ## 21. Open decisions
 
@@ -581,14 +635,20 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [ ] Data retention period for ratings, feedback and events
 - [ ] Whether to add an optional weekly feedback-digest email (scheduled Worker; needs Email Routing)
 - [ ] Whether the AI "Agent" crawler category is allowed
-- [ ] Domain (the site name is SleepSteps; the visual design comes from the handoff)
+- [ ] Domain: interim plan is a `.org` through Cloudflare Registrar; a university domain is under discussion (the site name is SleepSteps)
+- [ ] Bot Fight Mode and cookies: whether to allow Cloudflare's bot-protection cookie and injected script, disclosed on the privacy page, with the CSP change it needs (§16.3; research on GDPR/ePrivacy and disclosure practice in progress)
+- [x] Content licence: CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`, §22)
+- [x] Code licence: stays MIT (Creative Commons advises against CC licences for software)
+- [ ] Copyright holder: `Behavioural Medicine Lab` is used in both licence files; confirm with the university's IP policy who owns staff-created materials
+- [ ] Whether to move to Workers Paid (US$5/month) at launch, for no daily cut-off and 30-day recovery (§17)
 - [x] Whether ratings appear on non-video pages: no, ratings are per video (§12)
 - [ ] Handout format: PDF, web page, or both
+- [ ] The one-page GP summary on Getting more help: format, content and who writes it (until then the line is `[placeholder]` text; `gp_summary` in `content/pages/help.md` turns it into a link, §22)
 - [ ] Whether audio-only versions are being made
 - [ ] Urgent-help numbers and the region they apply to (the mockups assume Australia: 000, Lifeline 13 11 14) and the cancer support line
 - [ ] Whether captions are on by default (`cc_load_policy`)
 - [ ] Team review of each problem's area and time-of-day placement, related topics and keywords
-- [ ] Whether a horizontal logo lockup exists (the stacked logo's wordmark is small at header size)
+- [x] Horizontal logo lockup: none; where the stacked logo doesn't fit, the header drops it for a text home link (§7.5)
 
 ## 22. Decision log
 
@@ -607,3 +667,27 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | 2026-11-05 | Feedback only through the footer dialog with Turnstile (declined the handoff's per-video inline forms and honeypot-only protection) | One place to manage the notice and spam protection |
 | 2026-11-05 | System font stacks instead of the handoff's Figtree and Source Sans 3 from Google Fonts | No third-party requests and no font files to maintain |
 | 2026-11-05 | Transcript, handout and audio are optional per video and hidden when absent | The handout format and audio versions are not decided yet |
+| 2026-11-05 | `data/` is Eleventy's global data directory, read through a CSV data extension backed by a dependency-free parser in `scripts/lib/csv.js` | Editors keep using Excel; no CSV package to maintain; the Worker and build scripts can share the parser |
+| 2026-11-05 | Vitest split into `worker` and `node` projects; node tests build the site into a temporary directory first (Eleventy CLI with `--output`) | The Workers pool can't run Node build scripts; checks never read a stale `dist/` or disturb `npm run dev` |
+| 2026-11-05 | Getting urgent help keeps the handoff's minimal header and has no footer, so it has no header search box or "Send feedback" link (§7.4, §8.1, §13) | A crisis page should offer only the crisis contacts and a way back; feedback isn't monitored for urgent issues |
+| 2026-11-05 | The footer "Send feedback" link points to `/contact/` until the dialog lands (M5), and stays as its no-JavaScript fallback | No dead links before M5; the Contact page covers feedback by email |
+| 2026-11-05 | TopicNav areas and the phone Menu are native `<details>`/`<summary>`; `menu.js` upgrades the Menu to an `aria-expanded` button | Both work without JavaScript, with no layout shift; the handoff's `onClick` toggles don't |
+| 2026-11-05 | Off-scale board spacing snaps up to the next step; layout steps `space-9`–`space-14` added; boards' 15–16px running text raised to 17px; TopicNav rows raised to 44px | One spacing scale defined once; the 17px and 44×44px rules (§7.5) |
+| 2026-11-05 | Only colour pairs listed as passing in tokens.json: footer secondary text `paper` instead of `on-teal-muted`; urgent notice text `clay-deep` instead of `ink` | Every pair used has been checked against WCAG AA |
+| 2026-11-05 | `crisisContacts` entries gain `heading` and `description`; `crisisRegion` added (§11) | The urgent-help cards come from config, not the template |
+| 2026-11-05 | Urgent-help notice focus ring is `clay-deep`, not `deep-teal`; the header search input's ring is drawn inside its box (§7.5) | `clay-deep` is the only colour tokens.json lists on `clay-wash`; the input is joined to a `deep-teal` button that would hide the ring's right side |
+| 2026-11-05 | Links inside a sentence also get 44px-tall targets (§7.5) | Keeps the project's 44×44px rule without exceptions, though WCAG 2.5.8 exempts them |
+| 2026-11-05 | Privacy page and Contact page say that emailing or phoning the team is not anonymous (§15.2) | "Send feedback" leads to Contact until M5 and without JavaScript, so the privacy page must not claim contact details are never collected |
+| 2026-11-05 | Outgoing links allowed to an allowlist of hosts, with `rel="noreferrer"`; Privacy links to Google's privacy policy as the board's "YouTube privacy policy" (§16.1) | §9.1 needs a "Watch on YouTube" link; a link loads nothing, and `noreferrer` keeps the visit private |
+| 2026-11-05 | Getting urgent help: the smaller cards become `tel:` links once their number is confirmed; "Your treating team" stays text; no developer notes on the page (§7.4) | The board shows tappable cards, but the treating team's number is on each care plan; a person in crisis should see only the contacts |
+| 2026-11-05 | The GP summary line on Getting more help stays `[placeholder]` text until `gp_summary` names a file in `media/pdf/` (§21) | No dead link; the tests fail if the named file is missing |
+| 2026-11-05 | No horizontal logo lockup; where the stacked logo doesn't fit, the header uses a "SleepSteps" text home link instead (§7.5) | The designer supplied only the stacked logo, which must not be altered |
+| 2026-11-05 | The repository stays public | Open by default; draft content in the repo is visible before approval, which the team accepts |
+| 2026-11-05 | Interim domain: a `.org` through Cloudflare Registrar; a university domain is under discussion (§18.4) | `.au` licences run at most 5 years and Cloudflare Registrar doesn't sell `.au`; `.org` goes straight onto Cloudflare |
+| 2026-11-05 | Worker Previews get their own D1 binding and vars through a `previews` block, with separate preview migrations and secrets (§18.2) | Previews don't inherit bindings; keeps test data out of the production database |
+| 2026-11-05 | Workers Builds runs `npm test && npm run build`; Node is pinned in `.node-version` (§18.3) | Builds runs only the build command and ignores `engines`; a failing test must block the deploy |
+| 2026-11-05 | Unlisted before launch: production on `workers.dev` sends `noindex`, and data collection stays off in production until the privacy officer's go-ahead (§18.3) | The repo is public anyway, so a login gate adds little; avoids indexing drafts and collecting data before approval |
+| 2026-11-05 | `run_worker_first` for `/api/*`, `/admin` and `/admin/*`; Access covers both `/admin` and `/admin/*` with named emails (§14.4, §18.2) | Browser navigations to unmatched paths otherwise get the static 404 without the Worker running; `admin/*` alone doesn't cover `/admin` |
+| 2026-11-05 | Lighter event load: drop `idx_events_page_ts` (no admin query uses it); one ratings index on `ts` instead of `(page, ts)` and `(video, ts)`; one progress event per media item per page load carrying the furthest milestone, instead of one per milestone (§9.4, §10.2, §17) | Roughly halves rows written and storage per visit (about 32.6 → 16 rows) and doubles how long the free plan lasts, losing only the time each milestone was reached |
+| 2026-11-05 | Leaner events, superseding the progress part of the row above: `video_play`/`audio_play` carry the furthest point reached (0/25/50/75/100) and the progress events are dropped; `problem_click` dropped; `page_view` only on problem pages, Start here and Getting urgent help; `transcript_open` records which video (§9.4, §10.2, §14.4) | The team needs reach on the content pages, plays with depth, format use (transcript, handout, audio), searches, ratings and feedback, and nothing else. About 8.4 rows written per visit instead of 16, and less data held |
+| 2026-11-05 | Content (page text, transcripts, data files, handouts, audio, thumbnails, and videos that state it) is licensed CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`); the site footer states the licence from M1b | The team wants anyone to be able to reuse and adapt the materials with credit |

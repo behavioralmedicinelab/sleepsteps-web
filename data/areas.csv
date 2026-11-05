@@ -1,0 +1,11 @@
+area_id,name,description,source_name,order
+core,Falling and staying asleep,"Trouble getting to sleep, staying asleep, or waking unrefreshed.",Core insomnia problems,10
+day,Getting through the day,Fatigue and sleepiness while you're awake.,Daytime functioning,20
+clock,Body clock and timing,Sleep that happens at the wrong times.,Circadian,30
+mind,"Thoughts, feelings and bedtime","Worry, fear and dread at night, and the habits around bedtime.","Cognitive, emotional",40
+med,Symptoms and treatment effects,When your body or your treatment keeps you awake.,"Medical sxs, side effects",50
+env,Where you sleep,"Your bedroom, or sleeping somewhere else.",Environment,60
+social,"Partners, family and others",Sleep and the people around you.,"Social, r/s",70
+hard,When it feels hard,"When the program, or progress, is a struggle.",Challenges with CBT-I,80
+relapse,Keeping sleep on track,Looking after your sleep from here on.,Relapse prevention,90
+dis,Other sleep conditions,"Things worth knowing about, and when to check with a doctor.",Sleep disorders / sxs,100

@@ -1,0 +1,80 @@
+/*
+ * Contact us (/contact/): SPEC §7.4, §7.5; HANDOFF §2, §6.5; board
+ * Info-Contact.dc.html. Loaded through `styles` front matter in
+ * content/pages/contact.md. Values come from tokens.css; board spacing off
+ * the token scale snaps up to the next step (SPEC §7.5), and the board's
+ * 15px running text is 17px body.
+ *
+ * The layout, side menu, cards, the teal-wash panel and the urgent notice
+ * come from site.css (§9 and §10).
+ */
+
+.info-body--contact {
+  gap: var(--space-7); /* board 24 */
+}
+
+/* Email and phone cards: side by side when there is room. */
+.contact-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--space-6);
+}
+
+/* The label is an H2 (so screen-reader users can jump to it) set as an
+   eyebrow: deep-teal on white. */
+.info-body--contact .contact-card__label {
+  font-family: var(--font-body);
+  font-size: var(--fs-eyebrow);
+  line-height: var(--lh-eyebrow);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--deep-teal);
+}
+
+/* The address or number, at the title size. The 44px target box adds about
+   6px above and below the text, so the margins around it are smaller than
+   the board's (4px above, 8px below). */
+.info-body--contact .contact-card__value {
+  margin-top: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  overflow-wrap: anywhere;
+}
+
+/* A link once a real value is set; plain ink text while it is a
+   [placeholder], so it doesn't look clickable. */
+.contact-card__value > * {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.info-body--contact .contact-card__meta {
+  margin-top: var(--space-1);
+  color: var(--slate-grey);
+}
+
+/* "What we can help with": a teal-wash panel with an ink panel title. */
+.info-body--contact .contact-help h2 {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+
+.info-body--contact .contact-help p {
+  margin-top: var(--space-2); /* board 6 */
+}
+
+/* The note that email and phone aren't anonymous (SPEC §15.2). */
+.info-body--contact .contact-help p + p {
+  margin-top: var(--space-4);
+}
+
+@media (min-width: 37.5em) {
+  .info-body--contact .contact-card {
+    padding: var(--space-8); /* board 28 */
+  }
+}

@@ -1,0 +1,26 @@
+---
+layout: layouts/topics.njk
+---
+{#-
+  Problem page (M1a stub; HANDOFF §6.4, board Problem-A.dc.html):
+  breadcrumb, H1 short title and the first-person statement. The problem
+  video, solutions and related topics arrive in M1b.
+
+  Front matter: see SPEC §7.2 (title, statement, area, ...).
+-#}
+{%- set problemArea = areas | areaById(area) -%}
+<div class="problem">
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <ol role="list">
+      <li><a href="/problems/">Sleep problems</a></li>
+      <li><span class="breadcrumb__sep" aria-hidden="true">›</span><a href="/problems/#{{ area }}">{{ problemArea.name }}</a></li>
+      <li><span class="breadcrumb__sep" aria-hidden="true">›</span><span aria-current="page">{{ title }}</span></li>
+    </ol>
+  </nav>
+  <div class="problem__head">
+    <h1 class="problem__title">{{ title }}</h1>
+    <p class="problem__statement">“{{ statement | sentence }}”</p>
+  </div>
+  <p class="placeholder">[Problem video, solutions and related topics arrive in milestone M1b]</p>
+  {{ content | safe }}
+</div>

@@ -1,0 +1,61 @@
+/*
+ * Privacy and your data (/privacy/): SPEC §7.4, §7.5, §15.2; HANDOFF §6.5;
+ * board Info-Privacy.dc.html. Loaded through `styles` front matter in
+ * content/pages/privacy.md. Values come from tokens.css; board spacing off
+ * the token scale snaps up to the next step, and the board's 22px card and
+ * panel headings use the `title` style (SPEC §7.5).
+ *
+ * The layout, side menu, section headings, cards, panel, urgent notice and
+ * the standalone policy link come from site.css (§9 and §10).
+ */
+
+.info-body--privacy {
+  --privacy-card-rule: 4px; /* coloured top rule on the two cards (board) */
+  max-width: 780px;         /* content measure (board) */
+  gap: var(--space-8);
+  overflow-wrap: break-word;
+}
+
+/* "What we collect" and "What we don't collect" */
+.privacy-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: var(--space-6);
+}
+
+.privacy-card--collect {
+  border-top: var(--privacy-card-rule) solid var(--deep-teal);
+}
+
+/* teal-200 is decorative only: the rule carries no meaning of its own. */
+.privacy-card--not-collect {
+  border-top: var(--privacy-card-rule) solid var(--teal-200);
+}
+
+.info-body--privacy :is(.privacy-card, .privacy-contact) h2 {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+
+.info-body--privacy .privacy-card ul {
+  padding-inline-start: var(--space-6);
+}
+
+/* "Questions or concerns": the heading sits closer to its text (board 8px).
+   Links on the panel ground are ink: tokens.json lists ink on panel, not
+   deep-teal. */
+.info-body--privacy .privacy-contact > h2 + * {
+  margin-top: var(--space-3);
+}
+
+.privacy-contact a,
+.privacy-contact a:hover {
+  color: var(--ink);
+}
+
+.privacy-contact a:hover {
+  text-decoration-thickness: 2px;
+}
+

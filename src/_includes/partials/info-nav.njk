@@ -1,0 +1,17 @@
+{#-
+  "Information pages" side menu (HANDOFF §6.5; boards Info-*.dc.html).
+  The current page gets aria-current="page", which also drives its styling.
+-#}
+<nav class="info-nav" aria-label="Information pages">
+  <ul role="list">
+    {%- for item in [
+      { href: '/help/', label: 'Getting more help' },
+      { href: '/about/', label: 'About SleepSteps' },
+      { href: '/contact/', label: 'Contact us' },
+      { href: '/privacy/', label: 'Privacy and your data' },
+      { href: '/urgent-help/', label: 'Getting urgent help', urgent: true }
+    ] %}
+    <li><a{% if item.urgent %} class="info-nav__urgent"{% endif %} href="{{ item.href }}"{{ page.url | ariaCurrent(item.href) | safe }}>{{ item.label }}</a></li>
+    {%- endfor %}
+  </ul>
+</nav>
