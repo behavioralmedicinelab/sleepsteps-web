@@ -31,3 +31,7 @@ A full content editing guide is added in milestone M1b (see `SPEC.md` §19.2 for
 
 `npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime) and `node` (the CSV parser, content data, and checks on a fresh build of the whole site). `npm test -- --project node` runs one of them.
 
+## Licence
+
+- **Content** (page text, transcripts, data files, handouts, audio and thumbnails): [CC BY 4.0](LICENSE-CONTENT.md). The SleepSteps name and logo, and third-party material, are not covered.
+- **Code:** [MIT](LICENSE).

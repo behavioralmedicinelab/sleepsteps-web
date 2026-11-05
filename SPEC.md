@@ -87,6 +87,8 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 ├── CLAUDE.md                  # Instructions for Claude Code
 ├── SPEC.md                    # This file
 ├── README.md                  # Human quick start + content editing guide
+├── LICENSE                    # Code: MIT
+├── LICENSE-CONTENT.md         # Content: CC BY 4.0 (§22)
 ├── package.json
 ├── wrangler.jsonc
 ├── eleventy.config.js
@@ -635,7 +637,9 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [ ] Whether the AI "Agent" crawler category is allowed
 - [ ] Domain: interim plan is a `.org` through Cloudflare Registrar; a university domain is under discussion (the site name is SleepSteps)
 - [ ] Bot Fight Mode and cookies: whether to allow Cloudflare's bot-protection cookie and injected script, disclosed on the privacy page, with the CSP change it needs (§16.3; research on GDPR/ePrivacy and disclosure practice in progress)
-- [ ] Content licence for videos, transcripts, handouts and page copy (proposed: CC BY 4.0, excluding the SleepSteps name and logo and third-party material; code stays MIT)
+- [x] Content licence: CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`, §22)
+- [ ] Code licence: the owner asked about CC BY 4.0 for the code too; Creative Commons advises against CC licences for software, so the code stays MIT until confirmed
+- [ ] Copyright holder: `Behavioural Medicine Lab` is used in both licence files; confirm with the university's IP policy who owns staff-created materials
 - [ ] Whether to move to Workers Paid (US$5/month) at launch, for no daily cut-off and 30-day recovery (§17)
 - [x] Whether ratings appear on non-video pages: no, ratings are per video (§12)
 - [ ] Handout format: PDF, web page, or both
@@ -686,3 +690,4 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | 2026-11-05 | `run_worker_first` for `/api/*`, `/admin` and `/admin/*`; Access covers both `/admin` and `/admin/*` with named emails (§14.4, §18.2) | Browser navigations to unmatched paths otherwise get the static 404 without the Worker running; `admin/*` alone doesn't cover `/admin` |
 | 2026-11-05 | Lighter event load: drop `idx_events_page_ts` (no admin query uses it); one ratings index on `ts` instead of `(page, ts)` and `(video, ts)`; one progress event per media item per page load carrying the furthest milestone, instead of one per milestone (§9.4, §10.2, §17) | Roughly halves rows written and storage per visit (about 32.6 → 16 rows) and doubles how long the free plan lasts, losing only the time each milestone was reached |
 | 2026-11-05 | Leaner events, superseding the progress part of the row above: `video_play`/`audio_play` carry the furthest point reached (0/25/50/75/100) and the progress events are dropped; `problem_click` dropped; `page_view` only on problem pages, Start here and Getting urgent help; `transcript_open` records which video (§9.4, §10.2, §14.4) | The team needs reach on the content pages, plays with depth, format use (transcript, handout, audio), searches, ratings and feedback, and nothing else. About 8.4 rows written per visit instead of 16, and less data held |
+| 2026-11-05 | Content (page text, transcripts, data files, handouts, audio, thumbnails, and videos that state it) is licensed CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`); the site footer states the licence from M1b | The team wants anyone to be able to reuse and adapt the materials with credit |
