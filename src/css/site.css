@@ -1009,6 +1009,11 @@ button.site-footer__feedback {
   margin-top: var(--space-4);
 }
 
+/* Sub-headings inside a section stand apart from the paragraph above. */
+.info-body section > h3 {
+  margin-top: var(--space-7);
+}
+
 .info-body :is(ul, ol):not([role="list"]) {
   padding-inline-start: var(--space-7);
 }
@@ -1070,10 +1075,13 @@ button.site-footer__feedback {
 
 /* Links inside a sentence still get a 44px-tall target (SPEC §7.5): the
    urgent notice, the search page's no-JavaScript route to Sleep problems,
-   and a link set on its own line (.link-standalone). */
+   a link set on its own line (.link-standalone), links in an information
+   page's paragraphs, and links in the §15.1 notices (.notice-text). */
 .notice--urgent a,
 .search-fallback a,
-.link-standalone a {
+.link-standalone a,
+.info-body p a,
+.notice-text a {
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);

@@ -21,7 +21,7 @@ The site must stay online and freely available after the grant ends, with close 
 1. **Static first.** All content is pre-built HTML/CSS/JS. Dynamic features are optional enhancements.
 2. **Graceful degradation.** If the API is down, disabled or blocked, every page still works fully as a content site. No feature may block page rendering.
 3. **Low maintenance.** Minimal dependencies, no client-side framework, no server we administer, nothing that needs regular patching to stay secure.
-4. **Privacy by default.** No cookies, no persistent identifiers, no IP addresses stored, and no third-party scripts beyond those listed in §16.
+4. **Privacy by default: no tracking, and everything disclosed.** SleepSteps sets no cookies and no persistent identifiers, stores no IP addresses, and loads no third-party scripts beyond §16.2. Any storage on a visitor's device, whether ours or a provider's (YouTube after play, Turnstile, Cloudflare security checks), is listed in §15.4 and on the privacy page.
 5. **Editable by non-developers.** Content and keyword changes need only GitHub's web editor or a CSV upload.
 6. **Accessible.** WCAG 2.2 AA.
 
@@ -216,7 +216,7 @@ Token rules:
 - **Colour pairs:** only pairs tokens.json lists as passing. So the footer's secondary text is `paper` (the board's `on-teal-muted` on `ink` is not listed) and the urgent-help notice text is `clay-deep` on `clay-wash`.
 - **Focus ring:** 2px solid with a 2px offset, `deep-teal` on light grounds and `paper` on teal or ink (handoff §10), with two exceptions. On the urgent-help notice's `clay-wash` ground the ring is `clay-deep`, the only colour tokens.json lists on that ground. The header search input is joined to its `deep-teal` submit button, so its ring is drawn just inside the input's box (at the usual offset its right side would sit on the button and vanish).
 - **Page width:** 1200px by default, 1280px (`page_width: medium`: Start here, Sleep problems) or 1360px (`page_width: wide`: problem pages), as on the boards.
-- **Targets:** every link and control is at least 44×44px, so TopicNav's problem, chapter and info links are 44px tall (36–40px on the board). This includes links inside a sentence (stricter than WCAG 2.5.8): they are `inline-flex` with a 44px minimum height, as on the urgent-help notice, the search page's no-JavaScript link and `.link-standalone`.
+- **Targets:** every link and control is at least 44×44px, so TopicNav's problem, chapter and info links are 44px tall (36–40px on the board). This includes links inside a sentence (stricter than WCAG 2.5.8): they are `inline-flex` with a 44px minimum height, as on the urgent-help notice, the search page's no-JavaScript link, `.link-standalone`, links in information-page paragraphs and links in the §15.1 notices (`.notice-text`).
 - **Logo:** the stacked logo only (there is no horizontal lockup). If a header ever can't fit it, it drops the logo for a "SleepSteps" text link to the home page rather than shrinking or altering it.
 - **Disclosures without JavaScript:** TopicNav areas and the phone Menu are native `<details>`/`<summary>`. `src/js/menu.js` upgrades the Menu to a `<button aria-expanded aria-controls>` with Escape-to-close; TopicNav ships no JavaScript.
 
@@ -288,6 +288,7 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 - Captions are uploaded to YouTube from the transcripts (team task). Don't rely on auto-captions.
 - A link to watch on YouTube is shown as a fallback.
 - Ratings and formats sit outside the player.
+- **Under each facade, before the click**, show the video notice (§15.1) naming YouTube/Google and what may happen, with a link to the privacy page. Loading the IFrame Player API sets YouTube cookies on `.youtube.com` once someone presses play, even with the youtube-nocookie host (observed November 2026). This is disclosed (§15.4), and the notice makes pressing play an informed choice. No YouTube request happens before the click.
 
 ### 9.2 Audio
 
@@ -313,7 +314,9 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 ### 10.1 Client (`src/js/events.js`)
 
-- `session_id` is `crypto.randomUUID()` stored in `sessionStorage`. Wrap access in try/catch; if storage is unavailable, use an in-memory ID for the page.
+- `session_id` is `crypto.randomUUID()` stored in `sessionStorage` under the key `sleepsteps-visit`. Wrap access in try/catch; if storage is unavailable, use an in-memory ID for the page.
+- **Usage statistics can be turned off.** The privacy page has a "Turn off usage statistics" button. It sets `sleepsteps-stats-off` in `localStorage` and deletes `sleepsteps-visit`, and a "Turn on" button removes it again. While it is set (read inside try/catch), `events.js` sends nothing, creates no ID, and removes any `sleepsteps-visit` left in that tab, so tabs that were already open drop their code on their next page. Ratings and feedback are unaffected. If `localStorage` is unavailable, the choice can't be remembered and the page says so.
+- **Search events carry no `session_id`**, and the Worker stores their `ts` rounded down to the hour (§14.1), so search text isn't stored with the rest of a visit and is hard to re-link by time.
 - Send with `navigator.sendBeacon('/api/event', JSON.stringify(payload))`, falling back to `fetch(..., { keepalive: true })`.
 - Never send: user agent, screen size, referrer query strings, or anything typed except search queries.
 - Do nothing if `features.events` is false.
@@ -323,7 +326,7 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 | type | page | detail (JSON) |
 |---|---|---|
 | `page_view` | page_id: **only** problem pages, `start` and `urgent-help` (a template sets `track_page_view: true`; no other page sends one) | `{}` |
-| `search` | `search` | `{ "q": string ≤100, "results": int }` |
+| `search` | `search` | `{ "q": string ≤100, "results": int }`. Sent **without** `session_id` (§10.1) |
 | `video_play` | page_id | `{ "media": video_id, "furthest": 0\|25\|50\|75\|100 }` (§9.4) |
 | `audio_play` | page_id | `{ "media": filename, "furthest": 0\|25\|50\|75\|100 }` (§9.4) |
 | `pdf_download` | page_id | `{ "media": filename }` |
@@ -382,7 +385,7 @@ The Getting urgent help page renders one card per `crisisContacts` entry, in ord
 - Only `POST` with `Content-Type: application/json` or `text/plain` (the latter for sendBeacon).
 - Reject a body larger than 4 KB with `413`.
 - Require the `Origin` header to match `siteUrl` or a configured preview origin; otherwise return `403`. No CORS headers are needed (same origin).
-- Timestamps are generated server-side as ISO 8601 UTC. Client timestamps are never trusted.
+- Timestamps are generated server-side as ISO 8601 UTC. Client timestamps are never trusted. For `search` events the Worker rounds `ts` down to the hour (§10.1).
 - Validate `page_id` against `worker/generated/pages.json` (plus the fixed IDs `home` and `search`). Store titles from `pages.json`, never from the client.
 - **Never store or log** IP addresses, user agents, `CF-Connecting-IP`, or feedback/search text in `console.log` (Workers Logs).
 - Responses: `204` success, `400` validation error (`{ "error": "<code>" }`), `403` origin or Turnstile failure, `404` feature disabled, `413` too large, `429` (from the Cloudflare rate-limiting rule), `500` unexpected error (generic message).
@@ -394,7 +397,7 @@ The Getting urgent help page renders one card per `crisisContacts` entry, in ord
 |---|---|---|---|
 | `POST /api/rate` | `{ page_id, video_id, stars }` | known page_id; video_id appears on that page; stars is an integer 1–5 | insert into `ratings` |
 | `POST /api/feedback` | `{ page_id, message, turnstile_token }` | known page_id; message trimmed, 1–2000 characters; Turnstile verified | insert into `feedback` |
-| `POST /api/event` | `{ type, page, session_id, detail }` | type in §10.2; session_id is a UUID; detail matches its type's shape; search q ≤ 100 characters | insert into `events` |
+| `POST /api/event` | `{ type, page, session_id, detail }` | type in §10.2; session_id is a UUID for every type except `search`, where it must be absent; detail matches its type's shape; search q ≤ 100 characters | insert into `events` |
 | `GET /admin/` | — | valid Access JWT | HTML summary (§14.4) |
 | `GET /admin/export?table=ratings\|feedback\|events&from=YYYY-MM-DD&to=YYYY-MM-DD` | — | valid Access JWT; allowed table | CSV download |
 
@@ -427,11 +430,17 @@ Under the ratings:
 
 In the feedback dialog:
 > Your feedback is anonymous. We receive your message and the page you were viewing. Please don't include your name, contact details or anything that could identify you. This box is not monitored for urgent issues. If you need help now, contact your treating team, call Lifeline on 13 11 14, or call 000 in an emergency.
+>
+> A Cloudflare check on this form stops automated spam. Cloudflare uses technical details such as your IP address and browser for this check, and to improve its spam protection. SleepSteps doesn't store them.
+
+Under each video, before it is played (§9.1):
+> Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch. [More about this](/privacy/#cookies-and-browser-storage) · [Read the transcript instead] *(the transcript link only when the video has one)*
 
 ### 15.2 Privacy and data page (`/privacy/`) must cover
 
-- **What we collect:** star ratings, feedback text, search terms, and anonymous usage events (pages viewed, media played, downloads), each with the page and time.
-- **What we don't collect:** names, contact details (except as below), cookies, or stored IP addresses. A temporary random code held in the browser tab, and deleted when the tab closes, is used to count visits; it cannot identify you.
+- **What we collect:** star ratings, feedback text, search terms (stored without the visit code, time rounded to the hour), and anonymous usage events (views of the tracked pages, media played and how far, transcripts opened, handouts), each with the page and time.
+- **What we don't collect:** names, contact details (except as below), advertising or tracking cookies from SleepSteps, or stored IP addresses. A temporary random code held in the browser tab, and deleted when the tab closes, is used to count visits; on its own it cannot identify you.
+- **Cookies and browser storage:** a section with a table of every §15.4 item a visitor can receive (name, set by, purpose, lifetime; reserve-only rows are left out until switched on, and staff-only Access cookies are noted below the table), the "Turn off usage statistics" switch (§10.1), how to block storage in the browser, and the YouTube API Services statement required by YouTube's developer policies (that the site uses YouTube API Services, that YouTube may store data on the device, and links to Google's privacy policy and YouTube's Terms of Service).
 - **If you email or phone the team** (the Contact page, which is also where "Send feedback" leads until M5 and without JavaScript, §13): this is not anonymous. The team receives the email address or phone number with the message, uses it only to reply, and keeps it outside the site's data (never in D1) and unlinked to it, for <RETENTION PERIOD>. The Contact page says so too.
 - **Who processes data:** Cloudflare (hosting, database, spam protection); YouTube/Google when you choose to play a video (Google's privacy policy applies). Some processing may occur outside Australia.
 - **Use:** improving these resources. This is separate from the trial's research data.
@@ -444,7 +453,23 @@ In the feedback dialog:
 |---|---|---|
 | ratings | ts, page, video, stars | No |
 | feedback | ts, page, page_title, message | Free text may contain health or identifying info despite the notice; treat as sensitive |
-| events | ts, session_id (per-tab random), page, type, detail | Search queries may contain health terms; anonymous |
+| events | ts, session_id (per-tab random; absent on search events), page, type, detail | Search queries may contain health terms, so they are stored without `session_id`; anonymous |
+
+### 15.4 Device storage inventory
+
+Everything that may be stored on a visitor's device. **Rule:** any new cookie or storage item needs a row here, a mention in the privacy page's "Cookies and browser storage" section (in its table if visitors can receive it), and a §22 entry. SleepSteps' own keys start with `sleepsteps-`. A build test checks that every storage key used in `src/js/` (passed to a storage call, or any quoted `sleepsteps-…` string) is named on the privacy page.
+
+| Item | Kind | Set by | When | Purpose | Lifetime |
+|---|---|---|---|---|---|
+| `sleepsteps-visit` | sessionStorage | SleepSteps (`events.js`) | Page load, when `features.events` is on and statistics aren't turned off | Count visits; group one visit's events | Until the tab closes |
+| `sleepsteps-stats-off` | localStorage | SleepSteps (privacy page) | Only when the visitor turns usage statistics off | Remember that choice | Until turned back on or browser data is cleared |
+| `cf_clearance` | Cookie | Cloudflare | Only if Cloudflare challenges the browser (always-on botnet protection, Browser Integrity Check) | Remember that the check was passed | 30 minutes (Challenge Passage, §16.3) |
+| `cf.turnstile.u` | localStorage, inside the `challenges.cloudflare.com` frame | Cloudflare Turnstile | When the feedback dialog loads Turnstile | Undocumented by Cloudflare | Undocumented |
+| YouTube cookies (e.g. `YSC`, `__Secure-YNID`, `__Secure-ROLLOUT_TOKEN`, `VISITOR_INFO1_LIVE`, `VISITOR_PRIVACY_METADATA`) and YouTube localStorage/IndexedDB | Cookies and storage on YouTube's domains | YouTube (Google) | Only after the visitor presses play | Playback, security, measurement; Google lists advertising among purposes | Browser session to 13 months (Google) |
+| Cloudflare Access cookies (e.g. `CF_Authorization`) | Cookie | Cloudflare Access | Only for research staff signing in to `/admin` | Admin sign-in | The Access application's session duration, set in the dashboard (§18.4 step 6) |
+| `__cf_bm` *(reserve only)* | Cookie | Cloudflare Bot Fight Mode | **Not set:** Bot Fight Mode is off (§16.3). Add to the privacy page before turning it on | Bot scoring | 30 minutes after the last request |
+
+Names and lifetimes for YouTube and Turnstile come from vendor documentation and a November 2026 browser test; recheck them in browser devtools on the live domain before launch (M8).
 
 ## 16. Security, headers and bots
 
@@ -460,7 +485,7 @@ In the feedback dialog:
   style-src 'self';
   base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   ```
-- **Links to other sites** load nothing, so the CSP doesn't cover them. They are kept deliberate instead: a build test allows `<a href>` only to hosts on its allowlist (`www.youtube.com` for "Watch on YouTube", §9.1; `policies.google.com` for Google's privacy policy, §15.2), over `https`, with `rel="noreferrer"` so the other site isn't told the visitor came from SleepSteps. Every other attribute that loads something (`src`, `srcset`, `poster`, `<link href>`, `action`, …) must be same-origin.
+- **Links to other sites** load nothing, so the CSP doesn't cover them. They are kept deliberate instead: a build test allows `<a href>` only to hosts on its allowlist (`www.youtube.com` for "Watch on YouTube", §9.1, and YouTube's Terms of Service on /privacy/, §15.2; `policies.google.com` for Google's privacy policy, §15.2), over `https`, with `rel="noreferrer"` so the other site isn't told the visitor came from SleepSteps. Every other attribute that loads something (`src`, `srcset`, `poster`, `<link href>`, `action`, …) must be same-origin.
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `X-Content-Type-Options: nosniff`
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
@@ -475,7 +500,11 @@ These apply to the custom domain only, never to `workers.dev` or preview URLs.
 
 - DNS records proxied; Always Use HTTPS
 - AI Crawler and Agent access policies: Search **Allow**; Training **Disallow** (not Block, which also catches crawlers used for both search and training) with "Bot Preference Sync" on, which writes the managed robots.txt; Agent and Personal Agents at team discretion (§21)
-- Bot Fight Mode: **decision pending (§21).** It sets a `__cf_bm` cookie and injects a script into every page, which conflicts with §2, §15.2 and the CSP in §16.1 as currently written. On the Free plan it can't be skipped for `/api/*`. Leave it off until decided.
+- Bot Fight Mode: **Off** at launch, held in reserve. It barely protects the real risk (`/api/*` using up the D1 budget), can silently drop real beacons it challenges, and on the Free plan can't be skipped for `/api/*`. Its injected script needs a per-response CSP nonce, which would put the Worker in front of every page. **Triggers** for revisiting: bot traffic visible in `/admin`, D1 nearing its daily limit, or feedback spam getting past Turnstile. **Fallbacks, in order:** the Workers Rate Limiting binding on `/api/event` (if available on Free); Bot Fight Mode with `Cache-Control: no-transform` on HTML (no injected script; HTML loses compression); Bot Fight Mode with a Worker-set nonce, only on Workers Paid. Before turning it on, add `__cf_bm` to the privacy page (§15.4; the privacy officer should pre-approve the wording).
+- Web Analytics (RUM): **Off.** It is on by default for Free zones and injects a third-party analytics script (§16.2). Once off, Cloudflare says it won't re-enable it.
+- Email Address Obfuscation (Scrape Shield): **Off.** It is on by default, injects a script and rewrites email addresses, breaking the CSP and the no-JavaScript rule.
+- Challenge Passage: **30 minutes**, matching the privacy page's `cf_clearance` row.
+- At launch, check the live HTML in a real browser for `cloudflareinsights`, `email-decode` and `challenge-platform` (none should appear), and check stored items in browser devtools against §15.4.
 - Rate-limiting rule: URI path starts with `/api/`, 20 requests per 10 seconds per IP → block for 10 seconds. The Free plan allows one rule, can't match on method, and returns Cloudflare's default 429. It limits each IP, not the total.
 - Search engines allowed. Verify crawling in Google Search Console after launch.
 
@@ -574,9 +603,9 @@ Workers Builds is connected to the GitHub repo. Pushes to `main` build and deplo
 3. Register the domain. **Interim plan: a `.org` through Cloudflare Registrar** (multi-year term, auto-renew on an institutional card); a university domain is under discussion (§21). A `.au` licence runs at most 5 years and Cloudflare Registrar doesn't sell `.au`.
 4. Run `wrangler login`, then create the production and preview D1 databases (`--location=oc`, without `--update-config`) and send Claude both IDs for the setup PR.
 5. Create a Turnstile widget (Managed mode, **Pre-clearance off**, since it sets a cookie): hostnames are the `workers.dev` address until the domain exists, then the domain. Put the site key in `site.config.json`; set the secret with `wrangler secret put TURNSTILE_SECRET`, and the preview secret to Turnstile's always-pass test value with `wrangler preview base-config secret put TURNSTILE_SECRET`.
-6. Create a Zero Trust team (Free plan), add the One-time PIN login method, and create an Access application for `<DOMAIN>/admin` **and** `<DOMAIN>/admin/*` with a policy listing named emails; send Claude the AUD tag.
+6. Create a Zero Trust team (Free plan), add the One-time PIN login method, and create an Access application for `<DOMAIN>/admin` **and** `<DOMAIN>/admin/*` with a policy listing named emails and a session duration of 24 hours or less; send Claude the AUD tag.
 7. Merge the setup PR, then connect Workers Builds (§18.3 settings) and turn on preview builds.
-8. Apply the security settings in §16.3 once the domain is active on Cloudflare.
+8. Apply the security settings in §16.3 once the domain is active on Cloudflare, including Web Analytics and Email Address Obfuscation **off** and Challenge Passage at 30 minutes.
 9. Add the custom domain to the Worker (Claude's launch PR sets `workers_dev: false`).
 10. Verify the domain in Google Search Console (DNS TXT record).
 
@@ -620,14 +649,14 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 |---|---|---|
 | M0 | Scaffold | Eleventy builds to `dist/`; Worker serves it locally with `wrangler dev`; `npm test` runs |
 | M1a | Design system + site shell | Tokens as CSS custom properties; system fonts; logo; header, mobile header and menu, footer and topic menu match the handoff and work without JS; the information pages and 404 render; keyboard and 320px-width checks pass |
-| M1b | Content model + page templates | Areas, the 36 problems (placeholder text) and sample videos load; build fails on missing fields, unknown references, bad solution counts or missing media; Sleep problems page (both views, live filter, no-JS fallback); problem page with expanding solution cards for 1–3 main and 0–3 extras; video facade; Start here; Home |
+| M1b | Content model + page templates | Areas, the 36 problems (placeholder text) and sample videos load; build fails on missing fields, unknown references, bad solution counts or missing media; Sleep problems page (both views, live filter, no-JS fallback); problem page with expanding solution cards for 1–3 main and 0–3 extras; video facade with the YouTube notice under it (§15.1); Start here; Home; footer licence line (§22) |
 | M2 | Search | Index built from content + keywords; search page works with fuzzy matching; query tests pass; no-JS fallback |
-| M3 | Database + events | Migration applied locally; `/api/event` validates and inserts; page views and media plays (with the furthest point reached) logged; origin check; feature switch off → 404 and no client calls |
+| M3 | Database + events | Migration applied locally; `/api/event` validates and inserts; page views and media plays (with the furthest point reached) logged; origin check; feature switch off → 404 and no client calls; the usage-statistics switch works (§10.1); search events stored without `session_id` |
 | M4 | Ratings | Widget accessible by keyboard and screen reader; inserts rows; failure message shown when the API is stopped |
 | M5 | Feedback | Dialog, Turnstile (using test keys locally), validation, notice text, failure handling |
 | M6 | Admin | Summary page and CSV export; requests without a valid Access JWT get 403 |
 | M7 | Hardening | Headers/CSP enforced without console errors; accessibility pass (axe, keyboard-only walkthrough); all features tested off and with API failure |
-| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved; urgent-help numbers, cancer support line and region confirmed (§21) |
+| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved; urgent-help numbers, cancer support line and region confirmed (§21); stored items checked in browser devtools against §15.4 and no Cloudflare-injected script in the live HTML (§16.3) |
 
 ## 21. Open decisions
 
@@ -636,7 +665,8 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [ ] Whether to add an optional weekly feedback-digest email (scheduled Worker; needs Email Routing)
 - [ ] Whether the AI "Agent" crawler category is allowed
 - [ ] Domain: interim plan is a `.org` through Cloudflare Registrar; a university domain is under discussion (the site name is SleepSteps)
-- [ ] Bot Fight Mode and cookies: whether to allow Cloudflare's bot-protection cookie and injected script, disclosed on the privacy page, with the CSP change it needs (§16.3; research on GDPR/ePrivacy and disclosure practice in progress)
+- [x] Bot Fight Mode and cookies: essential storage is allowed if disclosed (§2, §15.4); Bot Fight Mode is off at launch and held in reserve (§16.3)
+- [ ] Privacy-officer questions from the cookies/GDPR review: which privacy law covers the university; GDPR/PECR scope; approval of "no tracking, all storage disclosed", whether the HREC must re-approve that change, and whether participant information sheets say anything about cookies or the website; the statistics switch (and whether to honour Global Privacy Control); search-text handling; Turnstile; the YouTube notice and YouTube's Terms of Service wording; overseas processing; implied consent for health details; pre-approval of the `__cf_bm` wording
 - [x] Content licence: CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`, §22)
 - [x] Code licence: stays MIT (Creative Commons advises against CC licences for software)
 - [ ] Copyright holder: `Behavioural Medicine Lab` is used in both licence files; confirm with the university's IP policy who owns staff-created materials
@@ -691,3 +721,8 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | 2026-11-05 | Lighter event load: drop `idx_events_page_ts` (no admin query uses it); one ratings index on `ts` instead of `(page, ts)` and `(video, ts)`; one progress event per media item per page load carrying the furthest milestone, instead of one per milestone (§9.4, §10.2, §17) | Roughly halves rows written and storage per visit (about 32.6 → 16 rows) and doubles how long the free plan lasts, losing only the time each milestone was reached |
 | 2026-11-05 | Leaner events, superseding the progress part of the row above: `video_play`/`audio_play` carry the furthest point reached (0/25/50/75/100) and the progress events are dropped; `problem_click` dropped; `page_view` only on problem pages, Start here and Getting urgent help; `transcript_open` records which video (§9.4, §10.2, §14.4) | The team needs reach on the content pages, plays with depth, format use (transcript, handout, audio), searches, ratings and feedback, and nothing else. About 8.4 rows written per visit instead of 16, and less data held |
 | 2026-11-05 | Content (page text, transcripts, data files, handouts, audio, thumbnails, and videos that state it) is licensed CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`); the site footer states the licence from M1b | The team wants anyone to be able to reuse and adapt the materials with credit |
+| 2026-11-05 | "No tracking, and everything disclosed" replaces "no cookies" (§2): essential storage is allowed when listed in §15.4 and on the privacy page | "No cookies" was already untrue once YouTube plays or Turnstile loads; Australian law requires an accurate policy, not consent; follows UK-style disclosure practice voluntarily |
+| 2026-11-05 | Bot Fight Mode off at launch, held in reserve with triggers and a fallback order (§16.3); Cloudflare Web Analytics and Email Address Obfuscation off; Challenge Passage 30 minutes | Bot Fight Mode barely protects the D1 budget, can drop real beacons, and its script needs the Worker on every page; the other two inject scripts that break §16.2 and the CSP |
+| 2026-11-05 | A "Turn off usage statistics" switch on the privacy page (§10.1) | Meets the objection condition in PECR Sch A1 para 5 for consent-free statistics (the "sole purpose" wording is pending the privacy officer, §21); lets anyone opt out |
+| 2026-11-05 | Search events are stored without `session_id`, with `ts` rounded down to the hour (§10.1, §10.2, §14.1, §14.2) | Search text is the data most likely to hold health details; storing it without the visit code, with its time rounded to the hour, makes it hard to link to the rest of a visit. No migration: the column is nullable |
+| 2026-11-05 | Keep the YouTube IFrame Player API, with a notice under each video before play (§9.1, §15.1) | Play depth needs the API, which sets YouTube cookies after play; the notice makes pressing play an informed choice (ICO "feature-led consent"; EU two-click practice) |

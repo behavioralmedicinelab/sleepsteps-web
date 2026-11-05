@@ -59,3 +59,44 @@
   text-decoration-thickness: 2px;
 }
 
+
+/* "Cookies and browser storage" table. The wrapper scrolls sideways on
+   narrow screens instead of the page (it is focusable so keyboard users can
+   scroll it; the global :focus-visible ring applies). */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.storage-table {
+  width: 100%;
+  min-width: 34em;
+  border-collapse: collapse;
+  background: var(--white);
+}
+
+.storage-table caption {
+  padding-bottom: var(--space-3);
+  text-align: left;
+  font-weight: var(--weight-semibold);
+}
+
+.storage-table :is(th, td) {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--keyline);
+  text-align: left;
+  vertical-align: top;
+}
+
+.storage-table thead th {
+  background: var(--teal-wash);
+  color: var(--ink);
+}
+
+.storage-table tbody th {
+  font-weight: var(--weight-semibold);
+}
+
+.storage-table th code {
+  white-space: nowrap; /* keep cookie names whole; the wrapper scrolls */
+}
