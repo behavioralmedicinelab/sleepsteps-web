@@ -208,11 +208,10 @@ describe('base.njk and features.ratings', () => {
   for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
   const render = (ratings, data) =>
     env.render('layouts/base.njk', {
-      site: { siteName: 'SleepSteps', features: { ratings, feedback: true, events: false } },
+      site: { siteName: 'SleepSteps', features: { ratings, feedback: false, events: false } },
       title: 'A page',
       page_id: 'a-page',
       header: 'minimal',
-      footer: false,
       content: '<main id="main"></main>',
       ...data,
     });

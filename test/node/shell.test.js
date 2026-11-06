@@ -317,6 +317,11 @@ describe('information pages', () => {
     expect(names([{ name: 'Zoe Smith' }, { name: 'Anna Smith' }, { name: 'émile zola' }, { name: 'Ada Young' }])).toEqual([
       'Anna Smith', 'Zoe Smith', 'Ada Young', 'émile zola',
     ]);
+    // Only a case- and accent-insensitive comparison gets these right: code
+    // points put 'Z' before 'a', and 'É' after 'z'.
+    expect(names([{ name: 'Bob Zed' }, { name: 'Ann abel' }, { name: 'Cy Éclair' }])).toEqual(['Ann abel', 'Cy Éclair', 'Bob Zed']);
+    expect(names([{ name: 'Fay Smith' }, { name: 'Émile Smith' }, { name: 'Dan Smith' }])).toEqual(['Dan Smith', 'Émile Smith', 'Fay Smith']);
+    expect(names([{ name: '  Ann   Zed  ' }, { name: 'Bo Abel' }])).toEqual(['Bo Abel', '  Ann   Zed  ']);
     const team = [{ name: 'B A' }, { name: 'A B' }];
     byLastName(team);
     expect(team.map((p) => p.name)).toEqual(['B A', 'A B']); // the input is left as it was
@@ -389,15 +394,29 @@ describe('footer', () => {
 describe('Getting urgent help', () => {
   const html = pageAt(site, '/urgent-help/');
 
-  it('has the minimal header and no footer, search or menu; its only script sends its page view', () => {
+  it('has the minimal header, no search or menu, and the site footer like every page; its scripts send its page view and run "Send feedback"', () => {
     const header = elementByClass(html, 'minimal-header', 'header');
     expect(tags(header, 'a').map((t) => attr(t, 'href'))).toEqual(['/', '/']);
     expect(linkTexts(header)).toEqual(['', 'Back to home']);
     expect(tags(header, 'img').map((t) => attr(t, 'alt'))).toEqual(['SleepSteps home']);
-    expect(html).not.toMatch(/<footer|<form|<nav|<details/);
-    // events.js (SPEC §10.1, §10.2), while features.events is on; no menu.js.
-    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toEqual(config.features.events ? ['/js/events.js'] : []);
+    expect(html).not.toMatch(/<details|role="search"|class="site-header"/);
+    // The footer (project lead, 2026-11-07), with its two navs, marking this page in it.
+    const footer = elementByClass(html, 'site-footer', 'footer');
+    expect(tags(footer, 'nav').map((t) => attr(t, 'aria-label'))).toEqual(['Footer', 'Help and policies']);
+    expect(currentLinks(footer)).toEqual([{ href: '/urgent-help/', value: 'page', label: 'Get urgent help' }]);
+    // events.js (SPEC §10.1, §10.2) while features.events is on, and feedback.js
+    // while features.feedback is (SPEC §13); no menu.js.
+    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toEqual([
+      ...(config.features.events ? ['/js/events.js'] : []),
+      ...(config.features.feedback === true ? ['/js/feedback.js'] : []),
+    ]);
     expect(html).toMatch(/<body[^>]* data-page-id="urgent-help" data-page-view>/);
+  });
+
+  it('every built page has the site footer exactly once (project lead, 2026-11-07)', () => {
+    for (const { file, html: page } of readHtmlPages(site)) {
+      expect(page.match(/<footer class="site-footer">/g), file).toHaveLength(1);
+    }
   });
 
   it('shows each crisis contact from site.config.json as a tel: link', () => {

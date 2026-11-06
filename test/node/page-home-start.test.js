@@ -389,7 +389,7 @@ describe('Start here (/start/)', () => {
     expect([...content.matchAll(/\sdata-rating="([^"]+)"/g)].map((m) => m[1])).toEqual(ratingsOn ? chapters.map((c) => c.video) : []);
   });
 
-  it('ends with the card to the Sleep problems page', () => {
+  it('ends with the card to the Sleep problems page, then the YouTube note, once, last (SPEC §15.1)', () => {
     const card = elementByClass(main, 'start-next', 'section');
     expect(text(elementByClass(card, 'start-next__body', 'p'))).toBe(
       `${problems.length} sleep problems, grouped into ten areas. Pick as many as sound like you.`,
@@ -397,6 +397,13 @@ describe('Start here (/start/)', () => {
     expect(links(card).map((l) => [l.href, l.cls, l.name])).toEqual([
       ['/problems/', 'button button--light start-next__action', 'See sleep problems'],
     ]);
+    const notes = [...main.matchAll(/<p class="notice-text youtube-note">[\s\S]*?<\/p>/g)].map((m) => m[0]);
+    expect(notes).toHaveLength(1);
+    const after = main.indexOf(card) + card.length;
+    expect(main.indexOf(notes[0])).toBeGreaterThan(after);
+    // Nothing but closing tags between the card and the note, and after the note.
+    expect(main.slice(after, main.indexOf(notes[0]))).toMatch(/^\s*$/);
+    expect(main.slice(main.indexOf(notes[0]) + notes[0].length)).toMatch(/^(\s*<\/div>)*\s*(<\/main>)?\s*$/);
   });
 
   it('contacts nothing before play: no resource hints, iframes or YouTube scripts', () => {

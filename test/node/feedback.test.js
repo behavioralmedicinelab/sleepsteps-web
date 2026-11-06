@@ -13,6 +13,8 @@ import configure from '../../eleventy.config.js';
 import { SEND_FAILED, TIMEOUT_MS } from '../../src/js/api.js';
 // Its exports only: with no document here, the module itself does nothing.
 import {
+  FIT_MARGIN,
+  FIT_PROPERTIES,
   LOAD_TIMEOUT_MS,
   MAX_LENGTH,
   MESSAGES,
@@ -26,7 +28,7 @@ import {
 import { pageIndex } from '../../worker/lib/pages.js';
 import { FEEDBACK_KEYS, MAX_MESSAGE_LENGTH, cleanMessage, validateFeedback } from '../../worker/routes/feedback.js';
 import { attr, elementByClass, listFiles, pageAt, readHtmlPages, tags, text } from './helpers.js';
-import { MemoryStorage, installDom, pressEscape } from './mini-dom.js';
+import { MemoryStorage, VisualViewport, installDom, pressEscape } from './mini-dom.js';
 
 const site = inject('builtSite');
 const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
@@ -55,13 +57,14 @@ const dialogOf = (html) => elementByClass(html, 'feedback-dialog', 'dialog');
 
 describe.runIf(feedbackOn)('built pages and the feedback dialog (SPEC §13)', () => {
   const pages = readHtmlPages(site);
-  const withDialog = pages.filter((p) => p.file !== 'urgent-help/index.html' && p.file !== '404.html');
+  const withDialog = pages.filter((p) => p.file !== '404.html');
 
-  it('renders the dialog on every page but Getting urgent help (no footer) and the 404 page (no page_id)', () => {
+  it('renders the dialog on every page but the 404 page (no page_id), Getting urgent help included (project lead, 2026-11-07)', () => {
     expect(pages.filter((p) => dialogOf(p.html)).map((p) => p.file)).toEqual(withDialog.map((p) => p.file));
-    expect(withDialog.length).toBe(pages.length - 2);
+    expect(withDialog.length).toBe(pages.length - 1);
+    expect(withDialog.map((p) => p.file)).toContain('urgent-help/index.html');
     expect(pageIdOf(pageAt(site, '/404.html'))).toBeUndefined();
-    expect(pageAt(site, '/urgent-help/')).not.toMatch(/<footer/);
+    expect(pageAt(site, '/urgent-help/')).toMatch(/<footer class="site-footer">/);
   });
 
   it.each(withDialog.map((p) => [p.file, p.html]))('%s: a page_id, the footer link, the dialog after the footer, and feedback.js last', (file, html) => {
@@ -212,9 +215,10 @@ describe('base.njk and features.feedback', () => {
     }
   });
 
-  it('leaves out the dialog and feedback.js without the footer or a page_id, keeping the link with the footer', () => {
-    const noFooter = render(true, { footer: false });
-    expect([triggers(noFooter), tags(noFooter, 'dialog'), scriptsOf(noFooter)]).toEqual([[], [], []]);
+  it('always renders the footer, and leaves out the dialog and feedback.js without a page_id, keeping the link', () => {
+    // There is no `footer` option any more: the footer is on every page.
+    const old = render(true, { footer: false });
+    expect([triggers(old).length, tags(old, 'dialog').length, scriptsOf(old)]).toEqual([1, 1, ['/js/feedback.js']]);
     const noId = render(true, { page_id: undefined });
     expect(triggers(noId)).toHaveLength(1);
     expect([tags(noId, 'dialog'), scriptsOf(noId)]).toEqual([[], []]);
@@ -252,22 +256,27 @@ describe('the privacy page and features.feedback (SPEC §15.2, §15.4)', () => {
   const ITEM = 'Written feedback, if you choose to send it, and the page you sent it from. We store it with the time rounded to the hour';
   const CHECK = "The check receives technical details such as your IP address and browser, and the address of the page you're on, which on the search page includes your search.";
   const ROW = '<code>cf.turnstile.u</code>';
-  const shown = (html) => [html.includes(`<li>${ITEM}</li>`), text(html).includes(CHECK), html.includes(ROW)];
+  // The sentence on blocking storage names the spam check only while the switch is on.
+  const STORAGE_ON = 'YouTube videos and the spam check on the feedback form come from other services and may not work if you block their storage.';
+  const STORAGE_OFF = 'YouTube videos come from another service and may not work if you block its storage.';
+  const shown = (html) => [html.includes(`<li>${ITEM}</li>`), text(html).includes(CHECK), html.includes(ROW), text(html).includes(STORAGE_ON)];
 
-  it('lists the feedback item (time rounded to the hour), what the check receives and cf.turnstile.u while the switch is on', () => {
-    expect(shown(render(true))).toEqual([true, true, true]);
+  it('lists the feedback item (time rounded to the hour), what the check receives, cf.turnstile.u and the check in the blocking sentence while the switch is on', () => {
+    expect(shown(render(true))).toEqual([true, true, true, true]);
+    expect(text(render(true))).not.toContain(STORAGE_OFF);
   });
 
-  it.each([false, 'true', undefined])('leaves all three out with features.feedback %s, and keeps the rest', (feedback) => {
+  it.each([false, 'true', undefined])('leaves all four out with features.feedback %s, and keeps the rest', (feedback) => {
     const html = render(feedback);
-    expect(shown(html)).toEqual([false, false, false]);
+    expect(shown(html)).toEqual([false, false, false, false]);
+    expect(text(html)).toContain(STORAGE_OFF);
     expect(html).toContain('<li>Star ratings you give a video</li>');
     expect(html).toContain('<code>cf_clearance</code>');
     expect(text(html)).toContain('It also protects the site from spam and automated attacks.');
   });
 
-  it.runIf(feedbackOn)('says all three on the built page', () => {
-    expect(shown(pageAt(site, '/privacy/'))).toEqual([true, true, true]);
+  it.runIf(feedbackOn)('says all four on the built page', () => {
+    expect(shown(pageAt(site, '/privacy/'))).toEqual([true, true, true, true]);
   });
 });
 
@@ -295,11 +304,24 @@ describe('feedback.js source (SPEC §13, §15.4, §16.2)', () => {
     expect(FEEDBACK_KEYS).toEqual(['page_id', 'message', 'turnstile_token']);
   });
 
-  it('stores nothing, reports no usage event, logs nothing and styles nothing', () => {
+  it('stores nothing, reports no usage event, logs nothing and styles nothing but the dialog\'s two fit properties', () => {
     expect(code).not.toMatch(/localStorage|sessionStorage|indexedDB|document\.cookie|caches\./);
     expect(code).not.toMatch(/sendBeacon|XMLHttpRequest|sleepsteps:event|sleepsteps-|session_id|usage-prefs/);
     expect(code).not.toMatch(/console\./);
-    expect(code).not.toMatch(/\.style\b|innerHTML|outerHTML|insertAdjacentHTML|setAttribute\(\s*['"]style/);
+    // No style attribute (blocked by style-src 'self', SPEC §16.1), style
+    // sheet or markup.
+    expect(code).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|setAttribute\(\s*['"`]style|\[\s*['"`]style['"`]\s*\]|cssText|insertRule|adoptedStyleSheets|CSSStyleSheet|\.sheet\b|createElement\(\s*['"`](?:style|link)\b/);
+    // The CSSOM only to set and remove the dialog's own two custom
+    // properties, which style-src allows (SPEC §13, §16.1).
+    expect(FIT_PROPERTIES).toEqual({ top: '--feedback-visible-top', height: '--feedback-visible-height' });
+    expect(code.match(/--[a-z][\w-]*/g)).toEqual(['--feedback-visible-top', '--feedback-visible-height']);
+    const uses = code.match(/[\w$.?]*\.style\b[^;\n]*/g) ?? [];
+    expect(uses.map((use) => use.match(/^dialog\.style\.(setProperty|removeProperty)\(FIT_PROPERTIES\.(top|height)\b/)?.slice(1).join(' ') ?? use)).toEqual([
+      'setProperty top',
+      'setProperty height',
+      'removeProperty top',
+      'removeProperty height',
+    ]);
   });
 
   it('never reads the address or puts the message anywhere but the request', () => {
@@ -320,6 +342,40 @@ describe('the dialog in print (SPEC §13 "Look")', () => {
     const print = css.match(/@media print \{\n([\s\S]*?)\{\n\s*display: none;/)?.[1] ?? '';
     const selectors = print.split(',').map((s) => s.trim());
     for (const selector of ['.site-footer', '.feedback-dialog']) expect(selectors).toContain(selector);
+  });
+});
+
+describe('the dialog above an on-screen keyboard (SPEC §13 "Look"; site.css)', () => {
+  const css = readFileSync('src/css/site.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const [base, wide] = [...css.matchAll(/\n\s*\.feedback-dialog \{([^}]*)\}/g)].map((m) => m[1]);
+  const { top, height } = FIT_PROPERTIES;
+
+  it('fits the visible area from feedback.js\'s two properties, a gutter inside it, at every width', () => {
+    expect(base).toContain(`--feedback-fit-top: calc(var(${top}) + var(--gutter));`);
+    expect(base).toContain(`--feedback-fit-height: calc(var(${height}) - 2 * var(--gutter));`);
+    expect(base).toContain('max-height: var(--feedback-fit-height, calc(100% - 2 * var(--gutter)));');
+    expect(base).toContain('margin: var(--feedback-fit-top, var(--gutter)) auto auto;');
+    expect(wide).toContain('max-height: var(--feedback-fit-height, calc(100% - 2 * var(--space-9)));');
+    expect(wide).toContain('margin-top: var(--feedback-fit-top, var(--space-9));');
+  });
+
+  it('keeps a scroll that starts in the dialog inside it, and locks no scrolling (no scroll lock)', () => {
+    expect(base).toMatch(/overflow-y: auto;[\s\S]*overscroll-behavior: contain;/);
+    // A scroll lock in CSS would hide the page's overflow while a dialog is open.
+    expect(css).not.toMatch(/:has\([^)]*(?:dialog|:modal)/);
+  });
+
+  it('puts Send and Cancel side by side on phones, each from 7rem, and at their own width from 600px', () => {
+    const rules = [...css.matchAll(/\.feedback__actions \.button \{([^}]*)\}/g)].map((m) => m[1].replace(/\s+/g, ' ').trim());
+    expect(rules).toEqual(['flex: 1 1 7rem; width: auto;', 'flex: 0 0 auto;']);
+    expect(css).toMatch(/@media \(min-width: 37\.5em\) \{\s*\.feedback__actions \.button \{\s*flex: 0 0 auto;\s*\}\s*\}/);
+  });
+
+  it('is the only stylesheet that uses the two properties', () => {
+    for (const rel of listFiles('src/css', (f) => f.endsWith('.css'))) {
+      const found = new Set(readFileSync(`src/css/${rel}`, 'utf8').match(/--feedback-visible-[a-z]+/g));
+      expect([...found].sort(), rel).toEqual(rel === 'site.css' ? [height, top] : []);
+    }
   });
 });
 
@@ -503,7 +559,7 @@ describe.runIf(feedbackOn)('feedback.js in the browser (SPEC §11, §13)', () =>
     });
 
   /** Open a built page (or `html`) and run feedback.js on it, freshly imported. */
-  async function open(url = PROBLEM, { answer = 204, html, hostname = 'localhost', dialog = true, layoutWidth, before } = {}) {
+  async function open(url = PROBLEM, { answer = 204, html, hostname = 'localhost', dialog = true, layoutWidth, innerHeight, visualViewport, before } = {}) {
     dom?.restore();
     requests = [];
     events = [];
@@ -515,6 +571,8 @@ describe.runIf(feedbackOn)('feedback.js in the browser (SPEC §11, §13)', () =>
       hostname,
       dialog,
       layoutWidth,
+      innerHeight,
+      visualViewport,
       localStorage: storage[0],
       sessionStorage: storage[1],
     });
@@ -1108,6 +1166,188 @@ describe.runIf(feedbackOn)('feedback.js in the browser (SPEC §11, §13)', () =>
       requests[0].answer(204);
       await settle();
       expect(reveals.map(([message]) => message)).toEqual([MESSAGES.SENDING, MESSAGES.THANKS]);
+    });
+  });
+
+  // An on-screen keyboard shrinks only the visual viewport (iOS Safari, and
+  // Chrome on Android by default), so the dialog, fixed to the layout
+  // viewport, would keep Turnstile's box, Send, Cancel and the status line
+  // behind it. Sizes from a 390x664 phone screen in Safari, with 328px left
+  // above the keyboard.
+  describe('above an on-screen keyboard (SPEC §13 "Look")', () => {
+    const SCREEN = 664;
+    const ABOVE_KEYBOARD = 328;
+    /** The dialog's two fit properties, '' while unset. */
+    const fitted = () => [FIT_PROPERTIES.top, FIT_PROPERTIES.height].map((name) => dialog().style.getPropertyValue(name));
+    /** A built page on a phone with a visual viewport; returns that viewport. */
+    async function onPhone(options = {}) {
+      const viewport = new VisualViewport({ height: SCREEN });
+      await open(PROBLEM, { innerHeight: SCREEN, visualViewport: viewport, ...options });
+      return viewport;
+    }
+
+    it('fits the dialog to the visible area while the keyboard is open, follows it as it pans, and writes only changes', async () => {
+      const viewport = await onPhone();
+      trigger().click();
+      expect(fitted()).toEqual(['', '']);
+      const set = vi.spyOn(dialog().style, 'setProperty');
+      textarea().focus();
+      viewport.change({ height: ABOVE_KEYBOARD });
+      expect(fitted()).toEqual(['0px', `${ABOVE_KEYBOARD}px`]);
+      // Safari pans the visual viewport to the field: the dialog follows.
+      viewport.change({ offsetTop: 120 });
+      expect(fitted()).toEqual(['120px', `${ABOVE_KEYBOARD}px`]);
+      expect(set).toHaveBeenCalledTimes(3);
+      // Fractions round to the same whole pixels: nothing is written.
+      viewport.change({ height: ABOVE_KEYBOARD - 0.4, offsetTop: 120.3 });
+      expect(set).toHaveBeenCalledTimes(3);
+      // The keyboard closes: the dialog goes back to its usual place.
+      viewport.change({ height: SCREEN, offsetTop: 0 });
+      expect(fitted()).toEqual(['', '']);
+      expect(dialog().style.length).toBe(0);
+      expect(dialog().open).toBe(true);
+    });
+
+    it('removes the fit and its listeners on closing, and fits at once on reopening above an open keyboard', async () => {
+      const viewport = await onPhone();
+      expect(viewport.listenerCount).toBe(0);
+      trigger().click();
+      expect(viewport.listenerCount).toBe(2);
+      viewport.change({ height: ABOVE_KEYBOARD });
+      expect(fitted()).toEqual(['0px', `${ABOVE_KEYBOARD}px`]);
+      pressEscape(dom.document);
+      await tick();
+      expect([dialog().open, viewport.listenerCount, dialog().style.length]).toEqual([false, 0, 0]);
+      // Closed, nothing follows the keyboard.
+      viewport.change({ height: 300, offsetTop: 40 });
+      expect(dialog().style.length).toBe(0);
+      trigger().click();
+      expect(viewport.listenerCount).toBe(2);
+      expect(fitted()).toEqual(['40px', '300px']);
+      cancel().click();
+      await tick();
+      expect([viewport.listenerCount, dialog().style.length]).toEqual([0, 0]);
+      // A dialog that can't open follows nothing.
+      dialog().remove();
+      trigger().click();
+      expect(dom.window.location.href).toBe('/contact/');
+      expect(viewport.listenerCount).toBe(0);
+    });
+
+    it('leaves the dialog where it is while pinch-zoomed, or when the visual viewport is full height', async () => {
+      const viewport = await onPhone();
+      trigger().click();
+      textarea().focus();
+      // Zoomed in, the visual viewport is smaller, keyboard or not: nothing
+      // is fitted, so a reader pans the magnified page as before.
+      viewport.change({ scale: 2, height: SCREEN / 2, offsetTop: 200 });
+      expect(fitted()).toEqual(['', '']);
+      viewport.change({ height: ABOVE_KEYBOARD / 2 });
+      expect(fitted()).toEqual(['', '']);
+      // Back to no zoom with the keyboard open: fitted.
+      viewport.change({ scale: 1, height: ABOVE_KEYBOARD, offsetTop: 0 });
+      expect(fitted()).toEqual(['0px', `${ABOVE_KEYBOARD}px`]);
+      // Zooming in again removes the fit; a scale within rounding of 1 isn't zoom.
+      viewport.change({ scale: 1.5, height: ABOVE_KEYBOARD / 1.5 });
+      expect(fitted()).toEqual(['', '']);
+      viewport.change({ scale: 1.004, height: ABOVE_KEYBOARD });
+      expect(fitted()).toEqual(['0px', `${ABOVE_KEYBOARD}px`]);
+      // Full height, taller than innerHeight, or short of it only by
+      // innerHeight's rounding to whole px (Chrome at 125% display scaling,
+      // no keyboard: 705.6 against 706): no keyboard.
+      for (const height of [SCREEN, SCREEN + 40, SCREEN - 0.4, SCREEN - 0.6, SCREEN - 1]) {
+        viewport.change({ scale: 1, height });
+        expect(fitted(), String(height)).toEqual(['', '']);
+      }
+      expect(dialog().style.length).toBe(0);
+      // Anything more is a keyboard, or a shortcut bar.
+      viewport.change({ height: SCREEN - 2 });
+      expect(fitted()).toEqual(['0px', `${SCREEN - 2}px`]);
+    });
+
+    it('keeps the focused textarea in view by scrolling the dialog, never the page', async () => {
+      const viewport = await onPhone();
+      trigger().click();
+      // A small layout: the dialog where site.css puts it (a 16px gutter,
+      // fitted or not, and 900px of content), its 1px border, and the
+      // textarea (194px tall) 300px down its content.
+      const d = dialog();
+      const px = (name, unset) => Number.parseFloat(d.style.getPropertyValue(name) || unset);
+      const box = () => {
+        const top = px(FIT_PROPERTIES.top, 0) + 16;
+        const height = Math.min(900, px(FIT_PROPERTIES.height, SCREEN) - 32);
+        return { top, height, bottom: top + height };
+      };
+      d.getBoundingClientRect = box;
+      d.clientTop = 1;
+      Object.defineProperty(d, 'clientHeight', { configurable: true, get: () => box().height - 2 });
+      const field = textarea();
+      field.getBoundingClientRect = () => {
+        const top = box().top + 1 + 300 - d.scrollTop;
+        return { top, bottom: top + 194 };
+      };
+      const pageScrolls = [];
+      dom.window.scrollTo = dom.window.scrollBy = (...args) => pageScrolls.push(args);
+      field.scrollIntoView = (...args) => pageScrolls.push(args);
+      field.focus();
+      expect(field.getBoundingClientRect()).toEqual({ top: 317, bottom: 511 });
+      // The keyboard leaves 328px: the dialog's inside is 17 to 311, so the
+      // textarea's bottom is brought up to FIT_MARGIN above that.
+      viewport.change({ height: ABOVE_KEYBOARD });
+      expect(d.scrollTop).toBe(208);
+      expect(field.getBoundingClientRect()).toEqual({ top: 109, bottom: 311 - FIT_MARGIN });
+      // Panning moves the dialog and the textarea together: no scrolling.
+      viewport.change({ offsetTop: 120 });
+      expect(d.scrollTop).toBe(208);
+      // A taller keyboard (its suggestion bar) shrinks the dialog again.
+      viewport.change({ height: 280 });
+      expect(d.scrollTop).toBe(256);
+      expect(field.getBoundingClientRect().bottom).toBe(box().bottom - 1 - FIT_MARGIN);
+      // Shorter than the textarea: its top stays in view.
+      viewport.change({ height: 200 });
+      expect(field.getBoundingClientRect().top).toBe(box().top + 1 + FIT_MARGIN);
+      // A taller dialog doesn't scroll.
+      const before = d.scrollTop;
+      viewport.change({ height: 300 });
+      expect(d.scrollTop).toBe(before);
+      // Focus outside the textarea (here the heading, in view) moves nothing either.
+      title().getBoundingClientRect = () => ({ top: box().top + 20, bottom: box().top + 52 });
+      title().focus();
+      viewport.change({ height: 250 });
+      expect(d.scrollTop).toBe(before);
+      expect(pageScrolls).toEqual([]);
+    });
+
+    it('changes nothing without window.visualViewport (browsers older than the API)', async () => {
+      await open(PROBLEM, { innerHeight: SCREEN });
+      expect(dom.window.visualViewport).toBeUndefined();
+      trigger().click();
+      loadTurnstile();
+      textarea().focus();
+      type('Hello');
+      expect([dialog().open, dialog().style.length, dialog().scrollTop]).toEqual([true, 0, 0]);
+      cancel().click();
+      await tick();
+      expect([dialog().open, dialog().style.length, active()]).toEqual([false, 0, trigger()]);
+    });
+
+    it('leaves the A1 layout as it is: no field, box or Send, and Close above the spam-check message', async () => {
+      const viewport = await onPhone({ hostname: 'sleepsteps.example.org' });
+      const hidden = () => [$('[data-feedback-field]').hidden, check().hidden, send().hidden, cancel().hidden];
+      trigger().click();
+      await afterOpening();
+      expect(hidden()).toEqual([true, true, true, false]);
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      // A shorter visible area (say an iPad keyboard's shortcut bar) fits the
+      // dialog and changes nothing else.
+      viewport.change({ height: SCREEN - 56 });
+      expect(fitted()).toEqual(['0px', `${SCREEN - 56}px`]);
+      expect(hidden()).toEqual([true, true, true, false]);
+      expect([cancel().textContent, said()]).toEqual([MESSAGES.CLOSE, [MESSAGES.CHECK_FAILED, CONTACT_LINE]]);
+      expect(turnstileScripts()).toEqual([]);
+      cancel().click();
+      await tick();
+      expect([viewport.listenerCount, dialog().style.length, active()]).toEqual([0, 0, trigger()]);
     });
   });
 

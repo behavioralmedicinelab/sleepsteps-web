@@ -1,5 +1,6 @@
 {#-
-  Base document shell: head, skip link, header, page content, footer.
+  Base document shell: head, skip link, header, page content, footer (on
+  every page, project lead 2026-11-07).
   Child layouts (page, info, topics, urgent) provide <main id="main">.
 
   Front matter read here:
@@ -23,18 +24,17 @@
                 (SPEC §8.3) reads it to tell the Worker which pages may send
                 one
     header      "minimal" for the logo-and-back-link header (urgent help)
-    footer      false to drop the footer (urgent help)
     referrer    a referrer policy for this page alone, as a meta tag; the
                 search page uses "strict-origin" so its ?q= never travels on
                 (SPEC §8.1)
 
-  The feedback dialog (SPEC §13): on every page with the footer and a
-  page_id, while features.feedback is exactly true, the dialog follows the
-  footer (outside it and outside <main>) and feedback.js loads last in
-  <head>. Getting urgent help (no footer) and the 404 page (no page_id) keep
-  the plain link to the Contact page, as does any page without JavaScript.
+  The feedback dialog (SPEC §13): on every page with a page_id, while
+  features.feedback is exactly true, the dialog follows the footer (outside
+  it and outside <main>) and feedback.js loads last in <head>. The 404 page
+  (no page_id) keeps the plain link to the Contact page, as does any page
+  without JavaScript.
 -#}
-{%- set feedbackDialog = site.features.feedback === true and footer !== false and page_id -%}
+{%- set feedbackDialog = site.features.feedback === true and page_id -%}
 <!doctype html>
 <html lang="en-AU">
 <head>
@@ -67,7 +67,7 @@
   <a class="skip-link" href="#main">Skip to content</a>
   {% if header == 'minimal' %}{% include "partials/minimal-header.njk" %}{% else %}{% include "partials/site-header.njk" %}{% endif %}
   {{ content | safe }}
-  {% if footer !== false %}{% include "partials/site-footer.njk" %}{% endif %}
+  {% include "partials/site-footer.njk" %}
   {%- if feedbackDialog %}
   {% include "partials/feedback-dialog.njk" %}
   {%- endif %}

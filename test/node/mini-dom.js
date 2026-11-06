@@ -16,6 +16,10 @@
 //   buttons (requestSubmit() on their form), events that bubble to the
 //   document, getClientRects() (via `isRendered`) and getBoundingClientRect()
 //   (its width is document.layoutWidth while the element is rendered);
+//   scrollTop, clientTop and clientHeight as plain numbers (0 until a test
+//   sets them; nothing is laid out), and `style`, a StyleDeclaration holding
+//   what setProperty() puts there (it isn't reflected in a style attribute
+//   and styles nothing);
 // - <dialog> (HTMLDialogElement, for feedback.js): open, showModal() (throws
 //   InvalidStateError when already open or not in the document; focuses the
 //   first control, as browsers do), close(returnValue) (puts focus back
@@ -26,9 +30,12 @@
 //   installDom's `dialog: false` leaves <dialog> as a plain element, as in a
 //   browser without dialog support;
 // - a window with location (hash, search and hostname), timers (the global
-//   ones, so fake timers work), events and print(); and, for events.js and
-//   stats-switch.js, localStorage and sessionStorage (MemoryStorage, which
-//   can be blocked or full), navigator, fetch and crypto, each replaceable.
+//   ones, so fake timers work), events, print() and innerHeight; for
+//   feedback.js, optionally a visualViewport (VisualViewport: height,
+//   offsetTop and scale, with "resize" and "scroll" events); and, for
+//   events.js and stats-switch.js, localStorage and sessionStorage
+//   (MemoryStorage, which can be blocked or full), navigator, fetch and
+//   crypto, each replaceable.
 //
 // installDom(html) puts document, window, location, HTMLDetailsElement and
 // HTMLDialogElement on globalThis, as a browser would, and returns
@@ -287,6 +294,38 @@ class ClassList {
   }
 }
 
+/**
+ * An element's `style` (CSSStyleDeclaration), holding properties by name:
+ * setProperty, removeProperty, getPropertyValue, length and item. Values
+ * aren't parsed or checked, and nothing reads them but the tests.
+ */
+export class StyleDeclaration {
+  #values = new Map();
+
+  get length() {
+    return this.#values.size;
+  }
+
+  item(i) {
+    return [...this.#values.keys()][i] ?? '';
+  }
+
+  getPropertyValue(name) {
+    return this.#values.get(String(name)) ?? '';
+  }
+
+  setProperty(name, value) {
+    if (value === '' || value === null || value === undefined) this.removeProperty(name);
+    else this.#values.set(String(name), String(value));
+  }
+
+  removeProperty(name) {
+    const value = this.getPropertyValue(name);
+    this.#values.delete(String(name));
+    return value;
+  }
+}
+
 /** Attributes reflected as plain string properties. */
 const REFLECTED = ['id', 'type', 'href', 'rel', 'src', 'title', 'name'];
 /** Boolean attributes reflected as properties. */
@@ -315,6 +354,15 @@ export class Element extends Node {
       },
     );
     this.paused = true; // <audio>
+    // Layout numbers a test may set; nothing here lays anything out.
+    this.scrollTop = 0;
+    this.clientTop = 0;
+    this.clientHeight = 0;
+  }
+
+  get style() {
+    this._style ??= new StyleDeclaration();
+    return this._style;
   }
 
   getAttribute(name) {
@@ -700,6 +748,37 @@ function storageProperty(value) {
   };
 }
 
+// ---- The visual viewport ---------------------------------------------------------
+
+/**
+ * A stand-in for window.visualViewport: the part of the page on screen,
+ * which an on-screen keyboard makes shorter (height) and which can pan
+ * (offsetTop) and be pinch-zoomed (scale). change() sets any of the three
+ * and then fires what a browser would: "resize" when height or scale
+ * changed, "scroll" when offsetTop did. listenerCount counts the listeners
+ * still attached.
+ */
+export class VisualViewport extends Node {
+  constructor({ height = 800, offsetTop = 0, scale = 1 } = {}) {
+    super(null);
+    this.height = height;
+    this.offsetTop = offsetTop;
+    this.scale = scale;
+  }
+
+  change({ height = this.height, offsetTop = this.offsetTop, scale = this.scale } = {}) {
+    const resized = height !== this.height || scale !== this.scale;
+    const scrolled = offsetTop !== this.offsetTop;
+    Object.assign(this, { height, offsetTop, scale });
+    if (resized) this.dispatchEvent(new Event('resize'));
+    if (scrolled) this.dispatchEvent(new Event('scroll'));
+  }
+
+  get listenerCount() {
+    return [...this.listeners.values()].reduce((sum, list) => sum + list.length, 0);
+  }
+}
+
 // ---- Window and globals --------------------------------------------------------
 
 /**
@@ -710,8 +789,11 @@ function storageProperty(value) {
  * ones by default) or 'blocked'; `navigator`, `fetch` and `crypto` become
  * window's (by default: a navigator without sendBeacon, no fetch, and Node's
  * crypto). `dialog: false` stands in for a browser without <dialog>, and
- * `layoutWidth` sets document.layoutWidth. Returns { document, window,
- * restore }; call restore() after the test.
+ * `layoutWidth` sets document.layoutWidth. `innerHeight` is window's (the
+ * layout viewport's height), and `visualViewport` (a VisualViewport) is
+ * window.visualViewport; without one there is none, as in browsers older
+ * than the Visual Viewport API. Returns { document, window, restore }; call
+ * restore() after the test.
  */
 export function installDom(
   html,
@@ -726,6 +808,8 @@ export function installDom(
     crypto = globalThis.crypto,
     dialog = true,
     layoutWidth = 640,
+    innerHeight = 800,
+    visualViewport,
   } = {},
 ) {
   const document = parseHtml(html, { dialog });
@@ -746,7 +830,9 @@ export function installDom(
     navigator,
     fetch,
     crypto,
+    innerHeight,
   };
+  if (visualViewport) window.visualViewport = visualViewport;
   Object.defineProperty(window, 'localStorage', storageProperty(localStorage));
   Object.defineProperty(window, 'sessionStorage', storageProperty(sessionStorage));
   const names = ['document', 'window', 'location', 'HTMLDetailsElement', 'HTMLDialogElement'];

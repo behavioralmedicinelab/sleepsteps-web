@@ -1,6 +1,7 @@
 {#-
-  SiteFooter (HANDOFF §5, board SiteFooter.dc.html). Shown on every page
-  except Getting urgent help (`footer: false`).
+  SiteFooter (HANDOFF §5, board SiteFooter.dc.html). Shown on every page,
+  Getting urgent help included (project lead, 2026-11-07; the board for that
+  page has none).
 
   "Send feedback" (SPEC §13) appears while features.feedback is exactly true.
   It is a link to the Contact page. On pages with the feedback dialog
@@ -46,7 +47,7 @@
         <ul role="list">
           <li><a href="/help/"{{ page.url | ariaCurrent('/help/') | safe }}>Get more help</a></li>
           <li><a href="/privacy/"{{ page.url | ariaCurrent('/privacy/') | safe }}>Privacy and your data</a></li>
-          <li><a class="site-footer__urgent" href="/urgent-help/">Get urgent help</a></li>
+          <li><a class="site-footer__urgent" href="/urgent-help/"{{ page.url | ariaCurrent('/urgent-help/') | safe }}>Get urgent help</a></li>
         </ul>
       </nav>
     </div>
