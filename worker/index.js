@@ -8,12 +8,22 @@
 // (M3–M6). Until then they return 404, which is also how a disabled feature
 // responds (SPEC §11).
 
+const notFound = () => new Response('Not found', { status: 404 });
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
 
-    if (pathname.startsWith('/api/') || pathname === '/admin' || pathname.startsWith('/admin/')) {
-      return new Response('Not found', { status: 404 });
+    if (pathname.startsWith('/api/')) {
+      // The API stores nothing unless this environment's DATA_COLLECTION var
+      // is exactly "on"; missing or any other value means off (SPEC §11).
+      if (env.DATA_COLLECTION !== 'on') return notFound();
+      // M3-M5 add the API routes here, after that check.
+      return notFound();
+    }
+
+    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+      return notFound();
     }
 
     // Anything else falls back to static assets, so unknown paths get the

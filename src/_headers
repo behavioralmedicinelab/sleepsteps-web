@@ -1,0 +1,17 @@
+# Response headers for static assets (SPEC §16.1). The build copies this file
+# to dist/_headers; Wrangler reads it as config and never serves it. Limits:
+# 100 rules and 2,000 characters a line. Wrangler doesn't check this file on
+# deploy, so test/node/deploy-config.test.js does. Rules never apply to
+# responses the Worker builds itself (/api/*, /admin).
+
+# Keep every workers.dev address out of search results (SPEC §18.3): before
+# launch production's sleepsteps.<subdomain>.workers.dev, and always the
+# preview and version URLs there (version URLs run on production's database;
+# Cloudflare marks only preview URLs noindex itself). It never matches the
+# custom domain. Keep it after launch: preview_urls stays on (SPEC §18.2).
+https://:version.:subdomain.workers.dev/*
+  X-Robots-Tag: noindex
+
+# The 404 page is also served at /404 with a 200 status, on every host.
+/404
+  X-Robots-Tag: noindex

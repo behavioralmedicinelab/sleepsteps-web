@@ -56,6 +56,8 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ 'src/js': 'js' });
   eleventyConfig.addPassthroughCopy({ 'src/img': 'img' });
   eleventyConfig.addPassthroughCopy({ media: 'media' });
+  // Response headers for static assets, read by Workers (SPEC §16.1).
+  eleventyConfig.addPassthroughCopy({ 'src/_headers': '_headers' });
 
   // All sleep problems, ordered by area (areas.csv `order`) and then by each
   // problem's `order` within its area.

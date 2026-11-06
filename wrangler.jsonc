@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "sleep-site",
+  // The Worker in Cloudflare must have exactly this name, or Workers Builds
+  // fails or deploys under the dashboard's name (SPEC §18.3).
+  "name": "sleepsteps",
   "main": "worker/index.js",
   "compatibility_date": "2026-10-30",
   "assets": {
@@ -8,19 +10,53 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page"
   },
+  // Until launch, production answers on sleepsteps.<subdomain>.workers.dev,
+  // with noindex from dist/_headers (SPEC §16.1, §18.3). The launch PR sets
+  // workers_dev to false and keeps preview_urls on (SPEC §18.2).
+  "workers_dev": true,
+  "preview_urls": true,
+  // Production. Never add "remote": true to a binding: local development and
+  // tests must not reach the real database.
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "sleep-site",
-      // Placeholder until the human setup task in SPEC §18.4 step 4.
-      // Local development (`wrangler dev`, `--local`) does not need a real ID.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_name": "sleepsteps",
+      "database_id": "7da77651-1695-4331-8708-114382f04757",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
     "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com",
-    "ACCESS_AUD": "<AUD_TAG>"
-  }
+    "ACCESS_AUD": "<AUD_TAG>",
+    // The API stores nothing unless this is exactly "on" (SPEC §11). Off in
+    // production until the privacy officer's go-ahead (SPEC §18.3).
+    "DATA_COLLECTION": "off"
+  },
   // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET
+  //
+  // Worker Previews (every branch but main, built by Workers Builds with
+  // `npx wrangler preview`). Previews inherit no vars or bindings from above,
+  // so each one is repeated here; `assets`, `compatibility_date` and `main`
+  // come from the top level. Preview secrets are set with
+  // `wrangler preview base-config secret put`. D1 migrations for the preview
+  // database use wrangler.preview-migrations.jsonc, because `wrangler d1`
+  // commands read only the top-level d1_databases (SPEC §17, §18.2).
+  // https://developers.cloudflare.com/workers/previews/configuration/
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "sleepsteps-preview",
+        "database_id": "38b5ff0a-4518-4aa0-b884-c93546b9ee56"
+      }
+    ],
+    "vars": {
+      "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com",
+      "ACCESS_AUD": "<AUD_TAG>",
+      // Off too: preview URLs are public (and posted on pull requests), and
+      // preview writes share the account's D1 limits with production. Turn
+      // it on only once previews are behind Cloudflare Access (SPEC §21).
+      "DATA_COLLECTION": "off"
+    }
+  }
 }
