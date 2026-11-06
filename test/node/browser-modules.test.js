@@ -198,6 +198,22 @@ describe('players.js', () => {
     expect(scripts()).toEqual([]);
   });
 
+  it('prints the transcript with its source as the page title and address, without the site name (SPEC §9.3, §7.5)', async () => {
+    await load(videoPage, ['players']);
+    const { document, window } = dom;
+    document.querySelector('#transcript-full .transcript__print').click();
+    expect(window.printed).toBe(1);
+    const sheet = document.querySelector('.print-sheet');
+    expect(sheet.querySelector('.print-sheet__title').textContent).toBe('Transcript: Settling your body');
+    expect(sheet.querySelector('.print-sheet__source').textContent).toBe('From “A page”: https://sleepsteps.test/page/');
+    expect(sheet.querySelector('.transcript__body').textContent).toContain('Words.');
+    expect(document.documentElement.hasAttribute('data-printing')).toBe(true);
+
+    window.dispatchEvent(new Event('afterprint'));
+    expect(document.querySelector('.print-sheet')).toBe(null);
+    expect(document.documentElement.hasAttribute('data-printing')).toBe(false);
+  });
+
   it('reports audio only once it has played: seeking while paused is not a play (SPEC §9.4)', async () => {
     await load(
       '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +

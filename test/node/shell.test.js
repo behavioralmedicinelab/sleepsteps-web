@@ -184,7 +184,7 @@ describe('problem pages and the Sleep problems page', () => {
 describe('information pages', () => {
   const INFO = {
     '/help/': 'Getting more help',
-    '/about/': 'About SleepSteps',
+    '/about/': 'About us',
     '/contact/': 'Contact us',
     '/privacy/': 'Privacy and your data',
   };
@@ -211,6 +211,35 @@ describe('information pages', () => {
     expect(privacy).toContain('Your name, email or other contact details, unless you email or phone us (see below)');
     expect(privacy).toMatch(/If you email or phone us Emails and phone calls are not anonymous\./);
     expect(text(pageAt(site, '/contact/'))).toContain("Emails and phone calls aren't anonymous");
+  });
+
+  it.each(['/contact/', '/privacy/'])('%s gives the project email as a mailto link (SPEC §7.4, §15.2)', (url) => {
+    const html = pageAt(site, url);
+    const mail = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].filter(([tag]) => /^mailto:/i.test(attr(tag, 'href') ?? ''));
+    expect(mail.map(([tag, , inner]) => [attr(tag, 'href'), text(inner)])).toEqual([
+      ['mailto:psych.sleepsteps@monash.edu', 'psych.sleepsteps@monash.edu'],
+    ]);
+    expect(text(html)).not.toMatch(/\[[^\]]*e-?mail( address)?\]/i);
+    if (url === '/privacy/') expect(text(html).replace(/ ([,.])/g, '$1')).toContain('Contact the team at psych.sleepsteps@monash.edu,');
+  });
+
+  it('starts "Other support" on Getting more help with Cancer Council, its number, hours and website (SPEC §7.4)', () => {
+    const services = elementByClass(pageAt(site, '/help/'), 'help-services', 'ul');
+    const first = services.match(/<li\b[^>]*>([\s\S]*?)<\/li>/)[1];
+    expect(first).toMatch(/^<h3 class="help-service__name">Cancer Council<\/h3>/);
+    expect(text(elementByClass(first, 'help-service__details', 'p'))).toBe(
+      '13 11 20 · Free, confidential cancer information and support. Monday to Friday, 9am to 5pm (longer in some states).',
+    );
+    const web = tags(first, 'a').filter((t) => /^https:/.test(attr(t, 'href')));
+    expect(web.map((t) => [attr(t, 'href'), attr(t, 'rel')])).toEqual([['https://www.cancer.org.au/', 'noreferrer']]);
+    expect(linkTexts(first)).toContain('Cancer Council website');
+  });
+
+  it('calls About "About us", with "Why we made this program" (SPEC §7.5)', () => {
+    const html = pageAt(site, '/about/');
+    expect(html).toContain('<title>About us</title>');
+    expect(html).toContain('<p class="band__eyebrow">About us</p>');
+    expect(html).toContain('<h2>Why we made this program</h2>');
   });
 
   it("links Privacy to Google's privacy policy", () => {
@@ -252,7 +281,7 @@ describe('Getting urgent help', () => {
   it('has the minimal header and no footer, search, menu or script', () => {
     const header = elementByClass(html, 'minimal-header', 'header');
     expect(tags(header, 'a').map((t) => attr(t, 'href'))).toEqual(['/', '/']);
-    expect(linkTexts(header)).toEqual(['', 'Back to SleepSteps']);
+    expect(linkTexts(header)).toEqual(['', 'Back to home']);
     expect(tags(header, 'img').map((t) => attr(t, 'alt'))).toEqual(['SleepSteps home']);
     expect(html).not.toMatch(/<footer|<form|<nav|<details|<script/);
     expect(html).toContain('data-page-id="urgent-help"');
@@ -269,21 +298,46 @@ describe('Getting urgent help', () => {
     expect(text(html)).toContain(`Numbers shown are for ${config.crisisRegion};`);
   });
 
+  const moreCards = () => [...elementByClass(html, 'urgent-help__more', 'ul').matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+
   it('shows the smaller cards, linking only those with a confirmed number', () => {
-    const cards = [...elementByClass(html, 'urgent-help__more', 'ul').matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+    // A card with a confirmed number is one whole-card tel: link, unless it
+    // also links to a website: then only the number is a tel: link, because
+    // one link can't hold another (SPEC §7.4).
+    const cards = moreCards();
     expect(text(cards[0])).toMatch(/^Your treating team /);
     expect(cards[0]).toMatch(/^<div class="contact-card">/);
     for (const card of cards) {
-      const number = elementByClass(card, 'contact-card__number', 'span');
+      const number = elementByClass(card, 'contact-card__number');
+      const web = elementByClass(card, 'contact-card__web', 'p');
+      const links = tags(card, 'a').map((t) => [attr(t, 'class'), attr(t, 'href')]);
+      const webLinks = web ? tags(web, 'a').map((t) => [attr(t, 'class'), attr(t, 'href')]) : [];
       if (!number || text(number).startsWith('[')) {
-        expect(card).not.toMatch(/<a\b/);
+        expect(links).toEqual(webLinks);
+        continue;
+      }
+      const tel = `tel:${text(number).replace(/^Call /, '').replace(/[^0-9+]/g, '')}`;
+      if (web) {
+        expect(card).toMatch(/^<div class="contact-card">/);
+        expect(webLinks).toHaveLength(1);
+        expect(links).toEqual([['contact-card__number', tel], ...webLinks]);
       } else {
-        const digits = text(number).replace(/^Call /, '').replace(/[^0-9+]/g, '');
-        expect(tags(card, 'a').map((t) => [attr(t, 'class'), attr(t, 'href')])).toEqual([
-          ['contact-card contact-card--link', `tel:${digits}`],
-        ]);
+        expect(links).toEqual([['contact-card contact-card--link', tel]]);
       }
     }
+  });
+
+  it('lists Cancer Council 13 11 20 with its hours and website, with the smaller cards, not the crisis ones (SPEC §7.4)', () => {
+    const card = moreCards().find((c) => text(c).startsWith('Cancer Council '));
+    expect(card).toBeTruthy();
+    expect(card).toContain('<h2 class="contact-card__title">Cancer Council</h2>');
+    expect(tags(card, 'a').map((t) => [attr(t, 'href'), attr(t, 'rel')])).toEqual([
+      ['tel:131120', undefined],
+      ['https://www.cancer.org.au/', 'noreferrer'],
+    ]);
+    expect(linkTexts(card)).toEqual(['Call 13 11 20', 'Cancer Council website']);
+    expect(text(card)).toContain('Free, confidential cancer information and support. Monday to Friday, 9am to 5pm (longer in some states).');
+    expect(text(elementByClass(html, 'urgent-help__calls', 'ul'))).not.toContain('Cancer Council');
   });
 
   it('stays minimal: no draft or developer notes', () => {
@@ -304,7 +358,7 @@ describe('other pages', () => {
   it('serves the 404 page at /404.html with no page_id', () => {
     const html = pageAt(site, '/404.html');
     expect(html).not.toContain('data-page-id');
-    expect(html).toMatch(/<title>Page not found \| SleepSteps<\/title>/);
+    expect(html).toMatch(/<title>Page not found<\/title>/);
   });
 
   it('gives the search page a no-JavaScript route to the Sleep problems page', () => {
@@ -357,9 +411,18 @@ describe('Privacy: cookies and browser storage', () => {
     }
   });
 
+  it("uses the project lead's wording for accounts and cookies (SPEC §7.5, 2026-11-06)", () => {
+    expect(text(privacyHtml)).toContain("You don't need an account to use this program.");
+    expect(text(privacyHtml)).toContain('Advertising or tracking cookies from us');
+  });
+
   it('no longer claims the site sets no cookies at all', () => {
     expect(text(privacyHtml)).not.toMatch(/\bCookies, or anything else that tracks you\b/);
-    expect(text(privacyHtml)).toContain('SleepSteps itself doesn\'t set any cookies');
+    expect(text(privacyHtml)).toContain("We don't use cookies to track you or show you ads, and we don't set any cookies ourselves.");
+  });
+
+  it('mentions the Cloudflare Access sign-in cookies research staff get (SPEC §15.2, §15.4)', () => {
+    expect(text(privacyHtml)).toContain("Research staff who sign in to the site's admin area also get sign-in cookies from Cloudflare Access. Visitors never see that area.");
   });
 
   it('carries the YouTube API Services statement and links', () => {

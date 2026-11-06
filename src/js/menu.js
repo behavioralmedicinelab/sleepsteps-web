@@ -1,3 +1,5 @@
+// Site header: the phone Menu, and warming the site search.
+//
 // Phone Menu (HANDOFF §5 MobileHeader; SPEC §2, §11).
 //
 // The HTML ships a native <details>/<summary>, which opens and closes with
@@ -61,4 +63,29 @@ try {
   document.querySelectorAll('details[data-mobile-menu]').forEach(enhance);
 } catch {
   // Leave the native <details> in place.
+}
+
+// Site search warm-up (SPEC §8.1). The first time a header search box gets
+// focus, the browser prefetches MiniSearch and the search index into its
+// cache, so the results page (search.js, which loads the same two files)
+// starts sooner. Only this site's static files; nothing is sent.
+export const SEARCH_FILES = ['/js/vendor/minisearch/index.js', '/search-index.json'];
+
+function warmSearch() {
+  if (document.querySelector('link[data-search-warm]')) return;
+  for (const href of SEARCH_FILES) {
+    const link = document.createElement('link');
+    link.setAttribute('rel', 'prefetch');
+    link.setAttribute('href', href);
+    link.setAttribute('data-search-warm', '');
+    document.head.append(link);
+  }
+}
+
+try {
+  for (const input of document.querySelectorAll('[data-site-search]')) {
+    input.addEventListener('focus', warmSearch, { once: true });
+  }
+} catch {
+  // Search still works; it just starts from scratch.
 }

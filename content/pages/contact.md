@@ -1,10 +1,10 @@
 ---
 title: Contact us
-summary: Questions about SleepSteps or the trial? We're happy to help.
+summary: Questions about this program or the trial? We're happy to help.
 styles: ["pages/contact.css"]
 # Contact details. Replace the [placeholders] and keep the quotes. The email
 # address and phone number become links once they no longer start with "[".
-email: "[trial email address]"
+email: "psych.sleepsteps@monash.edu"
 email_note: "We usually reply within [two working days]."
 phone: "[phone number]"
 phone_hours: "[Days and hours, with time zone]"

@@ -24,6 +24,6 @@ chapters:
     description: "[What happens while we sleep, and what makes us feel sleepy at night.]"
   - video: why-cancer-can-change-sleep
     description: "[How diagnosis, treatment and recovery can affect your nights and days.]"
-  - video: how-to-use-sleepsteps
+  - video: how-to-use-this-program
     description: "[Finding the sleep problems that fit you, and trying one idea at a time.]"
 ---

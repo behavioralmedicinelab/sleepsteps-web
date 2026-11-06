@@ -109,7 +109,7 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
   });
 
   it('lists the three Start here videos in order', () => {
-    expect(model.start.data.chapters.map((c) => c.video)).toEqual(['how-sleep-works', 'why-cancer-can-change-sleep', 'how-to-use-sleepsteps']);
+    expect(model.start.data.chapters.map((c) => c.video)).toEqual(['how-sleep-works', 'why-cancer-can-change-sleep', 'how-to-use-this-program']);
   });
 
   it('has sample videos covering every combination the templates handle', () => {

@@ -1,0 +1,115 @@
+/*
+ * Search (/search/): SPEC §8.1, §7.5. There is no board for this page, so it
+ * uses the site's existing parts: the label and field of the Sleep problems
+ * filter (on a light ground here), the primary button, and the card-title
+ * size for result titles. Loaded through `styles` front matter in
+ * content/search.njk. Values come from tokens.css.
+ */
+
+.search-page {
+  max-width: var(--measure);
+}
+
+.search-form__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+/* Field and button side by side; the button drops below the field when
+   there is no room for both. */
+.search-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.search-form__input {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1 1 240px;
+  min-width: 0;
+  min-height: var(--target-xl);
+  margin: 0;
+  padding: 0 var(--space-5);
+  border: var(--border-width) solid var(--slate-grey);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+}
+
+.search-form__submit {
+  flex: 0 0 auto;
+  width: auto;
+  padding-inline: var(--space-7);
+}
+
+/* The urgent-help line under the form, on every search (SPEC §8.1). */
+.search-urgent {
+  margin-top: var(--space-6);
+}
+
+.search-status {
+  margin-top: var(--space-7);
+  font-weight: var(--weight-semibold);
+}
+
+/* Empty until the script writes to it, but always rendered: a live region
+   that appears together with its first text may not be announced. */
+.search-status:empty {
+  margin: 0;
+}
+
+.search-results {
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-result {
+  padding-block: var(--space-6);
+  border-top: var(--border-width) solid var(--keyline);
+}
+
+.search-result:last-child {
+  border-bottom: var(--border-width) solid var(--keyline);
+}
+
+.search-result__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-regular);
+}
+
+/* The title link fills a 44px-tall target (SPEC §7.5). */
+.search-result__title a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.search-result__type {
+  margin-top: 0;
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+  color: var(--slate-grey);
+}
+
+.search-result__summary {
+  margin-top: var(--space-2);
+}
+
+.search-message,
+.search-fallback {
+  margin-top: var(--space-5);
+}
+
+.search-message a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}

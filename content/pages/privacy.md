@@ -1,6 +1,6 @@
 ---
 title: Privacy and your data
-summary: You don't need an account to use SleepSteps. Here is what we collect, and what we don't.
+summary: You don't need an account to use this program. Here is what we collect, and what we don't.
 styles: ["pages/privacy.css"]
 # The two cards at the top of the page. Keep them in step with SPEC §15.2
 # and with what the site actually stores (SPEC §10, §12, §13, §15.3).
@@ -13,7 +13,7 @@ collect_note: "Each of these is stored with the page it came from and the date a
 not_collect:
   - "Your name, email or other contact details, unless you email or phone us (see below)"
   - "Accounts or passwords"
-  - "Advertising or tracking cookies from SleepSteps, or anything else we use to follow you from one visit to the next"
+  - "Advertising or tracking cookies from us, or anything else we use to follow you from one visit to the next"
   - "A record of your IP address, or details of your device or browser"
   - "[Anything that identifies you, unless you write it in feedback]"
 not_collect_note: "To count visits, your browser tab holds a temporary random code. It is deleted when you close the tab, and on its own it can't identify you. You can turn it off (see “Cookies and browser storage”)."
@@ -75,7 +75,7 @@ Some of this processing may happen outside Australia.
 
 Websites can keep small pieces of information in your browser. Cookies are one kind. Browser storage is another.
 
-SleepSteps doesn't use cookies to track you or show you ads, and SleepSteps itself doesn't set any cookies. A few things may be stored in your browser, by us or by the services we use: to make the site work, to protect it from spam and automated programs, or to count visits without knowing who you are. They are all listed here. SleepSteps doesn't use any of them to find out who you are.
+We don't use cookies to track you or show you ads, and we don't set any cookies ourselves. A few things may be stored in your browser, by us or by the services we use: to make the site work, to protect it from spam and automated programs, or to count visits without knowing who you are. They are all listed here. We don't use any of them to find out who you are.
 
 <div class="table-scroll" role="region" aria-labelledby="storage-table-caption" tabindex="0">
 <table class="storage-table">
@@ -84,16 +84,14 @@ SleepSteps doesn't use cookies to track you or show you ads, and SleepSteps itse
 <tr><th scope="col">Name</th><th scope="col">Set by</th><th scope="col">What it's for</th><th scope="col">How long it lasts</th></tr>
 </thead>
 <tbody>
-<tr><th scope="row"><code>sleepsteps-visit</code></th><td>SleepSteps</td><td>A random code that lets us count visits. It groups the usage information from one visit, such as page views and plays. On its own it can't identify you. It isn't stored if you turn off usage statistics.</td><td>Deleted when you close the tab</td></tr>
-<tr><th scope="row"><code>sleepsteps-stats-off</code></th><td>SleepSteps</td><td>Remembers that you turned off usage statistics. It is only stored if you do this.</td><td>Until you turn statistics back on or clear your browser data</td></tr>
+<tr><th scope="row"><code>sleepsteps-visit</code></th><td>This website</td><td>A random code that lets us count visits. It groups the usage information from one visit, such as page views and plays. On its own it can't identify you. It isn't stored if you turn off usage statistics.</td><td>Deleted when you close the tab</td></tr>
+<tr><th scope="row"><code>sleepsteps-stats-off</code></th><td>This website</td><td>Remembers that you turned off usage statistics. It is only stored if you do this.</td><td>Until you turn statistics back on or clear your browser data</td></tr>
 <tr><th scope="row"><code>cf_clearance</code></th><td>Cloudflare, our hosting provider</td><td>Only if Cloudflare asks your browser to do a quick check that you're a person, not an automated program. It remembers that you passed, so you aren't asked again straight away.</td><td>30 minutes</td></tr>
 <tr><th scope="row"><code>cf.turnstile.u</code></th><td>Cloudflare</td><td>Part of the check on the feedback form that stops automated spam. It is only stored if you open the form.</td><td>Cloudflare doesn't say. Clearing your browser data removes it.</td></tr>
 <tr><th scope="row">YouTube cookies and storage, such as <code>YSC</code> and <code>__Secure-YNID</code></th><td>YouTube (Google)</td><td>Only if you press play on a video. Google says it uses them to play videos, keep YouTube secure and measure use, and lists other purposes, including advertising, on its cookies page. We don't receive this information.</td><td>Some last until you close your browser. Google says others last up to 13 months.</td></tr>
 </tbody>
 </table>
 </div>
-
-Research staff who sign in to the site's admin area also get sign-in cookies from Cloudflare Access. Visitors never see that area.
 
 ### Turning off usage statistics
 
@@ -105,7 +103,9 @@ Your choice is saved in this browser only. If you use another browser or device,
 
 ### Blocking cookies
 
-You can block or delete cookies and browser storage in your browser's settings. SleepSteps' own pages don't need them. YouTube videos and the spam check on the feedback form come from other services and may not work if you block their storage. If Cloudflare asks your browser to do a check while cookies are blocked, the check may not work.
+Research staff who sign in to the site's admin area also get sign-in cookies from Cloudflare Access. Visitors never see that area.
+
+You can block or delete cookies and browser storage in your browser's settings. Our own pages don't need them. YouTube videos and the spam check on the feedback form come from other services and may not work if you block their storage. If Cloudflare asks your browser to do a check while cookies are blocked, the check may not work.
 
 </section>
 
@@ -113,7 +113,7 @@ You can block or delete cookies and browser storage in your browser's settings. 
 
 ## How we use this information
 
-We use this information only to improve SleepSteps. Reporting on how the site is used is part of that. It is kept separate from the trial's research data and is never linked to anyone taking part in the trial. [Only the SleepSteps team can see it.] Ratings and feedback are never shown on the site.
+We use this information only to improve this program. Reporting on how the site is used is part of that. It is kept separate from the trial's research data and is never linked to anyone taking part in the trial. [Only our team can see it.] Ratings and feedback are never shown on the site.
 
 <p class="notice--urgent">Feedback is not monitored for urgent issues. If you need help now, go to <a href="/urgent-help/">Getting urgent help</a>.</p>
 
@@ -139,8 +139,8 @@ Emails and phone calls are not anonymous. If you contact us this way, for exampl
 
 ## Questions or concerns
 
-Contact the team at [email], or [the ethics committee contact for complaints].
+Contact the team at [psych.sleepsteps@monash.edu](mailto:psych.sleepsteps@monash.edu), or [the ethics committee contact for complaints].
 
-SleepSteps is part of a research project approved by [HREC name] (approval number [HREC approval number]).
+This program is part of a research project approved by [HREC name] (approval number [HREC approval number]).
 
 </section>

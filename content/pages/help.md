@@ -1,6 +1,6 @@
 ---
 title: Getting more help
-summary: SleepSteps can help with many sleep problems, but not all. Here is when to talk to someone, and who.
+summary: This program can help with many sleep problems, but not all. Here is when to talk to someone, and who.
 styles: ["pages/help.css"]
 # "Seeing a sleep specialist": the numbered steps, in order.
 specialist_steps:
@@ -10,10 +10,15 @@ specialist_steps:
     text: "[Sleep physician, sleep psychologist, or CBT-I provider.]"
   - title: Find a provider
     text: "[Link to a directory of accredited providers.]"
-# "Other support": one card per service, in order.
+# "Other support": one card per service, in order. A card can link to the
+# service's website: `url` (https only, on the SPEC §16.1 list of allowed
+# sites) and its link text in `link_text`. Cancer Council 13 11 20 is an
+# information and support line, not a crisis service.
 services:
-  - name: "[Cancer support line]"
-    details: "[Phone · hours]"
+  - name: "Cancer Council"
+    details: "13 11 20 · Free, confidential cancer information and support. Monday to Friday, 9am to 5pm (longer in some states)."
+    url: "https://www.cancer.org.au/"
+    link_text: "Cancer Council website"
   - name: "[Mental health support]"
     details: "[Phone · hours]"
   - name: "[Carer support]"
@@ -46,7 +51,7 @@ services:
 <h2>Other support</h2>
 <ul class="help-services" role="list">
 {%- for service in services %}
-<li class="card help-service"><h3 class="help-service__name">{{ service.name }}</h3><p class="help-service__details">{{ service.details }}</p></li>
+<li class="card help-service"><h3 class="help-service__name">{{ service.name }}</h3><p class="help-service__details">{{ service.details }}</p>{% if service.url %}<p class="help-service__link link-standalone"><a href="{{ service.url }}" rel="noreferrer">{{ service.link_text or service.url }}</a></p>{% endif %}</li>
 {%- endfor %}
 </ul>
 </section>
