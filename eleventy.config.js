@@ -58,6 +58,14 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ media: 'media' });
   // Response headers for static assets, read by Workers (SPEC §16.1).
   eleventyConfig.addPassthroughCopy({ 'src/_headers': '_headers' });
+  // MiniSearch for the search page (SPEC §5, §8), copied from node_modules as
+  // published: its browser ES module, the source map it names, and its MIT
+  // licence. Loaded by src/js/search.js and nowhere else.
+  eleventyConfig.addPassthroughCopy({
+    'node_modules/minisearch/dist/es/index.js': 'js/vendor/minisearch/index.js',
+    'node_modules/minisearch/dist/es/index.js.map': 'js/vendor/minisearch/index.js.map',
+    'node_modules/minisearch/LICENSE.txt': 'js/vendor/minisearch/LICENSE.txt',
+  });
 
   // All sleep problems, ordered by area (areas.csv `order`) and then by each
   // problem's `order` within its area.

@@ -330,7 +330,7 @@ function printTranscript(details) {
   const source = document.createElement('p');
   source.className = 'print-sheet__source';
   const pageTitle = document.querySelector('h1')?.textContent.trim() ?? document.title;
-  source.textContent = `From “${pageTitle}” on SleepSteps: ${location.href.split('#')[0]}`;
+  source.textContent = `From “${pageTitle}”: ${location.href.split('#')[0]}`;
   const body = details.querySelector('.transcript__body')?.cloneNode(true);
   sheet.append(heading, source);
   if (body) sheet.append(body);

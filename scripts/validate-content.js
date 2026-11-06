@@ -66,6 +66,7 @@ export const WARNINGS = {
   'is-this-you-empty': 'Problems with no "Is this you?" text',
   'bullets-few': 'Problems with fewer than 2 "Is this you?" bullets (SPEC §7.2 asks for 2-4)',
   'unused-video': 'Videos not used on any page',
+  'keywords-missing': 'Searchable pages with no keywords in data/keywords.csv (SPEC §8.2)',
   'unknown-key': 'Front-matter keys the templates do not read (a typo?)',
 };
 
@@ -436,7 +437,51 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     if (!used.has(id)) warn('unused-video', file, id);
   }
 
-  return { errors, warnings, model: { areas, videos, problems, start } };
+  // ---- Search keywords (data/keywords.csv, SPEC §8.2) ---------------------
+  // One row per searchable page: every problem, Start here, and every
+  // information page without `search: false` (scripts/build-data.js). An
+  // unknown or repeated page_id fails; a page without keywords is a warning.
+  const searchable = [...problems.keys()];
+  const notSearched = new Set();
+  if (start) searchable.push('start');
+  for (const name of listMarkdown(at('content/pages'))) {
+    const parsed = read(`content/pages/${name}`);
+    if (parsed && parsed.data.search !== false) searchable.push(name.slice(0, -3));
+    else if (parsed) notSearched.add(name.slice(0, -3));
+  }
+  const keywordsFile = 'data/keywords.csv';
+  let keywords = [];
+  if (existsSync(at(keywordsFile))) {
+    try {
+      keywords = parseCsvRecords(readFileSync(at(keywordsFile), 'utf8'));
+    } catch (e) {
+      error(keywordsFile, '', e.message);
+    }
+    const columns = Object.keys(keywords[0] ?? {});
+    if (keywords.length && (!columns.includes('page_id') || !columns.includes('keywords') || columns.length !== 2)) {
+      error(keywordsFile, '', `the columns must be page_id,keywords (found ${columns.join(',')})`);
+      keywords = [];
+    }
+  }
+  const withKeywords = new Set();
+  const rowFor = new Set();
+  keywords.forEach((row, i) => {
+    const line = `row ${i + 2}`;
+    const id = String(row.page_id ?? '').trim();
+    if (!id) return error(keywordsFile, line, 'page_id is empty');
+    if (notSearched.has(id)) {
+      return error(keywordsFile, line, `"${id}" has search: false, so it isn't in the site search; delete its row or remove search: false`);
+    }
+    if (!searchable.includes(id)) {
+      return error(keywordsFile, line, `unknown page "${id}" (use a problem's file name, start, or an information page's file name)`);
+    }
+    if (rowFor.has(id)) return error(keywordsFile, line, `"${id}" already has a row; put all its keywords in one row`);
+    rowFor.add(id);
+    if (String(row.keywords ?? '').split(';').some((k) => k.trim())) withKeywords.add(id);
+  });
+  for (const id of searchable) if (!withKeywords.has(id)) warn('keywords-missing', keywordsFile, id);
+
+  return { errors, warnings, model: { areas, videos, problems, start, keywords } };
 }
 
 /** Group warnings by code for printing: [[heading, [names...]], ...]. */

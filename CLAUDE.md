@@ -12,6 +12,7 @@ Website for a clinical trial of a stepped-care sleep intervention: static educat
 - Keep dependencies to those in SPEC §5. Ask before adding any package.
 - Browser JS: plain ES modules, no framework, no bundler. Every dynamic feature must fail gracefully (SPEC §11). The page must work with the API down or JavaScript disabled.
 - Never add cookies or persistent identifiers set by SleepSteps, third-party scripts beyond SPEC §16.2, or storage of IP addresses or user agents (SPEC §2, §14.1, §16.2). Any storage on a visitor's device, ours or a provider's, needs a SPEC §15.4 row, a mention in the privacy page's "Cookies and browser storage" section and a §22 entry.
+- Don't over-use the name "SleepSteps" (one word) in user-facing copy: another organisation has trademarked a "Sleep Steps" program. Prefer "this program", "we", "us", "our" or "this website" (SPEC §7.5). The name is in the header logo and the footer heading, and may appear in a few places the team chooses, such as About. Technical names (repo, Worker, databases, storage keys, events, files) keep `sleepsteps`.
 - Never log feedback text or search queries to the console or Workers Logs.
 - D1: parameterised queries only; schema changes only through new migration files.
 - Accessibility: WCAG 2.2 AA. Use semantic HTML, labelled form controls and keyboard support for every widget.
@@ -28,7 +29,7 @@ You may run local commands: `npm run build`, `npm run dev`, `npm test`, `npm run
 
 ```
 npm install
-npm run build          # validate content → build search data → Eleventy → dist/
+npm run build          # validate content → Eleventy (incl. search-index.json) → dist/
 npm run dev            # local site + Worker + local D1
 npm test               # Vitest
 npm run db:migrate:local
@@ -38,6 +39,6 @@ Use Turnstile's published test keys in local development.
 
 ## Content editing (for reference)
 
-Problems are `content/problems/<slug>.md`, videos are a shared library in `content/videos/<video_id>.md`, areas are in `data/areas.csv`, and search synonyms are in `data/keywords.csv` (SPEC §7). The build fails on unknown references and on missing media files. Never rename a `page_id` or `video_id` without adding a redirect (for pages) and updating every reference and `keywords.csv`.
+Problems are `content/problems/<slug>.md`, videos are a shared library in `content/videos/<video_id>.md`, areas are in `data/areas.csv`, and search synonyms are in `data/keywords.csv` (SPEC §7, §8.2). The build fails on unknown references and on missing media files. Never rename a `page_id` or `video_id` without adding a redirect (for pages) and updating every reference and `keywords.csv`.
 
 Visual design comes from the Claude Design handoff in `docs/design/` (read `HANDOFF.md` first; the boards give exact spacing and copy). SPEC §7.5 and §22 list where the build deliberately differs from the handoff; the spec wins.

@@ -154,7 +154,7 @@ describe('Home (/)', () => {
 
   it('ends with the disclaimer, linking to Getting urgent help', () => {
     const disclaimer = elementByClass(html, 'home-disclaimer__text', 'p');
-    expect(text(disclaimer)).toMatch(/^SleepSteps does not replace care from your treating team\./);
+    expect(text(disclaimer)).toMatch(/^These videos and ideas don't replace care from your treating team\./);
     expect(links(disclaimer).map((l) => [l.href, l.name])).toEqual([['/urgent-help/', 'Getting urgent help']]);
   });
 

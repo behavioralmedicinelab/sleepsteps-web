@@ -69,7 +69,7 @@ A single Worker serves both the static site and the API. Requests that match a s
 | Static site generator | Eleventy (11ty), latest stable 3.x | JS toolchain, same language as the Worker |
 | Templates | Nunjucks | Eleventy default |
 | Browser JS | Plain ES modules, no bundler, no framework | Copied via Eleventy passthrough |
-| Search | MiniSearch | Client-side, fuzzy, field boosts |
+| Search | MiniSearch (7.2.0) | Client-side, fuzzy, field boosts. Its browser ES module, source map and MIT licence are copied as published from `node_modules` to `/js/vendor/minisearch/` (no bundler) |
 | Hosting + API | Cloudflare Workers with Static Assets | Free plan |
 | Database | Cloudflare D1 | Free plan; create with location hint `oc` |
 | Spam protection | Cloudflare Turnstile | Feedback form only |
@@ -99,6 +99,8 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   ├── pages/                 # Information pages: help, about, contact, privacy, urgent help (§7.4)
 │   ├── start.md               # "Start here" intro videos (§7.3)
 │   ├── problems.njk           # Sleep problems browser (§7.2)
+│   ├── search.njk             # Search results page (§8.1)
+│   ├── search-index.11ty.js   # /search-index.json, built with scripts/build-data.js (§8.3)
 │   └── index.njk              # Home page
 ├── data/                      # Eleventy global data: each CSV becomes an array of row objects
 │   ├── areas.csv              # The 10 problem areas (§7.2)
@@ -111,10 +113,10 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   ├── _includes/             # layouts/, partials/ (components in §7.5), problem/ (solution cards), notices/ (§15)
 │   ├── img/                   # Logo and site images
 │   ├── css/                   # tokens.css, site.css, components.css, pages/<page>.css (§7.5)
-│   └── js/                    # menu.js, players.js, solutions.js (solution cards), problems.js (Sleep problems filter and accordion), search.js, rating.js, feedback.js, events.js, api.js
+│   └── js/                    # menu.js (also warms the site search), players.js, solutions.js (solution cards), problems.js (Sleep problems filter and accordion), search.js + search-config.js (§8), rating.js, feedback.js, events.js, api.js
 ├── scripts/
-│   ├── build-data.js          # Builds search-index.json + pages.json, validates CSVs
-│   ├── validate-content.js    # Front matter + media file checks
+│   ├── build-data.js          # Search index entries (§8.3); pages.json from M3
+│   ├── validate-content.js    # Front matter, media file and CSV checks (areas, keywords)
 │   └── lib/csv.js             # Dependency-free RFC 4180 CSV parser (Excel CSV UTF-8 exports)
 ├── worker/
 │   ├── index.js               # Router
@@ -206,9 +208,9 @@ Standard Eleventy pages with `title` and `summary`. They are included in the sea
 
 They use the information layout (`src/_includes/layouts/info.njk`, whose header comment is the full contract): a teal title band, the "Information pages" side menu and the content column. Front matter: `title` and `summary` (required; the summary is the lede under the H1 and the meta description), and optionally `eyebrow` (default "Information"), `heading` (H1 text when it differs from the title), `band: hero` (the About hero with the settling arc) and `styles` (extra stylesheets, e.g. `["pages/help.css"]`). Any page can list `styles`; only paths under `src/css/` are accepted. Likewise `scripts` (e.g. `["players.js"]`) loads extra ES modules from `src/js/` (file names only). A layout can list `styles` and `scripts` in its own front matter too (`layouts/problem.njk` does); Eleventy merges them with the page's. `track_page_view: true` marks the pages that send a `page_view` (§10.2): problem pages, Start here and Getting urgent help.
 
-Required pages: Getting more help (`/help/`), About (`/about/`), Contact (`/contact/`), Privacy and your data (`/privacy/`, §15), Getting urgent help (`/urgent-help/`, with the crisis contacts from `site.config.json`), and 404 (`content/404.njk`, output as `/404.html`, no `page_id`).
+Required pages: Getting more help (`/help/`, whose "Other support" cards start with Cancer Council: 13 11 20 and a link to its website, §16.1), About us (`/about/`; the main nav keeps "About", §7.5), Contact (`/contact/`, with the project email, psych.sleepsteps@monash.edu), Privacy and your data (`/privacy/`, §15), Getting urgent help (`/urgent-help/`, with the crisis contacts from `site.config.json`), and 404 (`content/404.njk`, output as `/404.html`, no `page_id`).
 
-**Getting urgent help is deliberately minimal** (design handoff §6.5): it uses `layouts/urgent.njk`, which sets `header: minimal` (the logo and "Back to SleepSteps" only: no nav, search box or menu script) and `footer: false`. It is the one exception to the header search box (§8.1) and the footer "Send feedback" link (§13). Under the crisis cards (§11), smaller white cards come from the page's `other_contacts` front matter (`heading`, `description`, optional `value`): a card whose `value` is a confirmed number (not a `[placeholder]`) is a whole-card `tel:` link with the hover shadow. "Your treating team" has no number (it is on each person's care plan), so its card is information, not a link. The page carries no draft or developer notes (a test checks this); what the team still has to confirm is tracked in §21.
+**Getting urgent help is deliberately minimal** (design handoff §6.5): it uses `layouts/urgent.njk`, which sets `header: minimal` (the logo and "Back to home" only: no nav, search box or menu script) and `footer: false`. It is the one exception to the header search box (§8.1) and the footer "Send feedback" link (§13). Under the crisis cards (§11), smaller white cards come from the page's `other_contacts` front matter (`heading`, `description`, optional `value`, and an optional website in `url` with its `link_text`): a card whose `value` is a confirmed number (not a `[placeholder]`) is a whole-card `tel:` link with the hover shadow, unless it also has a website, when only the number is a `tel:` link, since one link can't hold another. "Your treating team" has no number (it is on each person's care plan), so its card is information, not a link. The cancer support line is Cancer Council, 13 11 20 (Australia): a free, confidential information and support line, open 9am to 5pm, Monday to Friday (longer in some states), and not a crisis service. Its card gives the number as a `tel:` link, the hours and a link to its website, `https://www.cancer.org.au/` (§16.1). Getting more help's `services` cards take the same optional `url` and `link_text`. The page carries no draft or developer notes (a test checks this); what the team still has to confirm is tracked in §21.
 
 ### 7.5 Visual design and components
 
@@ -237,17 +239,28 @@ Exceptions to the handoff, recorded in §22:
 - **Home has four format tiles**: the board's "Watch, read or print" panel becomes "Watch, listen, read or print" and adds "Audio" ("Listen without watching") between the board's Video and Transcript, so the tiles follow the heading (watch, listen, read, print), since every video has an audio-only version (§9.2). As on the board, a tile shows only if some video has that format. The tiles are one per row on phones, two per row from 600px, and all in one row once their list is 636px wide (four of the board's 150px tiles and three 12px gaps), so three never sit above one.
 - **Home's copy names listening** (every video has an audio-only version, a transcript and a handout, §7.1): the hero line (also the meta description) ends "Watch, listen, read or print, whichever suits you."; step 3 reads "Watch a video, listen to it, read its transcript or print its handout." (the board: "Watch the video, read the transcript or print a handout."); and the line beside the tiles reads "Video comes first, but every video also has an audio-only version, a transcript and a handout with the same ideas." (the board: "…every video also has a transcript and a printable handout…").
 - **No GP summary on Getting more help**: the Info-Help board's "Print a one-page summary for your GP" line is left out, and the "What to bring" step doesn't mention a SleepSteps sleep diary. There is no GP summary or sleep diary for now (§21).
+- **The site doesn't lean on the name "SleepSteps"** (one word; project lead, 2026-11-06), although the boards use it in many places: another organisation has trademarked a "Sleep Steps" program. A soft rule, not a ban: the copy says "this program", "we", "us", "our" or "this website" by default; the name is in the header logo (image and alt text "SleepSteps home") and the footer heading, and the team may name it in a few places, such as About ("SleepSteps is a research trial of …"). There is no test for it. Technical names (repo, Worker, databases, storage keys, event and file names) keep `sleepsteps`. The changes so far:
+  - Home: the hero line (also the meta description) starts "Short videos and practical ideas…", the trial text says "We're testing this program in a research trial…", and the disclaimer says "These videos and ideas don't replace care from your treating team…".
+  - Browser tab titles are the page title alone, with no " | SleepSteps"; Home's is "Sleep during and after cancer" (its H1 and headings don't change). Every page has a `title`; only a page without one would fall back to `siteName`.
+  - About is titled "About us" (its eyebrow and the information side menu's label too; the main nav keeps "About"), and its "Why we made SleepSteps" heading reads "Why we made this program".
+  - The urgent page's back link reads "Back to home" (§7.4).
+  - The footer tagline ends "This program does not replace care from your treating team.", and its licence line ends "except our name and logo and third-party material." (§22). The privacy page says "You don't need an account to use this program." and "Advertising or tracking cookies from us" (§15.2).
+  - A printed transcript's source line reads `From “<page title>”: <url>` (§9.3).
+  - The intro video `how-to-use-sleepsteps` is now `how-to-use-this-program`, "[How to use this program]". Videos have no URL, so no redirect was needed.
+  - Technical names keep `sleepsteps` and must not change: the repo, the Worker, the D1 databases, the `workers.dev` address, the Wrangler files, the package name, the storage keys `sleepsteps-visit` and `sleepsteps-stats-off` (§15.4), the `sleepsteps:event` DOM event, CSS, JS and logo file names, and data attributes. So does the project email, psych.sleepsteps@monash.edu.
 
 ## 8. Search
 
 ### 8.1 Behaviour
 
-- A search box in the header on every page except Getting urgent help (§7.4). Submitting goes to `/search/?q=<query>` (a plain GET form, so it works without JavaScript).
-- The search page loads `search-index.json` and MiniSearch lazily, i.e. only on the search page or when the header box is focused.
-- Results show title (linked), summary and content type. Show the top 10.
+- A search box in the header on every page except Getting urgent help (§7.4). Submitting goes to `/search/?q=<query>` (a plain GET form, so it works without JavaScript). The search page has its own form too (the header's is in the phone Menu), labelled "Search this website" (§7.5).
+- The search page loads `search-index.json` and MiniSearch lazily, i.e. only on the search page or when the header box is focused: `src/js/search.js` loads them on `/search/` (their addresses are `data-` attributes on the page), and the first focus on a header search box adds `<link rel="prefetch">` for the same two files (`menu.js`), so the results page finds them in the browser's cache. If either fails to load within 15 seconds, the page says "Search isn't working right now." and links to the Sleep problems page.
+- Results show title (linked, an H2), content type ("Sleep problem", "Introduction" or "Information") and summary, built with `textContent` only. Show the top 10. The count goes in a `role="status"` line ("3 results for “night sweats”", or "The top 10 of 24 results for …").
 - With no results, show a message plus a link to the Sleep problems page.
+- Under the form, on every search and also without JavaScript: "If you feel unsafe or need help right now, go to Getting urgent help." (the urgent notice style). Someone in distress may type it into the search box, and ranking alone doesn't always put Getting urgent help first for every way of saying it ("I can't go on", "not coping"); crisis words such as "suicidal" do (§8.4).
 - The query is kept in the URL so results are shareable and the Back button works.
-- Log a `search` event with the query (truncated to 100 characters) and result count (§10).
+- Log a `search` event with the query (truncated to 100 characters) and result count (§10). Until M3, `search.js` only dispatches it as a `sleepsteps:event` DOM event, as `players.js` does. The query is never logged to the console or kept in browser storage; from M3 it is stored only as that event (§10.1, §15.3).
+- **The query never travels on in a referrer.** The search page sets `<meta name="referrer" content="strict-origin">` (front matter `referrer`, read by `base.njk`), so a page reached from it (a result, the nav) sees only the site's address in `document.referrer`. Otherwise the full `/search/?q=…` address would be the next page's referrer, and YouTube's player script copies `document.referrer` into the embed when someone presses play there (§9.1). The site-wide `strict-origin-when-cross-origin` (§16.1) still sends the full address to same-origin pages, so it isn't enough here.
 - With JavaScript disabled, the search box still submits to `/search/`, whose static HTML says that results need JavaScript and links to the Sleep problems page.
 - **Problems page filter** (separate from the site search, and labelled differently, §7.5): a live filter on `/problems/` matching each problem's short title, statement, area name and keywords. Words in the query must all match; commas or semicolons separate alternatives ("night sweats, 3am"). It filters both views as you type, hides areas with no matches and opens areas with matches, and announces the count ("4 topics match “night”") in an `aria-live="polite"` region once typing pauses. When nothing matches, both views show every topic and the result line says so. It does not log events, and the query is never stored, sent or put in the URL. It needs JavaScript and is not shown without it (§7.2).
 
@@ -260,25 +273,27 @@ hot-flushes-and-night-sweats,"hot flushes; hot flashes; menopause; tamoxifen; sw
 
 - One row per page. Keywords are separated by `;`.
 - Include common misspellings and Australian/US spelling variants.
-- The build fails if `page_id` is unknown. It warns, without failing, for pages that have no keywords row.
+- Searchable pages are every problem, `start` and every information page without `search: false` (§8.3). The content check (`validate-content.js`) fails on a `page_id` that isn't one of them, an empty `page_id`, a second row for the same page, or columns other than `page_id,keywords`. It warns, without failing, for pages that have no keywords row (or only separators).
+- The starting set (2026-11-06) was drafted by Claude from the team's planning sheet (module titles, brief ideas, formulations, target strategies) and draft video scripts, then reviewed for plain language, clinical sensitivity and search quality. It is a starter to hand-edit once titles, areas and videos settle; the crisis words on `urgent-help` especially need clinical review. No wording or names from the drafts are copied, only search terms.
 - Maintained by the clinical team in Excel (save as CSV UTF-8).
 
 ### 8.3 Index build (`scripts/build-data.js`)
 
-The script outputs `dist/search-index.json`, an array of:
+Every Eleventy build (so `npm run build`, `npm run dev` and the tests' build) writes `dist/search-index.json`: `content/search-index.11ty.js` passes the collections to `searchIndex()` in `scripts/build-data.js`. The file is an array of:
 
 ```json
 { "id": "hot-flushes-and-night-sweats", "url": "/problems/hot-flushes-and-night-sweats/", "title": "...",
   "summary": "...", "keywords": "hot flushes hot flashes ...", "transcript": "plain text", "type": "problem" }
 ```
 
-There is one entry per page (`type` is `problem`, `start` or `page`). A problem's `summary` is its statement, and its `transcript` field joins the titles, blurbs and transcripts of every video on the page, so a match in a solution video's transcript leads to the problem page. Transcript Markdown is stripped to plain text.
+There is one entry per searchable page: every problem (`type` `problem`), Start here (`start`), and every information page in `content/pages/` (`page`) unless its front matter has `search: false`. Home, the Sleep problems page and the search page are not entries. A problem's `summary` is its statement, and its `transcript` field joins its "Is this you?" summary and bullets with the titles, blurbs and transcripts of every video on the page, so a match in a solution video's transcript leads to the problem page. Start here's joins its intro videos' titles, descriptions and transcripts. An information page's is the text of its rendered body (taken from `collections.all`, which holds every page whatever order Eleventy renders them in; a config-API collection could be computed before a page that imports a collection has joined it). Transcript Markdown and page HTML are reduced to plain text.
 
-The same script writes `worker/generated/pages.json` (`{ page_id: { url, title, videos: [video_id, ...] } }`), which the Worker uses to validate `page_id` and `video_id`.
+`worker/generated/pages.json` (`{ page_id: { url, title, videos: [video_id, ...] } }`), which the Worker uses to validate `page_id` and `video_id`, is built in M3, the first milestone that uses it.
 
 ### 8.4 MiniSearch configuration (starting point; tune against real queries)
 
 ```js
+// src/js/search-config.js, shared by search.js and the query tests
 new MiniSearch({
   fields: ['title', 'keywords', 'summary', 'transcript'],
   storeFields: ['title', 'url', 'summary', 'type'],
@@ -289,7 +304,7 @@ new MiniSearch({
   fuzzy: 0.2, prefix: true, combineWith: 'OR' }
 ```
 
-Add a test file `test/search-queries.test.js` with real example queries and their expected top results, e.g. `"hot flashes"` → `hot-flushes-and-night-sweats` in the top 3. Rerun it after every keyword change.
+`test/node/search-queries.test.js` runs real example queries against the built index with these settings and checks their expected top results, e.g. `"hot flashes"` → `hot-flushes-and-night-sweats` in the top 3. It also checks a list of crisis words (suicide, suicidal, self harm, hurt myself, crisis, emergency, unsafe, lifeline, 000, 13 11 14): each must rank `urgent-help` first. Keyword or setting changes must keep both passing. It runs with `npm test`, so it reruns after every keyword change.
 
 ## 9. Media
 
@@ -308,7 +323,7 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 - **Every video has an audio-only version: the video's own soundtrack**, exported from the final video file as an MP3 (§21). The "Audio only" option is hidden when a video has none (placeholders); the build warns about a real video without one, and the launch check fails (§7.1).
 - `<audio controls preload="none">` with an MP3 in `media/audio/`.
-- **Encoding** (the commands are in `README.md`, "Exporting the audio-only version"): mono (a stereo master is downmixed), 44.1 kHz, 96 kbps constant bitrate. Loudness is normalised in two passes with ffmpeg's `loudnorm` as one linear gain, to an integrated −16 LUFS with `dual_mono` (a mono file at about −19 LUFS sounds as loud as −16 LUFS stereo, Apple's and Google's podcast targets). `loudnorm`'s true-peak ceiling is −1.5 dBTP, which leaves room for the MP3 encoder's overshoot so the finished file measures at or below −1 dBTP (Apple's podcast limit); a file that still measures higher is exported again with a −2 dBTP ceiling. The source file's metadata is removed, and ID3v2.3 tags give the title, "SleepSteps" as artist and album, the year, the language (`eng`) and the CC BY 4.0 notice. 96 kbps rather than 64 because the soundtrack may carry music, which 64 kbps handles less well; it costs about 1.2 MB more per 5 minutes (about 3.6 MB per 5-minute file).
+- **Encoding** (the commands are in `README.md`, "Exporting the audio-only version"): mono (a stereo master is downmixed), 44.1 kHz, 96 kbps constant bitrate. Loudness is normalised in two passes with ffmpeg's `loudnorm` as one linear gain, to an integrated −16 LUFS with `dual_mono` (a mono file at about −19 LUFS sounds as loud as −16 LUFS stereo, Apple's and Google's podcast targets). `loudnorm`'s true-peak ceiling is −1.5 dBTP, which leaves room for the MP3 encoder's overshoot so the finished file measures at or below −1 dBTP (Apple's podcast limit); a file that still measures higher is exported again with a −2 dBTP ceiling. The source file's metadata is removed, and ID3v2.3 tags give the title, "Behavioural Medicine Lab" as artist (with no album tag, so no tag names the program, §7.5), the year, the language (`eng`) and the CC BY 4.0 notice. 96 kbps rather than 64 because the soundtrack may carry music, which 64 kbps handles less well; it costs about 1.2 MB more per 5 minutes (about 3.6 MB per 5-minute file).
 - Each file must be ≤ 25 MiB (the static asset limit). At 96 kbps that is about 36 minutes per file. `validate-content.js` enforces the size limit.
 - Because the audio is the video's soundtrack, the narration must say everything that matters on screen (on-screen text, numbers and demonstrations; no "as you can see"), so the audio stands on its own. That also gives the video its audio description (WCAG 2.2 SC 1.2.5, integrated description). The transcript is the audio's text alternative (SC 1.2.1, Level A), which is one reason every video has one (§9.3).
 - Workers static assets ignore `Range` requests and send the whole file with a 200 (Cloudflare documented this in November 2026). One report says Safari still plays and seeks MP3s served that way. Check play and seek in Safari on an iPhone and in Chrome once real audio is on a preview (M8). Only if that fails, add a Worker route for `/media/audio/*` that answers with 206 (a §9.2 and §18.2 change; each play then costs Worker requests).
@@ -321,7 +336,7 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
   - **Web page**: the most accessible and the best on phones; readers can still print it or save it as PDF. The most site work: a `content/handouts/<video_id>.md` collection with its own URLs, print CSS for one A4 page, a "Print handout" button like "Print transcript", validator rules and tests. The team would supply text (Word is fine) rather than finished files.
 - Clicking a handout link logs `handout_open` with the video's `video_id` (§9.4, §10.2), so neither the event nor its detail depends on the format: a web-page handout would have no file name.
 - **Every video has a transcript** (§21): word for word, naming the speakers and noting sounds and pauses that matter. It is the text alternative for the audio-only version (WCAG 2.2 SC 1.2.1, Level A) and the source of the captions (§9.1). "Read transcript" is hidden when a video has none (placeholders); the build warns about a real video without one, and the launch check fails (§7.1).
-- The transcript is rendered as HTML under the video, in a `<details>` element labelled "Read transcript", with a "Print transcript" button that prints just that transcript. Printing needs JavaScript, so the button appears only with it. Opening the transcript logs a `transcript_open` event.
+- The transcript is rendered as HTML under the video, in a `<details>` element labelled "Read transcript", with a "Print transcript" button that prints just that transcript, under a source line naming the page and its address (`From “<page title>”: <url>`, §7.5). Printing needs JavaScript, so the button appears only with it. Opening the transcript logs a `transcript_open` event.
 
 ### 9.4 Media tracking (`src/js/players.js`)
 
@@ -376,6 +391,8 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 ```
 
 The Getting urgent help page renders one card per `crisisContacts` entry, in order: `heading` (falls back to `label`), `description`, and `value` as a `tel:` link (digits and a leading `+` only). `crisisRegion` names the region the numbers apply to.
+
+`siteName` stays "SleepSteps", but the pages show it only as the footer heading, and as the tab title of a page with no `title` of its own (every page has one; §7.5).
 
 - **Build time:** templates render a widget only if its feature is on. Its JS is loaded only if needed.
 - **Worker:** imports the same file. A disabled feature's route returns `404`. Turning features off is therefore one config edit plus a push.
@@ -455,7 +472,7 @@ Under the ratings:
 In the feedback dialog:
 > Your feedback is anonymous. We receive your message and the page you were viewing. Please don't include your name, contact details or anything that could identify you. This box is not monitored for urgent issues. If you need help now, contact your treating team, call Lifeline on 13 11 14, or call 000 in an emergency.
 >
-> A Cloudflare check on this form stops automated spam. Cloudflare uses technical details such as your IP address and browser for this check, and to improve its spam protection. SleepSteps doesn't store them.
+> A Cloudflare check on this form stops automated spam. Cloudflare uses technical details such as your IP address and browser for this check, and to improve its spam protection. We don't store them.
 
 Under each video, before it is played (§9.1):
 > Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch. [More about this](/privacy/#cookies-and-browser-storage) · [Read the transcript instead] *(the transcript link only when the video has one)*
@@ -463,13 +480,13 @@ Under each video, before it is played (§9.1):
 ### 15.2 Privacy and data page (`/privacy/`) must cover
 
 - **What we collect:** star ratings, feedback text, search terms (stored without the visit code, time rounded to the hour), and anonymous usage events (views of the tracked pages, media played and how far, transcripts opened, handouts), each with the page and time.
-- **What we don't collect:** names, contact details (except as below), advertising or tracking cookies from SleepSteps, or stored IP addresses. A temporary random code held in the browser tab, and deleted when the tab closes, is used to count visits; on its own it cannot identify you.
+- **What we don't collect:** names, contact details (except as below), advertising or tracking cookies from us, or stored IP addresses. A temporary random code held in the browser tab, and deleted when the tab closes, is used to count visits; on its own it cannot identify you.
 - **Cookies and browser storage:** a section with a table of every §15.4 item a visitor can receive (name, set by, purpose, lifetime; reserve-only rows are left out until switched on, and staff-only Access cookies are noted below the table), the "Turn off usage statistics" switch (§10.1), how to block storage in the browser, and the YouTube API Services statement required by YouTube's developer policies (that the site uses YouTube API Services, that YouTube may store data on the device, and links to Google's privacy policy and YouTube's Terms of Service).
 - **If you email or phone the team** (the Contact page, which is also where "Send feedback" leads until M5 and without JavaScript, §13): this is not anonymous. The team receives the email address or phone number with the message, uses it only to reply, and keeps it outside the site's data (never in D1) and unlinked to it, for <RETENTION PERIOD>. The Contact page says so too.
 - **Who processes data:** Cloudflare (hosting, database, spam protection); YouTube/Google when you choose to play a video (Google's privacy policy applies). Some processing may occur outside Australia.
 - **Use:** improving these resources. This is separate from the trial's research data.
 - **Retention:** <RETENTION PERIOD>. Collection stops when the funded project ends (§19).
-- **Contact** and **HREC approval number:** <PLACEHOLDERS>.
+- **Contact:** the project email, psych.sleepsteps@monash.edu ("Contact the team at psych.sleepsteps@monash.edu"), as on the Contact page. **HREC approval number** and the ethics complaints contact: <PLACEHOLDERS>.
 
 ### 15.3 Data inventory
 
@@ -510,8 +527,8 @@ Names and lifetimes for YouTube and Turnstile come from vendor documentation and
   style-src 'self';
   base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   ```
-- **Links to other sites** load nothing, so the CSP doesn't cover them. They are kept deliberate instead: a build test allows `<a href>` only to hosts on its allowlist (`www.youtube.com` for "Watch on YouTube", §9.1, and YouTube's Terms of Service on /privacy/, §15.2; `policies.google.com` for Google's privacy policy, §15.2; `creativecommons.org` for the content licence in the footer, §22), over `https`, with `rel="noreferrer"` so the other site isn't told the visitor came from SleepSteps. Every other attribute that loads something (`src`, `srcset`, `poster`, `<link href>`, `action`, …) must be same-origin.
-- `Referrer-Policy: strict-origin-when-cross-origin` (YouTube's recommended value; embedded videos don't play without a `Referer`, §9.1)
+- **Links to other sites** load nothing, so the CSP doesn't cover them. They are kept deliberate instead: a build test allows `<a href>` only to hosts on its allowlist (`www.youtube.com` for "Watch on YouTube", §9.1, and YouTube's Terms of Service on /privacy/, §15.2; `policies.google.com` for Google's privacy policy, §15.2; `creativecommons.org` for the content licence in the footer, §22; `www.cancer.org.au` for Cancer Council on Getting urgent help and Getting more help, §7.4), over `https`, with `rel="noreferrer"` so the other site isn't told the visitor came from SleepSteps. Every other attribute that loads something (`src`, `srcset`, `poster`, `<link href>`, `action`, …) must be same-origin.
+- `Referrer-Policy: strict-origin-when-cross-origin` (YouTube's recommended value; embedded videos don't play without a `Referer`, §9.1). The search page alone tightens it to `strict-origin` with a meta tag (§8.1).
 - `X-Content-Type-Options: nosniff`
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
@@ -581,7 +598,7 @@ If limits become a problem, upgrade to Workers Paid (US$5/month): no daily cut-o
 
 | Script | Does |
 |---|---|
-| `npm run build` | `validate-content` → Eleventy → `dist/` (`build-data` joins between them in M2). Eleventy also runs the content check before every build, so `npm run dev` rebuilds and the tests' build fail on invalid content too. `node scripts/validate-content.js --no-placeholders` (the launch check) also fails on placeholder videos and on any video without a handout, audio or a transcript (§7.1, M8) |
+| `npm run build` | `validate-content` → Eleventy → `dist/`, including `search-index.json` (§8.3). Eleventy also runs the content check before every build, so `npm run dev` rebuilds and the tests' build fail on invalid content too. `node scripts/validate-content.js --no-placeholders` (the launch check) also fails on placeholder videos and on any video without a handout, audio or a transcript (§7.1, M8) |
 | `npm run dev` | Eleventy watch + `wrangler dev` (local D1) |
 | `npm test` | Vitest, two projects: `worker` (Worker routes and validation, in workerd via `@cloudflare/vitest-plugin`) and `node` (build scripts, CSV parsing, search queries, checks on a fresh build of the site in a temporary directory, and the browser modules run on that build in a small test DOM) |
 | `npm run db:migrate:local` | Apply migrations to the local database that `wrangler dev` uses (the tests apply them to their own, §17) |
@@ -694,12 +711,12 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | M1a | Design system + site shell | Tokens as CSS custom properties; system fonts; logo; header, mobile header and menu, footer and topic menu match the handoff and work without JS; the information pages and 404 render; keyboard and 320px-width checks pass |
 | M1b | Content model + page templates | Areas, the 36 problems (placeholder text) and sample videos load; build fails on missing fields, unknown references, bad solution counts or missing media; Sleep problems page (both views, live filter, no-JS fallback); problem page with expanding solution cards for 1–3 main and 0–3 extras; video facade with the YouTube notice under it (§15.1); Start here; Home; footer licence line (§22) |
 | M2 | Search | Index built from content + keywords; search page works with fuzzy matching; query tests pass; no-JS fallback |
-| M3 | Database + events | Migration applied locally; `/api/event` validates and inserts; page views and media plays (with the furthest point reached) logged; origin check; feature switch off → 404 and no client calls; `DATA_COLLECTION` off → 404 (§11), and whether production builds also leave the widgets out; the production API answers only on production's own host, never on version URLs (§18.2); first migration applied to both remote databases (§17); the usage-statistics switch works (§10.1); search events stored without `session_id` |
+| M3 | Database + events | `worker/generated/pages.json` built (§8.3); migration applied locally; `/api/event` validates and inserts; page views and media plays (with the furthest point reached) logged; origin check; feature switch off → 404 and no client calls; `DATA_COLLECTION` off → 404 (§11), and whether production builds also leave the widgets out; the production API answers only on production's own host, never on version URLs (§18.2); first migration applied to both remote databases (§17); the usage-statistics switch works (§10.1); search events stored without `session_id` |
 | M4 | Ratings | Widget accessible by keyboard and screen reader; inserts rows; failure message shown when the API is stopped |
 | M5 | Feedback | Dialog, Turnstile (using test keys locally), validation, notice text, failure handling |
 | M6 | Admin | Summary page and CSV export; requests without a valid Access JWT get 403 |
 | M7 | Hardening | Headers/CSP enforced without console errors; accessibility pass (axe, keyboard-only walkthrough); all features tested off and with API failure |
-| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved; urgent-help numbers, cancer support line and region confirmed (§21); stored items checked in browser devtools against §15.4 and no Cloudflare-injected script in the live HTML (§16.3); no placeholder videos, and a handout, audio-only version and transcript for every video (`node scripts/validate-content.js --no-placeholders` passes); every video has the visibility confirmed in §21 and a checked plain "English" caption track that shows when it plays on the site (§19.2); audio plays and seeks in Safari on an iPhone and in Chrome (§9.2); no `[bracketed]` placeholder text left on any page |
+| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved; urgent-help numbers and region confirmed, and Cancer Council's number and hours rechecked (§21); stored items checked in browser devtools against §15.4 and no Cloudflare-injected script in the live HTML (§16.3); no placeholder videos, and a handout, audio-only version and transcript for every video (`node scripts/validate-content.js --no-placeholders` passes); every video has the visibility confirmed in §21 and a checked plain "English" caption track that shows when it plays on the site (§19.2); audio plays and seeks in Safari on an iPhone and in Chrome (§9.2); no `[bracketed]` placeholder text left on any page |
 
 ## 21. Open decisions
 
@@ -707,7 +724,8 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [ ] Data retention period for ratings, feedback and events
 - [ ] Whether to add an optional weekly feedback-digest email (scheduled Worker; needs Email Routing)
 - [ ] Whether the AI "Agent" crawler category is allowed
-- [ ] Domain: interim plan is a `.org` through Cloudflare Registrar; a university domain is under discussion (the site name is SleepSteps)
+- [ ] Domain: interim plan is a `.org` through Cloudflare Registrar; a university domain is under discussion (whether it avoids "SleepSteps" is the next item)
+- [ ] Whether names outside the pages avoid "SleepSteps" too, as the site's copy now does (§7.5): the YouTube channel name, the domain, the Turnstile widget name and any email display names. The project email, psych.sleepsteps@monash.edu, is decided (2026-11-06)
 - [x] Bot Fight Mode and cookies: essential storage is allowed if disclosed (§2, §15.4); Bot Fight Mode is off at launch and held in reserve (§16.3)
 - [ ] Privacy-officer questions from the cookies/GDPR review: which privacy law covers the university; GDPR/PECR scope; approval of "no tracking, all storage disclosed", whether the HREC must re-approve that change, and whether participant information sheets say anything about cookies or the website; the statistics switch (and whether to honour Global Privacy Control); search-text handling; Turnstile; the YouTube notice and YouTube's Terms of Service wording; overseas processing; implied consent for health details; pre-approval of the `__cf_bm` wording
 - [x] Content licence: CC BY 4.0, excluding the SleepSteps name and logo and third-party material (`LICENSE-CONTENT.md`, §22)
@@ -720,7 +738,8 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [x] GP summary and sleep diary: none for now (2026-11-06); Getting more help has no GP summary line (§7.5)
 - [x] Audio-only versions: yes, for every video, made from the video's own soundtrack (§9.2)
 - [x] Transcripts: yes, for every video (2026-11-06), as the audio-only version's text alternative (WCAG 2.2 SC 1.2.1) and the captions' source (§9.3)
-- [ ] Urgent-help numbers and the region they apply to (the mockups assume Australia: 000, Lifeline 13 11 14) and the cancer support line
+- [ ] Urgent-help numbers and the region they apply to (the mockups assume Australia: 000, Lifeline 13 11 14)
+- [x] Cancer support line: Cancer Council, 13 11 20 (Australia), `https://www.cancer.org.au/` (2026-11-06). A free, confidential information and support line, open 9am to 5pm, Monday to Friday (longer in some states); not a crisis service (§7.4, §16.1)
 - [x] Captions on by default: yes (`cc_load_policy: 1`, §9.1)
 - [ ] YouTube videos public or unlisted: working decision Public (2026-11-06), to be confirmed before the first video is switched to Public; videos are uploaded as Unlisted until then (§19.2)
 - [ ] Ads on the videos: YouTube may show ads on any video, public or unlisted, with no opt-out unless the channel joins the YouTube Partner Program and turns ads off per video (in the privacy-enhanced player they are not personalised). The team will explore the Partner Program (2026-11-06), but joining needs 1,000 subscribers and 4,000 watch hours of public long-form videos in the last 12 months, so a new channel is unlikely to qualify by launch. Whether the team and the HREC accept ads until then, and whether the privacy page or the video notice should say so
@@ -803,3 +822,15 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | 2026-11-06 | Data collection is switched per environment by the Worker var `DATA_COLLECTION`, which must be exactly `"on"`: `"off"` in production until the privacy officer's go-ahead, and `"off"` in previews until they are behind Access (§21). While it is off every `/api/*` route returns 404, which a Worker test guards. Whether production builds also leave the widgets out is decided in M3 (§11, §18.3, §20 M3) | Production and previews have their own vars but run the same build command, and the build has no reliable production-or-preview signal (only the branch name, or build variables whose dashboard support is unverified). A runtime switch fails safe. Preview URLs are public, appear on pull requests in the public repo, and share the account's D1 limits with production, so previews collect nothing either |
 | 2026-11-06 | `noindex` before launch comes from `_headers` (`src/_headers`, copied to `dist/`): `https://:version.:subdomain.workers.dev/*` and `/404`; a test parses the file as Cloudflare does and checks that no rule could hide the custom domain; the rule stays after launch for preview and version URLs (§16.1, §18.2, §18.3) | Cloudflare's docs describe automatic noindex only for preview URLs. Setting it in the Worker would need `run_worker_first: true`, making every asset request a Worker request. The placeholder rule can't match a custom domain and survives a rename. The 404 page is also served at `/404` with a 200 |
 | 2026-11-06 | Node is pinned to 24.22.1 in `.node-version` and npm to 11.18.0 in `packageManager`, superseding the reason given in §18.3 ("Builds defaults to an older Node") (§18.3) | Builds now defaults to Node 24.22.1 (preinstalled) and npm 10.9.2; Node 26 isn't documented for Builds. Exact pins keep builds reproducible, and npm 10 ignores `allowScripts`. A clean `npm ci`, `npm test` and `npm run build` passed on Node 24.22.1 with npm 11.18.0 |
+| 2026-11-06 | User-facing copy doesn't lean on the name "SleepSteps" (one word): by default it says "this program", "we", "us" and "our", or "this website" for the site itself, placeholder copy included. The name is in the header logo (image and alt text "SleepSteps home") and the footer heading (`siteName`, which stays "SleepSteps"), and the team may use it in a few places, such as About; it is a soft rule with no test. The urgent page's back link becomes "Back to home"; the footer's tagline and licence line say "This program" and "our name and logo"; a printed transcript's source line drops the site name; `LICENSE-CONTENT.md` says "this website's content" and "the Behavioural Medicine Lab", and names what is excluded exactly ("the SleepSteps name and logo"), as does the README's YouTube description template; its suggested credit names and links the item adapted. Technical names (repo, Worker, D1 databases, `workers.dev` address, Wrangler files, package name, storage keys, the `sleepsteps:event` DOM event, file names, data attributes) keep `sleepsteps` (§7.5, §9.3, §15.1, §15.2) | Project lead, 2026-11-06: another organisation has trademarked a "Sleep Steps" program. The technical names don't present the program to anyone, and renaming them would mean new databases, storage keys and deploy settings |
+| 2026-11-06 | Browser tab titles are the page title alone, without " \| SleepSteps"; Home, which had no title, is titled "Sleep during and after cancer" (its H1 and headings don't change; its copy changes are in §7.5) (§7.5, §11) | Follows the naming rule above; without the site name Home needs a title of its own |
+| 2026-11-06 | The About page is "About us" (its title, eyebrow and information side-menu label), and "Why we made SleepSteps" becomes "Why we made this program"; the main nav keeps "About" (§7.4, §7.5) | Follows the naming rule above |
+| 2026-11-06 | The intro placeholder video `how-to-use-sleepsteps` ("[How to use SleepSteps]") is renamed `how-to-use-this-program` ("[How to use this program]"), with `content/start.md` updated (§7.5) | Follows the naming rule above. Videos have no URL of their own, so no redirect is needed, and as a placeholder it has no ratings or events |
+| 2026-11-06 | The project email is psych.sleepsteps@monash.edu, on the Contact page and in the privacy page's contact line (§7.4, §15.2) | Project lead, 2026-11-06 |
+| 2026-11-06 | The cancer support line is Cancer Council, 13 11 20 (Australia): a card on Getting urgent help (the number as a `tel:` link, and its hours) and a service card on Getting more help, each with a link to `https://www.cancer.org.au/`, which joins the outbound-link allowlist (§7.4, §16.1, §21). Cards in `other_contacts` and `services` gain optional `url` and `link_text`; an urgent card with a website makes only its number a `tel:` link, not the whole card. The crisis numbers and `crisisRegion` stay to be confirmed | Project lead, 2026-11-06. Cancer Council describes it as a free, confidential information and support line, open 9am to 5pm, Monday to Friday (longer in some states). It is not a crisis service, so it sits with the smaller cards, not the crisis cards |
+| 2026-11-06 | Audio-only MP3s are tagged with "Behavioural Medicine Lab" as artist and no album tag, superseding the tag part of the 2026-11-06 audio row (§9.2; the commands are in `README.md`) | Follows the naming rule above: the tags were "SleepSteps" as artist and album |
+| 2026-11-06 | Site search (M2): MiniSearch 7.2.0 is a dependency, copied as published (browser ES module, source map, MIT licence) to `/js/vendor/minisearch/` by Eleventy passthrough (§5, §6) | No bundler (§5); the published ES build is one self-contained module. Released September 2025, well past the two-week rule |
+| 2026-11-06 | The search index is built inside every Eleventy build by `content/search-index.11ty.js` with `scripts/build-data.js`, not as a separate build step; entries are every problem, Start here and the information pages without `search: false`; a problem's text also carries its "Is this you?" summary and bullets; information pages contribute their rendered body text; `worker/generated/pages.json` moves to M3 (§8.3, §18.1, §20) | One source of truth for URLs and titles, and `npm run dev` and the tests' build get the index too. "Is this you?" is written in the words people use for their problem. Information pages are built from front matter and Nunjucks, so only their rendered text is right. Nothing uses `pages.json` before M3 |
+| 2026-11-06 | The search page (no board): its own GET form ("Search this website"), a `role="status"` count line, results as title link (H2), type label and summary, top 10, messages for no results and for a failed load (15-second limit), the urgent-help line under the form on every search, and the no-JavaScript fallback; the first focus on a header search box prefetches MiniSearch and the index (`menu.js`) (§8.1) | Uses existing components and tokens. The urgent line is there because ranking alone can't put Getting urgent help first for every way of saying distress. Prefetching uses `<link rel="prefetch">`: the browser fetches the two static files into its cache, but no script runs and no query is sent |
+| 2026-11-06 | `data/keywords.csv` is validated by the content check (unknown, empty or repeated `page_id`, wrong columns fail; pages without keywords warn), and a starter set is in place, drafted from the team's planning sheet and draft scripts; `test/node/search-queries.test.js` checks 72 example queries (expected page in the top 3) and 10 crisis words (Getting urgent help first) (§8.2, §8.4) | The team will hand-edit keywords once titles, areas and videos settle; the query tests show what an edit changes |
+| 2026-11-06 | The search page sets `<meta name="referrer" content="strict-origin">`, names its search landmark, keeps its status line rendered while empty, and builds the index's information pages from `collections.all`; a keywords row for a page with `search: false` fails with its own message (§8.1, §8.2, §8.3, §16.1) | Found in review: without the meta tag, a query reached YouTube through the next page's `document.referrer` (its player script copies it into the embed); two unnamed search landmarks read the same; a live region shown with its first text may not be announced; a page importing a collection could silently drop out of the index |

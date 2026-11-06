@@ -5,13 +5,42 @@ title: Search
 band: standard
 eyebrow: ""
 heading: Search
-search: false
+summary: Find a sleep problem, a video or a page on this website.
+styles: ["pages/search.css"]
+scripts: ["search.js"]
+# Pages reached from here learn only the site's address, never the query:
+# YouTube's player script copies document.referrer into the embed (SPEC §8.1).
+referrer: strict-origin
 ---
 {#-
-  Search results page (SPEC §8.1). M1a stub with the no-JavaScript fallback
-  only; M2 adds the search module, which reads ?q= and shows results here.
+  Search results page (SPEC §8.1). Every search is a plain GET of
+  /search/?q=..., from this form or the header's. src/js/search.js reads ?q=,
+  loads MiniSearch and the index (the two data- addresses below; menu.js
+  prefetches the same files when a header search box gets focus) and fills in
+  the status line and the results. The empty and error messages are shown by
+  the script; without JavaScript only the fallback shows.
+  autocomplete="off", as in the header: typed health terms stay out of the
+  browser's form history (the query is still in the address).
 -#}
-<div class="search-fallback" data-search-fallback>
-  <p>Search results need JavaScript. Without it, you can find every topic on the <a href="/problems/">Sleep problems</a> page.</p>
-  <p class="placeholder">[Search results arrive in milestone M2]</p>
+<div class="search-page" data-search data-minisearch="/js/vendor/minisearch/index.js" data-index="/search-index.json">
+  <form class="search-form" role="search" action="/search/" method="get" aria-labelledby="search-q-label">
+    <label class="search-form__label" id="search-q-label" for="search-q">Search this website</label>
+    <div class="search-form__row">
+      <input class="search-form__input" id="search-q" name="q" type="search" autocomplete="off" enterkeyhint="search" data-search-input>
+      <button class="button button--primary search-form__submit" type="submit">Search</button>
+    </div>
+  </form>
+  {#- Always shown, with or without JavaScript: someone in distress may type it here (SPEC §8.1). #}
+  <p class="notice--urgent search-urgent">If you feel unsafe or need help right now, go to <a href="/urgent-help/">Getting urgent help</a>.</p>
+  <p class="search-status" role="status" data-search-status></p>
+  <ol class="search-results" role="list" data-search-results hidden></ol>
+  <div class="search-message" data-search-empty hidden>
+    <p>Try other words, or fewer of them. You can also see every topic on the <a href="/problems/">Sleep problems</a> page.</p>
+  </div>
+  <div class="search-message" data-search-error hidden>
+    <p>You can still find every topic on the <a href="/problems/">Sleep problems</a> page.</p>
+  </div>
+  <div class="search-fallback" data-search-fallback>
+    <p>Search results need JavaScript. Without it, you can find every topic on the <a href="/problems/">Sleep problems</a> page.</p>
+  </div>
 </div>

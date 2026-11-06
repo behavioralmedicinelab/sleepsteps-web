@@ -1,6 +1,6 @@
 // Checks every built HTML page for the document shell and for what the CSP
 // in SPEC §16.1 will enforce. The site is built fresh by global-setup.js.
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import { attr, readHtmlPages, tags } from './helpers.js';
@@ -15,8 +15,9 @@ const EXTERNAL_URL = /^\s*(?:[a-z][a-z0-9+.-]*:|\/\/|\\\\)/i;
 // doesn't cover them; this list keeps them deliberate. YouTube: the "Watch on
 // YouTube" fallback (§9.1) and YouTube's Terms of Service on /privacy/ (§15.2).
 // Google: its privacy policy, on /privacy/ (§15.2). Creative Commons: the
-// content licence in the footer (§22).
-const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommons.org'];
+// content licence in the footer (§22). Cancer Council: its website, on
+// Getting urgent help and Getting more help (§7.4).
+const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommons.org', 'www.cancer.org.au'];
 
 describe('build output', () => {
   it('builds every expected page', () => {
@@ -36,6 +37,46 @@ describe('build output', () => {
       expect(files).toContain(file);
     }
     expect(files.filter((f) => /^problems\/[^/]+\/index\.html$/.test(f))).toHaveLength(36);
+  });
+});
+
+// Browser tab titles are the page title alone, with no site name after it
+// (SPEC §7.5, §22, 2026-11-06); Home's is "Sleep during and after cancer".
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const decode = (s) =>
+  s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, ref) => {
+    if (ref[0] !== '#') return ENTITIES[ref.toLowerCase()] ?? whole;
+    return String.fromCodePoint(/^#x/i.test(ref) ? parseInt(ref.slice(2), 16) : Number(ref.slice(1)));
+  });
+
+/** The `title` in the front matter of the file a built page comes from. */
+function pageTitle(file) {
+  const sources = {
+    'index.html': 'content/index.njk',
+    '404.html': 'content/404.njk',
+    'start/index.html': 'content/start.md',
+    'problems/index.html': 'content/problems.njk',
+    'search/index.html': 'content/search.njk',
+  };
+  const problem = file.match(/^problems\/([^/]+)\/index\.html$/);
+  const page = file.match(/^([a-z-]+)\/index\.html$/);
+  const source = sources[file] ?? (problem ? `content/problems/${problem[1]}.md` : page ? `content/pages/${page[1]}.md` : undefined);
+  expect(source, `source of ${file}`).toBeTruthy();
+  const front = readFileSync(source, 'utf8').match(/^---\n([\s\S]*?)\n---\n/)[1];
+  const raw = front.match(/^title: (.+)$/m)?.[1].trim();
+  expect(raw, `title in ${source}`).toBeTruthy();
+  if (raw.startsWith('"')) return JSON.parse(raw);
+  if (raw.startsWith("'")) return raw.slice(1, -1).replaceAll("''", "'");
+  return raw;
+}
+
+describe('browser tab titles', () => {
+  it('give Home the title "Sleep during and after cancer"', () => {
+    expect(pages.find((p) => p.file === 'index.html').html).toContain('<title>Sleep during and after cancer</title>');
+  });
+
+  it.each(pages.map((p) => [p.file, p.html]))('%s: the page title alone', (file, html) => {
+    expect(decode(html.match(/<title>([^<]*)<\/title>/)[1])).toBe(pageTitle(file));
   });
 });
 
@@ -92,6 +133,17 @@ describe.each(pages.map((p) => [p.file, p.html]))('%s', (file, html) => {
       expect(OUTBOUND_HOSTS, tag).toContain(url.hostname);
       expect(attr(tag, 'rel')?.split(/\s+/), tag).toContain('noreferrer');
     }
+  });
+
+  it('never puts a link inside another link', () => {
+    // A card that holds a phone number and a website gives each its own link
+    // instead (SPEC §7.4).
+    let depth = 0;
+    for (const [tag, closing] of html.matchAll(/<(\/?)a\b[^>]*>/gi)) {
+      depth += closing ? -1 : 1;
+      expect(depth, tag).toBeLessThanOrEqual(1);
+    }
+    expect(depth).toBe(0);
   });
 
   it('has no empty tel: or mailto: links', () => {

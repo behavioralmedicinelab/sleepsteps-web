@@ -23,6 +23,8 @@ Everything below can be edited in GitHub's web editor. Every build starts with a
 
 Text in `[square brackets]` is a placeholder for the team to replace.
 
+In page text, don't lean on the name "SleepSteps" (one word): call it "this program" and the team "we" or "us" by default, and name it only in a few places, such as About (`SPEC.md` §7.5). File names, storage keys and other technical names keep `sleepsteps`.
+
 ### Videos
 
 One file per video in `content/videos/<video_id>.md`. The file name is the `video_id`: lowercase words joined by hyphens, and never renamed once used. A video has no page of its own; problem pages and Start here show it.
@@ -49,7 +51,7 @@ The handout's format (PDF, Word or a web page) is still being decided (`SPEC.md`
 
 ### Exporting the audio-only version
 
-The audio-only version is the video's own soundtrack, exported from the final video file as an MP3 (`SPEC.md` §9.2): mono, 44.1 kHz, 96 kbps, loudness-normalised to -16 LUFS, with `loudnorm` aiming for a true peak of -1.5 dBTP so the finished MP3 stays at or below -1 dBTP, and with the source file's metadata removed and the SleepSteps tags added. It needs [ffmpeg](https://ffmpeg.org/). The commands below assume a stereo master; if the master's sound is already mono, leave out `pan=mono|c0=0.5*c0+0.5*c1,` in both steps.
+The audio-only version is the video's own soundtrack, exported from the final video file as an MP3 (`SPEC.md` §9.2): mono, 44.1 kHz, 96 kbps, loudness-normalised to -16 LUFS, with `loudnorm` aiming for a true peak of -1.5 dBTP so the finished MP3 stays at or below -1 dBTP, and with the source file's metadata removed and our own tags added. It needs [ffmpeg](https://ffmpeg.org/). The commands below assume a stereo master; if the master's sound is already mono, leave out `pan=mono|c0=0.5*c0+0.5*c1,` in both steps.
 
 1. Measure the loudness. Note `input_i`, `input_tp`, `input_lra`, `input_thresh` and `target_offset` from the output.
 
@@ -65,7 +67,7 @@ The audio-only version is the video's own soundtrack, exported from the final vi
    ffmpeg -hide_banner -i master.mp4 -map 0:a:0 -vn -map_metadata -1 -map_chapters -1 \
      -af "pan=mono|c0=0.5*c0+0.5*c1,loudnorm=I=-16:TP=-1.5:LRA=11:dual_mono=true:measured_I=<input_i>:measured_TP=<input_tp>:measured_LRA=<input_lra>:measured_thresh=<input_thresh>:offset=<target_offset>:linear=true:print_format=json" \
      -ar 44100 -ac 1 -c:a libmp3lame -b:a 96k -id3v2_version 3 -fflags +bitexact \
-     -metadata title="<video title>" -metadata artist=SleepSteps -metadata album=SleepSteps \
+     -metadata title="<video title>" -metadata artist="Behavioural Medicine Lab" \
      -metadata date=2026 -metadata language=eng \
      -metadata copyright="2026 Behavioural Medicine Lab. Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/" \
      media/audio/<video_id>.mp3
@@ -88,15 +90,15 @@ Use the settings in `SPEC.md` §19.2: upload as Unlisted, check on the site that
 ```text
 [One or two sentences on what this video covers.]
 
-Find its transcript, handout and audio-only version on SleepSteps: https://[domain]/[page]/
+Find its transcript, handout and audio-only version on our website: https://[domain]/[page]/
 
 This video gives general information about sleep. It is not medical advice and does not replace advice from your doctor or treating team.
 
 If you need help now, [the contacts on Getting urgent help, once confirmed]. More: https://[domain]/urgent-help/
 
-© 2026 Behavioural Medicine Lab. This video is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), except the SleepSteps name and logo and any third-party material marked as such. Suggested credit: "SleepSteps, Behavioural Medicine Lab, CC BY 4.0".
+© 2026 Behavioural Medicine Lab. This video is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), except the SleepSteps name and logo and any third-party material marked as such. Suggested credit: "[Video title]" by the Behavioural Medicine Lab, CC BY 4.0.
 
-Comments are turned off. You can send feedback on the SleepSteps website.
+Comments are turned off. You can send feedback on our website.
 ```
 
 ### Adding a video to a problem
@@ -132,8 +134,9 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 
 - **Home page** wording (the hero, the format tiles' line and the trial text): the front matter at the top of `content/index.njk`. The hero photo goes in `src/img/`, named in `hero.photo`.
 - **Problem areas:** `data/areas.csv` (edit in Excel, save as CSV UTF-8).
+- **Search keywords:** `data/keywords.csv` (edit in Excel, save as CSV UTF-8). One row per page: `page_id` is a problem's file name (without `.md`), `start`, or an information page's file name; `keywords` lists the words people might type, separated by `;`, including misspellings and US spellings. The site search and the filter on the Sleep problems page both use them. The build stops on an unknown or repeated `page_id`, and lists pages with no keywords. `npm test` checks that example searches (`test/node/search-queries.test.js`) still find the right page, so add a case there when you add keywords for something new. An information page with `search: false` in its front matter is left out of the search.
 - **Information pages:** `content/pages/*.md`. The front matter they take is described at the top of `src/_includes/layouts/info.njk`.
-- **Crisis numbers** on Getting urgent help: `crisisContacts` in `site.config.json`. The smaller cards under them (your treating team, the cancer support line) are `other_contacts` in `content/pages/urgent-help.md`; a card becomes a phone link once its `value` is a real number.
+- **Crisis numbers** on Getting urgent help: `crisisContacts` in `site.config.json`. The smaller cards under them (your treating team, Cancer Council) are `other_contacts` in `content/pages/urgent-help.md`; a card becomes a phone link once its `value` is a real number (only its number, if the card also links to a website). A card there, or a service card on Getting more help (`services` in `content/pages/help.md`), can link to the service's website with `url` and `link_text`, but only to a site on the allowed list in `SPEC.md` §16.1 (a new site is added there and to `OUTBOUND_HOSTS` in `test/node/build-output.test.js`).
 
 ## Tests
 
@@ -150,5 +153,5 @@ Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 
 ## Licence
 
-- **Content** (page text, transcripts, data files, handouts, audio and thumbnails): [CC BY 4.0](LICENSE-CONTENT.md). The SleepSteps name and logo, and third-party material, are not covered.
+- **Content** (page text, transcripts, data files, handouts, audio and thumbnails): [CC BY 4.0](LICENSE-CONTENT.md). Our name and logo, and third-party material, are not covered.
 - **Code:** [MIT](LICENSE).

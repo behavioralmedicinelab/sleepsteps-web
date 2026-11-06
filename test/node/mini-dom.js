@@ -7,13 +7,14 @@
 // - selectors: type, #id, .class, [attr], [attr="value"] and :scope,
 //   joined by descendant or child (>) combinators, in comma lists;
 // - Node/Element: append, replaceWith, replaceChildren, remove, contains,
-//   closest, matches, querySelector(All), attributes, id, className,
-//   classList, dataset, hidden, textContent, value/checked (inputs), open
-//   (details, firing "toggle"), focus with document.activeElement, click()
+//   cloneNode, closest, matches, querySelector(All), attributes, id,
+//   className, classList, dataset, hidden, textContent, value/checked
+//   (inputs), open (details, firing "toggle"), focus with
+//   document.activeElement, click()
 //   with the default actions of <summary> and radio inputs, events that
 //   bubble to the document, and getClientRects() (via `isRendered`);
-// - a window with location, timers (the global ones, so fake timers work),
-//   events and print().
+// - a window with location (hash and search), timers (the global ones, so
+//   fake timers work), events and print().
 //
 // installDom(html) puts document, window, location and HTMLDetailsElement on
 // globalThis, as a browser would, and returns { document, window, restore }.
@@ -223,11 +224,19 @@ export class Text extends Node {
   set textContent(value) {
     this.data = String(value);
   }
+
+  cloneNode() {
+    return new Text(this.ownerDocument, this.data);
+  }
 }
 
 class Comment extends Node {
   get textContent() {
     return '';
+  }
+
+  cloneNode() {
+    return new Comment(this.ownerDocument);
   }
 }
 
@@ -337,6 +346,13 @@ export class Element extends Node {
 
   matches(selector) {
     return matchesSelector(this, selector, this);
+  }
+
+  cloneNode(deep = false) {
+    const copy = this.ownerDocument.createElement(this.localName);
+    for (const [name, value] of this.attributes) copy.setAttribute(name, value);
+    if (deep) copy.append(...this.childNodes.map((child) => child.cloneNode(true)));
+    return copy;
   }
 
   closest(selector) {
@@ -485,14 +501,15 @@ export function parseHtml(html) {
 
 /**
  * Parse `html` and install it as the global document, with a window, as
- * the browser modules expect. `hash` sets location.hash. Returns
- * { document, window, restore }; call restore() after the test.
+ * the browser modules expect. `hash` and `search` set location.hash and
+ * location.search ("?q=..."). Returns { document, window, restore }; call
+ * restore() after the test.
  */
-export function installDom(html, { hash = '' } = {}) {
+export function installDom(html, { hash = '', search = '' } = {}) {
   const document = parseHtml(html);
   const events = new Node(document);
   const window = {
-    location: { hash, href: `https://sleepsteps.test/page/${hash}` },
+    location: { hash, search, href: `https://sleepsteps.test/page/${search}${hash}` },
     setTimeout: (...args) => globalThis.setTimeout(...args),
     clearTimeout: (...args) => globalThis.clearTimeout(...args),
     setInterval: (...args) => globalThis.setInterval(...args),

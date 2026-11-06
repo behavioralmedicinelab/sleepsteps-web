@@ -220,7 +220,7 @@ describe('built site', () => {
     '%s states the content licence in the footer (SPEC §22)',
     (file, html) => {
       const line = elementByClass(elementByClass(html, 'site-footer', 'footer'), 'site-footer__licence', 'p');
-      expect(text(line).replace(/ ([,.])/g, '$1')).toBe('Content is licensed under CC BY 4.0, except the SleepSteps name and logo and third-party material.');
+      expect(text(line).replace(/ ([,.])/g, '$1')).toBe('Content is licensed under CC BY 4.0, except our name and logo and third-party material.');
       expect(tags(line, 'a')).toEqual(['<a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer">']);
     },
   );
@@ -229,7 +229,7 @@ describe('built site', () => {
     const html = pageAt(site, '/start/');
     const chapters = elementByClass(elementByClass(html, 'with-sidebar__side', 'div'), 'topic-nav__chapters', 'ol');
     expect([...chapters.matchAll(/<a[^>]*>([^<]*)<\/a>/g)].map((m) => m[1])).toEqual([
-      '1. [How sleep works]', '2. [Why cancer can change sleep]', '3. [How to use SleepSteps]',
+      '1. [How sleep works]', '2. [Why cancer can change sleep]', '3. [How to use this program]',
     ]);
   });
 });

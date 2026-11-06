@@ -68,6 +68,10 @@ function baseTree() {
     'content/problems/two.md': md(problem('Two', { problem_video: 'about-two' })),
     'content/problems/three.md': md(problem('Three', { problem_video: 'about-three' })),
     'content/start.md': md({ title: 'Start here', chapters: [{ video: 'intro', description: 'First.' }] }),
+    'content/pages/help.md': md({ title: 'Getting more help', summary: 'When to see someone.' }, '<p>Body.</p>\n'),
+    'content/pages/search-free.md': md({ title: 'Not searchable', search: false }),
+    // Every searchable page has keywords (SPEC §8.2); search-free.md opts out.
+    'data/keywords.csv': 'page_id,keywords\none,"one; uno"\ntwo,"two; dos"\nthree,three\nstart,"intro; start"\nhelp,"GP; doctor"\n',
     'media/audio/a.mp3': 'mp3',
     'media/pdf/h.pdf': 'pdf',
     'media/thumbs/t.jpg': 'jpg',
@@ -282,6 +286,43 @@ describe('stand-in transcripts and HTML comments (SPEC §7, §7.1)', () => {
 
   it('"<!--" in a code span is text, not a comment', () => {
     expect(transcriptProblems('Type `<!--` to start a comment.\n')).toEqual([]);
+  });
+});
+
+describe('data/keywords.csv (SPEC §8.2)', () => {
+  const KEYWORDS = 'data/keywords.csv';
+  const csv = (...rows) => ['page_id,keywords', ...rows].join('\n') + '\n';
+  const base = ['one,uno', 'two,dos', 'three,tres', 'start,intro', 'help,GP'];
+
+  it('fails on a page that is not searchable, or a page_id that is unknown or empty', () => {
+    expect(messages(run({ [KEYWORDS]: csv(...base, 'search-free,x', 'nope,x', ',x') }))).toEqual([
+      'data/keywords.csv: row 7: "search-free" has search: false, so it isn\'t in the site search; delete its row or remove search: false',
+      'data/keywords.csv: row 8: unknown page "nope" (use a problem\'s file name, start, or an information page\'s file name)',
+      'data/keywords.csv: row 9: page_id is empty',
+    ]);
+  });
+
+  it('fails on a second row for the same page, even after an empty first one', () => {
+    expect(messages(run({ [KEYWORDS]: csv('one,', ...base) }))).toEqual([
+      'data/keywords.csv: row 3: "one" already has a row; put all its keywords in one row',
+    ]);
+  });
+
+  it('fails on columns other than page_id,keywords', () => {
+    const result = run({ [KEYWORDS]: 'page_id,keyword\none,uno\n' });
+    expect(messages(result)).toEqual(['data/keywords.csv: the columns must be page_id,keywords (found page_id,keyword)']);
+  });
+
+  it('warns about each searchable page with no keywords, or only separators', () => {
+    const result = run({ [KEYWORDS]: csv('one,uno', 'two," ; "', 'start,intro') });
+    expect(messages(result)).toEqual([]);
+    expect(result.warnings.filter((w) => w.code === 'keywords-missing').map((w) => w.message)).toEqual(['three', 'two', 'help']);
+  });
+
+  it('warns about every searchable page when the file is missing', () => {
+    const result = run({ [KEYWORDS]: null });
+    expect(messages(result)).toEqual([]);
+    expect(result.warnings.filter((w) => w.code === 'keywords-missing').map((w) => w.message)).toEqual(['one', 'three', 'two', 'start', 'help']);
   });
 });
 

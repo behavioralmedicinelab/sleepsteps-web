@@ -3,7 +3,8 @@
   Child layouts (page, info, topics, urgent) provide <main id="main">.
 
   Front matter read here:
-    title       page title; <title> is "title | SleepSteps"
+    title       page title, used alone as the <title> (no site name; a
+                page without one falls back to site.siteName)
     summary     meta description
     page_id     rendered as <body data-page-id> (SPEC §7, §13)
     page_width  "medium" (1280px) or "wide" (1360px); default 1200px
@@ -16,13 +17,19 @@
                 until M3; nothing reads it yet
     header      "minimal" for the logo-and-back-link header (urgent help)
     footer      false to drop the footer (urgent help)
+    referrer    a referrer policy for this page alone, as a meta tag; the
+                search page uses "strict-origin" so its ?q= never travels on
+                (SPEC §8.1)
 -#}
 <!doctype html>
 <html lang="en-AU">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if title %}{{ title }} | {% endif %}{{ site.siteName }}</title>
+  <title>{{ title or site.siteName }}</title>
+  {%- if referrer %}
+  <meta name="referrer" content="{{ referrer }}">
+  {%- endif %}
   {%- if summary %}
   <meta name="description" content="{{ summary }}">
   {%- endif %}

@@ -1,9 +1,9 @@
 ---
-title: About SleepSteps
-eyebrow: About SleepSteps
+title: About us
+eyebrow: About us
 heading: Sleep after cancer often gets missed. We want to change that.
 band: hero
-summary: "[One or two sentences: sleep problems are common during and after cancer, but help that fits is hard to find. SleepSteps brings that help to people at home.]"
+summary: "[One or two sentences: sleep problems are common during and after cancer, but help that fits is hard to find. This program brings that help to people at home.]"
 styles: ["pages/about.css"]
 # "Who we are": one card per person, in order. Keep values that start with
 # "[" in quotes.
@@ -33,12 +33,12 @@ trial_facts:
   - term: Registration
     detail: "[Trial registry and number.]"
 ---
-{#- About SleepSteps (SPEC §7.4; HANDOFF §6.5; board Info-About.dc.html). The hero band comes from `band: hero`. Styles: src/css/pages/about.css. Keep the HTML free of blank lines inside each section: a blank line ends Markdown's HTML block. -#}
+{#- About us (SPEC §7.4; HANDOFF §6.5; board Info-About.dc.html). The hero band comes from `band: hero`. Styles: src/css/pages/about.css. Keep the HTML free of blank lines inside each section: a blank line ends Markdown's HTML block. -#}
 <section class="about-why">
-<h2>Why we made SleepSteps</h2>
+<h2>Why we made this program</h2>
 <p>[Short paragraph: what people affected by cancer told us about their sleep.]</p>
 <p>[Short paragraph: why existing sleep programs didn't fit, e.g. long courses, not built around treatment, symptoms or fatigue.]</p>
-<p>[Short paragraph: what SleepSteps does differently. Short videos, choose your own problems, try one thing at a time.]</p>
+<p>[Short paragraph: what we did differently. Short videos, choose your own problems, try one thing at a time.]</p>
 </section>
 
 <figure class="about-quote">

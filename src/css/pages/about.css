@@ -1,5 +1,5 @@
 /*
- * About SleepSteps (/about/): SPEC §7.4, §7.5; HANDOFF §6.5; board
+ * About us (/about/): SPEC §7.4, §7.5; HANDOFF §6.5; board
  * Info-About.dc.html. Loaded through `styles` front matter in
  * content/pages/about.md. Values come from tokens.css; board spacing off the
  * token scale snaps up to the next step (SPEC §7.5), and the board's 15px
@@ -13,7 +13,7 @@
   gap: var(--space-10); /* board 48 */
 }
 
-/* "Why we made SleepSteps" */
+/* "Why we made this program" */
 .about-why {
   max-width: 720px; /* reading measure (board) */
 }

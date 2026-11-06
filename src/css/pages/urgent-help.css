@@ -9,8 +9,9 @@
  * (§14, layouts/urgent.njk).
  *
  * Colour pairs are the listed ones: paper on ink and on deep-teal (the
- * board's on-teal-muted description on ink is not listed), ink and
- * slate-grey on white, and slate-grey on paper.
+ * board's on-teal-muted description on ink is not listed), ink,
+ * slate-grey and the link colours (deep-teal, night-teal on hover) on
+ * white, and slate-grey on paper.
  */
 
 .urgent-help {
@@ -95,11 +96,12 @@
   font-size: var(--fs-display-problem);
 }
 
-/* "Your treating team" and the cancer support line. A card with a phone
-   number is a tel: link with the call cards' hover; "Your treating team" has
-   no number, so it is information with no hover (SPEC §7.4). Titles are ink,
-   the pair tokens.json lists for card titles on white (the board has
-   night-teal). */
+/* "Your treating team" and Cancer Council. A card with a phone number and no
+   website is one tel: link with the call cards' hover; a card with a website
+   (Cancer Council) holds two links instead, the number and the site, because
+   one link can't hold another. "Your treating team" has no number, so it is
+   information with no hover (SPEC §7.4). Titles are ink, the pair
+   tokens.json lists for card titles on white (the board has night-teal). */
 .urgent-help__more {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
@@ -139,6 +141,20 @@
 .contact-card__number {
   color: var(--ink);
   font-weight: var(--weight-semibold);
+}
+
+/* On a card with a website, the number is its own tel: link: link-coloured
+   and underlined, with the 44px in-sentence target (SPEC §7.5). The website
+   link below it is a .link-standalone (site.css §10). */
+a.contact-card__number {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  color: var(--deep-teal);
+}
+
+a.contact-card__number:hover {
+  color: var(--night-teal);
 }
 
 .urgent-help__note {

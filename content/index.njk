@@ -5,9 +5,12 @@
 # page JavaScript.
 layout: layouts/home.njk
 page_id: home
+# The browser tab title only: Home shows no title band, and its H1 is
+# hero.heading below.
+title: Sleep during and after cancer
 styles: ["pages/home.css"]
 # The hero subline under the H1; also the page's meta description.
-summary: SleepSteps has short videos and practical ideas for the sleep problems people often have during and after cancer. Watch, listen, read or print, whichever suits you.
+summary: Short videos and practical ideas for the sleep problems people often have during and after cancer. Watch, listen, read or print, whichever suits you.
 hero:
   eyebrow: Free · Short videos · At your own pace
   heading: Sleep can be hard after cancer. It can also get better.
@@ -22,7 +25,7 @@ hero:
 # to have an audio-only version, a transcript and a handout by launch
 # (SPEC §7.1, §9.2, §9.3).
 formats_intro: Video comes first, but every video also has an audio-only version, a transcript and a handout with the same ideas.
-trial_text: "SleepSteps is being tested in a research trial run by [research team and institution]. [One or two sentences on what the trial is testing and who can take part.]"
+trial_text: "We're testing this program in a research trial run by [research team and institution]. [One or two sentences on what the trial is testing and who can take part.]"
 ---
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/step-chip.njk" import stepChip -%}
@@ -143,5 +146,5 @@ trial_text: "SleepSteps is being tested in a research trial run by [research tea
 </div>
 
 <div class="home-disclaimer container">
-  <p class="panel home-disclaimer__text">SleepSteps does not replace care from your treating team. If your sleep changes suddenly, or you feel unsafe, talk to your doctor or see <a href="/urgent-help/">Getting urgent help</a>.</p>
+  <p class="panel home-disclaimer__text">These videos and ideas don't replace care from your treating team. If your sleep changes suddenly, or you feel unsafe, talk to your doctor or see <a href="/urgent-help/">Getting urgent help</a>.</p>
 </div>
