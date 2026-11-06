@@ -54,9 +54,9 @@ describe('the built search page', () => {
     expect(html).toMatch(/Search results need JavaScript\. Without it, you can find every topic on the <a href="\/problems\/">Sleep problems<\/a> page\./);
   });
 
-  it('loads only menu.js and search.js, and points at files that are built', () => {
+  it('loads only menu.js, events.js (before search.js, which it sends for) and search.js, and points at files that are built', () => {
     const scripts = tags(html, 'script').map((t) => attr(t, 'src'));
-    expect(scripts).toEqual(['/js/menu.js', '/js/search.js']);
+    expect(scripts).toEqual(['/js/menu.js', '/js/events.js', '/js/search.js']);
     const root = tags(html, 'div').find((t) => attr(t, 'data-search') !== undefined);
     for (const url of [attr(root, 'data-minisearch'), attr(root, 'data-index')]) {
       expect(url).toMatch(/^\/[\w/.-]+$/);

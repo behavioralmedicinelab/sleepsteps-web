@@ -13,6 +13,7 @@
     "build": "node scripts/validate-content.js && eleventy",
     "predev": "npm run build",
     "dev": "eleventy --watch --quiet & wrangler dev",
+    "dev:collect": "npm run build && (eleventy --watch --quiet & wrangler dev --var DATA_COLLECTION:on --var API_HOSTS:localhost:8787,127.0.0.1:8787)",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate:local": "wrangler d1 migrations apply sleepsteps --local",

@@ -174,7 +174,7 @@ describe('players.js', () => {
     expect(document.activeElement).toBe(link);
   });
 
-  it('opens the transcript from the notice link and reports it and handout clicks only as DOM events (M3 sends them)', async () => {
+  it('opens the transcript from the notice link and reports it and handout clicks only as DOM events (events.js sends them)', async () => {
     await load(videoPage, ['players']);
     const { document } = dom;
     const reported = [];
@@ -217,7 +217,7 @@ describe('players.js', () => {
   it('reports audio only once it has played: seeking while paused is not a play (SPEC §9.4)', async () => {
     await load(
       '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
-        '<audio controls preload="none" src="/media/audio/talk.mp3" data-media="talk.mp3"></audio></main></body></html>',
+        '<audio controls preload="none" src="/media/audio/talk.mp3" data-media="a-talk"></audio></main></body></html>',
       ['players'],
     );
     const { document, window } = dom;
@@ -235,7 +235,7 @@ describe('players.js', () => {
     audio.currentTime = 80;
     audio.dispatchEvent(new Event('timeupdate'));
     window.dispatchEvent(new Event('pagehide'));
-    expect(reported).toEqual([{ type: 'audio_play', detail: { media: 'talk.mp3', furthest: 75 } }]);
+    expect(reported).toEqual([{ type: 'audio_play', detail: { media: 'a-talk', furthest: 75 } }]);
   });
 });
 

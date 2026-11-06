@@ -10,12 +10,15 @@
 // links to the Sleep problems page. Without JavaScript, the static page says
 // that results need it.
 //
-// Analytics (M3): report() only dispatches a `sleepsteps:event` CustomEvent,
-// `search` with { q (first MAX_QUERY_LOGGED characters), results }, as
-// players.js does; M3's events.js sends it. The query is never logged to the
-// console or kept in browser storage, and from M3 it is stored only as that
-// event (SPEC §10, §15.3). The page's referrer policy (strict-origin, set in
-// content/search.njk) keeps it out of the Referer of the pages it leads to.
+// Usage statistics: report() only dispatches a `sleepsteps:event`
+// CustomEvent, `search` with { q, results }, as players.js does: q is the
+// trimmed query cut to MAX_QUERY_LOGGED UTF-16 code units, and results the
+// number found, the shape worker/routes/event.js accepts. events.js, loaded
+// before this module whenever features.events is on, sends it without the
+// visit code (SPEC §10.1). The query is never logged to the console or kept
+// in browser storage, and is stored only as that event (SPEC §10, §15.3). The
+// page's referrer policy (strict-origin, set in content/search.njk) keeps it
+// out of the Referer of the pages it leads to, and of that event's request.
 import { INDEX_OPTIONS, MAX_QUERY_LOGGED, MAX_RESULTS, SEARCH_OPTIONS, TYPE_LABELS } from './search-config.js';
 
 const LOAD_TIMEOUT_MS = 15000;

@@ -5,8 +5,9 @@ export default {
   layout: 'layouts/problem.njk',
   page_width: 'wide',
   scripts: ['players.js'],
-  // Analytics (SPEC §10.2): problem pages send a page_view from M3. Data only
-  // for now; nothing reads it yet.
+  // Analytics (SPEC §10.2): problem pages send a page_view. base.njk renders
+  // it as <body data-page-view>, which events.js and pages.json (SPEC §8.3)
+  // read.
   track_page_view: true,
   // The page shows its videos' transcripts, so the video library must render
   // first (content/videos/videos.11tydata.js).

@@ -1,5 +1,8 @@
-// Builds the site once, before the node project's tests, into a fresh
-// temporary directory, and passes its path to the tests (inject('builtSite')).
+// Builds the site once, before both test projects, into a fresh temporary
+// directory, and passes its path to the tests (inject('builtSite')). It runs
+// from the root config, so the worker project gets it too: the build also
+// writes worker/generated/pages.json (SPEC §8.3), which the Worker imports,
+// so the Worker tests pass on a fresh clone, as in Workers Builds.
 //
 // Why not read dist/: it may be stale (an old build, or a half-written one
 // while `npm run dev` is watching), and rebuilding into it would fight with

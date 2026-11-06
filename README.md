@@ -13,9 +13,27 @@ npm install
 npm run build   # build the site into dist/
 npm run dev     # local site + Worker at http://localhost:8787
 npm test        # run tests
+npm run db:migrate:local && npm run dev:collect   # the same, collecting usage statistics locally (below)
 ```
 
 `npm run dev` passes extra flags to `wrangler dev`, e.g. `npm run dev -- --port 8799`.
+
+### Usage statistics locally
+
+`npm run dev` keeps data collection off, as production does until the privacy officer's go-ahead: pages still send their usage statistics, and the API answers 404 and stores nothing (`SPEC.md` §11). To try the statistics end to end against a local database:
+
+```sh
+npm run db:migrate:local   # once, and again after each new file in migrations/
+npm run dev:collect        # like npm run dev, with collection on for this run
+```
+
+Open http://localhost:8787 (the API answers only on port 8787, at `localhost` or `127.0.0.1`). Open a sleep problem page, play an audio-only version, open a handout or search, then look at what was stored:
+
+```sh
+npx wrangler d1 execute sleepsteps --local --command "SELECT ts, session_id, page, type, detail FROM events ORDER BY ts DESC LIMIT 20"
+```
+
+Keep `--local` (Wrangler's default, written out so the command says what it does) and never use `--remote`, which reaches the real database. Never put `DATA_COLLECTION` or `API_HOSTS` in `.dev.vars`; `dev:collect` passes them on the command line for that run only, and the tests check this. The "Turn off usage statistics" switch on the privacy page works in this mode too.
 
 ## Content editing
 
@@ -153,7 +171,7 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 
 ## Tests
 
-`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them.
+`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages the Worker checks events against (`SPEC.md` §8.3).
 
 ## Deployment
 
@@ -161,8 +179,8 @@ Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 
 - **Merging to `main`** runs `npm test && npm run build` and deploys production. Until launch, production is at `sleepsteps.behavioural-medicine-lab.workers.dev`, marked `noindex` so search engines leave it out.
 - **Other branches** each get a preview at `<branch>-sleepsteps.behavioural-medicine-lab.workers.dev`. All previews share one database, `sleepsteps-preview`, separate from production's, for test data only.
-- **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21).
-- **Database changes** are new files in `migrations/`. `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`).
+- **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing. The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
+- **Database changes** are new files in `migrations/`, never edits to an applied one; the first, `0001_init.sql`, creates the `ratings`, `feedback` and `events` tables (`SPEC.md` §17). `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`). This is needed only before data collection is turned on there; after that, each new migration is applied to production just before its pull request merges (`SPEC.md` §17, §18.4).
 
 ## Licence
 

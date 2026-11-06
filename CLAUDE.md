@@ -23,14 +23,15 @@ Website for a clinical trial of a stepped-care sleep intervention: static educat
 Do not attempt these. Tell the user when one is needed, referring to SPEC §18.4:
 Cloudflare dashboard settings, account or domain setup, creating Turnstile widgets or Access applications, setting production secrets, applying remote migrations (`--remote`), and deploying to production.
 
-You may run local commands: `npm run build`, `npm run dev`, `npm test`, `npm run db:migrate:local`, and `wrangler dev`.
+You may run local commands: `npm run build`, `npm run dev`, `npm run dev:collect`, `npm test`, `npm run db:migrate:local`, and `wrangler dev`.
 
 ## Commands
 
 ```
 npm install
-npm run build          # validate content → Eleventy (incl. search-index.json) → dist/
-npm run dev            # local site + Worker + local D1
+npm run build          # validate content → Eleventy (search-index.json, worker/generated/pages.json) → dist/
+npm run dev            # local site + Worker + local D1; collection is off, so /api/* answers 404
+npm run dev:collect    # the same with collection on, for this run only (run db:migrate:local first)
 npm test               # Vitest
 npm run db:migrate:local
 ```
