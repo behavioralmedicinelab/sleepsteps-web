@@ -1052,14 +1052,12 @@ button.site-footer__feedback {
 /* Links inside a sentence still get a 44px-tall target (SPEC §7.5): the
    urgent notice, the search page's no-JavaScript route to Sleep problems,
    a link set on its own line (.link-standalone), links in an information
-   page's paragraphs, links in the §15.1 notices (.notice-text) and links in
-   a transcript (components.css). */
+   page's paragraphs and links in the §15.1 notices (.notice-text). */
 .notice--urgent a,
 .search-fallback a,
 .link-standalone a,
 .info-body p a,
-.notice-text a,
-.transcript__body a {
+.notice-text a {
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
@@ -1069,7 +1067,7 @@ button.site-footer__feedback {
   font-weight: var(--weight-semibold);
 }
 
-/* The SPEC §15.1 notices under ratings and in the feedback dialog. */
+/* The SPEC §15.1 notices: under each video, and in the feedback dialog. */
 .notice-text {
   color: var(--slate-grey);
 }

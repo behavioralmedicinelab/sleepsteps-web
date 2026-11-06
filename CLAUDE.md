@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Website for a clinical trial of a stepped-care sleep intervention: static educational content (videos, audio, transcripts, PDFs) with optional anonymous ratings, feedback, search and usage logging. It is hosted as a single Cloudflare Worker with static assets and a D1 database.
+Website for a clinical trial of a stepped-care sleep intervention: static educational content (videos, audio-only versions and handouts) with optional anonymous ratings, feedback, search and usage logging. It is hosted as a single Cloudflare Worker with static assets and a D1 database.
 
 **Read `SPEC.md` before starting any task.** It is the source of truth. If a request conflicts with the spec, point out the conflict and ask before proceeding.
 

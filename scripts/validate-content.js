@@ -4,13 +4,15 @@
 // solution counts outside 1-3 main / 0-3 extra (a stand-alone problem has
 // none), a video used twice on one page, and media files that are missing or
 // too large. Warns, without failing, about placeholder content that can
-// still build, and about a real (non-placeholder) video without its handout,
-// audio-only version or transcript, which every video is to have by launch.
+// still build, and about a real (non-placeholder) video without its handout
+// or audio-only version, which every video is to have by launch. A video's
+// transcript (the file's body) is optional and not shown on the site, but
+// the search index reads it, so a body that is there must be plain Markdown.
 //
 // CLI:    node scripts/validate-content.js [--no-placeholders]
 //         (exit code 1 on errors; --no-placeholders is the launch check,
 //         SPEC §20 M8: it also fails on placeholder videos and on any video
-//         without a handout, audio or a transcript)
+//         without a handout or audio)
 // Module: validateContent(rootDir, { launch }) -> { errors, warnings, model }
 //
 // Front matter is read with Eleventy's own parser (gray-matter with js-yaml,
@@ -28,8 +30,9 @@ const matter = fromEleventy('gray-matter');
 const yaml = fromEleventy('js-yaml');
 const MarkdownIt = fromEleventy('markdown-it');
 
-// Transcripts parsed as Eleventy renders them: markdown-it with HTML on and
-// indented code off (Eleventy's defaults, src/Engines/Markdown.js).
+// Transcripts parsed as Eleventy and the search index read them: markdown-it
+// with HTML on and indented code off (Eleventy's defaults,
+// src/Engines/Markdown.js; scripts/build-data.js).
 const markdown = new MarkdownIt({ html: true }).disable('code');
 
 export const TIMES_OF_DAY = ['evening', 'bedtime', 'night', 'early-morning', 'day', 'any'];
@@ -61,7 +64,6 @@ export const WARNINGS = {
   'placeholder-video': 'Placeholder videos (no real YouTube video yet; SPEC §20 M8 requires none)',
   'missing-handout': 'Videos without a handout (every video needs one by launch, SPEC §9.3)',
   'missing-audio': 'Videos without an audio-only version (every video needs one by launch, SPEC §9.2)',
-  'missing-transcript': 'Videos without a transcript (every video needs one by launch, SPEC §9.3)',
   'related-few': 'Problems with fewer than 2 related topics (SPEC §7.2 asks for 2-3)',
   'is-this-you-empty': 'Problems with no "Is this you?" text',
   'bullets-few': 'Problems with fewer than 2 "Is this you?" bullets (SPEC §7.2 asks for 2-4)',
@@ -91,10 +93,13 @@ const isSiteLink = (href) => /^\/(?!\/)/.test(href) || href.startsWith('#');
 
 /**
  * Images and links in a transcript, from the parsed Markdown (so inline,
- * reference and <autolink> forms are all caught). An image would load from
- * wherever it points (the CSP blocks other sites, SPEC §16.1); a link to
- * another site would skip the outbound-link allowlist and rel="noreferrer".
- * Links to pages on this site ("/problems/pain/") are fine.
+ * reference and <autolink> forms are all caught). The site doesn't show
+ * transcripts, but the search index reads them, and a transcript is a
+ * caption source: plain text keeps both clean, and a transcript stays safe
+ * to show if a page ever does (an image would load from wherever it points,
+ * which the CSP blocks, SPEC §16.1; a link to another site would skip the
+ * outbound-link allowlist and rel="noreferrer"). Links to pages on this
+ * site ("/problems/pain/") are fine.
  */
 function transcriptLinkProblems(body, lines) {
   const problems = [];
@@ -123,11 +128,14 @@ function transcriptLinkProblems(body, lines) {
 }
 
 /**
- * Transcript bodies are plain Markdown: no headings (they would break the
- * page's h1 > h2 > h3 outline), no raw HTML (the CSP and our own markup
- * rules apply to it, SPEC §16.1), including comments (a body that is only a
- * comment would show an empty "Read transcript"), no images and no links to
- * other sites. Returns a list of problems.
+ * Transcript bodies, where there is one, are plain Markdown: no headings,
+ * no raw HTML, including comments (the search index drops them, so a body
+ * that is only a comment would index nothing), no images and no links to
+ * other sites. The site doesn't show transcripts (SPEC §9.3); these rules
+ * keep the search text and caption source plain, and the text safe to show
+ * if a page ever does (headings would break a page's outline, and the CSP
+ * and our markup rules apply to HTML, SPEC §16.1). Returns a list of
+ * problems.
  */
 export function transcriptProblems(body) {
   const problems = [];
@@ -147,7 +155,7 @@ export function transcriptProblems(body) {
     problems.push('contains HTML tags; transcripts are plain Markdown');
   }
   if (outsideCode.includes('<!--')) {
-    problems.push("contains an HTML comment (<!-- -->), which the page doesn't show; transcripts are plain Markdown");
+    problems.push("contains an HTML comment (<!-- -->), which the search index drops; transcripts are plain Markdown");
   }
   problems.push(...transcriptLinkProblems(body, lines));
   return problems;
@@ -163,8 +171,7 @@ function listMarkdown(dir) {
 /**
  * Validate the content in `rootDir` (the repository root).
  * `launch: true` is the launch check (SPEC §20 M8): placeholder videos, and
- * any video without a handout, audio or a transcript, are errors instead of
- * warnings.
+ * any video without a handout or audio, are errors instead of warnings.
  * @param {string} rootDir
  * @param {{ launch?: boolean }} [options]
  * @returns {{ errors: object[], warnings: object[], model: object }}
@@ -277,7 +284,8 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
 
     for (const problem of transcriptProblems(body)) error(file, 'transcript', problem);
     // A real video can't keep a placeholder's [bracketed] stand-in, as with
-    // its duration; with the stand-in deleted it is just missing (below).
+    // its duration: the search would index it. Deleting it is fine, since a
+    // transcript is optional.
     const lines = body.split(/\r?\n/).filter((line) => line.trim() !== '');
     if (!placeholder && lines.length > 0 && lines.every((line) => STAND_IN_LINE.test(line))) {
       error(file, 'transcript', 'is still the [bracketed] stand-in: put in the real transcript, or delete it until there is one');
@@ -288,14 +296,14 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       else warn('placeholder-video', file, id);
     }
 
-    // Every video is to have a handout, an audio-only version and a
-    // transcript (SPEC §9.2, §9.3). Placeholders are left out of the warnings
-    // (they are already listed), but not out of the launch check. The
-    // transcript is the file's body; whitespace alone is none, as on the page.
+    // Every video is to have a handout, which carries its full narration (the
+    // text alternative, SPEC §9.3), and an audio-only version (SPEC §9.2).
+    // Placeholders are left out of the warnings (they are already listed),
+    // but not out of the launch check. A transcript isn't required: the site
+    // doesn't show one (SPEC §9.3).
     for (const [field, present, missing, needs] of [
       ['handout', isGiven(data.handout), 'missing-handout', 'a handout (SPEC §9.3)'],
       ['audio', isGiven(data.audio), 'missing-audio', 'an audio-only version (SPEC §9.2)'],
-      ['transcript', body.trim() !== '', 'missing-transcript', 'a transcript (SPEC §9.3)'],
     ]) {
       if (present) continue;
       if (launch) error(file, field, `required at launch: every video has ${needs}`);
@@ -347,7 +355,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     if (data.new !== undefined && typeof data.new !== 'boolean') error(file, 'new', 'must be true or false');
 
     // Every video on the page, to catch one used twice (its ids, such as
-    // transcript-<video_id>, would clash, and ratings couldn't tell them apart).
+    // audio-<video_id>, would clash, and ratings couldn't tell them apart).
     const onPage = [];
     if (checkVideoRef(file, 'problem_video', data.problem_video)) onPage.push(['problem_video', data.problem_video]);
 

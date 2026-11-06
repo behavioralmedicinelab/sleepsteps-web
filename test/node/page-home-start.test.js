@@ -17,7 +17,15 @@ const { model } = validateContent();
 const areas = parseCsvRecords(readFileSync('data/areas.csv', 'utf8')).sort((a, b) => Number(a.order) - Number(b.order));
 const problems = [...model.problems.values()];
 const videos = [...model.videos.values()];
-const hasTranscript = (v) => v.body.trim() !== '';
+
+/** Visible text: tags, visually hidden spans and the rating's invisible sizers left out. */
+const visibleText = (html) =>
+  text(
+    html
+      .replace(/<p class="rating__sizer"[\s\S]*?<\/p>/g, ' ')
+      .replace(/<span class="visually-hidden">[\s\S]*?<\/span>/g, ' ')
+      .replace(/<(script|style)\b[\s\S]*?<\/\1>/g, ' '),
+  );
 
 /** The <main> element. */
 const mainOf = (html) => html.slice(html.indexOf('<main'), html.indexOf('</main>') + '</main>'.length);
@@ -177,37 +185,40 @@ describe('Home (/)', () => {
     ]);
   });
 
-  it('shows a format tile only for a format some video has', () => {
-    const anyTranscript = videos.some(hasTranscript);
+  it('shows a format tile only for a format some video has, and no Transcript tile', () => {
     const anyHandout = videos.some((v) => v.data.handout);
     const anyAudio = videos.some((v) => v.data.audio);
     const section = elementByClass(html, 'home-formats', 'section');
-    if (!anyTranscript && !anyHandout && !anyAudio) {
+    if (!anyHandout && !anyAudio) {
       expect(section).toBeUndefined();
       return;
     }
     const tiles = [...section.matchAll(/<li class="home-format"><strong class="home-format__name">([^<]*)<\/strong> ([^<]*)<\/li>/g)];
     expect(tiles.map((m) => [m[1], m[2]])).toEqual([
-      // In the heading's order: watch, listen, read, print. Audio is not on the board (SPEC §7.5).
+      // In the heading's order: watch, listen, read. Audio takes the board's
+      // Transcript tile's place (SPEC §7.5).
       ['Video', 'Short, with captions'],
       ...(anyAudio ? [['Audio', 'Listen without watching']] : []),
-      ...(anyTranscript ? [['Transcript', 'Read at your own speed']] : []),
-      ...(anyHandout ? [['Handout', 'One page to print or keep']] : []),
+      ...(anyHandout ? [['Handout', 'Read, print or keep']] : []),
     ]);
+    expect(tags(section, 'li')).toHaveLength(tiles.length);
+    expect(text(elementByClass(section, 'home-formats__heading', 'h2'))).toBe('Watch, listen or read');
   });
 
-  it('names all four formats in the formats line and step 3 (every video has audio, a transcript and a handout, SPEC §7.5)', () => {
+  it('names the audio-only version and the handout in the formats line and step 3, and no transcript (SPEC §7.5)', () => {
     const intro = elementByClass(html, 'home-formats__intro', 'div');
     if (intro) {
-      expect(text(intro)).toMatch(/every video also has an audio-only version, a transcript and a handout/i);
+      expect(text(intro)).toMatch(/every video also has an audio-only version and a handout you can read or print\./i);
     }
     const step3 = text(elementByClass(elementByClass(html, 'home-step--3', 'li'), 'home-step__text', 'p'));
-    expect(step3).toMatch(/Watch a video, listen to it, read its transcript or print its handout\./);
+    expect(step3).toMatch(/Watch a video, listen to it, or read its handout\./);
   });
 
-  it('names listening in the hero line and the formats heading (every video has an audio-only version, SPEC §7.5)', () => {
-    expect(text(elementByClass(html, 'home-hero__lede', 'p'))).toMatch(/Watch, listen, read or print/);
-    expect(attr(tags(html, 'meta').find((t) => attr(t, 'name') === 'description'), 'content')).toMatch(/Watch, listen, read or print/);
+  it('promises no transcript anywhere: hero line, meta description, headings or text (project lead, 2026-11-06)', () => {
+    expect(text(elementByClass(html, 'home-hero__lede', 'p'))).toMatch(/Watch, listen or read, whichever suits you\.$/);
+    const description = attr(tags(html, 'meta').find((t) => attr(t, 'name') === 'description'), 'content');
+    expect(description).toMatch(/Watch, listen or read, whichever suits you\.$/);
+    expect(`${description} ${visibleText(html)}`).not.toMatch(/transcript|Watch, listen, read or print/i);
   });
 
   it('has the trial band and a "Need more help?" card', () => {
@@ -227,7 +238,7 @@ describe('Home (/)', () => {
   });
 
   it('has one H1, then H2 sections (H3 only for the steps)', () => {
-    const formats = elementByClass(html, 'home-formats', 'section') ? ['2 Watch, listen, read or print'] : [];
+    const formats = elementByClass(html, 'home-formats', 'section') ? ['2 Watch, listen or read'] : [];
     expect(headings(main)).toEqual([
       '1 Sleep can be hard after cancer. It can also get better.',
       '2 Three small steps',
@@ -261,7 +272,6 @@ describe('Start here (/start/)', () => {
       duration: v.data.duration,
       youtubeId: v.data.youtube_id,
       placeholder: v.data.placeholder === true,
-      transcript: hasTranscript(v),
       handout: v.data.handout ?? '',
       audio: v.data.audio ?? '',
     };
@@ -322,11 +332,11 @@ describe('Start here (/start/)', () => {
       expect(attr(wrapper, 'class').split(' ')).toEqual(expect.arrayContaining(['video--page', 'video--lg']));
       expect(video).toMatch(/<\/div>\s*<p class="notice-text video__notice"><span id="video-notice-[a-z0-9-]+">Pressing play loads this video from YouTube \(Google\)\./);
       const notice = elementByClass(video, 'video__notice', 'p');
-      expect(tags(notice, 'a').map((t) => attr(t, 'href'))).toEqual([
-        '/privacy/#cookies-and-browser-storage',
-        ...(c.transcript ? [`#transcript-${c.video}`] : []),
-      ]);
-      if (c.transcript) expect(html).toContain(`id="transcript-${c.video}"`);
+      // Only the privacy link: the handout is in the row of controls
+      // (SPEC §15.1); never a transcript.
+      expect(tags(notice, 'a').map((t) => attr(t, 'href'))).toEqual(['/privacy/#cookies-and-browser-storage']);
+      expect(notice).not.toMatch(/data-handout|handout/i);
+      expect(html).not.toMatch(/transcript/i);
       const facades = tags(video, 'a').filter((t) => attr(t, 'class') === 'video__facade');
       if (c.placeholder) {
         expect(facades).toEqual([]);
@@ -336,29 +346,42 @@ describe('Start here (/start/)', () => {
       }
     });
 
-    it('has the white bar with the ratings widget, hidden without JavaScript when it would hold nothing else, then the formats it has', () => {
-      const bar = elementByClass(html, 'start-chapter__bar', 'div');
-      const hasFormats = c.transcript || c.handout || c.audio;
+    it('ends with one row of controls under the video: "Audio only", the handout, then the rating, hidden without JavaScript when it would hold only the rating', () => {
+      const row = elementByClass(html, 'video-controls', 'div');
+      const hasFormats = Boolean(c.handout || c.audio);
+      // The board's white bar is gone: the row sits right after the video.
+      expect(html).not.toMatch(/start-chapter__bar/);
       if (!ratingsOn && !hasFormats) {
-        expect(bar).toBeUndefined();
+        expect(row).toBeUndefined();
         return;
       }
-      expect(bar).toBeTruthy();
-      expect(tags(bar, 'div')[0]).toBe(hasFormats ? '<div class="start-chapter__bar">' : '<div class="start-chapter__bar" hidden data-rating-reveal>');
-      const widget = elementByClass(bar, 'rating', 'div');
+      expect(row).toBeTruthy();
+      expect(html).toMatch(/<\/p>\s*<\/div>\s*<div class="video-controls"[^>]*>/);
+      expect(html.slice(html.indexOf(row) + row.length).trim()).toBe('</article>');
+      expect(tags(row, 'div')[0]).toBe(hasFormats ? '<div class="video-controls">' : '<div class="video-controls" hidden data-rating-reveal>');
+      // "Audio only" first, so opening it never moves its button (SPEC §7.5).
+      if (c.audio && c.handout) expect(row.indexOf('<details')).toBeLessThan(row.indexOf('<a class="format-button"'));
+      const widget = elementByClass(row, 'rating', 'div');
       if (ratingsOn) {
-        expect(tags(widget, 'div')[0]).toBe(`<div class="rating rating--row" data-rating="${c.video}" hidden>`);
-        const formats = elementByClass(bar, 'formats', 'div');
-        if (formats) expect(bar.indexOf(formats)).toBeGreaterThan(bar.indexOf(widget));
+        expect(tags(widget, 'div')[0]).toBe(`<div class="rating" data-rating="${c.video}" hidden>`);
+        expect(text(elementByClass(widget, 'rating__legend', 'legend'))).toBe(`Was this helpful? ${text(c.title)}`);
+        for (const before of ['<a class="format-button"', '<details']) {
+          if (row.includes(before)) expect(row.indexOf(before)).toBeLessThan(row.indexOf(widget));
+        }
+        expect(widget).not.toMatch(/notice-text|anonymous|About the information/);
       } else {
         expect(widget).toBeUndefined();
       }
-      expect(tags(bar, 'a').filter((t) => attr(t, 'class') === 'format-button').map((t) => attr(t, 'href'))).toEqual(
+      expect(tags(row, 'a').filter((t) => attr(t, 'class') === 'format-button').map((t) => attr(t, 'href'))).toEqual(
         c.handout ? [`/media/pdf/${c.handout}`] : [],
       );
-      expect(tags(bar, 'audio').map((t) => attr(t, 'src'))).toEqual(c.audio ? [`/media/audio/${c.audio}`] : []);
-      expect(tags(bar, 'details').filter((t) => attr(t, 'id') === `transcript-${c.video}`)).toHaveLength(c.transcript ? 1 : 0);
+      expect(tags(row, 'audio').map((t) => attr(t, 'src'))).toEqual(c.audio ? [`/media/audio/${c.audio}`] : []);
     });
+  });
+
+  it('has no transcript and no ratings notice anywhere (project lead, 2026-11-06)', () => {
+    expect(visibleText(html)).not.toMatch(/transcript|Ratings are anonymous|About the information we collect/i);
+    expect(main).not.toMatch(/data-transcript|transcript__|notice-text">Ratings/);
   });
 
   it('has one ratings widget per chapter while ratings are on, and no per-video feedback', () => {

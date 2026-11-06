@@ -5,7 +5,7 @@ layout: layouts/base.njk
   Start here (/start/): SPEC §7.3, §9.1-§9.3, §12, §15.1, §20 M1b;
   HANDOFF §6.2; board Intro-B.dc.html. There is no phone board, so phones
   follow the problem page's (Problem-Phone.dc.html; HANDOFF §11): full-bleed
-  videos, full-width format buttons and a full-width end-card button.
+  videos and a full-width end-card button.
 
   Only content/start.md uses it, and that file is data only: its body is not
   shown. The title band (with the chapter pills inside it), then TopicNav
@@ -22,17 +22,18 @@ layout: layouts/base.njk
 
   Each chapter: a large faint number, "Video n of N · duration", the title
   (H2) and description, the video facade with its YouTube notice
-  (partials/video.njk), then a white bar with the ratings widget (SPEC §12,
-  partials/rating.njk, while site.features.ratings is exactly true) above
-  the video's formats (partials/formats.njk). The bar is left out when it
-  would be empty; holding only the widget, it ships hidden for rating.js to
-  reveal, so no empty bar shows without JavaScript. No per-video feedback
-  (SPEC §7.5, §13). Then the end card to the Sleep problems page.
+  (partials/video.njk), then the row of controls under every video
+  (partials/video-controls.njk): "Audio only", the handout and, while
+  site.features.ratings is exactly true, "Was this helpful?" with its stars
+  (SPEC §12). As on problem pages, it is a plain row, not the board's white
+  bar (SPEC §7.5). It is left out when it would be empty; holding only the
+  rating, it ships hidden for rating.js to reveal. No transcripts (SPEC
+  §9.3) and no per-video feedback (SPEC §7.5, §13). Then the end card to the
+  Sleep problems page.
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- from "partials/video.njk" import videoEmbed -%}
-{%- from "partials/formats.njk" import formatLinks -%}
-{%- from "partials/rating.njk" import rating -%}
+{%- from "partials/video-controls.njk" import videoControls -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
 {%- set introVideos = chapters | introChapters(collections.videos) -%}
 {%- set chapterCount = introVideos | length -%}
@@ -71,22 +72,7 @@ layout: layouts/base.njk
           </div>
         </div>
         {{ videoEmbed(video, bleed='page', arc=true, size='lg') }}
-        {%- set ratingHtml = rating(video, 'row') if site.features.ratings === true else '' %}
-        {%- set formatsHtml = formatLinks(video) %}
-        {#- `| length`: a trimmed macro result is a SafeString object, truthy even when empty. #}
-        {%- set hasRating = ratingHtml | trim | length %}
-        {%- set hasFormats = formatsHtml | trim | length %}
-        {%- if hasRating or hasFormats %}
-        <div class="start-chapter__bar"{% if not hasFormats %} hidden data-rating-reveal{% endif %}>
-          {#- The ratings widget (SPEC §12) above the formats. No "Send feedback" link here: feedback is only the footer link (SPEC §7.5, §13). #}
-          {%- if hasRating %}
-          {{ ratingHtml }}
-          {%- endif %}
-          {%- if hasFormats %}
-          {{ formatsHtml }}
-          {%- endif %}
-        </div>
-        {%- endif %}
+        {{- videoControls(video, site.features.ratings === true) }}
       </article>
       {%- endfor %}
       <section class="start-next on-dark">

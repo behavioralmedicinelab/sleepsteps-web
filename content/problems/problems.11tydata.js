@@ -9,9 +9,6 @@ export default {
   // it as <body data-page-view>, which events.js and pages.json (SPEC §8.3)
   // read.
   track_page_view: true,
-  // The page shows its videos' transcripts, so the video library must render
-  // first (content/videos/videos.11tydata.js).
-  eleventyImport: { collections: ['videos'] },
   eleventyComputed: {
     // layouts/problem.njk adds solutions.js, which upgrades the solution
     // cards; a stand-alone problem has none (SPEC §7.2), so it isn't loaded.

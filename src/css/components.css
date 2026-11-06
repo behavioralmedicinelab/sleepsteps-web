@@ -1,9 +1,9 @@
 /*
  * Shared components used on more than one page (SPEC §7.5; HANDOFF §4, §5):
- * VideoEmbed, FormatLinks and transcripts, step chips, buttons, section
- * headings, topic cards and the ratings widget. Loaded on every page, after
- * site.css. Page
- * layouts stay in site.css and src/css/pages/.
+ * VideoEmbed, the row of controls under each video ("Audio only", the
+ * handout and the ratings widget), step chips, buttons, section headings and topic
+ * cards. Loaded on every page, after site.css. Page layouts stay in site.css
+ * and src/css/pages/.
  *
  * Values come from tokens.css (no colour literals: a test enforces it).
  * Mobile first: the base rules are for phones; `min-width: 37.5em` (600px)
@@ -12,7 +12,7 @@
  *
  * Contents
  *   1. VideoEmbed (partials/video.njk)
- *   2. FormatLinks and transcripts (partials/formats.njk)
+ *   2. Video controls (partials/video-controls.njk)
  *   3. Step chip (partials/step-chip.njk)
  *   4. Buttons
  *   5. Section heading, topic card
@@ -291,32 +291,33 @@ button.video__facade[aria-disabled="true"] {
   }
 }
 
-/* 2. FormatLinks and transcripts ------------------------------------------- */
+/* 2. Video controls --------------------------------------------------------- */
 
-.formats {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.formats__row {
+/* One row under every video (partials/video-controls.njk): "Audio only",
+   the handout, then "Was this helpful?" with its stars. They share one
+   line where there is room and wrap, each whole, where there isn't (the
+   stars drop below the buttons on phones and in narrow columns).
+   Left-aligned at every width (SPEC §7.5). */
+.video-controls {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
 }
 
-/* Phones: every format full width, one per line, 48px tall
-   (Problem-Phone.dc.html's buttons). */
-.formats__row > * {
-  flex: 1 1 100%;
+/* An open "Audio only" takes the row's full width. It is the row's first
+   item, so its button stays where it was, the player opens under it across
+   the row, and the handout and the stars move down under the player. */
+.video-controls > .format-disclosure[open] {
+  flex-basis: 100%;
 }
 
-/* An outlined button: the handout link, and the inside of each disclosure's
+/* An outlined button: the handout link, and the inside of the "Audio only"
    <summary> (the summary itself keeps its default display, so browsers keep
-   its button semantics, as with the phone Menu). */
+   its button semantics, as with the phone Menu). 48px tall on phones
+   (Problem-Phone.dc.html), 44px from 600px. */
 .format-button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
@@ -343,7 +344,10 @@ a.format-button:hover,
   flex: none;
 }
 
+/* The ring hugs the button, and the summary never moves when its panel
+   opens below it. */
 .format-disclosure__toggle {
+  width: fit-content;
   border-radius: var(--radius-sm);
   list-style: none;
   cursor: pointer;
@@ -366,77 +370,9 @@ a.format-button:hover,
   width: 100%;
 }
 
-.transcript__panel {
-  margin-top: var(--space-3);
-  padding: var(--space-5);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-md);
-  background: var(--panel);
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-
-.transcript__print {
-  margin-bottom: var(--space-3);
-}
-
-.transcript__body > * + * {
-  margin-top: var(--space-4);
-}
-
-.transcript__body :is(ul, ol) {
-  padding-inline-start: var(--space-7);
-}
-
-.transcript__body li + li {
-  margin-top: var(--space-1);
-}
-
-/* ink on the panel ground: tokens.json lists ink and slate-grey there, not
-   deep-teal (SPEC §7.5), as for the Sleep problems nudge. Links in a
-   transcript also get the 44px in-sentence target (site.css §10). */
-.transcript__panel .link-button,
-.transcript__panel .link-button:hover,
-.transcript__body a,
-.transcript__body a:hover {
-  color: var(--ink);
-}
-
-/* A button that looks like a link (e.g. "Print transcript"), 44px tall. */
-.link-button {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--target-min);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--deep-teal);
-  font-weight: var(--weight-semibold);
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-  cursor: pointer;
-}
-
-.link-button:hover {
-  color: var(--night-teal);
-  text-decoration-thickness: 2px;
-}
-
 @media (min-width: 37.5em) {
-  .formats__row > * {
-    flex: 0 1 auto;
-  }
-
   .format-button {
-    display: inline-flex;
     min-height: var(--target-min);
-  }
-
-  /* The ring hugs the button, and the summary never moves when its panel
-     opens below it. */
-  .format-disclosure__toggle {
-    width: fit-content;
   }
 
   .format-audio {
@@ -616,12 +552,14 @@ a.format-button:hover,
 
 /* 6. Ratings widget ---------------------------------------------------------- */
 
-/* SPEC §12 (src/js/rating.js): the legend, five 44px stars, the status line
-   and the §15.1 notice, left-aligned at every width (SPEC §7.5). Without
-   JavaScript the whole widget stays [hidden]. */
+/* SPEC §12 (src/js/rating.js): "Was this helpful?", five 44px stars and the
+   status line, at the end of the row of controls (section 2). The root is
+   `display: contents`, so the fieldset and the status line are items of the
+   row: the fieldset follows the buttons, and the status line takes a line
+   of its own under them. Without JavaScript the whole widget stays [hidden]
+   (site.css's [hidden] rule wins over this). */
 .rating {
-  display: grid;
-  row-gap: var(--space-2);
+  display: contents;
 }
 
 .rating__group {
@@ -631,11 +569,10 @@ a.format-button:hover,
   border: 0;
 }
 
-/* 'row' (a problem video, Start here): the legend floats beside the stars,
-   and they drop below it when there isn't room (under about 360px): the
-   stars are one inline box, and a line box too short for it moves below the
-   float. A floated legend is laid out inside the fieldset like any float,
-   and the fieldset contains it. */
+/* The legend floats beside the stars, and they drop below it when there
+   isn't room (under about 360px): the stars are one inline box, and a line
+   box too short for it moves below the float. A floated legend is laid out
+   inside the fieldset like any float, and the fieldset contains it. */
 .rating__legend {
   float: left;
   margin-inline-end: var(--space-4);
@@ -644,13 +581,6 @@ a.format-button:hover,
   font-size: var(--fs-label);
   line-height: var(--target-min);
   font-weight: var(--weight-semibold);
-}
-
-/* 'card' (an open solution card): the legend above the stars. */
-.rating--card .rating__legend {
-  float: none;
-  padding-block-end: var(--space-2);
-  line-height: var(--lh-label);
 }
 
 /* Positioned, so the visually hidden radios sit here and focusing one never
@@ -709,11 +639,14 @@ a.format-button:hover,
   outline-offset: var(--focus-offset);
 }
 
-/* The status line and, hidden in the same grid cell, copies of the longest
-   messages: the cell is as tall as the tallest at any width or zoom, so the
-   answer never moves the notice (SPEC §11). */
+/* The status line, on its own line at the end of the row, and, hidden in
+   the same grid cell, copies of the longest messages: the cell is as tall
+   as the tallest at any width or zoom, so the answer never moves the page
+   (SPEC §11). Empty until there is news, so before a rating it is a blank
+   line under the row. */
 .rating__status-box {
   display: grid;
+  flex: 1 1 100%;
 }
 
 .rating__status-box > * {
@@ -756,35 +689,10 @@ a.format-button:hover,
   }
 }
 
-/* "Print transcript" (players.js) copies one transcript into .print-sheet,
-   marks <html data-printing> and prints: only the sheet is printed. */
-.print-sheet {
-  display: none;
-}
-
+/* A video can't play on paper, nor a handout open, nor a rating be given. */
 @media print {
-  html[data-printing] body > :not(.print-sheet) {
-    display: none !important;
-  }
-
-  html[data-printing] .print-sheet {
-    display: block;
-  }
-
-  .print-sheet__title {
-    font-family: var(--font-heading);
-    font-size: var(--fs-title);
-    line-height: var(--lh-title);
-  }
-
-  .print-sheet__source {
-    margin-block: var(--space-3) var(--space-7);
-  }
-
-  /* A video can't play on paper, nor a rating be given. */
   .video,
-  .transcript__print,
-  .rating {
+  .video-controls {
     display: none;
   }
 }

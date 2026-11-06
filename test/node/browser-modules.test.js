@@ -1,5 +1,5 @@
 // The browser modules run against our real markup in a small DOM
-// (mini-dom.js; no DOM package, SPEC §5): players.js (SPEC §9.1, §9.3,
+// (mini-dom.js; no DOM package, SPEC §5): players.js (SPEC §9.1-§9.4,
 // §16.2), solutions.js (HANDOFF §6.4, SPEC §7.5) and problems.js (SPEC §7.2,
 // §8.1). The other tests check the HTML these modules start from; these
 // check what the modules do to it.
@@ -29,15 +29,15 @@ for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
 const videos = [
   {
     page: { fileSlug: 'full' },
-    data: { title: 'Settling your body', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf' },
+    data: { title: 'Settling your body', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' },
     rawInput: 'Words.',
     templateContent: '<p>Words.</p>\n',
   },
 ];
 const videoPage = env.renderString(
   '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
-    '{% from "partials/video.njk" import videoEmbed %}{% from "partials/formats.njk" import formatLinks %}' +
-    '{{ videoEmbed(v) }}{{ formatLinks(v) }}<a id="elsewhere" href="/about/">Elsewhere</a></main></body></html>',
+    '{% from "partials/video.njk" import videoEmbed %}{% from "partials/video-controls.njk" import videoControls %}' +
+    '{{ videoEmbed(v) }}{{ videoControls(v) }}<a id="elsewhere" href="/about/">Elsewhere</a></main></body></html>',
   { v: filters.videoById('full', videos) },
 );
 
@@ -174,44 +174,42 @@ describe('players.js', () => {
     expect(document.activeElement).toBe(link);
   });
 
-  it('opens the transcript from the notice link and reports it and handout clicks only as DOM events (events.js sends them)', async () => {
+  it('reports clicks on the row\'s handout only as DOM events (events.js sends them), and lets the link open', async () => {
     await load(videoPage, ['players']);
     const { document } = dom;
     const reported = [];
     document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
-    const details = document.getElementById('transcript-full');
-    expect(details.open).toBe(false);
-    expect(details.querySelector('.transcript__print').hidden).toBe(false);
-
-    const link = document.querySelector('.video__notice a[href="#transcript-full"]');
+    // The row's "Handout" is the only handout link (the notice has none,
+    // SPEC §15.1).
+    expect(document.querySelectorAll('a[data-handout]').map((a) => a.className)).toEqual(['format-button']);
+    const handout = document.querySelector('.video-controls a.format-button');
+    expect(handout.getAttribute('href')).toBe('/media/pdf/full.pdf');
     const click = new Event('click', { bubbles: true, cancelable: true });
-    link.dispatchEvent(click);
-    expect(click.defaultPrevented).toBe(true);
-    expect(details.open).toBe(true);
-    expect(document.activeElement).toBe(details.querySelector('summary'));
-
-    document.querySelector('a[data-handout]').click();
+    handout.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(false);
+    // The notice's privacy link, and other links, report nothing.
+    document.querySelector('.video__notice a').click();
+    document.getElementById('elsewhere').click();
     expect(reported).toEqual([
-      { type: 'transcript_open', detail: { media: 'full' } },
       { type: 'handout_open', detail: { media: 'full' } }, // the video_id, not full.pdf (SPEC §10.2)
     ]);
     expect(scripts()).toEqual([]);
   });
 
-  it('prints the transcript with its source as the page title and address, without the site name (SPEC §9.3, §7.5)', async () => {
-    await load(videoPage, ['players']);
+  it('has no transcripts to open, print or report (SPEC §9.3): nothing but the native "Audio only" disclosure', async () => {
+    await load(videoPage, ['players'], { hash: '#transcript-full' });
     const { document, window } = dom;
-    document.querySelector('#transcript-full .transcript__print').click();
-    expect(window.printed).toBe(1);
-    const sheet = document.querySelector('.print-sheet');
-    expect(sheet.querySelector('.print-sheet__title').textContent).toBe('Transcript: Settling your body');
-    expect(sheet.querySelector('.print-sheet__source').textContent).toBe('From “A page”: https://sleepsteps.test/page/');
-    expect(sheet.querySelector('.transcript__body').textContent).toContain('Words.');
-    expect(document.documentElement.hasAttribute('data-printing')).toBe(true);
-
-    window.dispatchEvent(new Event('afterprint'));
-    expect(document.querySelector('.print-sheet')).toBe(null);
-    expect(document.documentElement.hasAttribute('data-printing')).toBe(false);
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    expect(document.querySelectorAll('details').map((d) => d.id)).toEqual(['audio-full']);
+    const audio = document.getElementById('audio-full');
+    expect(audio.open).toBe(false);
+    audio.open = true;
+    audio.dispatchEvent(new Event('toggle'));
+    window.dispatchEvent(new Event('hashchange'));
+    expect(reported).toEqual([]);
+    expect(window.printed).toBeUndefined();
+    expect(document.querySelector('.print-sheet, .transcript__print, [data-transcript]')).toBeNull();
   });
 
   it('reports audio only once it has played: seeking while paused is not a play (SPEC §9.4)', async () => {
@@ -306,28 +304,21 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
 describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => {
   const html = pageAt(site, '/problems/sharing-a-bed/');
 
-  it('opens the transcript from the notice link and reports it with the problem video, with no cards to open', async () => {
+  it('reports the problem video\'s handout clicks, from the row, with no cards or transcripts to open', async () => {
     await load(html, ['players']);
     const { document } = dom;
     expect(document.querySelectorAll('.solution')).toEqual([]);
+    expect(document.querySelectorAll('main details').map((d) => d.id)).toEqual(['audio-sharing-a-bed-about']);
+    expect(document.querySelector('[data-transcript], .transcript__print')).toBeNull();
     const reported = [];
     document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
-    const details = document.getElementById('transcript-sharing-a-bed-about');
-    expect(details.open).toBe(false);
-    expect(details.querySelector('.transcript__print').hidden).toBe(false);
 
-    const link = document.querySelector('.video__notice a[href="#transcript-sharing-a-bed-about"]');
+    expect(document.querySelector('.video__notice a[data-handout]')).toBeNull();
+    const handout = document.querySelector('.video-controls a[data-handout]');
     const click = new Event('click', { bubbles: true, cancelable: true });
-    link.dispatchEvent(click);
-    expect(click.defaultPrevented).toBe(true);
-    expect(details.open).toBe(true);
-    expect(document.activeElement).toBe(details.querySelector('summary'));
-
-    document.querySelector('a[data-handout]').click();
-    expect(reported).toEqual([
-      { type: 'transcript_open', detail: { media: 'sharing-a-bed-about' } },
-      { type: 'handout_open', detail: { media: 'sharing-a-bed-about' } },
-    ]);
+    handout.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(false);
+    expect(reported).toEqual([{ type: 'handout_open', detail: { media: 'sharing-a-bed-about' } }]);
   });
 });
 

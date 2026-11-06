@@ -32,7 +32,6 @@ export const SHAPES = new Map([
   ['video_play', ['media', 'furthest']],
   ['audio_play', ['media', 'furthest']],
   ['handout_open', ['media']],
-  ['transcript_open', ['media']],
 ]);
 
 /** A v4 UUID as crypto.randomUUID() writes it: lowercase, version 4, RFC 4122 variant. */
@@ -67,7 +66,6 @@ function checkedDetail(type, detail, page) {
       return { media, furthest };
     }
     case 'handout_open':
-    case 'transcript_open':
       return isMedia(detail.media) ? { media: detail.media } : undefined;
     default:
       return undefined;
