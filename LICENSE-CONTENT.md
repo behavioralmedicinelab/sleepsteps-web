@@ -1,6 +1,6 @@
 # Content licence
 
-This website's content is © 2026 Behavioural Medicine Lab and is licensed under the
+This website's content is © 2026 the SleepSteps Trial Research Team and is licensed under the
 [Creative Commons Attribution 4.0 International licence (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
 The full legal text is at <https://creativecommons.org/licenses/by/4.0/legalcode>.
 
@@ -17,7 +17,7 @@ credit, link to the licence, and say if you changed anything.
 ## What is not covered
 
 - **The SleepSteps name and logo** (`src/img/sleepsteps-logo.svg` and
-  `docs/design/reference/sleepsteps-logo.svg`). Please don't use them in a way
+  `docs/design/reference/sleepsteps-logo.svg`). Please do not use them in a way
   that suggests your version is ours or is endorsed by us.
 - **Third-party material**, such as photos, quotes, music or images of people,
   where it is marked as someone else's. Check the item's own terms.
@@ -28,8 +28,8 @@ credit, link to the licence, and say if you changed anything.
 A suggested credit:
 
 > Adapted from “[title of the page, video or handout]” ([its web address])
-> by the Behavioural Medicine Lab, used under
+> by the SleepSteps Trial Research Team, used under
 > [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes were made.
 
 **If you adapt the health content**, please make that clear to your readers.
-Adapted versions have not been reviewed by the Behavioural Medicine Lab.
+Adapted versions have not been reviewed by us.
