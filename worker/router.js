@@ -26,10 +26,16 @@ import { apiError, apiNotFound, INVALID_JSON, MAX_BODY_BYTES, mediaType, parseJs
 import { hostAllowed } from './lib/hosts.js';
 import { pageIndex } from './lib/pages.js';
 import { handleEvent } from './routes/event.js';
+import { handleRate } from './routes/rate.js';
 
 // path -> { feature: its site.config.json switch, handle(body, env, index),
-// log: the fixed text that names it in a log line }
-const ROUTES = new Map([['/api/event', { feature: 'events', handle: handleEvent, log: '/api/event' }]]);
+// log: the fixed text that names it in a log line }. /api/event (usage
+// statistics, SPEC §10) and /api/rate (ratings, SPEC §12) so far; the path
+// must match exactly ("/api/rate/" and "/api/Rate" are not routes).
+const ROUTES = new Map([
+  ['/api/event', { feature: 'events', handle: handleEvent, log: '/api/event' }],
+  ['/api/rate', { feature: 'ratings', handle: handleRate, log: '/api/rate' }],
+]);
 
 const BODY_TYPES = new Set(['application/json', 'text/plain']);
 

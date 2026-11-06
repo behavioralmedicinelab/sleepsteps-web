@@ -424,7 +424,7 @@ describe('events.js stays private (SPEC §10.1, CLAUDE.md)', () => {
 
   const code = (file) => readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-  it.each(['src/js/events.js', 'src/js/usage-prefs.js', 'src/js/stats-switch.js'])(
+  it.each(['src/js/events.js', 'src/js/usage-prefs.js', 'src/js/stats-switch.js', 'src/js/rating.js', 'src/js/api.js'])(
     '%s has no console calls, markup strings, cookies or other storage, and reads nothing about the device or the address',
     (file) => {
       const source = code(file);
@@ -488,10 +488,10 @@ describe('built pages and the usage statistics modules (SPEC §10.1, §11)', () 
     expect(marked.sort()).toEqual([...tracked].sort());
   });
 
-  it('names only real videos in the attributes players.js reports from', () => {
+  it('names only real videos in the attributes players.js reports from, and the ratings widget sends', () => {
     const library = new Set(listFiles('content/videos', (f) => f.endsWith('.md')).map((f) => f.replace(/\.md$/, '')));
     for (const { file, html } of pages) {
-      for (const [, name, id] of html.matchAll(/\sdata-(video|media|handout|transcript)="([^"]*)"/g)) {
+      for (const [, name, id] of html.matchAll(/\sdata-(video|media|handout|transcript|rating)="([^"]*)"/g)) {
         expect(library.has(id), `${file}: data-${name}="${id}"`).toBe(true);
       }
     }

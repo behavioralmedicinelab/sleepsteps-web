@@ -11,6 +11,7 @@ import { parseFrontMatter, validateContent } from '../../scripts/validate-conten
 import { attr, readHtmlPages, tags } from './helpers.js';
 
 const site = inject('builtSite');
+const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
 const { model } = validateContent(process.cwd());
 const pages = JSON.parse(readFileSync('worker/generated/pages.json', 'utf8'));
 const built = readHtmlPages(site);
@@ -59,6 +60,20 @@ describe('pagesIndex()', () => {
       result('/a/', '<body data-page-id="a" data-page-viewed>', '<title>A</title>', '<p data-page-view></p><div data-videos="x" data-video-id="y"></div>'),
     ]);
     expect(json.a).toEqual({ url: '/a/', title: 'A', page_view: false, videos: [] });
+  });
+
+  it('reads the ratings widget\'s data-rating (SPEC §12), not its other data-rating-* hooks', () => {
+    const json = pagesIndex([
+      result(
+        '/a/',
+        '<body data-page-id="a">',
+        '<title>A</title>',
+        '<div class="rating" data-rating="rated-video" hidden><p data-rating-status></p></div>' +
+          '<div data-rating-reveal hidden></div><p data-rating-summary="summary-only" hidden></p>',
+      ),
+    ]);
+    expect(json.a.videos).toEqual(['rated-video']);
+    expect(() => pagesIndex([result('/a/', '<body data-page-id="a">', '', '<div data-rating="Not A Slug"></div>')])).toThrow(/"Not A Slug" is not a video_id/);
   });
 
   it('fails the build on a duplicate page_id, a page_id or video_id that is not a slug, or no page at all', () => {
@@ -138,15 +153,15 @@ describe('the HTML pages.json is read from', () => {
     expect(marked).toEqual(TRACKED);
   });
 
-  it('names videos only by video_id: data-video, data-transcript, data-handout and the audio’s data-media', () => {
+  it('names videos only by video_id: data-video, data-transcript, data-handout, the audio’s data-media and the ratings widget’s data-rating', () => {
     const seen = new Set();
     for (const { file, html } of built) {
-      for (const [, name, value] of html.matchAll(/\sdata-(video|transcript|handout|media)="([^"]*)"/g)) {
+      for (const [, name, value] of html.matchAll(/\sdata-(video|transcript|handout|media|rating)="([^"]*)"/g)) {
         expect(model.videos.has(value), `${file}: data-${name}="${value}"`).toBe(true);
         seen.add(name);
       }
     }
-    expect([...seen].sort()).toEqual(['handout', 'media', 'transcript', 'video']);
+    expect([...seen].sort()).toEqual(['handout', 'media', ...(config.features.ratings === true ? ['rating'] : []), 'transcript', 'video']);
   });
 
   it('gives each audio player the video_id of its own "Audio only" disclosure (audio_play, SPEC §10.2)', () => {

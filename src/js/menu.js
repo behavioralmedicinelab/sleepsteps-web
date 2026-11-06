@@ -1,4 +1,5 @@
-// Site header: the phone Menu, and warming the site search.
+// Every page with the site header loads this module: the phone Menu,
+// warming the site search, and showing text that needs JavaScript.
 //
 // Phone Menu (HANDOFF §5 MobileHeader; SPEC §2, §11).
 //
@@ -88,4 +89,17 @@ try {
   }
 } catch {
   // Search still works; it just starts from scratch.
+}
+
+// Text that needs JavaScript (SPEC §11). Text that points to a widget only
+// JavaScript can show, such as Home's "Rate each video to help us improve",
+// ships `hidden data-js-only`, so without JavaScript the page reads as with
+// the feature off; this shows it. A template renders such text only while
+// its feature is exactly true (Home's note: features.ratings), so nothing
+// here reads a switch. Getting urgent help's minimal header doesn't load
+// this module, and a test checks that every page with data-js-only does.
+try {
+  for (const element of document.querySelectorAll('[data-js-only]')) element.hidden = false;
+} catch {
+  // The text stays hidden, as without JavaScript.
 }

@@ -1,22 +1,57 @@
 {#-
-  Ratings slots (SPEC §12): placed now so the layouts don't move when the
-  widget arrives. Both macros render NOTHING until M4.
+  The ratings widget (SPEC §12, §15.1) and a closed solution card's summary
+  line. src/js/rating.js makes them work; the layouts load it only while
+  site.features.ratings is exactly true, and render these only then:
 
     {% from "partials/rating.njk" import rating, ratingStatus %}
-    {% if site.features.ratings %}{{ rating(video, page_id, 'row') }}{% endif %}
+    {% if site.features.ratings === true %}{{ rating(video, 'row') }}{% endif %}
 
-  rating(video, pageId, variant)  the widget, under a video and before its
-                                  FormatLinks. variant: 'row' (problem video,
-                                  Start here bar) or 'card' (open solution card)
-  ratingStatus(video, pageId)     the one-line status in a closed solution
-                                  card's meta row
+  rating(video, variant)  the widget, under a video and before its
+                          FormatLinks. variant: 'row' (problem video, Start
+                          here bar: the legend beside the stars where there
+                          is room) or 'card' (an open solution card: the
+                          legend above them)
+  ratingStatus(video)     a closed solution card's summary line, in its meta
+                          row: "You rated this n of 5." once a rating is
+                          accepted (rating.js), else empty and hidden
 
-  M4: SPEC §12 widget renders here. Its wording follows SPEC §12, not the
-  boards: a <fieldset> with legend "Was this helpful?", five radio stars
-  ("1 star" to "5 stars", 44x44px targets), the status "Ratings are
-  anonymous." / "Thanks. You rated this 4 of 5.", then notices/ratings.njk.
-  No stored ID. Not the boards' "How helpful was this?", "Helpful?",
-  "Not rated yet" or aria-pressed toggle buttons.
+  Both ship `hidden`: without JavaScript there is nothing to show (a form
+  POST can't reach the API, which takes JSON), and rating.js reveals them
+  once it is listening. A wrapper that would hold only the widget carries
+  `hidden data-rating-reveal`, and rating.js reveals it too.
+
+  The widget: a <fieldset> whose legend is "Was this helpful?" plus the
+  video's title for screen readers (a problem page has up to seven), five
+  native radios ("1 star" to "5 stars"; arrow keys move between them, and
+  autocomplete="off" so a browser doesn't restore an old choice) with each
+  <label> a 44x44px star; the status line, empty until there is news
+  (decision a2 = B), its height reserved by hidden copies of the longest
+  messages so the answer never shifts the page; then the §15.1 notice.
+  `data-rating` names the video: pages.json reads it (SPEC §8.3), and
+  rating.js sends it. ids are unique per page: the validator allows each
+  video once per page.
 -#}
-{%- macro rating(video, pageId, variant='row') -%}{%- endmacro -%}
-{%- macro ratingStatus(video, pageId) -%}{%- endmacro -%}
+{%- from "partials/icons.njk" import icon -%}
+{%- macro rating(video, variant='row') -%}
+{%- set id = video.video_id -%}
+<div class="rating rating--{{ variant }}" data-rating="{{ id }}" hidden>
+  <fieldset class="rating__group">
+    <legend class="rating__legend">Was this helpful?<span class="visually-hidden"> {{ video.title }}</span></legend>
+    <div class="rating__stars">
+      {%- for n in range(1, 6) %}
+      <input class="rating__input visually-hidden" type="radio" name="rating-{{ id }}" id="rating-{{ id }}-{{ n }}" value="{{ n }}" autocomplete="off">
+      <label class="rating__star" for="rating-{{ id }}-{{ n }}">{{ icon('star', 28 if variant == 'card' else 26, 'rating__icon') }}<span class="visually-hidden">{{ n }} star{{ 's' if n > 1 }}</span></label>
+      {%- endfor %}
+    </div>
+  </fieldset>
+  <div class="rating__status-box">
+    <p class="rating__status" id="rating-{{ id }}-status" data-rating-status></p>
+    <p class="rating__sizer" aria-hidden="true">Thanks. You rated this 5 of 5.</p>
+    <p class="rating__sizer" aria-hidden="true">Couldn't send right now — please try again later</p>
+  </div>
+  {% include "notices/ratings.njk" -%}
+</div>
+{%- endmacro -%}
+{%- macro ratingStatus(video) -%}
+<p class="solution__rating" data-rating-summary="{{ video.video_id }}" hidden></p>
+{%- endmacro -%}

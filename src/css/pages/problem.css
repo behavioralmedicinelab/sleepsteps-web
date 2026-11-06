@@ -444,10 +444,15 @@ button.solution__face {
   transform: rotate(180deg);
 }
 
-/* Under the closed card (600px and up): the M4 rating status and quick
-   links. On phones the same links are inside the open card. */
+/* Under the closed card (600px and up): the rating summary ("You rated
+   this n of 5.", once rating.js has one) and quick links. On phones the same
+   links, and the ratings widget, are inside the open card. */
 .solution__meta {
   display: none;
+}
+
+.solution__rating {
+  color: var(--slate-grey);
 }
 
 .solution__quick {

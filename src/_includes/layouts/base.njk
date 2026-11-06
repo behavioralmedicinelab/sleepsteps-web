@@ -14,7 +14,8 @@
                 rendering). The moduleScripts filter (eleventy.config.js)
                 adds events.js first, when features.events is on, on pages
                 that track page views or load players.js or search.js, and
-                drops stats-switch.js while it is off (SPEC §10.1, §11)
+                drops stats-switch.js while it is off, and rating.js while
+                features.ratings is off (SPEC §10.1, §11, §12)
     track_page_view  true on the pages that send a page_view (SPEC §10.2):
                 problem pages, Start here and Getting urgent help. Rendered
                 as <body data-page-view> whatever the feature switches say:

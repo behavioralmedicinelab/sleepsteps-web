@@ -1,5 +1,5 @@
-// Responses and request reading for the API (SPEC §14.1). Imports no JSON, so
-// Node can load this module too.
+// Responses, request reading and body-shape checks for the API (SPEC §14.1).
+// Imports no JSON, so Node can load this module too.
 //
 // Every API response carries `Cache-Control: no-store` and
 // `X-Content-Type-Options: nosniff`. Success is 204 with no body. Errors are
@@ -11,7 +11,7 @@
 export const MAX_BODY_BYTES = 4096;
 
 export const ERROR_CODES = Object.freeze([
-  'body', 'type', 'page', 'session_id', 'detail', 'origin', 'content_type', 'too_large', 'method', 'server',
+  'body', 'type', 'page', 'session_id', 'detail', 'video', 'stars', 'origin', 'content_type', 'too_large', 'method', 'server',
 ]);
 
 const API_HEADERS = Object.freeze({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -86,4 +86,22 @@ export function parseJson(bytes) {
   } catch {
     return INVALID_JSON;
   }
+}
+
+/**
+ * True for a plain object as JSON.parse makes one: not null, not an array,
+ * and with Object.prototype as its prototype (so not Object.create(null) or
+ * a class instance).
+ */
+export function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+}
+
+/**
+ * True if `object`'s own enumerable keys are exactly `keys`, in any order.
+ * A JSON "__proto__" key is an own key, so it counts as an extra one.
+ */
+export function hasExactKeys(object, keys) {
+  const own = Object.keys(object);
+  return own.length === keys.length && keys.every((key) => Object.hasOwn(object, key));
 }

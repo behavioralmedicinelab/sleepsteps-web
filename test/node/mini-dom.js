@@ -11,7 +11,8 @@
 //   className, classList, dataset, hidden, textContent, value/checked
 //   (inputs), open (details, firing "toggle"), focus with
 //   document.activeElement, click()
-//   with the default actions of <summary> and radio inputs, events that
+//   with the default actions of <summary> and radio inputs (a radio is
+//   checked before its click's listeners run, as in browsers), events that
 //   bubble to the document, and getClientRects() (via `isRendered`);
 // - a window with location (hash and search), timers (the global ones, so
 //   fake timers work), events and print(); and, for events.js and
@@ -373,13 +374,25 @@ export class Element extends Node {
   }
 
   click() {
+    // As in browsers, a radio is checked before its click is dispatched, so
+    // the click's listeners see it checked; cancelling the click puts back
+    // the radio checked before, and change follows only a new check.
+    const radio = this.localName === 'input' && this.getAttribute('type') === 'radio';
+    const group = radio && this.name ? this.ownerDocument.querySelectorAll(`input[name="${this.name}"]`) : [this];
+    const before = radio ? group.find((r) => r.checked) : undefined;
+    if (radio) this.checked = true;
     const event = new Event('click', { bubbles: true, cancelable: true });
-    if (!this.dispatchEvent(event)) return;
+    if (!this.dispatchEvent(event)) {
+      if (radio) {
+        this.checked = false;
+        if (before) before.checked = true;
+      }
+      return;
+    }
     // Default actions the modules rely on.
     if (this.localName === 'summary' && this.parentNode instanceof HTMLDetailsElement) {
       this.parentNode.open = !this.parentNode.open;
-    } else if (this.localName === 'input' && this.getAttribute('type') === 'radio' && !this.checked) {
-      this.checked = true;
+    } else if (radio && before !== this) {
       this.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }

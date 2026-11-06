@@ -269,12 +269,17 @@ export default function (eleventyConfig) {
   // allows script-src 'self', SPEC §16.1). Duplicates are dropped.
   //
   // base.njk passes { features: site.features, track: track_page_view }, and
-  // the usage statistics modules follow features.events (SPEC §10.1, §11):
+  // the modules of a switchable feature follow it (SPEC §10.1, §11, §12).
+  // A feature counts as on only when its value is exactly true:
   // - events.js is added, first, when features.events is on and the page
   //   sends a page view (track) or loads players.js or search.js, the modules
   //   that report events. It is never listed in front matter;
-  // - stats-switch.js (the privacy page's) is dropped while it is off.
-  // Without the options, events.js is left out.
+  // - stats-switch.js (the privacy page's) is dropped while features.events
+  //   is off;
+  // - rating.js (problem pages and Start here) is dropped while
+  //   features.ratings is off, as the templates then render no widgets.
+  // Without the options, events.js, stats-switch.js and rating.js are left
+  // out.
   eleventyConfig.addFilter('moduleScripts', (scripts, { features, track } = {}) => {
     const list = scripts === undefined || scripts === null ? [] : Array.isArray(scripts) ? scripts : [scripts];
     const names = list.map((entry) => {
@@ -287,11 +292,12 @@ export default function (eleventyConfig) {
       return entry;
     });
     const events = features?.events === true;
+    const ratings = features?.ratings === true;
     const reports = track === true || names.includes('players.js') || names.includes('search.js');
     return [
       ...new Set([
         ...(events && reports ? ['events.js'] : []),
-        ...names.filter((name) => events || name !== 'stats-switch.js'),
+        ...names.filter((name) => (events || name !== 'stats-switch.js') && (ratings || name !== 'rating.js')),
       ]),
     ].map((name) => `/js/${name}`);
   });
