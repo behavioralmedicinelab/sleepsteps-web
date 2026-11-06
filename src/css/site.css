@@ -1275,6 +1275,7 @@ button.site-footer__feedback {
   .site-header,
   .minimal-header,
   .site-footer,
+  .feedback-dialog,
   .with-sidebar__side {
     display: none;
   }

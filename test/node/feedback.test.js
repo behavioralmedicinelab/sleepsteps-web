@@ -314,6 +314,15 @@ describe('feedback.js source (SPEC §13, §15.4, §16.2)', () => {
   });
 });
 
+describe('the dialog in print (SPEC §13 "Look")', () => {
+  it('is hidden, with the header and footer, by site.css\'s print rule', () => {
+    const css = readFileSync('src/css/site.css', 'utf8');
+    const print = css.match(/@media print \{\n([\s\S]*?)\{\n\s*display: none;/)?.[1] ?? '';
+    const selectors = print.split(',').map((s) => s.trim());
+    for (const selector of ['.site-footer', '.feedback-dialog']) expect(selectors).toContain(selector);
+  });
+});
+
 // ---- The site key and the render options -----------------------------------------
 
 describe('the dialog\'s messages and the SPEC §13 table (decision A5)', () => {
