@@ -123,6 +123,23 @@ describe.each(pages.map((p) => [p.file, p.html]))('%s', (file, html) => {
     }
   });
 
+  // Turnstile loads only when the feedback dialog first opens (SPEC §13,
+  // §16.2): its address is in src/js/feedback.js alone, never in a page.
+  it('never names Turnstile\'s host, and loads feedback.js exactly when it has the feedback dialog', () => {
+    expect(html).not.toMatch(/challenges\.cloudflare\.com/i);
+    const feedbackOn = JSON.parse(readFileSync('site.config.json', 'utf8')).features.feedback === true;
+    const footer = html.indexOf('</footer>');
+    const hasDialog = feedbackOn && footer > -1 && attr(tags(html, 'body')[0], 'data-page-id') !== undefined;
+    const dialogs = tags(html, 'dialog');
+    expect(dialogs).toHaveLength(hasDialog ? 1 : 0);
+    expect(tags(html, 'script').filter((t) => attr(t, 'src') === '/js/feedback.js')).toHaveLength(hasDialog ? 1 : 0);
+    if (!hasDialog) return;
+    // After the footer and outside <main>, shipped hidden and closed.
+    expect(html.indexOf('<dialog')).toBeGreaterThan(footer);
+    expect(html.indexOf('<dialog')).toBeGreaterThan(html.indexOf('</main>'));
+    expect([attr(dialogs[0], 'hidden'), attr(dialogs[0], 'open')]).toEqual(['', undefined]);
+  });
+
   it('links out only over https to allowed sites, with rel="noreferrer"', () => {
     for (const tag of [...tags(html, 'a'), ...tags(html, 'area')]) {
       const href = attr(tag, 'href');
@@ -173,8 +190,8 @@ describe.each(pages.map((p) => [p.file, p.html]))('%s', (file, html) => {
     }
   });
 
-  it('labels every text input', () => {
-    for (const input of tags(html, 'input')) {
+  it('labels every text input and textarea', () => {
+    for (const input of [...tags(html, 'input'), ...tags(html, 'textarea')]) {
       const id = attr(input, 'id');
       expect(id, input).toBeTruthy();
       expect(html, `label for ${id}`).toMatch(new RegExp(`<label\\b[^>]*\\sfor="${id}"`));

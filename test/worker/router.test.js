@@ -1,6 +1,6 @@
 // The Worker's routing and its first gates (SPEC §4, §11, §14.1, §18.2).
-// The /api/event rules are in event.test.js, and the /api/rate rules in
-// rate.test.js.
+// The /api/event rules are in event.test.js, the /api/rate rules in
+// rate.test.js, and the /api/feedback rules in feedback.test.js.
 import { createExecutionContext } from 'cloudflare:test';
 import { env as testEnv, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
@@ -74,7 +74,10 @@ describe('Worker router', () => {
 
   it('answers 404 for API paths that have no route, even with collection on and the host allowed', async () => {
     const env = { DATA_COLLECTION: 'on', API_HOSTS: 'example.com', DB: testEnv.DB };
-    const paths = ['/api/', '/api/feedback', '/api/event/', '/api/Event', '/api/rate/', '/api/Rate', '/api/rate/x', '/api/__proto__', '/api/constructor'];
+    const paths = [
+      '/api/', '/api/event/', '/api/Event', '/api/rate/', '/api/Rate', '/api/rate/x', '/api/feedback/', '/api/Feedback', '/api/feedback/x',
+      '/api/__proto__', '/api/constructor',
+    ];
     for (const path of paths) {
       const res = await worker.fetch(post(`https://example.com${path}`), env, createExecutionContext());
       expect(res.status, path).toBe(404);

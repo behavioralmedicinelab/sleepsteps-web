@@ -58,7 +58,8 @@ describe.runIf(config.features.events)('the built privacy page', () => {
   });
 
   it('loads stats-switch.js and no other usage statistics module', () => {
-    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toEqual(['/js/menu.js', '/js/stats-switch.js']);
+    // feedback.js comes with the footer's dialog (feedback.test.js).
+    expect(tags(html, 'script').map((t) => attr(t, 'src')).filter((src) => src !== '/js/feedback.js')).toEqual(['/js/menu.js', '/js/stats-switch.js']);
   });
 });
 

@@ -44,7 +44,12 @@
     // §18.2, §18.3).
     "API_HOSTS": "<DOMAIN>"
   },
-  // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET
+  // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET,
+  // for /api/feedback's Turnstile check (SPEC §14.3). Without it, feedback
+  // answers 500 once collection is on. Locally, `npm run dev:collect` passes
+  // Cloudflare's published always-pass test secret with --var. There is no
+  // `secrets.required` list: Wrangler would then fail every build and deploy
+  // until a person had set the secret.
   //
   // Worker Previews (every branch but main, built by Workers Builds with
   // `npx wrangler preview`). Previews inherit no vars or bindings from above,

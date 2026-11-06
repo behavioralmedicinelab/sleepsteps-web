@@ -1,6 +1,6 @@
 // Sending to the Worker API from a widget that tells the visitor how it went
-// (SPEC §11): the ratings widget (rating.js) now, the feedback dialog from
-// M5. Usage statistics don't use it: events.js sends beacons and ignores the
+// (SPEC §11): the ratings widget (rating.js) and the feedback dialog
+// (feedback.js). Usage statistics don't use it: events.js sends beacons and ignores the
 // answer (SPEC §10.1).
 //
 // postJson(path, data, { keepalive }) POSTs `data` as JSON to a path on this

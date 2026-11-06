@@ -137,6 +137,12 @@
   --duration: 200ms;
 }
 
+/* The feedback dialog's backdrop: ink at 60%. Declared on ::backdrop itself,
+   which in some engines inherits nothing from the page. */
+::backdrop {
+  --backdrop: rgba(23, 33, 30, 0.6);
+}
+
 @media (min-width: 37.5em) {
   :root {
     --gutter: 24px;

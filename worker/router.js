@@ -11,30 +11,55 @@
 //   4. 405  not POST (with Allow: POST)
 //   5. 403  the Origin header isn't this request's own origin
 //   6. 415  the media type isn't application/json or text/plain (sendBeacon)
-//   7. 413  the body is over 4096 bytes
+//   7. 413  the body is over the route's limit: 4096 bytes, or 16384 for
+//           /api/feedback (a Turnstile token and a 2000-character message)
 //   8. 400  the body isn't UTF-8 JSON ("body")
 //   9.      the route's own checks and write (routes/*.js)
 // So a cross-site request is refused before its body is read. Anything
 // unexpected in 7-9 answers 500 and logs a fixed message only. The request's
-// address, headers and body are never logged, and CF-Connecting-IP,
-// User-Agent and request.cf are never read (SPEC §14.1).
+// address, headers and body are never logged, and User-Agent and request.cf
+// are never read (SPEC §14.1). CF-Connecting-IP is read for /api/feedback
+// alone (`remoteIp`), which passes it to Turnstile's Siteverify as
+// `remoteip` and never stores or logs it; the other routes' handlers are
+// called with no context, so they can't see it.
 //
 // /admin and /admin/* answer 404 until M6. Everything else goes to static
 // assets, so unknown paths get the site's 404 page.
 
-import { apiError, apiNotFound, INVALID_JSON, MAX_BODY_BYTES, mediaType, parseJson, readBody } from './lib/http.js';
+import {
+  apiError,
+  apiNotFound,
+  INVALID_JSON,
+  MAX_BODY_BYTES,
+  MAX_FEEDBACK_BODY_BYTES,
+  mediaType,
+  parseJson,
+  readBody,
+} from './lib/http.js';
 import { hostAllowed } from './lib/hosts.js';
 import { pageIndex } from './lib/pages.js';
 import { handleEvent } from './routes/event.js';
+import { handleFeedback } from './routes/feedback.js';
 import { handleRate } from './routes/rate.js';
 
-// path -> { feature: its site.config.json switch, handle(body, env, index),
-// log: the fixed text that names it in a log line }. /api/event (usage
-// statistics, SPEC §10) and /api/rate (ratings, SPEC §12) so far; the path
-// must match exactly ("/api/rate/" and "/api/Rate" are not routes).
+// path -> {
+//   feature   its site.config.json switch
+//   handle    (body, env, index), or (body, env, index, { remoteIp }) with remoteIp
+//   log       the fixed text that names it in a log line
+//   maxBytes  its body limit, if not MAX_BODY_BYTES
+//   remoteIp  true to pass CF-Connecting-IP (or null) in a fourth argument
+// }
+// /api/event (usage statistics, SPEC §10), /api/rate (ratings, SPEC §12) and
+// /api/feedback (SPEC §13); the path must match exactly ("/api/rate/" and
+// "/api/Rate" are not routes). handleEvent and handleRate take an optional
+// `now` as their fourth argument, so they are never given that context.
 const ROUTES = new Map([
   ['/api/event', { feature: 'events', handle: handleEvent, log: '/api/event' }],
   ['/api/rate', { feature: 'ratings', handle: handleRate, log: '/api/rate' }],
+  [
+    '/api/feedback',
+    { feature: 'feedback', handle: handleFeedback, log: '/api/feedback', maxBytes: MAX_FEEDBACK_BODY_BYTES, remoteIp: true },
+  ],
 ]);
 
 const BODY_TYPES = new Set(['application/json', 'text/plain']);
@@ -60,10 +85,13 @@ export function createRouter({ pages, site }) {
     if (!BODY_TYPES.has(mediaType(request))) return apiError(415, 'content_type');
 
     try {
-      const bytes = await readBody(request, MAX_BODY_BYTES);
+      const bytes = await readBody(request, route.maxBytes ?? MAX_BODY_BYTES);
       if (bytes === null) return apiError(413, 'too_large');
       const body = parseJson(bytes);
       if (body === INVALID_JSON) return apiError(400, 'body');
+      if (route.remoteIp === true) {
+        return await route.handle(body, env, index, { remoteIp: request.headers.get('CF-Connecting-IP') || null });
+      }
       return await route.handle(body, env, index);
     } catch {
       // The error is dropped unread: its message could quote the request.

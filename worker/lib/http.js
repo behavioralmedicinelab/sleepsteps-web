@@ -7,11 +7,19 @@
 // the plain "Not found" of every other 404, so a disabled feature, collection
 // switched off and a host that isn't allowed all look the same (SPEC §11).
 
-/** The largest request body read, in raw bytes (SPEC §14.1). */
+/** The largest request body read, in raw bytes (SPEC §14.1): /api/event and /api/rate. */
 export const MAX_BODY_BYTES = 4096;
 
+/**
+ * /api/feedback's limit (SPEC §14.1). A 2048-character Turnstile token and a
+ * 2000-unit message come to about 4.1 KB in ASCII, 8.1 KB with three-byte
+ * characters, and 14.1 KB at worst (control characters JSON-escaped as
+ * \u00XX), so 4096 would refuse messages the dialog allows.
+ */
+export const MAX_FEEDBACK_BODY_BYTES = 16384;
+
 export const ERROR_CODES = Object.freeze([
-  'body', 'type', 'page', 'session_id', 'detail', 'video', 'stars', 'origin', 'content_type', 'too_large', 'method', 'server',
+  'body', 'type', 'page', 'session_id', 'detail', 'video', 'stars', 'message', 'turnstile', 'origin', 'content_type', 'too_large', 'method', 'server',
 ]);
 
 const API_HEADERS = Object.freeze({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });

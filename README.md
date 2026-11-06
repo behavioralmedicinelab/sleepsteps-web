@@ -13,14 +13,14 @@ npm install
 npm run build   # build the site into dist/
 npm run dev     # local site + Worker at http://localhost:8787
 npm test        # run tests
-npm run db:migrate:local && npm run dev:collect   # the same, storing usage statistics and ratings locally (below)
+npm run db:migrate:local && npm run dev:collect   # the same, storing usage statistics, ratings and feedback locally (below)
 ```
 
 `npm run dev` passes extra flags to `wrangler dev`, e.g. `npm run dev -- --port 8799`.
 
-### Usage statistics and ratings locally
+### Usage statistics, ratings and feedback locally
 
-`npm run dev` keeps data collection off, as production does until the privacy officer's go-ahead: pages still send their usage statistics, and the API answers 404 and stores nothing (`SPEC.md` §11). The stars under each video show, but a rating gets "Couldn't send right now — please try again later". To try the statistics and ratings end to end against a local database:
+`npm run dev` keeps data collection off, as production does until the privacy officer's go-ahead: pages still send their usage statistics, and the API answers 404 and stores nothing (`SPEC.md` §11). The stars under each video show, but a rating gets "Couldn't send right now — please try again later", and so does the feedback dialog ("Send feedback" in the footer). To try the statistics, ratings and feedback end to end against a local database:
 
 ```sh
 npm run db:migrate:local   # once, and again after each new file in migrations/
@@ -36,7 +36,19 @@ npx wrangler d1 execute sleepsteps --local --command "SELECT ts, page, video, st
 
 A star clicked or tapped is sent at once; a star reached with the arrow keys is sent after a 2-second pause, when focus leaves the stars, or on Enter (`SPEC.md` §12).
 
-Keep `--local` (Wrangler's default, written out so the command says what it does) and never use `--remote`, which reaches the real database. Never put `DATA_COLLECTION` or `API_HOSTS` in `.dev.vars`; `dev:collect` passes them on the command line for that run only, and the tests check this. The "Turn off usage statistics" switch on the privacy page works in this mode too.
+**Feedback and its spam check.** The feedback dialog uses Cloudflare Turnstile, which needs no Cloudflare account locally: on `localhost` and `127.0.0.1` the dialog uses Cloudflare's published always-pass test site key, `1x00000000000000000000AA`, and `dev:collect` gives the Worker the matching test secret, `1x0000000000000000000000000000000AA`, with `--var` (`SPEC.md` §13, §14.3). The widget then says "For testing only. If seen, report to site owner"; that is expected. The dialog still loads Turnstile's script from `challenges.cloudflare.com` the first time it opens, so you need to be online. Send a message, then check what was stored, without printing the message itself:
+
+```sh
+npx wrangler d1 execute sleepsteps --local --command "SELECT ts, page, page_title, length(message) FROM feedback ORDER BY id DESC LIMIT 20"
+```
+
+The time is rounded down to the hour. To see a check that fails, run the Worker with one of Cloudflare's other test secrets instead (`npm run build` first): `2x0000000000000000000000000000000AA` always fails, and `3x0000000000000000000000000000000AA` answers as if the token had already been used. Either way the dialog says "Couldn't send right now — please try again later" and keeps the text.
+
+```sh
+npx wrangler dev --var DATA_COLLECTION:on --var API_HOSTS:localhost:8787,127.0.0.1:8787 --var TURNSTILE_SECRET:2x0000000000000000000000000000000AA
+```
+
+Keep `--local` (Wrangler's default, written out so the command says what it does) and never use `--remote`, which reaches the real database. Never put `DATA_COLLECTION` or `API_HOSTS` in `.dev.vars`; `dev:collect` passes them on the command line for that run only, and the tests check this. `.dev.vars` may hold a `TURNSTILE_SECRET` line, but only with one of Cloudflare's three test secrets above (the tests check that too); the real secret lives only in Cloudflare (`SPEC.md` §18.4). The "Turn off usage statistics" switch on the privacy page works in this mode too.
 
 ## Content editing
 
@@ -171,11 +183,12 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 - **Search keywords:** `data/keywords.csv` (edit in Excel, save as CSV UTF-8). One row per page: `page_id` is a problem's file name (without `.md`), `start`, or an information page's file name; `keywords` lists the words people might type, separated by `;`, including misspellings and US spellings. The site search and the filter on the Sleep problems page both use them. The build stops on an unknown or repeated `page_id`, and lists pages with no keywords. `npm test` checks that example searches (`test/node/search-queries.test.js`) still find the right page, so add a case there when you add keywords for something new. An information page with `search: false` in its front matter is left out of the search.
 - **Star ratings** under each video: on or off with `ratings` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there are no stars and no note on Home). The question ("Was this helpful?") and the star names are in `src/_includes/partials/rating.njk`, and the anonymity line under the stars in `src/_includes/notices/ratings.njk` (draft wording for the privacy officer, `SPEC.md` §15.1). The messages after a rating ("Thanks. You rated this 4 of 5.", and "You rated this 4 of 5." on a closed solution card) are in `src/js/rating.js`, and the failure message in `src/js/api.js`. `rating.njk` also holds hidden copies of the two longest messages, which keep room for them, so change them together. Home's "Rate each video to help us improve" is in `content/index.njk`; like the stars, it shows only when JavaScript runs. The tests check all of this wording word for word, so a change also needs the tests updated, or the build stops; ask a developer (or Claude) to make it.
 - **Information pages:** `content/pages/*.md`. The front matter they take is described at the top of `src/_includes/layouts/info.njk`.
+- **Feedback** ("Send feedback" in the footer, which opens a dialog): on or off with `feedback` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there is no "Send feedback"). The notice in the dialog is in `src/_includes/notices/feedback.njk` (draft wording for the privacy officer, `SPEC.md` §15.1), the heading, label and hint in `src/_includes/partials/feedback-dialog.njk`, the dialog's messages in `MESSAGES` in `src/js/feedback.js`, and the failure message in `src/js/api.js`. The tests check this wording word for word, so ask a developer (or Claude) to change it. `turnstileSiteKey` in `site.config.json` is the spam check's public site key: a person creates it in Cloudflare (`SPEC.md` §18.4 step 5), and until then it stays `"<PUBLIC_SITE_KEY>"`.
 - **Crisis numbers** on Getting urgent help: `crisisContacts` in `site.config.json`. The smaller cards under them (your treating team, Cancer Council) are `other_contacts` in `content/pages/urgent-help.md`; a card becomes a phone link once its `value` is a real number (only its number, if the card also links to a website). A card there, or a service card on Getting more help (`services` in `content/pages/help.md`), can link to the service's website with `url` and `link_text`, but only to a site on the allowed list in `SPEC.md` §16.1 (a new site is added there and to `OUTBOUND_HOSTS` in `test/node/build-output.test.js`).
 
 ## Tests
 
-`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages and their videos the Worker checks events and ratings against (`SPEC.md` §8.3).
+`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages and their videos the Worker checks events, ratings and feedback against (`SPEC.md` §8.3). The tests never contact Cloudflare: the Worker tests stand in for Turnstile's Siteverify, and the browser-module tests for its script.
 
 ## Deployment
 
@@ -183,7 +196,7 @@ Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 
 - **Merging to `main`** runs `npm test && npm run build` and deploys production. Until launch, production is at `sleepsteps.behavioural-medicine-lab.workers.dev`, marked `noindex` so search engines leave it out.
 - **Other branches** each get a preview at `<branch>-sleepsteps.behavioural-medicine-lab.workers.dev`. All previews share one database, `sleepsteps-preview`, separate from production's, for test data only.
-- **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing; the stars under each video show, and say "Couldn't send right now — please try again later" when used. The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
+- **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing; the stars under each video show, and say "Couldn't send right now — please try again later" when used. The feedback dialog shows too. In production, until a person has created the Turnstile widget and its site key is in `site.config.json`, it has no box to write in: it says the spam check isn't working, points to the Contact page and offers Close; after that it says "Couldn't send right now…" until the go-ahead. Previews always use Cloudflare's test key (`SPEC.md` §11, §13). The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
 - **Database changes** are new files in `migrations/`, never edits to an applied one; the first, `0001_init.sql`, creates the `ratings`, `feedback` and `events` tables (`SPEC.md` §17). `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`). This is needed only before data collection is turned on there; after that, each new migration is applied to production just before its pull request merges (`SPEC.md` §17, §18.4).
 
 ## Licence

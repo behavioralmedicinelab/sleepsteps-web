@@ -24,6 +24,7 @@
 
 import { insertRow } from '../lib/d1.js';
 import { apiError, hasExactKeys, isPlainObject } from '../lib/http.js';
+import { hourTimestamp } from '../lib/time.js';
 
 /** type -> the exact keys of its detail (SPEC §10.2). events.js keeps the same list. */
 export const SHAPES = new Map([
@@ -126,12 +127,11 @@ export async function handleEvent(body, env, index, now = new Date()) {
   if (result.error) return apiError(400, result.error);
   const { row } = result;
 
-  const ts = new Date(now.getTime());
   // A search is kept apart from the rest of its visit (SPEC §10.1).
-  if (row.type === 'search') ts.setUTCMinutes(0, 0, 0);
+  const ts = row.type === 'search' ? hourTimestamp(now) : now.toISOString();
 
   return insertRow(env, '/api/event', 'INSERT INTO events (ts, session_id, page, type, detail) VALUES (?, ?, ?, ?, ?)', [
-    ts.toISOString(),
+    ts,
     row.session_id,
     row.page,
     row.type,

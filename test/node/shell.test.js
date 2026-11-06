@@ -53,7 +53,8 @@ describe('SiteHeader and MobileHeader', () => {
     const grid = elementByClass(html, 'mobile-nav', 'nav');
     expect(tags(grid, 'a').map((t) => attr(t, 'href'))).toEqual(['/problems/', '/start/', '/about/', '/contact/']);
 
-    const forms = tags(html, 'form');
+    // The header's two search forms (the feedback dialog's form is in feedback.test.js).
+    const forms = tags(html, 'form').filter((t) => attr(t, 'method') !== 'dialog');
     expect(forms).toHaveLength(2);
     for (const form of forms) {
       expect(attr(form, 'role')).toBe('search');
@@ -206,7 +207,7 @@ describe('information pages', () => {
   });
 
   it('says on Privacy and Contact that emailing or phoning the team is not anonymous', () => {
-    // "Send feedback" leads to Contact until M5 and without JavaScript (SPEC §13, §15.2).
+    // "Send feedback" leads to Contact without JavaScript and on pages without the dialog (SPEC §13, §15.2).
     const privacy = text(pageAt(site, '/privacy/'));
     expect(privacy).toContain('Your name, email or other contact details, unless you email or phone us (see below)');
     expect(privacy).toMatch(/If you email or phone us Emails and phone calls are not anonymous\./);
@@ -437,10 +438,15 @@ describe('Privacy: cookies and browser storage', () => {
     expect(tags(table, 'th').filter((t) => attr(t, 'scope') === 'col')).toHaveLength(4);
   });
 
+  // Rows for a feature that is off are left out of the table (SPEC §15.2).
+  const FEATURE_ROWS = { 'sleepsteps-visit': 'events', 'sleepsteps-stats-off': 'events', 'cf.turnstile.u': 'feedback' };
+
   it.each(['sleepsteps-visit', 'sleepsteps-stats-off', 'cf_clearance', 'cf.turnstile.u', 'YSC', '__Secure-YNID'])(
-    'lists %s in the table and in SPEC §15.4',
+    'lists %s in SPEC §15.4, and in the table unless its feature is off',
     (name) => {
-      expect(table).toContain(`<code>${name}</code>`);
+      const feature = FEATURE_ROWS[name];
+      if (feature && config.features[feature] !== true) expect(table).not.toContain(`<code>${name}</code>`);
+      else expect(table).toContain(`<code>${name}</code>`);
       expect(inventory).toContain(`\`${name}\``);
     },
   );
