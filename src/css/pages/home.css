@@ -15,7 +15,7 @@
  * desktop step, and from 900px (56.25em) the hero has two columns.
  *
  * Contents
- *   1. Hero            4. Watch, listen, read or print
+ *   1. Hero            4. Watch, listen or read
  *   2. How it works    5. Trial band and "Need more help?"
  *   3. Area cards      6. Disclaimer
  *                      7. Motion, print
@@ -450,7 +450,7 @@
   }
 }
 
-/* 4. Watch, listen, read or print -------------------------------------------- */
+/* 4. Watch, listen or read ------------------------------------------------------ */
 
 .home-formats {
   padding-block: 0 var(--space-7);
@@ -470,8 +470,7 @@
   flex: 1 1 300px; /* board */
 }
 
-/* balance: at 320px "Watch, listen, read or print" would leave "print" alone
-   on its second line. */
+/* balance: a heading that wraps at 320px keeps its lines even. */
 .home-formats__heading {
   margin-bottom: var(--space-2);
   font-size: var(--fs-title);
@@ -481,15 +480,13 @@
   text-wrap: balance;
 }
 
-/* Up to four tiles (the board has three; Audio is added, SPEC §7.5): one per
-   row on phones, two per row from 600px, and all in one row once the list
-   is 636px wide (4 x the board's 150px tiles + 3 x its 12px gap, the
-   --space-4 gap here). Never three and one.
+/* Up to three tiles, as on the board (Audio takes the Transcript's place,
+   SPEC §7.5): one per row, and all in one row once the list is 474px wide
+   (3 x the board's 150px tiles + 2 x its 12px gap). Never two and one.
    The list is a size container, so this follows its own width, which
    depends on whether it sits beside the intro or under it. Flex rather than
-   grid because a container query can't restyle the container itself; each
-   tile's basis is a gap short of its share, so rounding never wraps a row,
-   and flex-grow shares the rest equally. */
+   grid because a container query can't restyle the container itself;
+   flex-grow shares the row equally. */
 .home-formats__list {
   container: home-formats / inline-size;
   display: flex;
@@ -535,7 +532,6 @@
   }
 
   .home-format {
-    flex-basis: calc(50% - var(--space-4));
     padding: var(--space-5);
   }
 
@@ -544,7 +540,7 @@
   }
 }
 
-@container home-formats (min-width: 636px) {
+@container home-formats (min-width: 474px) {
   .home-format {
     flex-basis: 0;
   }

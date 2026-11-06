@@ -108,3 +108,50 @@ describe.each(sheets.map((s) => [s.file, s.css]))('%s', (file, css) => {
     expect(css).not.toMatch(/outline(-style)?\s*:\s*(none|0)\b/i);
   });
 });
+
+// The row of controls under each video (SPEC §7.5, §9.2, §12): one wrapping
+// row, an open "Audio only" across its full width, the rating's parts as
+// items of the row, and nothing left for transcripts or a ratings notice.
+describe('the row of controls under each video (components.css)', () => {
+  const css = sheets.find((s) => s.file === 'components.css').css;
+  /** The declarations of the first rule with exactly this selector. */
+  const rule = (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return css.match(new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`))?.[1] ?? '';
+  };
+
+  it('is one flex row that wraps', () => {
+    expect(rule('.video-controls')).toMatch(/display: flex;[\s\S]*flex-wrap: wrap;/);
+  });
+
+  it('gives an open "Audio only" the full width, so its player opens under its button', () => {
+    expect(rule('.video-controls > .format-disclosure[open]')).toMatch(/flex-basis: 100%;/);
+  });
+
+  // SPEC §7.5: a wide problem block puts the video beside "Is this you?" and
+  // runs the row under both, as a wide open solution card does; below that
+  // it is one column in the page's order.
+  it('runs the problem video\'s row under the video and "Is this you?" on a wide problem block (problem.css)', () => {
+    const page = sheets.find((s) => s.file === path.join('pages', 'problem.css')).css;
+    const block = page.match(/\n\.problem-block \{(\s*display: grid;[^}]*)\}/)?.[1] ?? '';
+    expect(block).toMatch(/display: grid;/);
+    expect(block).toMatch(/grid-template-columns: minmax\(0, 1fr\);/);
+    expect(page).toMatch(/\.problem__top \{[^}]*container: problem-top \/ inline-size;/);
+    const wide = page.match(/@container problem-top \(min-width: 784px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+    expect(wide).toMatch(/\.problem-block:has\(> \.is-this-you\) \{[^}]*grid-template-columns: minmax\(0, 3fr\) minmax\(0, 2fr\);[^}]*grid-template-areas: "video thisis";/);
+    expect(wide).toMatch(/> \.problem-block__video \{\s*grid-area: video;/);
+    expect(wide).toMatch(/> \.is-this-you \{\s*grid-area: thisis;/);
+    // An implicit row across both columns, so a hidden row leaves no gap.
+    expect(wide).toMatch(/> \.problem-block__controls \{\s*grid-column: 1 \/ -1;\s*\}/);
+    expect(wide).not.toMatch(/controls controls/);
+  });
+
+  it('makes the rating\'s fieldset and status line items of the row, the status line on a line of its own', () => {
+    expect(rule('.rating')).toMatch(/display: contents;/);
+    expect(rule('.rating__status-box')).toMatch(/flex: 1 1 100%;/);
+  });
+
+  it.each(sheets.map((s) => [s.file, s.css]))('%s styles no transcript, print sheet, card rating summary or white Start here bar', (file, sheet) => {
+    expect(sheet).not.toMatch(/transcript|print-sheet|data-printing|solution__rating|rating--(row|card)|start-chapter__bar|\.formats\b/);
+  });
+});

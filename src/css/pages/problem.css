@@ -2,8 +2,8 @@
  * Problem page (SPEC §7.2, §7.5; HANDOFF §6.4 design A; boards
  * Problem-A.dc.html and Problem-Phone.dc.html). Loaded by
  * layouts/problem.njk through `styles` front matter, after site.css and
- * components.css (video facade, formats, step chip, section heading, topic
- * card).
+ * components.css (video facade, the row of controls under each video, step
+ * chip, section heading, topic card).
  *
  * Values come from tokens.css (no colour literals: a test enforces it).
  * Mobile first: the base rules are the phone board; `min-width: 37.5em`
@@ -29,9 +29,12 @@
   gap: var(--space-8);
 }
 
+/* The size container for the problem block (section 2), whose own width
+   decides its layout. */
 .problem__top {
   display: flex;
   flex-direction: column;
+  container: problem-top / inline-size;
 }
 
 /* Jump targets clear the top of the window a little. */
@@ -207,28 +210,23 @@
 
 /* 2. Problem block --------------------------------------------------------- */
 
-/* The video (about 60%) and "Is this you?" (about 40%) side by side when the
-   main column is at least 784px (460 + 24 + 300), stacked below that. The
-   flex bases are the board's, not tokens. */
+/* In the page's order below 784px: the video with its notice, 12px, its
+   row of controls (.problem-block__controls), 16px, "Is this you?". */
 .problem-block {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-5) var(--space-7);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  row-gap: var(--space-4);
 }
 
 .problem-block__video {
-  display: flex;
-  flex: 3 1 460px;
-  flex-direction: column;
-  gap: var(--space-4);
   min-width: 0;
 }
 
 /* Shown in full on phones too (the phone board shows only the summary), so
    nothing is hidden. A div, not an <aside>: it isn't complementary. */
 .is-this-you {
-  flex: 2 1 300px;
+  margin-top: var(--space-1);
   padding: var(--space-5);
   border: var(--border-width) solid transparent;
 }
@@ -267,6 +265,36 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
+}
+
+/* From 784px (the board's 460 + 24 + 300, not tokens): the video (3fr,
+   about 60%) and "Is this you?" (2fr) side by side, as on the board, and
+   the row of controls under both, across the block, so "Audio only", the
+   handout and the rating share one line (the video's column alone is too
+   narrow for them), as in a wide open solution card. The row comes before
+   "Is this you?" in the page, so it is read and tabbed to with its video.
+   It goes in an implicit row, so a row that ships hidden (only the rating,
+   without JavaScript) leaves no gap. A problem without "Is this you?" keeps
+   the one column. */
+@container problem-top (min-width: 784px) {
+  .problem-block:has(> .is-this-you) {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-areas: "video thisis";
+    column-gap: var(--space-7);
+  }
+
+  .problem-block:has(> .is-this-you) > .problem-block__video {
+    grid-area: video;
+  }
+
+  .problem-block:has(> .is-this-you) > .is-this-you {
+    grid-area: thisis;
+    margin-top: 0;
+  }
+
+  .problem-block:has(> .is-this-you) > .problem-block__controls {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (min-width: 37.5em) {
@@ -444,23 +472,11 @@ button.solution__face {
   transform: rotate(180deg);
 }
 
-/* Under the closed card (600px and up): the rating summary ("You rated
-   this n of 5.", once rating.js has one) and quick links. On phones the same
-   links, and the ratings widget, are inside the open card. */
+/* Under the closed card (600px and up): a quick "Handout" link, when the
+   video has a handout. On phones the handout is in the open card's row of
+   controls. */
 .solution__meta {
   display: none;
-}
-
-.solution__rating {
-  color: var(--slate-grey);
-}
-
-.solution__quick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--space-5);
-  padding: 0;
-  list-style: none;
 }
 
 .solution__quick a {
@@ -539,10 +555,6 @@ button.solution__face {
 
   .solution__meta {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-1) var(--space-4);
     margin-top: auto;
     padding: 0 var(--space-6) var(--space-3);
   }
@@ -572,7 +584,8 @@ button.solution__face {
 }
 
 /* Phones: the face stays on screen above the panel (an accordion), so the
-   panel's own header is hidden. Its video runs to the card's edges. */
+   panel's own header is hidden. Its video runs to the card's edges, and the
+   row of controls (.solution__tools) follows it inside the gutters. */
 .solution__panel {
   display: grid;
   row-gap: var(--space-4);
@@ -588,12 +601,6 @@ button.solution__face {
 .solution__video .video__notice,
 .solution__tools {
   padding-inline: var(--space-4);
-}
-
-.solution__tools {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
 .solution__header-row {
@@ -675,34 +682,32 @@ button.solution__face {
   }
 }
 
-/* A wide open card: the video on the left (3fr), the header and tools on
-   the right (2fr), as on the board (420 + 24 + 280 = 724px, not tokens).
-   The header comes first in the DOM, so Tab goes heading -> Play. */
+/* A wide open card (with JavaScript): the video on the left (3fr) and the
+   header on the right (2fr), as on the board (420 + 24 + 280 = 724px, not
+   tokens), then the row of controls under the video across the card's
+   width, so "Audio only", the handout and the rating share one line. The
+   header comes first in the DOM, so Tab goes heading -> Play -> controls.
+   Without JavaScript the header stays hidden and the panel is one column:
+   the video, then its controls. */
 @container solution (min-width: 724px) {
-  .solution__panel {
+  [data-enhanced] > .solution__panel {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    grid-template-areas: "video tools";
+    grid-template-areas:
+      "video header"
+      "tools tools";
     align-items: start;
     column-gap: var(--space-7);
   }
 
-  [data-enhanced] > .solution__panel {
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      "video header"
-      "video tools";
-    row-gap: var(--space-4);
-  }
-
-  .solution__header {
+  [data-enhanced] > .solution__panel > .solution__header {
     grid-area: header;
   }
 
-  .solution__video {
+  [data-enhanced] > .solution__panel > .solution__video {
     grid-area: video;
   }
 
-  .solution__tools {
+  [data-enhanced] > .solution__panel > .solution__tools {
     grid-area: tools;
   }
 }

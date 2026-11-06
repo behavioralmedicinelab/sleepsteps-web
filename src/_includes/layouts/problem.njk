@@ -18,9 +18,11 @@ scripts:
   solution cards as an accordion (src/css/pages/problem.css).
 
   Order: breadcrumb, H1, the first-person line; the problem block (the
-  problem video with its notice and formats, and "Is this you?"); Main
-  solutions; "Other things that can help" (only when there are extras);
-  Related topics (only when there are some); "Back to all sleep problems".
+  problem video with its notice, its row of controls, then "Is this you?";
+  on wide screens "Is this you?" sits beside the video and the row runs
+  under both); Main solutions; "Other things that can help" (only when
+  there are extras); Related topics (only when there are some); "Back to
+  all sleep problems".
   Heading outline: h1, then h2 for "Is this you?", each solutions section and
   Related topics, then h3 per solution.
 
@@ -36,16 +38,16 @@ scripts:
   Front matter: SPEC §7.2 (title, statement, area, problem_video, standalone,
   is_this_you, solutions, related). The problem file's body isn't shown.
 
-  Ratings (SPEC §12, partials/rating.njk), while site.features.ratings is
-  exactly true: a widget under each video, between it and its formats, and
-  a summary line in each closed card, all hidden until rating.js reveals
-  them. There is no per-video feedback (SPEC §13): the footer's "Send
-  feedback" is the only route.
+  Under every video, after its notice, one row of controls
+  (partials/video-controls.njk): "Audio only", the handout and, while
+  site.features.ratings is exactly true, "Was this helpful?" with its stars
+  (SPEC §12), hidden until rating.js reveals it. There are no transcripts on
+  the page (SPEC §9.3) and no per-video feedback (SPEC §13): the footer's
+  "Send feedback" is the only route.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/video.njk" import videoEmbed -%}
-{%- from "partials/formats.njk" import formatLinks -%}
-{%- from "partials/rating.njk" import rating -%}
+{%- from "partials/video-controls.njk" import videoControls -%}
 {%- from "problem/solutions.njk" import solutionsSection -%}
 {%- set problemArea = areas | areaById(area) -%}
 {%- set problemVideo = problem_video | videoById(collections.videos) -%}
@@ -83,12 +85,11 @@ scripts:
     <div class="problem-block" id="about-this">
       <div class="problem-block__video">
         {{ videoEmbed(problemVideo, showTitle=true, bleed='page', arc=true) }}
-        {#- The ratings widget (SPEC §12), between the video and its formats. #}
-        {%- if ratingsOn %}
-        {{ rating(problemVideo, 'row') }}
-        {%- endif %}
-        {{ formatLinks(problemVideo) }}
       </div>
+      {#- The row of controls is the block's own child, after the video and
+          before "Is this you?" in the page, so it reads with its video. On
+          wide screens it runs under both (pages/problem.css). #}
+      {{- videoControls(problemVideo, ratingsOn, 'problem-block__controls') }}
       {%- if thisIsYou.summary or bullets.length %}
       <div class="is-this-you panel panel--wash">
         <h2 class="is-this-you__title" id="is-this-you-title">Is this you?</h2>

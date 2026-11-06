@@ -11,7 +11,7 @@ collect:
   - "Star ratings you give a video"
   - "Written feedback, if you choose to send it, and the page you sent it from"
   - "Words you type into the site search. We store these without the code that groups your visit, and with the time rounded to the hour"
-  - "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), transcripts and handouts opened"
+  - "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts opened"
 collect_note: "Each of these is stored with the page it came from and the date and time."
 not_collect:
   - "Your name, email or other contact details, unless you email or phone us (see below)"
@@ -102,7 +102,7 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
 
 ### Turning off usage statistics
 
-You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, transcripts and handouts opened, and searches. Ratings and feedback you choose to send still reach us.
+You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts opened, and searches. Ratings and feedback you choose to send still reach us.
 
 {# The switch (src/js/stats-switch.js). Without JavaScript the status line
     explains and the button stays hidden; the script shows the button and

@@ -7,12 +7,12 @@
  * Values come from tokens.css; board spacing off the token scale snaps up to
  * the next step (SPEC §7.5). Shared pieces come from site.css (title band,
  * .on-dark, .with-sidebar, TopicNav, .eyebrow) and components.css (VideoEmbed,
- * FormatLinks, .button, .section-heading).
+ * the row of controls under each video, .button, .section-heading).
  *
  * Contents
  *   1. Title band and chapter pills
  *   2. Layout
- *   3. Chapters and the white bar
+ *   3. Chapters
  *   4. End card
  *   5. Motion, print
  */
@@ -102,7 +102,7 @@
   }
 }
 
-/* 3. Chapters and the white bar ---------------------------------------------- */
+/* 3. Chapters ------------------------------------------------------------------ */
 
 .start-flow {
   display: flex;
@@ -148,18 +148,6 @@
 .start-chapter__desc {
   margin-top: var(--space-2);
   color: var(--slate-grey);
-}
-
-/* The white bar under the video: the ratings widget, then the video's
-   formats. Inside the gutters on phones, while the video runs full-bleed. */
-.start-chapter__bar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border: var(--border-width) solid var(--keyline);
-  border-radius: var(--radius-md);
-  background: var(--white);
 }
 
 @media (min-width: 37.5em) {

@@ -12,14 +12,12 @@ const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PAGES_JSON = path.join(ROOT, 'worker', 'generated', 'pages.json');
 const site = JSON.parse(readFileSync(new URL('./site.config.json', import.meta.url), 'utf8'));
 
-// A video as templates see it (SPEC §7.1): the front matter, whether it has
-// a transcript, and the transcript as HTML. `transcriptHtml` is read lazily,
-// because a page can only use a video's rendered body once the video has been
-// rendered (eleventyImport in content/videos/videos.11tydata.js). Test with
-// `hasTranscript`, not `transcriptHtml`.
+// A video as templates see it (SPEC §7.1): its front matter. The file's body
+// (an optional transcript) isn't shown on any page (SPEC §9.3); only the
+// search index reads it (scripts/build-data.js).
 function toVideo(item) {
   const d = item.data;
-  const video = {
+  return {
     video_id: item.page.fileSlug,
     title: d.title,
     youtube_id: d.youtube_id,
@@ -28,13 +26,7 @@ function toVideo(item) {
     handout: d.handout || '',
     thumbnail: d.thumbnail || '',
     placeholder: d.placeholder === true,
-    hasTranscript: String(item.rawInput ?? '').trim() !== '',
   };
-  Object.defineProperty(video, 'transcriptHtml', {
-    enumerable: true,
-    get: () => (video.hasTranscript ? item.templateContent : ''),
-  });
-  return video;
 }
 
 const NUMBER_WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
@@ -153,7 +145,7 @@ export default function (eleventyConfig) {
 
   // "sleep-drive" | videoById(collections.videos) ->
   // { video_id, title, youtube_id, duration, audio, handout, thumbnail,
-  //   placeholder, hasTranscript, transcriptHtml }. Unknown ids fail the build.
+  //   placeholder }. Unknown ids fail the build.
   eleventyConfig.addFilter('videoById', lookupVideo);
 
   // A problem's `solutions` split by tier, each with its video resolved:
@@ -187,11 +179,10 @@ export default function (eleventyConfig) {
     }),
   );
 
-  // Which formats any video in the library has: { transcript, handout, audio }.
+  // Which formats any video in the library has: { handout, audio }.
   eleventyConfig.addFilter('videoFormats', (videos) => {
     const all = (videos ?? []).map((item) => lookupVideo(item.page.fileSlug, videos));
     return {
-      transcript: all.some((v) => v.hasTranscript),
       handout: all.some((v) => Boolean(v.handout)),
       audio: all.some((v) => Boolean(v.audio)),
     };

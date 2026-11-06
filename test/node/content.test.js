@@ -169,13 +169,12 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
     expect(model.start.data.chapters.map((c) => c.video)).toEqual(['how-sleep-works', 'why-cancer-can-change-sleep', 'how-to-use-this-program']);
   });
 
-  it('has sample videos covering every combination the templates handle', () => {
-    const videos = [...model.videos.values()].map(({ data, body }) => ({ data, transcript: body.trim() !== '' }));
-    expect(videos.some((v) => v.transcript && v.data.handout && v.data.audio)).toBe(true);
-    expect(videos.some((v) => v.transcript && !v.data.handout && !v.data.audio)).toBe(true);
-    expect(videos.some((v) => !v.transcript && !v.data.handout && !v.data.audio)).toBe(true);
-    expect(videos.some((v) => !v.transcript && v.data.audio && !v.data.handout)).toBe(true);
-    expect(videos.some((v) => !v.transcript && v.data.handout && !v.data.audio)).toBe(true);
+  it('has sample videos covering every combination of formats the templates handle (a transcript is not one: no page shows it)', () => {
+    const videos = [...model.videos.values()].map(({ data }) => data);
+    expect(videos.some((v) => v.handout && v.audio)).toBe(true);
+    expect(videos.some((v) => !v.handout && !v.audio)).toBe(true);
+    expect(videos.some((v) => v.audio && !v.handout)).toBe(true);
+    expect(videos.some((v) => v.handout && !v.audio)).toBe(true);
   });
 
   it('marks every sample video as a placeholder, with no YouTube ID', () => {
