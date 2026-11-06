@@ -15,7 +15,9 @@ trial_facts:
   - term: Who can take part
     detail: In the trial, adults with any type or stage of cancer who have trouble sleeping. You can join any time from diagnosis until 6 months after your main treatment (surgery, chemotherapy or radiotherapy) ends. Other criteria apply, and the research team will check whether the trial suits you. Anyone can use this website.
   - term: Who runs it
-    detail: The Behavioural Medicine Lab, School of Psychological Sciences, Monash University.
+    detail: The SleepSteps Trial Research Team
+    # A link makes the whole detail a link: here, to "Who we are" above.
+    link: "#who-we-are"
   - term: Funding
     detail: A National Health and Medical Research Council (NHMRC) Investigator Grant (2043220).
   - term: Ethics approval
@@ -39,7 +41,7 @@ trial_facts:
 </figure>
 
 <section>
-<h2>Who we are</h2>
+<h2 id="who-we-are">Who we are</h2>
 <p class="about-intro">Researchers, clinicians and people with lived experience of cancer, working together.</p>
 {#- One row per person in data/team.csv (name, role, organisation), in the file's order. Edit it in Excel and save as CSV UTF-8. #}
 <ul class="about-team" role="list">
@@ -53,7 +55,7 @@ trial_facts:
 <h2>About the trial</h2>
 <dl class="about-facts">
 {%- for fact in trial_facts %}
-<dt>{{ fact.term }}</dt><dd>{{ fact.detail }}</dd>
+<dt>{{ fact.term }}</dt><dd>{% if fact.link %}<a href="{{ fact.link }}">{{ fact.detail }}</a>{% else %}{{ fact.detail }}{% endif %}</dd>
 {%- endfor %}
 </dl>
 <p class="about-trial__links">Questions about the trial? <a href="/contact/">Contact the team</a> <span aria-hidden="true">·</span> <a href="/privacy/">How we use data</a></p>

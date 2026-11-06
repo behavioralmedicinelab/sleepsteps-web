@@ -235,6 +235,19 @@ describe('information pages', () => {
     expect(linkTexts(first)).toContain('Cancer Council website');
   });
 
+  it('names the SleepSteps Trial Research Team in "Who runs it", linked to "Who we are" (SPEC §7.4, §22)', () => {
+    const html = pageAt(site, '/about/');
+    expect(html).toContain('<h2 id="who-we-are">Who we are</h2>');
+    expect(html).toContain('<dt>Who runs it</dt><dd><a href="#who-we-are">The SleepSteps Trial Research Team</a></dd>');
+  });
+
+  it('gives the SleepSteps Trial Research Team as copyright holder in both licences', () => {
+    expect(readFileSync('LICENSE', 'utf8')).toContain('Copyright (c) 2026 SleepSteps Trial Research Team');
+    const content = readFileSync('LICENSE-CONTENT.md', 'utf8');
+    expect(content).toContain('© 2026 the SleepSteps Trial Research Team');
+    expect(content).not.toMatch(/Sleep Steps|Behavioural Medicine Lab/);
+  });
+
   it('calls About "About us", with "Why we made this program" (SPEC §7.5)', () => {
     const html = pageAt(site, '/about/');
     expect(html).toContain('<title>About us</title>');

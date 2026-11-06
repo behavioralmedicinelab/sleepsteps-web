@@ -85,9 +85,9 @@ The audio-only version is the video's own soundtrack, exported from the final vi
    ffmpeg -hide_banner -i master.mp4 -map 0:a:0 -vn -map_metadata -1 -map_chapters -1 \
      -af "pan=mono|c0=0.5*c0+0.5*c1,loudnorm=I=-16:TP=-1.5:LRA=11:dual_mono=true:measured_I=<input_i>:measured_TP=<input_tp>:measured_LRA=<input_lra>:measured_thresh=<input_thresh>:offset=<target_offset>:linear=true:print_format=json" \
      -ar 44100 -ac 1 -c:a libmp3lame -b:a 96k -id3v2_version 3 -fflags +bitexact \
-     -metadata title="<video title>" -metadata artist="Behavioural Medicine Lab" \
+     -metadata title="<video title>" -metadata artist="SleepSteps Trial Research Team" \
      -metadata date=2026 -metadata language=eng \
-     -metadata copyright="2026 Behavioural Medicine Lab. Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/" \
+     -metadata copyright="2026 SleepSteps Trial Research Team. Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/" \
      media/audio/<video_id>.mp3
    ```
 
@@ -114,7 +114,7 @@ This video gives general information about sleep. It is not medical advice and d
 
 If you need help now, [the contacts on Getting urgent help, once confirmed]. More: https://[domain]/urgent-help/
 
-© 2026 Behavioural Medicine Lab. This video is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), except the SleepSteps name and logo and any third-party material marked as such. Suggested credit: "[Video title]" by the Behavioural Medicine Lab, CC BY 4.0.
+© 2026 SleepSteps Trial Research Team. This video is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), except the SleepSteps name and logo and any third-party material marked as such. Suggested credit: "[Video title]" by the SleepSteps Trial Research Team, CC BY 4.0.
 
 Comments are turned off. You can send feedback on our website.
 ```

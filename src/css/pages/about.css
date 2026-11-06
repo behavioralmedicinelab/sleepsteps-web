@@ -107,6 +107,13 @@
   font-weight: var(--weight-semibold);
 }
 
+/* A linked detail ("Who runs it") gets a 44px-tall target (SPEC §7.5). */
+.about-facts dd a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
 .about-facts dd + dt {
   margin-top: var(--space-4);
 }
