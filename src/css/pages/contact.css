@@ -5,8 +5,10 @@
  * the token scale snaps up to the next step (SPEC §7.5), and the board's
  * 15px running text is 17px body.
  *
- * The layout, side menu, cards, the teal-wash panel and the urgent notice
- * come from site.css (§9 and §10).
+ * The layout, the reading measure, cards, the teal-wash panel and the
+ * urgent notice come from site.css (§9 and §10). With no side menu (SPEC
+ * §7.5, §22), the cards and the urgent notice use the container width, and
+ * the panel is as wide as its text's measure plus its padding.
  */
 
 .info-body--contact {

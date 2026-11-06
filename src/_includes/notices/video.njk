@@ -3,16 +3,20 @@
   (SPEC §9.1, §15.1). It makes pressing play an informed choice about
   YouTube's storage. Draft wording until HREC approval.
 
-  A macro (not a plain include), so the transcript link can't leak from one
-  video to the next in a loop:
+  A macro (not a plain include), so the id is passed in rather than read
+  from whatever is in scope:
     {% from "notices/video.njk" import videoNotice %}
-    {{ videoNotice('#transcript-' + video.video_id if video.hasTranscript else '', 'video-notice-' + video.video_id) }}
+    {{ videoNotice('video-notice-' + video.video_id) }}
   partials/video.njk calls it for every facade; templates don't need to.
 
-  `id` goes on the notice's two sentences (not its links). The play control
+  `id` goes on the notice's two sentences (not its link). The play control
   names it in aria-describedby, so a screen reader hears the notice with
   "Play video" although the notice comes after it in the page.
+
+  The notice doesn't link the handout: the row of controls under it
+  (partials/video-controls.njk) has the video's "Handout" button, its text
+  alternative (SPEC §9.3), and a second link would only repeat it.
 -#}
-{%- macro videoNotice(transcriptHref='', id='') -%}
-<p class="notice-text video__notice"><span{% if id %} id="{{ id }}"{% endif %}>Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch.</span> <a href="/privacy/#cookies-and-browser-storage">More about this</a>{% if transcriptHref %} <span aria-hidden="true">·</span> <a href="{{ transcriptHref }}">Read the transcript instead</a>{% endif %}</p>
+{%- macro videoNotice(id='') -%}
+<p class="notice-text video__notice"><span{% if id %} id="{{ id }}"{% endif %}>Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch.</span> <a href="/privacy/#cookies-and-browser-storage">More about this</a></p>
 {%- endmacro -%}

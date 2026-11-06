@@ -5,15 +5,17 @@
  * token scale snaps up to the next step (SPEC §7.5), and the board's 15-16px
  * running text is 17px body.
  *
- * The layout, side menu, section headings, plain lists, cards and the urgent
- * notice come from site.css (§9 and §10). The board's "Print a one-page
+ * The layout, section headings, plain lists, the reading measure, cards and
+ * the urgent notice come from site.css (§9 and §10). With no side menu
+ * (SPEC §7.5, §22), the steps and the "Other support" cards use the
+ * container width: the steps sit side by side from 1024px, so each row of
+ * cards is as wide as the next. The board's "Print a one-page
  * summary for your GP" line is not built: there is no GP summary or sleep
  * diary for now (SPEC §7.5, §21).
  */
 
 .info-body--help {
   --help-step-disc: 32px; /* numbered disc (board) */
-  max-width: 760px;       /* content measure (board) */
   gap: var(--space-9);    /* board 36 */
 }
 
@@ -34,6 +36,18 @@
   gap: var(--space-4);
   padding: 0;
   list-style: none;
+}
+
+/* One row from 1024px, however many steps there are (the board stacks them
+   in its narrower column), with the "Other support" cards' gap, so the two
+   rows line up. */
+@media (min-width: 64em) {
+  .help-steps {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: var(--space-5);
+  }
 }
 
 .info-body--help .help-step {

@@ -1,13 +1,14 @@
-// The ratings widget (SPEC §11, §12): five radio stars under each video on
-// the problem pages and Start here. Markup: src/_includes/partials/rating.njk.
-// base.njk loads this module only on those pages, and only while
-// site.config.json's features.ratings is exactly true.
+// The ratings widget (SPEC §11, §12): "Was this helpful?" and five radio
+// stars in the row of controls under each video on the problem pages and
+// Start here. Markup: src/_includes/partials/rating.njk, inside
+// partials/video-controls.njk. base.njk loads this module only on those
+// pages, and only while site.config.json's features.ratings is exactly true.
 //
-// Without JavaScript, or if this module fails, nothing shows: the widget, a
-// closed solution card's summary line and any wrapper that would hold only
-// the widget ([data-rating-reveal]) ship `hidden`. This module reveals the
-// widgets once its listeners are in place, and makes each status line a
-// live region (role="status"), so nothing is announced on load.
+// Without JavaScript, or if this module fails, nothing shows: the widget and
+// a row of controls that would hold only the widget ([data-rating-reveal])
+// ship `hidden`. This module reveals the widgets once its listeners are in
+// place, and makes each status line a live region (role="status"), so
+// nothing is announced on load.
 //
 // Sending: POST /api/rate { page_id, video_id, stars } through api.js, with
 // keepalive, so a rating made just before leaving still gets out.
@@ -39,11 +40,11 @@
 // Status line: empty until there is news (READY_TEXT, decision a2 = B; its
 // height is reserved by hidden copies of the longest messages, so nothing
 // shifts). Nothing changes while sending, and the radios are never
-// disabled. On success: "Thanks. You rated this n of 5.", and a closed
-// card's summary line reads "You rated this n of 5." (not a live region).
-// On failure (any non-2xx answer, a network error or api.js's timeout):
-// SEND_FAILED, and the stars go back to the last rating the API accepted,
-// or none, so picking any star retries. A message equal to the one shown is
+// disabled. On success: "Thanks. You rated this n of 5." Nothing else on
+// the page shows the rating (no closed-card summary, project lead,
+// 2026-11-06). On failure (any non-2xx answer, a network error or api.js's
+// timeout): SEND_FAILED, and the stars go back to the last rating the API
+// accepted, or none, so picking any star retries. A message equal to the one shown is
 // cleared and set again REANNOUNCE_MS later, so it is announced again.
 //
 // Nothing is stored on the device and no visit code is read or sent: no
@@ -71,7 +72,6 @@ export const REANNOUNCE_MS = 100;
 export const STARS = 5;
 
 export const thanksText = (n) => `Thanks. You rated this ${n} of ${STARS}.`;
-export const summaryText = (n) => `You rated this ${n} of ${STARS}.`;
 
 const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -127,13 +127,7 @@ function send(state, n) {
     if (id !== state.sends) return;
     state.inFlight = false;
     const ok = succeeded(status);
-    if (ok) {
-      state.confirmed = n;
-      if (state.summary) {
-        state.summary.textContent = summaryText(n);
-        state.summary.hidden = false;
-      }
-    }
+    if (ok) state.confirmed = n;
     const next = state.queued;
     state.queued = 0;
     if (next && next !== n) {
@@ -283,8 +277,6 @@ function setup(root) {
     status,
     radios,
     videoId,
-    // A closed solution card's summary line; problem and Start here videos have none.
-    summary: document.querySelector(`[data-rating-summary="${videoId}"]`),
     confirmed: 0, // the last star the API accepted (only the newest request's answer sets it)
     sends: 0, // requests sent; the newest one's answer is the only one that counts
     inFlight: false, // the newest request has no answer yet

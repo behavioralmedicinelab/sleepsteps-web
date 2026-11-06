@@ -152,15 +152,18 @@ describe('events.js on a page that sends a page view', () => {
 });
 
 describe('events.js sends what players.js reports', () => {
-  it('sends transcript, handout and audio reports from a real problem page in shapes the Worker accepts, with the visit code', async () => {
+  it('sends handout and audio reports from a real problem page in shapes the Worker accepts, with the visit code', async () => {
     const session = new MemoryStorage();
     await open(PROBLEM, { modules: ['events', 'players'], session });
     const { document, window } = dom;
     const code = session.getItem(VISIT_KEY);
 
-    const transcript = document.querySelector('details[data-transcript]');
-    transcript.open = true;
-    const handout = document.querySelector('a[data-handout]');
+    // Opening "Audio only" reports nothing; there are no transcripts (SPEC §9.3).
+    const disclosure = document.querySelector('details.format-disclosure');
+    disclosure.open = true;
+    disclosure.dispatchEvent(new Event('toggle'));
+    expect(document.querySelector('[data-transcript]')).toBeNull();
+    const handout = document.querySelector('.video-controls a[data-handout]');
     handout.click();
     const audio = document.querySelector('audio[data-media]');
     Object.assign(audio, { duration: 200, currentTime: 0, paused: false });
@@ -169,9 +172,8 @@ describe('events.js sends what players.js reports', () => {
     audio.dispatchEvent(new Event('timeupdate'));
     window.dispatchEvent(new Event('pagehide'));
 
-    expect(sent.map((e) => e.type)).toEqual(['page_view', 'transcript_open', 'handout_open', 'audio_play']);
+    expect(sent.map((e) => e.type)).toEqual(['page_view', 'handout_open', 'audio_play']);
     expect(sent.slice(1).map((e) => e.detail)).toEqual([
-      { media: transcript.dataset.transcript },
       { media: handout.dataset.handout },
       { media: audio.dataset.media, furthest: 50 },
     ]);
@@ -204,7 +206,9 @@ describe('events.js sends what players.js reports', () => {
     report('video_play', { media: 'wind-down-hour' });
     report('search', { q: 'pain' });
     report('handout_open', null);
-    report('transcript_open', 'wind-down-hour');
+    report('handout_open', 'wind-down-hour');
+    // No longer a type (SPEC §10.2): nothing reports it, and the Worker refuses it.
+    report('transcript_open', { media: 'wind-down-hour' });
     dom.document.dispatchEvent(new CustomEvent('sleepsteps:event', { detail: 'page_view' }));
     dom.document.dispatchEvent(new CustomEvent('sleepsteps:event'));
     expect(sent.map((e) => e.type)).toEqual(['page_view']);
@@ -329,7 +333,7 @@ describe('events.js when storage fails', () => {
   it('keeps the code in memory for the page when sessionStorage is full', async () => {
     const session = new MemoryStorage({}, { full: true });
     await open(PROBLEM, { session });
-    report('transcript_open', { media: 'wind-down-hour' });
+    report('handout_open', { media: 'wind-down-hour' });
     expect(sent).toHaveLength(2);
     expect(sent[1].session_id).toBe(sent[0].session_id);
     expect(session.length).toBe(0);
@@ -393,6 +397,8 @@ describe('events.js visit codes', () => {
   it('uses the same event types and code pattern as the Worker', async () => {
     const { SHAPES, UUID_V4 } = await import('../../src/js/events.js');
     expect(SHAPES).toEqual(WORKER_SHAPES);
+    // The SPEC §10.2 list: no transcript_open, as the site has no transcripts (SPEC §9.3).
+    expect([...SHAPES.keys()]).toEqual(['page_view', 'search', 'video_play', 'audio_play', 'handout_open']);
     expect(UUID_V4.source).toBe(WORKER_UUID_V4.source);
     expect(UUID_V4.flags).toBe(WORKER_UUID_V4.flags);
   });
@@ -417,7 +423,7 @@ describe('events.js stays private (SPEC §10.1, CLAUDE.md)', () => {
         watch(window, 'screen');
       },
     });
-    report('transcript_open', { media: 'wind-down-hour' });
+    report('handout_open', { media: 'wind-down-hour' });
     expect(sent).toHaveLength(2);
     expect(touched).toEqual([]);
   });
@@ -491,7 +497,7 @@ describe('built pages and the usage statistics modules (SPEC §10.1, §11)', () 
   it('names only real videos in the attributes players.js reports from, and the ratings widget sends', () => {
     const library = new Set(listFiles('content/videos', (f) => f.endsWith('.md')).map((f) => f.replace(/\.md$/, '')));
     for (const { file, html } of pages) {
-      for (const [, name, id] of html.matchAll(/\sdata-(video|media|handout|transcript|rating)="([^"]*)"/g)) {
+      for (const [, name, id] of html.matchAll(/\sdata-(video|media|handout|rating)="([^"]*)"/g)) {
         expect(library.has(id), `${file}: data-${name}="${id}"`).toBe(true);
       }
     }

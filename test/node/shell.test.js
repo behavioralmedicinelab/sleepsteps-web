@@ -173,7 +173,7 @@ describe('problem pages and the Sleep problems page', () => {
 
   it('lists every problem under its area, in order, with area anchors', () => {
     const html = pageAt(site, '/problems/');
-    const sections = [...html.matchAll(/<section class="area-list__area" id="([a-z]+)">([\s\S]*?)<\/section>/g)];
+    const sections = [...html.matchAll(/<section class="group-list__group" id="([a-z]+)">([\s\S]*?)<\/section>/g)];
     expect(sections.map((m) => m[1])).toEqual(['core', 'day', 'clock', 'mind', 'med', 'env', 'social', 'hard', 'relapse', 'dis']);
     const listed = sections.flatMap(([, area, body]) =>
       tags(body, 'a').map((t) => [area, attr(t, 'href')]),
@@ -190,20 +190,53 @@ describe('information pages', () => {
     '/privacy/': 'Privacy and your data',
   };
 
-  it.each(Object.entries(INFO))('%s has the title band, the side menu and its page_id', (url, label) => {
+  it.each(Object.keys(INFO))('%s has the title band, its page_id and no side menu (SPEC §7.4, §22)', (url) => {
     const html = pageAt(site, url);
     expect(html).toContain(`data-page-id="${url.slice(1, -1)}"`);
     const band = elementByClass(html, 'band', 'div');
     expect(band).toMatch(/<h1 class="band__title">/);
     expect(band).toMatch(/<p class="band__lede">|<p class="band__lede band__aside">/);
-    const nav = elementByClass(html, 'info-nav', 'nav');
-    expect(tags(nav, 'a').map((t) => attr(t, 'href'))).toEqual(['/help/', '/about/', '/contact/', '/privacy/', '/urgent-help/']);
-    expect(currentLinks(nav)).toEqual([{ href: url, value: 'page', label }]);
     expect(html).toContain(`class="info-body info-body--${url.slice(1, -1)}"`);
-    // The band and side menu are inside <main>, so the skip link lands on the H1.
+    // One main, holding the band, so the skip link lands on the H1. It has
+    // no nav of its own: the "Information pages" side menu is gone.
+    expect(tags(html, 'main')).toHaveLength(1);
     const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
-    expect(main).toMatch(/<h1/);
-    expect(main).toMatch(/aria-label="Information pages"/);
+    expect(main.match(/<h[1-6]\b/)[0]).toBe('<h1');
+    expect(tags(main, 'nav')).toEqual([]);
+    expect(html).not.toMatch(/info-nav|Information pages/);
+    // Headings after the H1 never skip a level on the way down.
+    const levels = [...main.matchAll(/<h([1-6])\b/g)].map((m) => Number(m[1]));
+    levels.slice(1).forEach((level, i) => expect(level, `heading ${i + 2} on ${url}`).toBeLessThanOrEqual(levels[i] + 1));
+  });
+
+  it('reaches every information page from the header or the footer, whose navs keep their labels', () => {
+    const hrefs = (html) => tags(html, 'a').map((t) => attr(t, 'href'));
+    for (const url of [...Object.keys(INFO), '/']) {
+      const html = pageAt(site, url);
+      const siteNav = elementByClass(html, 'site-nav', 'nav');
+      expect(attr(tags(siteNav, 'nav')[0], 'aria-label')).toBe('Main');
+      expect(hrefs(siteNav)).toEqual(['/start/', '/problems/', '/about/', '/contact/']);
+      expect(hrefs(elementByClass(html, 'site-header__desktop', 'div'))).toContain('/urgent-help/');
+      expect(hrefs(menuPanel(html))).toEqual(expect.arrayContaining(['/about/', '/contact/', '/urgent-help/']));
+      const footer = elementByClass(html, 'site-footer', 'footer');
+      expect(tags(footer, 'nav').map((t) => attr(t, 'aria-label'))).toEqual(['Footer', 'Help and policies']);
+      expect(hrefs(footer)).toEqual(expect.arrayContaining(['/about/', '/contact/', '/help/', '/privacy/', '/urgent-help/']));
+    }
+  });
+
+  it.each(Object.entries(INFO))('marks %s as the current page in the header and footer menus', (url, label) => {
+    const html = pageAt(site, url);
+    // About and Contact are "About" and "Contact" in the menus; Getting more
+    // help and Privacy and your data are in the footer only.
+    const short = { '/about/': 'About', '/contact/': 'Contact' }[url];
+    expect(currentLinks(elementByClass(html, 'site-nav', 'nav'))).toEqual(short ? [{ href: url, value: 'page', label: short }] : []);
+    expect(currentLinks(elementByClass(html, 'site-footer', 'footer'))).toEqual([{ href: url, value: 'page', label: short ?? label }]);
+  });
+
+  it('has no "Information pages" nav on any page', () => {
+    for (const { file, html } of readHtmlPages(site)) {
+      expect(html, file).not.toMatch(/aria-label="Information pages"|class="info-nav/);
+    }
   });
 
   it('says on Privacy and Contact that emailing or phoning the team is not anonymous', () => {

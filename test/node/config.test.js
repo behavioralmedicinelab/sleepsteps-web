@@ -64,6 +64,25 @@ describe('eleventy.config.js', () => {
     expect(() => f.groupByArea([item('x', 'nope')], areas)).toThrow(/unknown area "nope"/);
   });
 
+  it('groupByTime keeps the given order and the collection order, and fails on a time with no group', () => {
+    const times = [
+      { id: 'evening', name: 'In the evening' },
+      { id: 'night', name: 'During the night' },
+      { id: 'any', name: 'Any time' },
+    ];
+    const item = (slug, time) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, statement: `${slug}.`, time_of_day: time, new: slug === 'c' } });
+    const grouped = f.groupByTime([item('a', 'night'), item('b', 'evening'), item('c', 'night')], times);
+    expect(grouped.map((t) => [t.id, t.name, t.problems.map((p) => p.slug)])).toEqual([
+      ['evening', 'In the evening', ['b']],
+      ['night', 'During the night', ['a', 'c']],
+      ['any', 'Any time', []],
+    ]);
+    // The same shape as groupByArea's problems.
+    expect(grouped[1].problems[1]).toEqual({ slug: 'c', title: 'c', statement: 'c.', url: '/problems/c/', isNew: true });
+    expect(() => f.groupByTime([item('x', 'noon')], times)).toThrow(/x\.md: time_of_day "noon" has no group/);
+    expect(() => f.groupByTime(undefined, times)).toThrow(/groupByTime expects/);
+  });
+
   // The templates, the moduleScripts filter and the Worker (worker/router.js)
   // all treat a feature as on only when it is exactly true, so a string such
   // as "false" can't render widgets the API then refuses (SPEC §11).
@@ -172,14 +191,15 @@ describe('eleventy.config.js', () => {
       item('cognitive-arousal', { title: 'Cognitive arousal', youtube_id: 'AbCdEfGhIj0', duration: '3:05', thumbnail: 'w.jpg' }, '\n  \n'),
     ];
 
-    it('videoById returns the template shape, with the transcript read lazily', () => {
+    it('videoById returns the template shape, without the transcript (no page shows it, SPEC §9.3)', () => {
       const intro = f.videoById('intro', videos);
       expect(intro).toEqual({
         video_id: 'intro', title: 'Intro', youtube_id: 'AbCdEfGhIjK', duration: '6:40', audio: 'intro.mp3',
-        handout: 'intro.pdf', thumbnail: '', placeholder: false, hasTranscript: true, transcriptHtml: '<p>Words.</p>\n',
+        handout: 'intro.pdf', thumbnail: '', placeholder: false,
       });
+      // Building the shape never renders a body (the stand-in throws if it is read).
       const arousal = f.videoById('cognitive-arousal', videos);
-      expect([arousal.hasTranscript, arousal.transcriptHtml, arousal.thumbnail]).toEqual([false, '', 'w.jpg']);
+      expect([arousal.thumbnail, 'hasTranscript' in arousal, 'transcriptHtml' in arousal]).toEqual(['w.jpg', false, false]);
       expect(f.videoById('sleep-drive', videos).placeholder).toBe(true);
       expect(f.videoById('intro', videos)).toBe(intro); // cached per collection
       expect(() => f.videoById('nope', videos)).toThrow(/unknown video "nope"/);
@@ -213,8 +233,8 @@ describe('eleventy.config.js', () => {
     });
 
     it('videoFormats says which formats any video has', () => {
-      expect(f.videoFormats(videos)).toEqual({ transcript: true, handout: true, audio: true });
-      expect(f.videoFormats(videos.slice(1))).toEqual({ transcript: false, handout: false, audio: false });
+      expect(f.videoFormats(videos)).toEqual({ handout: true, audio: true });
+      expect(f.videoFormats(videos.slice(1))).toEqual({ handout: false, audio: false });
     });
   });
 

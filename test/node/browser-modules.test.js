@@ -1,5 +1,5 @@
 // The browser modules run against our real markup in a small DOM
-// (mini-dom.js; no DOM package, SPEC §5): players.js (SPEC §9.1, §9.3,
+// (mini-dom.js; no DOM package, SPEC §5): players.js (SPEC §9.1-§9.4,
 // §16.2), solutions.js (HANDOFF §6.4, SPEC §7.5) and problems.js (SPEC §7.2,
 // §8.1). The other tests check the HTML these modules start from; these
 // check what the modules do to it.
@@ -29,15 +29,15 @@ for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
 const videos = [
   {
     page: { fileSlug: 'full' },
-    data: { title: 'Settling your body', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf' },
+    data: { title: 'Settling your body', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' },
     rawInput: 'Words.',
     templateContent: '<p>Words.</p>\n',
   },
 ];
 const videoPage = env.renderString(
   '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
-    '{% from "partials/video.njk" import videoEmbed %}{% from "partials/formats.njk" import formatLinks %}' +
-    '{{ videoEmbed(v) }}{{ formatLinks(v) }}<a id="elsewhere" href="/about/">Elsewhere</a></main></body></html>',
+    '{% from "partials/video.njk" import videoEmbed %}{% from "partials/video-controls.njk" import videoControls %}' +
+    '{{ videoEmbed(v) }}{{ videoControls(v) }}<a id="elsewhere" href="/about/">Elsewhere</a></main></body></html>',
   { v: filters.videoById('full', videos) },
 );
 
@@ -174,44 +174,42 @@ describe('players.js', () => {
     expect(document.activeElement).toBe(link);
   });
 
-  it('opens the transcript from the notice link and reports it and handout clicks only as DOM events (events.js sends them)', async () => {
+  it('reports clicks on the row\'s handout only as DOM events (events.js sends them), and lets the link open', async () => {
     await load(videoPage, ['players']);
     const { document } = dom;
     const reported = [];
     document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
-    const details = document.getElementById('transcript-full');
-    expect(details.open).toBe(false);
-    expect(details.querySelector('.transcript__print').hidden).toBe(false);
-
-    const link = document.querySelector('.video__notice a[href="#transcript-full"]');
+    // The row's "Handout" is the only handout link (the notice has none,
+    // SPEC §15.1).
+    expect(document.querySelectorAll('a[data-handout]').map((a) => a.className)).toEqual(['format-button']);
+    const handout = document.querySelector('.video-controls a.format-button');
+    expect(handout.getAttribute('href')).toBe('/media/pdf/full.pdf');
     const click = new Event('click', { bubbles: true, cancelable: true });
-    link.dispatchEvent(click);
-    expect(click.defaultPrevented).toBe(true);
-    expect(details.open).toBe(true);
-    expect(document.activeElement).toBe(details.querySelector('summary'));
-
-    document.querySelector('a[data-handout]').click();
+    handout.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(false);
+    // The notice's privacy link, and other links, report nothing.
+    document.querySelector('.video__notice a').click();
+    document.getElementById('elsewhere').click();
     expect(reported).toEqual([
-      { type: 'transcript_open', detail: { media: 'full' } },
       { type: 'handout_open', detail: { media: 'full' } }, // the video_id, not full.pdf (SPEC §10.2)
     ]);
     expect(scripts()).toEqual([]);
   });
 
-  it('prints the transcript with its source as the page title and address, without the site name (SPEC §9.3, §7.5)', async () => {
-    await load(videoPage, ['players']);
+  it('has no transcripts to open, print or report (SPEC §9.3): nothing but the native "Audio only" disclosure', async () => {
+    await load(videoPage, ['players'], { hash: '#transcript-full' });
     const { document, window } = dom;
-    document.querySelector('#transcript-full .transcript__print').click();
-    expect(window.printed).toBe(1);
-    const sheet = document.querySelector('.print-sheet');
-    expect(sheet.querySelector('.print-sheet__title').textContent).toBe('Transcript: Settling your body');
-    expect(sheet.querySelector('.print-sheet__source').textContent).toBe('From “A page”: https://sleepsteps.test/page/');
-    expect(sheet.querySelector('.transcript__body').textContent).toContain('Words.');
-    expect(document.documentElement.hasAttribute('data-printing')).toBe(true);
-
-    window.dispatchEvent(new Event('afterprint'));
-    expect(document.querySelector('.print-sheet')).toBe(null);
-    expect(document.documentElement.hasAttribute('data-printing')).toBe(false);
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    expect(document.querySelectorAll('details').map((d) => d.id)).toEqual(['audio-full']);
+    const audio = document.getElementById('audio-full');
+    expect(audio.open).toBe(false);
+    audio.open = true;
+    audio.dispatchEvent(new Event('toggle'));
+    window.dispatchEvent(new Event('hashchange'));
+    expect(reported).toEqual([]);
+    expect(window.printed).toBeUndefined();
+    expect(document.querySelector('.print-sheet, .transcript__print, [data-transcript]')).toBeNull();
   });
 
   it('reports audio only once it has played: seeking while paused is not a play (SPEC §9.4)', async () => {
@@ -306,70 +304,151 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
 describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => {
   const html = pageAt(site, '/problems/sharing-a-bed/');
 
-  it('opens the transcript from the notice link and reports it with the problem video, with no cards to open', async () => {
+  it('reports the problem video\'s handout clicks, from the row, with no cards or transcripts to open', async () => {
     await load(html, ['players']);
     const { document } = dom;
     expect(document.querySelectorAll('.solution')).toEqual([]);
+    expect(document.querySelectorAll('main details').map((d) => d.id)).toEqual(['audio-sharing-a-bed-about']);
+    expect(document.querySelector('[data-transcript], .transcript__print')).toBeNull();
     const reported = [];
     document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
-    const details = document.getElementById('transcript-sharing-a-bed-about');
-    expect(details.open).toBe(false);
-    expect(details.querySelector('.transcript__print').hidden).toBe(false);
 
-    const link = document.querySelector('.video__notice a[href="#transcript-sharing-a-bed-about"]');
+    expect(document.querySelector('.video__notice a[data-handout]')).toBeNull();
+    const handout = document.querySelector('.video-controls a[data-handout]');
     const click = new Event('click', { bubbles: true, cancelable: true });
-    link.dispatchEvent(click);
-    expect(click.defaultPrevented).toBe(true);
-    expect(details.open).toBe(true);
-    expect(document.activeElement).toBe(details.querySelector('summary'));
-
-    document.querySelector('a[data-handout]').click();
-    expect(reported).toEqual([
-      { type: 'transcript_open', detail: { media: 'sharing-a-bed-about' } },
-      { type: 'handout_open', detail: { media: 'sharing-a-bed-about' } },
-    ]);
+    handout.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(false);
+    expect(reported).toEqual([{ type: 'handout_open', detail: { media: 'sharing-a-bed-about' } }]);
   });
 });
 
 describe('problems.js on /problems/', () => {
   const html = pageAt(site, '/problems/');
-  const areaSections = () => dom.document.querySelectorAll('section.area-list__area');
-  const button = (section) => section.querySelector('button.area-list__header');
+  const panel = (view) => dom.document.querySelector(`[data-view-panel="${view}"]`);
+  const groups = (view) => panel(view).querySelectorAll('section.group-list__group');
+  const areaSections = () => groups('area');
+  const button = (section) => section.querySelector('button.group-list__header');
+  const expanded = (view) => groups(view).map((s) => button(s).getAttribute('aria-expanded'));
   const visibleItems = (section) => section.querySelectorAll('li[data-slug]').filter((li) => !li.hidden);
   const typeQuery = (value) => {
     const input = dom.document.getElementById('problem-filter');
     input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
   };
+  const slugs = (items) => items.map((li) => li.dataset.slug).sort();
+  /** Each group of a view: its name, whether it is hidden or open, and its count. */
+  const viewState = (view) =>
+    groups(view).map((s) => [
+      s.querySelector('[data-group-name]').textContent,
+      s.hidden,
+      button(s).getAttribute('aria-expanded'),
+      s.querySelector('[data-group-list]').hidden,
+      s.querySelector('[data-group-count]').textContent,
+    ]);
+  /** Check a view is narrowed: only groups with a match show, each open, counting "n of total". Returns the shown slugs. */
+  const expectNarrowed = (view) => {
+    for (const section of groups(view)) {
+      const items = visibleItems(section);
+      expect(section.hidden).toBe(items.length === 0);
+      if (items.length === 0) continue;
+      expect(button(section).getAttribute('aria-expanded')).toBe('true');
+      expect(section.querySelector('[data-group-list]').hidden).toBe(false);
+      const total = section.querySelectorAll('li[data-slug]').length;
+      expect(section.querySelector('[data-group-count]').textContent).toBe(`${items.length} of ${total}`);
+    }
+    return slugs(groups(view).filter((s) => !s.hidden).flatMap(visibleItems));
+  };
+
+  // The page with a group that has no topics, second in each view (an area
+  // with no problems yet, or a time of day none has): a copy of the view's
+  // first group, renamed, with its list emptied.
+  const withEmptyGroups = (source) => {
+    let out = source;
+    for (const view of ['area', 'time']) {
+      const first = out.indexOf('<section', out.indexOf(`data-view-panel="${view}"`));
+      const end = out.indexOf('</section>', first) + '</section>'.length;
+      const empty = out
+        .slice(first, end)
+        .replace(/^<section([^>]*?) id="[^"]*"/, '<section$1 id="empty"')
+        .replace(/(data-group-name>)[^<]*/, '$1Nothing here yet')
+        .replace(/data-total="\d+">\d+</, 'data-total="0">0<')
+        .replace(/(group-list__count-unit">) topics?/, '$1 topics')
+        .replace(/(<ul\b[^>]*\bid=")[^"]*("[^>]*>)[\s\S]*<\/ul>/, `$1${view}-empty-problems$2</ul>`);
+      expect(empty).not.toContain('<li');
+      const second = out.indexOf('<section', end);
+      out = out.slice(0, second) + empty + out.slice(second);
+    }
+    return out;
+  };
 
   beforeEach(() => {
     vi.useFakeTimers();
   });
 
-  it('shows the toolbar and its lede sentence, and makes each area a button with only the first open', async () => {
+  it('shows the toolbar (the filter and the view toggle, no "Open all areas") and its lede sentence', async () => {
     await load(html, ['problems']);
     const { document } = dom;
-    expect(document.querySelector('[data-problems-tools]').hidden).toBe(false);
+    const tools = document.querySelector('[data-problems-tools]');
+    expect(tools.hidden).toBe(false);
     expect(document.querySelector('[data-problems-hint]').hidden).toBe(false);
-    const sections = areaSections();
-    expect(sections).toHaveLength(10);
-    sections.forEach((section, i) => {
-      const list = section.querySelector('[data-area-list]');
-      expect(button(section).getAttribute('aria-controls')).toBe(list.id);
-      expect(button(section).getAttribute('aria-expanded')).toBe(String(i === 0));
-      expect(list.hidden).toBe(i !== 0);
-    });
-    expect(document.querySelector('[data-view-panel="time"]').hidden).toBe(true);
+    expect(tools.querySelectorAll('button')).toHaveLength(0);
+    expect(document.querySelector('[data-toggle-all]')).toBeNull();
+    const radios = tools.querySelectorAll('fieldset input[type="radio"]');
+    expect(radios.map((r) => [r.value, r.checked])).toEqual([['area', true], ['time', false]]);
+  });
 
-    button(sections[1]).click();
-    expect(button(sections[1]).getAttribute('aria-expanded')).toBe('true');
-    expect(sections[1].querySelector('[data-area-list]').hidden).toBe(false);
+  it('makes every group in both views a button, with only the first of each open', async () => {
+    await load(html, ['problems']);
+    for (const [view, n] of [['area', 10], ['time', 6]]) {
+      const sections = groups(view);
+      expect(sections).toHaveLength(n);
+      sections.forEach((section, i) => {
+        const list = section.querySelector('[data-group-list]');
+        const header = button(section);
+        expect(header.parentNode.tagName.toLowerCase()).toBe('h2');
+        expect(header.getAttribute('type')).toBe('button');
+        expect(header.getAttribute('aria-controls')).toBe(list.id);
+        expect(header.getAttribute('aria-expanded')).toBe(String(i === 0));
+        expect(list.hidden).toBe(i !== 0);
+        expect(section.querySelector('span.group-list__header')).toBeNull();
+      });
+    }
+    expect(panel('area').hidden).toBe(false);
+    expect(panel('time').hidden).toBe(true);
+    expect(dom.document.querySelector('[data-problems]').classList.contains('is-enhanced')).toBe(true);
+
+    for (const view of ['area', 'time']) {
+      const second = groups(view)[1];
+      button(second).click();
+      expect(button(second).getAttribute('aria-expanded')).toBe('true');
+      expect(second.querySelector('[data-group-list]').hidden).toBe(false);
+      button(second).click();
+      expect(second.querySelector('[data-group-list]').hidden).toBe(true);
+    }
   });
 
   it('opens the area named in the URL instead of the first', async () => {
     await load(html, ['problems'], { hash: '#mind' });
     const open = areaSections().filter((s) => button(s).getAttribute('aria-expanded') === 'true');
     expect(open.map((s) => s.id)).toEqual(['mind']);
+    expect(expanded('time')).toEqual(['true', ...Array(5).fill('false')]);
+  });
+
+  it('switches to "When it happens" and back, and the result line follows the view', async () => {
+    const [{ STATUS_DELAY }] = await load(html, ['problems']);
+    const { document } = dom;
+    const status = document.querySelector('[data-filter-status]');
+    expect(status.textContent).toBe('36 topics in 10 areas');
+    document.getElementById('view-time').click();
+    expect(panel('time').hidden).toBe(false);
+    expect(panel('area').hidden).toBe(true);
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe('36 topics across 6 times of day');
+    document.getElementById('view-area').click();
+    expect(panel('area').hidden).toBe(false);
+    expect(panel('time').hidden).toBe(true);
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe('36 topics in 10 areas');
   });
 
   it('filters as you type: hides areas without matches, opens the rest, and announces the count once typing pauses', async () => {
@@ -389,9 +468,9 @@ describe('problems.js on /problems/', () => {
       if (items.length) {
         expect(button(section).getAttribute('aria-expanded')).toBe('true');
         const total = section.querySelectorAll('li[data-slug]').length;
-        expect(section.querySelector('[data-area-count]').textContent).toBe(`${items.length} of ${total}`);
+        expect(section.querySelector('[data-group-count]').textContent).toBe(`${items.length} of ${total}`);
       }
-      const areaName = section.querySelector('[data-area-name]').textContent;
+      const areaName = section.querySelector('[data-group-name]').textContent;
       for (const li of items) expect(`${li.textContent} ${areaName} ${li.dataset.keywords ?? ''}`.toLowerCase()).toContain('night');
     }
     expect(status.textContent).toBe(before); // not on every keystroke
@@ -404,25 +483,148 @@ describe('problems.js on /problems/', () => {
     vi.advanceTimersByTime(STATUS_DELAY);
     expect(status.textContent).toBe(before);
     expect(areaSections().filter((s) => s.hidden)).toEqual([]);
-    expect(areaSections().map((s) => button(s).getAttribute('aria-expanded'))).toEqual(['true', ...Array(9).fill('false')]);
+    expect(expanded('area')).toEqual(['true', ...Array(9).fill('false')]);
   });
 
-  it('says so when nothing matches, keeping every topic in view', async () => {
+  it('filters "When it happens" the same way: "3am" hides the times without matches and opens the rest', async () => {
+    const [{ STATUS_DELAY }] = await load(html, ['problems']);
+    const { document } = dom;
+    const status = document.querySelector('[data-filter-status]');
+    document.getElementById('view-time').click();
+    button(groups('time')[2]).click(); // open "During the night" by hand too
+
+    typeQuery('3am');
+    const areaMatches = areaSections().flatMap(visibleItems).filter((li) => !li.closest('section').hidden);
+    const matchedSlugs = areaMatches.map((li) => li.dataset.slug).sort();
+    expect(matchedSlugs.length).toBeGreaterThan(0);
+    const timeShown = groups('time').filter((s) => !s.hidden);
+    expect(timeShown.length).toBeGreaterThan(0);
+    expect(timeShown.length).toBeLessThan(6);
+    expect(timeShown.flatMap(visibleItems).map((li) => li.dataset.slug).sort()).toEqual(matchedSlugs);
+    for (const section of groups('time')) {
+      const items = visibleItems(section);
+      expect(section.hidden).toBe(items.length === 0);
+      if (items.length) {
+        expect(button(section).getAttribute('aria-expanded')).toBe('true');
+        expect(section.querySelector('[data-group-list]').hidden).toBe(false);
+        const total = section.querySelectorAll('li[data-slug]').length;
+        expect(section.querySelector('[data-group-count]').textContent).toBe(`${items.length} of ${total}`);
+      }
+    }
+    vi.advanceTimersByTime(STATUS_DELAY);
+    const n = matchedSlugs.length;
+    expect(status.textContent).toBe(n === 1 ? '1 topic matches “3am”' : `${n} topics match “3am”`);
+
+    // Clearing it puts the times of day back as they were.
+    typeQuery('');
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(groups('time').filter((s) => s.hidden)).toEqual([]);
+    expect(expanded('time')).toEqual(['true', 'false', 'true', 'false', 'false', 'false']);
+    expect(groups('time').map((s) => s.querySelector('[data-group-count]').textContent)).toEqual(
+      groups('time').map((s) => String(s.querySelectorAll('li[data-slug]').length)),
+    );
+    expect(status.textContent).toBe('36 topics across 6 times of day');
+  });
+
+  it('says so when nothing matches, keeping every topic in view, in either view', async () => {
     const [{ STATUS_DELAY, NO_MATCH }] = await load(html, ['problems']);
+    const status = dom.document.querySelector('[data-filter-status]');
     typeQuery('zzzz');
     vi.advanceTimersByTime(STATUS_DELAY);
-    expect(dom.document.querySelector('[data-filter-status]').textContent).toBe(NO_MATCH.area);
+    expect(status.textContent).toBe(NO_MATCH.area);
     expect(areaSections().filter((s) => s.hidden)).toEqual([]);
+    dom.document.getElementById('view-time').click();
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe(NO_MATCH.time);
+    expect(groups('time').filter((s) => s.hidden)).toEqual([]);
   });
 
-  it('switches to the "When it happens" lanes and back', async () => {
-    await load(html, ['problems']);
+  it('keeps the filter when switching view: typed in By area, "When it happens" is narrowed to the same topics, and back again', async () => {
+    const [{ STATUS_DELAY }] = await load(html, ['problems']);
     const { document } = dom;
+    const status = document.querySelector('[data-filter-status]');
+
+    typeQuery('night');
+    vi.advanceTimersByTime(STATUS_DELAY);
+    const matched = expectNarrowed('area');
+    expect(matched.length).toBeGreaterThan(1);
+    const line = `${matched.length} topics match “night”`;
+    expect(status.textContent).toBe(line);
+    const areaNarrowed = viewState('area');
+
     document.getElementById('view-time').click();
-    expect(document.querySelector('[data-view-panel="time"]').hidden).toBe(false);
-    expect(document.querySelector('[data-view-panel="area"]').hidden).toBe(true);
-    expect(document.querySelector('[data-toggle-all]').hidden).toBe(true);
+    expect(panel('time').hidden).toBe(false);
+    expect(document.getElementById('problem-filter').value).toBe('night');
+    expect(expectNarrowed('time')).toEqual(matched);
+    expect(groups('time').filter((s) => s.hidden).length).toBeGreaterThan(0);
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe(line);
+
     document.getElementById('view-area').click();
-    expect(document.querySelector('[data-view-panel="area"]').hidden).toBe(false);
+    expect(panel('area').hidden).toBe(false);
+    expect(viewState('area')).toEqual(areaNarrowed);
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe(line);
+
+    // And the other way: typed in "When it happens", By area follows.
+    document.getElementById('view-time').click();
+    typeQuery('3am');
+    const fromTime = expectNarrowed('time');
+    expect(fromTime.length).toBeGreaterThan(0);
+    expect(fromTime).not.toEqual(matched);
+    document.getElementById('view-area').click();
+    expect(expectNarrowed('area')).toEqual(fromTime);
+    vi.advanceTimersByTime(STATUS_DELAY);
+    const n = fromTime.length;
+    expect(status.textContent).toBe(n === 1 ? '1 topic matches “3am”' : `${n} topics match “3am”`);
+  });
+
+  it('hides a group with no topics only while the filter narrows: cleared or with no match, both views are as on load', async () => {
+    const [{ STATUS_DELAY, NO_MATCH }] = await load(withEmptyGroups(html), ['problems']);
+    const status = dom.document.querySelector('[data-filter-status]');
+    const empties = () => ['area', 'time'].map((view) => groups(view)[1]);
+    expect(groups('area')).toHaveLength(11);
+    expect(groups('time')).toHaveLength(7);
+    for (const section of empties()) {
+      expect(section.querySelector('[data-group-name]').textContent).toBe('Nothing here yet');
+      expect(section.hidden).toBe(false);
+      expect(section.querySelector('[data-group-count]').textContent).toBe('0');
+      expect(button(section).getAttribute('aria-expanded')).toBe('false');
+    }
+    const onLoad = { area: viewState('area'), time: viewState('time') };
+    const asOnLoad = () => expect({ area: viewState('area'), time: viewState('time') }).toEqual(onLoad);
+
+    typeQuery('night');
+    for (const section of empties()) expect(section.hidden).toBe(true);
+
+    typeQuery('');
+    asOnLoad();
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe('36 topics in 11 areas');
+
+    typeQuery('zzzz'); // never narrowed
+    asOnLoad();
+    typeQuery('night');
+    typeQuery('nightzzzz'); // narrowed, then nothing matches
+    asOnLoad();
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe(NO_MATCH.area);
+
+    dom.document.getElementById('view-time').click();
+    typeQuery('');
+    asOnLoad();
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(status.textContent).toBe('36 topics across 7 times of day');
+  });
+
+  it('opens an area on hashchange, switching back to By area', async () => {
+    await load(html, ['problems']);
+    const { document, window } = dom;
+    document.getElementById('view-time').click();
+    window.location.hash = '#social';
+    window.dispatchEvent(new Event('hashchange'));
+    expect(panel('area').hidden).toBe(false);
+    expect(document.getElementById('view-area').checked).toBe(true);
+    expect(button(document.getElementById('social')).getAttribute('aria-expanded')).toBe('true');
   });
 });

@@ -16,9 +16,10 @@ afterAll(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true 
 // Front matter written as JSON, which is valid YAML.
 const md = (data, body = '') => `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`;
 const vid = (title, extra = {}) => ({ title, youtube_id: 'AbCdEfGhIjK', duration: '6:40', ...extra });
-// Every real video has a handout, an audio-only version and a transcript by
-// launch (SPEC §9.2, §9.3). Each base video has its own pair of files, so
-// removing one file affects one video, and a transcript (TX, its body).
+// Every real video has a handout and an audio-only version by launch (SPEC
+// §9.2, §9.3). Each base video has its own pair of files, so removing one
+// file affects one video, and an optional transcript (TX, its body), which
+// the site doesn't show but the search indexes.
 const withMedia = (id, extra = {}) => ({ audio: `${id}.mp3`, handout: `${id}.pdf`, ...extra });
 const TX = 'A transcript.\n';
 const PAIRED = ['about', 'about-two', 'about-three', 'm2', 'm3', 'x1', 'x2', 'x3', 'intro'];
@@ -237,23 +238,23 @@ describe('validateContent fails the build on', () => {
   });
 });
 
-describe('every video has a handout, an audio-only version and a transcript by launch (SPEC §9.2, §9.3)', () => {
+describe('every video has a handout and an audio-only version by launch; a transcript is optional (SPEC §9.2, §9.3)', () => {
   const HANDOUT = 'content/videos/m2.md: handout: required at launch: every video has a handout (SPEC §9.3)';
   const AUDIO = 'content/videos/m2.md: audio: required at launch: every video has an audio-only version (SPEC §9.2)';
-  const TRANSCRIPT = 'content/videos/m2.md: transcript: required at launch: every video has a transcript (SPEC §9.3)';
   const PLACEHOLDER = 'content/videos/m2.md: placeholder: placeholder videos are not allowed at launch';
-  const NONE = [['missing-handout', 'm2'], ['missing-audio', 'm2'], ['missing-transcript', 'm2']];
+  const NONE = [['missing-handout', 'm2'], ['missing-audio', 'm2']];
   // [description, m2's front matter, transcript, warnings ([code, video_id]), errors with launch: true]
   const cases = [
-    ['a real video with all three', vid('T', withMedia('m2')), 'Words.\n', [], []],
+    ['a real video with both and a transcript', vid('T', withMedia('m2')), 'Words.\n', [], []],
     ['a real video without a handout', vid('T', { audio: 'm2.mp3' }), 'Words.\n', [['missing-handout', 'm2']], [HANDOUT]],
     ['a real video without audio', vid('T', { handout: 'm2.pdf' }), 'Words.\n', [['missing-audio', 'm2']], [AUDIO]],
-    ['a real video without a transcript', vid('T', withMedia('m2')), '', [['missing-transcript', 'm2']], [TRANSCRIPT]],
-    ['a real video whose transcript is only blank lines', vid('T', withMedia('m2')), '\n  \n\t\n', [['missing-transcript', 'm2']], [TRANSCRIPT]],
-    ['a real video with none of them', vid('T'), '', NONE, [HANDOUT, AUDIO, TRANSCRIPT]],
-    ['a real video with empty handout and audio fields', vid('T', { handout: '', audio: '' }), '', NONE, [HANDOUT, AUDIO, TRANSCRIPT]],
-    ['a placeholder with all three', placeholderVid('[T]', withMedia('m2')), 'Words.\n', [['placeholder-video', 'm2']], [PLACEHOLDER]],
-    ['a placeholder with none (listed only as a placeholder)', placeholderVid('[T]'), '', [['placeholder-video', 'm2']], [PLACEHOLDER, HANDOUT, AUDIO, TRANSCRIPT]],
+    // The handout is the text alternative now: no transcript needed (project lead, 2026-11-06).
+    ['a real video without a transcript', vid('T', withMedia('m2')), '', [], []],
+    ['a real video whose transcript is only blank lines', vid('T', withMedia('m2')), '\n  \n\t\n', [], []],
+    ['a real video with none of them', vid('T'), '', NONE, [HANDOUT, AUDIO]],
+    ['a real video with empty handout and audio fields', vid('T', { handout: '', audio: '' }), '', NONE, [HANDOUT, AUDIO]],
+    ['a placeholder with both', placeholderVid('[T]', withMedia('m2')), 'Words.\n', [['placeholder-video', 'm2']], [PLACEHOLDER]],
+    ['a placeholder with none (listed only as a placeholder)', placeholderVid('[T]'), '', [['placeholder-video', 'm2']], [PLACEHOLDER, HANDOUT, AUDIO]],
   ];
 
   it.each(cases)('%s', (name, data, body, warnings, launchErrors) => {
@@ -266,13 +267,13 @@ describe('every video has a handout, an audio-only version and a transcript by l
     expect(launch.warnings).toEqual([]);
   });
 
-  it('groups the warnings under their own headings', () => {
+  it('groups the warnings under their own headings, with none for a missing transcript', () => {
     const result = run({ 'content/videos/m2.md': md(vid('T')), 'content/videos/m3.md': md(vid('T', { handout: 'm3.pdf' }), TX) });
     expect(groupWarnings(result.warnings)).toEqual([
       ['Videos without a handout (every video needs one by launch, SPEC §9.3)', ['m2']],
       ['Videos without an audio-only version (every video needs one by launch, SPEC §9.2)', ['m2', 'm3']],
-      ['Videos without a transcript (every video needs one by launch, SPEC §9.3)', ['m2']],
     ]);
+    expect(result.warnings.map((w) => w.code)).not.toContain('missing-transcript');
   });
 
   it('leaves a handout or audio file that does not exist to the usual error, not a second one', () => {
@@ -293,7 +294,7 @@ describe('stand-in transcripts and HTML comments (SPEC §7, §7.1)', () => {
     expect(result.warnings.map((w) => w.code)).toEqual(['placeholder-video']);
   });
 
-  it('a real video with the stand-in fails once, also at launch (not again as missing)', () => {
+  it('a real video with the stand-in fails once, also at launch (the search would index it)', () => {
     const changes = { 'content/videos/m2.md': md(vid('T', withMedia('m2')), '[Transcript of “T”.]\n') };
     expect(messages(run(changes))).toEqual([STAND_IN]);
     expect(messages(run(changes, { launch: true }))).toEqual([STAND_IN]);

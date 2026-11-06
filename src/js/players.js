@@ -1,8 +1,9 @@
 // Video and audio players (SPEC §9.1-§9.4; HANDOFF §5 VideoEmbed, FormatLinks).
 //
 // The HTML works without this module (SPEC §2, §11): each video facade is a
-// "Watch on YouTube" link, transcripts and audio are native <details>, and
-// handouts are plain links. This module:
+// "Watch on YouTube" link, "Audio only" is a native <details>, and handouts
+// are plain links. There are no transcripts on the site (SPEC §9.3). This
+// module:
 //
 // - turns each facade link into a "Play video" button of the same size. Only
 //   when it is pressed does it load the YouTube IFrame Player API (once per
@@ -10,26 +11,20 @@
 //   visitor chooses to play (SPEC §9.1, §16.2). If the player can't load, the
 //   frame says so and links to the video on YouTube;
 // - pauses every other video and audio when one starts;
-// - opens the transcript a "#transcript-<video_id>" link points to (the
-//   notice's "Read the transcript instead", or a page's own links), and shows
-//   each transcript's "Print transcript" button;
 // - keeps the furthest point reached per media item (0/25/50/75/100) and
-//   reports it, plus transcript opens and handout clicks, through report()
-//   (SPEC §9.4, §10.2), for events.js to send: see below.
+//   reports it, plus handout clicks, through report() (SPEC §9.4, §10.2),
+//   for events.js to send: see below.
 //
-// Exports, for page scripts (solutions.js): pauseWithin(root) and
-// revealTranscript(details). revealTranscript dispatches a bubbling
-// `sleepsteps:reveal` event first, so a closed card around the transcript
-// can open itself.
+// Exports, for page scripts (solutions.js): pauseWithin(root).
 //
 // Usage statistics: report() only dispatches a `sleepsteps:event`
 // CustomEvent on document, with detail { type, detail } in the SPEC §10.2
 // shapes, which worker/routes/event.js accepts: video_play / audio_play
-// { media, furthest } (furthest 0, 25, 50, 75 or 100), transcript_open
-// { media } and handout_open { media }, where media is always the video_id
-// (data-video, data-media, data-transcript, data-handout). events.js, loaded
-// before this module whenever features.events is on, listens and sends them
-// (SPEC §10.1). Nothing is sent or stored here.
+// { media, furthest } (furthest 0, 25, 50, 75 or 100) and handout_open
+// { media }, where media is always the video_id (data-video, data-media,
+// data-handout). events.js, loaded before this module whenever
+// features.events is on, listens and sends them (SPEC §10.1). Nothing is
+// sent or stored here.
 
 // SPEC §9.1. The player is only created after the visitor presses play, so
 // `autoplay: 1` starts the video they chose; it never plays before that.
@@ -298,107 +293,24 @@ function setUpAudio(audio) {
   audio.addEventListener('ended', () => track('audio_play', media, 1));
 }
 
-// ---- Transcripts ---------------------------------------------------------------------
-
-/**
- * Open a transcript <details> and (by default) move focus to its summary.
- * Dispatches a bubbling `sleepsteps:reveal` event first, so a closed card
- * around it can open (solutions.js).
- */
-export function revealTranscript(details, { focus = true } = {}) {
-  details.dispatchEvent(new CustomEvent('sleepsteps:reveal', { bubbles: true }));
-  details.open = true;
-  if (focus) details.querySelector(':scope > summary')?.focus();
-}
-
-function transcriptFor(hash) {
-  if (!hash?.startsWith('#transcript-')) return null;
-  let id;
-  try {
-    id = decodeURIComponent(hash.slice(1));
-  } catch {
-    return null;
-  }
-  const target = document.getElementById(id);
-  return target instanceof HTMLDetailsElement ? target : null;
-}
-
-function printTranscript(details) {
-  document.querySelector('.print-sheet')?.remove();
-  const sheet = document.createElement('div');
-  sheet.className = 'print-sheet';
-  const heading = document.createElement('p');
-  heading.className = 'print-sheet__title';
-  heading.textContent = `Transcript: ${details.dataset.title ?? ''}`;
-  const source = document.createElement('p');
-  source.className = 'print-sheet__source';
-  const pageTitle = document.querySelector('h1')?.textContent.trim() ?? document.title;
-  source.textContent = `From “${pageTitle}”: ${location.href.split('#')[0]}`;
-  const body = details.querySelector('.transcript__body')?.cloneNode(true);
-  sheet.append(heading, source);
-  if (body) sheet.append(body);
-  document.body.append(sheet);
-
-  const root = document.documentElement;
-  root.dataset.printing = '';
-  const cleanUp = () => {
-    sheet.remove();
-    delete root.dataset.printing;
-    window.removeEventListener('afterprint', cleanUp);
-  };
-  window.addEventListener('afterprint', cleanUp);
-  window.print();
-}
-
-function setUpTranscript(details) {
-  const print = details.querySelector('.transcript__print');
-  if (print) {
-    print.hidden = false;
-    print.addEventListener('click', () => printTranscript(details));
-  }
-  // transcript_open, each time it is opened.
-  details.addEventListener('toggle', () => {
-    if (details.open) report('transcript_open', { media: details.dataset.transcript });
-  });
-}
-
 // ---- Set-up ----------------------------------------------------------------------------
 
 function onClick(event) {
   const link = event.target.closest?.('a[href]');
-  if (!link) return;
   // handout_open { media: video_id } when a handout link is clicked
-  // (whatever the format).
-  if (link.dataset.handout) report('handout_open', { media: link.dataset.handout });
-  const href = link.getAttribute('href');
-  const details = href.startsWith('#') ? transcriptFor(href) : null;
-  if (details) {
-    event.preventDefault();
-    revealTranscript(details);
-  }
-}
-
-function revealFromHash() {
-  const details = transcriptFor(location.hash);
-  if (!details) return;
-  revealTranscript(details, { focus: false });
-  details.scrollIntoView();
+  // (whatever the format): the row's "Handout" or a closed card's quick
+  // link.
+  if (link?.dataset.handout) report('handout_open', { media: link.dataset.handout });
 }
 
 function init() {
   document.querySelectorAll('a.video__facade').forEach(upgradeFacade);
-  document.querySelectorAll('details[data-transcript]').forEach(setUpTranscript);
   document.querySelectorAll('audio[data-media]').forEach(setUpAudio);
   document.addEventListener('click', onClick);
-  window.addEventListener('hashchange', revealFromHash);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushAll();
   });
   window.addEventListener('pagehide', flushAll);
-  // A transcript in the URL (#transcript-<id>) opens once every module on
-  // the page has run, so a page script can open a card around it first.
-  if (document.readyState === 'complete') revealFromHash();
-  else document.addEventListener('DOMContentLoaded', revealFromHash, { once: true });
 }
 
 try {

@@ -18,26 +18,29 @@
     pageId   the page's page_id (unused by the cards; kept so callers
              don't change)
     ratings  exactly true (the layout passes site.features.ratings ===
-             true): renders each card's ratings widget and closed-card
-             summary line (SPEC §12, partials/rating.njk)
+             true): each open card's row of controls ends with the ratings
+             widget (SPEC §12, partials/rating.njk)
 
   solutionCard(solution, pageId, ratings): one card, an <li> in the grid.
 
   Without JavaScript each card is a native <details name="solution">: the
   <summary> is the closed card (thumbnail band, step chip, duration, title,
-  blurb), and opening it shows the video with its YouTube notice and the
-  other formats. The shared `name` keeps one card open at a time across both
-  sections where browsers support it; elsewhere several can be open, which is
-  harmless. Cards start closed, so the first screen holds one video facade,
-  not two; add `open` to a card's <details> to start it open, and
-  src/js/solutions.js keeps it open.
+  blurb), and opening it shows the video with its YouTube notice, then the
+  row of controls under it (partials/video-controls.njk: "Audio only", the
+  handout and the rating). The shared `name` keeps one card open at a
+  time across both sections where browsers support it; elsewhere several
+  can be open, which is harmless. Cards start closed, so the first screen
+  holds one video facade, not two; add `open` to a card's <details> to start
+  it open, and src/js/solutions.js keeps it open.
 
   src/js/solutions.js turns each <details> into a <div>, its summary into an
   <h3> holding a <button aria-expanded aria-controls>, and the panel into a
-  labelled region. It shows the parts marked `hidden` below that only work
-  with it: the open card's header (step chip, Close, heading, blurb) and the
-  quick "Transcript" link, which opens the card and its transcript. Opening a
-  card closes any other, in either section, pausing its media.
+  labelled region. It shows the open card's header (step chip, Close,
+  heading, blurb), which ships `hidden` because only it can close the card.
+  Opening a card closes any other, in either section, pausing its media.
+
+  A closed card's meta row (600px and up) holds only a "Handout" link when
+  the video has a handout: no rating summary (project lead, 2026-11-06).
 
   ids (unique per page; the validator allows each video once per page):
   solution-<video_id> on the card, plus -panel, -heading, -blurb, -length.
@@ -45,8 +48,7 @@
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/step-chip.njk" import stepChip -%}
 {%- from "partials/video.njk" import videoEmbed -%}
-{%- from "partials/formats.njk" import formatLinks -%}
-{%- from "partials/rating.njk" import rating, ratingStatus -%}
+{%- from "partials/video-controls.njk" import videoControls -%}
 
 {%- macro solutionCard(solution, pageId, ratings=false) -%}
 {%- set video = solution.video -%}
@@ -85,42 +87,15 @@
       <div class="solution__video">
         {{ videoEmbed(video, bleed='card') }}
       </div>
-      {#- The ratings widget (SPEC §12), then the formats. The block is left
-          out when it would be empty, and holding only the widget it ships
-          hidden for rating.js to reveal (nothing to show without
-          JavaScript). `| length`: a trimmed macro result is a SafeString
-          object, truthy even when empty. #}
-      {%- set formatsHtml = formatLinks(video) %}
-      {%- set hasFormats = formatsHtml | trim | length %}
-      {%- if ratingsOn or hasFormats %}
-      <div class="solution__tools"{% if not hasFormats %} hidden data-rating-reveal{% endif %}>
-        {%- if ratingsOn %}
-        {{ rating(video, 'card') }}
-        {%- endif %}
-        {%- if hasFormats %}
-        {{ formatsHtml }}
-        {%- endif %}
-      </div>
-      {%- endif %}
+      {#- The row of controls under the video ("Audio only", the handout, the
+          rating), left out when it would be empty. Holding only the
+          rating, it ships hidden for rating.js to reveal. #}
+      {{- videoControls(video, ratingsOn, 'solution__tools') }}
     </div>
   </details>
   <div class="solution__meta">
-    {#- "You rated this n of 5." once a rating is accepted (rating.js);
-        empty and hidden until then, and without JavaScript. #}
-    {%- if ratingsOn %}
-    {{ ratingStatus(video) }}
-    {%- endif %}
-    {%- if video.hasTranscript or video.handout %}
-    <ul class="solution__quick" role="list">
-      {%- if video.hasTranscript %}
-      {#- Hidden without JavaScript: a link into a closed card does nothing.
-          players.js handles the click and solutions.js opens the card. #}
-      <li class="solution__quick-transcript" hidden><a href="#transcript-{{ video.video_id }}">Transcript<span class="visually-hidden">: {{ video.title }}</span></a></li>
-      {%- endif %}
-      {%- if video.handout %}
-      <li><a href="/media/pdf/{{ video.handout }}" type="application/pdf" data-handout="{{ video.video_id }}">Handout<span class="visually-hidden">: {{ video.title }} (PDF)</span></a></li>
-      {%- endif %}
-    </ul>
+    {%- if video.handout %}
+    <p class="solution__quick"><a href="/media/pdf/{{ video.handout }}" type="application/pdf" data-handout="{{ video.video_id }}">Handout<span class="visually-hidden">: {{ video.title }} (PDF)</span></a></p>
     {%- endif %}
   </div>
 </li>

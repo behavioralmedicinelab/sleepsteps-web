@@ -107,6 +107,27 @@ describe('/search-index.json, built from the real content', () => {
     }
   });
 
+  it('still indexes each video\'s transcript (its file\'s body), which no page shows (SPEC §8.3, §9.3)', () => {
+    let checked = 0;
+    for (const [slug, { data }] of model.problems) {
+      const e = byId.get(slug);
+      const page = readFileSync(path.join(site, 'problems', slug, 'index.html'), 'utf8');
+      for (const id of [data.problem_video, ...(data.solutions ?? []).map((s) => s.video)]) {
+        const words = markdownToText(model.videos.get(id).body);
+        if (!words) continue;
+        expect(e.transcript, `${slug}: ${id}`).toContain(words);
+        expect(page, `${slug}: ${id}`).not.toContain(words);
+        checked += 1;
+      }
+    }
+    const start = byId.get('start');
+    for (const { video } of model.start.data.chapters) {
+      const words = markdownToText(model.videos.get(video).body);
+      if (words) expect(start.transcript, video).toContain(words);
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
   it('holds the rendered text of the information pages, without markup (they render first)', () => {
     for (const id of infoPages) {
       const e = byId.get(id);

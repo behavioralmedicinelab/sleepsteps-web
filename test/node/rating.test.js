@@ -1,4 +1,4 @@
-// The ratings widget (SPEC §11, §12, §15.1; M4): where the built site renders
+// The ratings widget (SPEC §11, §12; M4): where the built site renders
 // it and what it ships, which pages load src/js/rating.js, the sources of
 // rating.js and api.js, and both modules run on the built pages in the small
 // test DOM (mini-dom.js). Every request body is also run through the
@@ -28,8 +28,6 @@ const { model } = validateContent(process.cwd());
 
 const PROBLEM = '/problems/tired-but-wired/';
 const THANKS = (n) => `Thanks. You rated this ${n} of 5.`;
-const SUMMARY = (n) => `You rated this ${n} of 5.`;
-const NOTICE = 'Ratings are anonymous. We use them to improve these resources. About the information we collect';
 const CONSOLE = ['log', 'info', 'warn', 'error', 'debug', 'trace'];
 
 /** Every element (opening tag to its matching close) with this class. */
@@ -98,31 +96,39 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
       const main = mainOf(pageAt(site, `/problems/${slug}/`));
       const solutions = data.solutions ?? [];
 
-      it('puts the problem video\'s widget between the video (with its notice) and its formats', () => {
-        const block = elementByClass(main, 'problem-block__video', 'div');
+      // The row of controls under a video ends with its widget, after
+      // "Audio only" and the handout; it ships hidden only when the widget is
+      // all it holds.
+      const checkRow = (row, id) => {
+        const widget = elementByClass(row, 'rating', 'div');
+        expect(tags(widget, 'div')[0], id).toBe(`<div class="rating" data-rating="${id}" hidden>`);
+        expect(row.slice(row.indexOf(widget) + widget.length).trim(), id).toBe('</div>');
+        const hasFormats = /class="format-button"|<details/.test(row);
+        expect(attr(tags(row, 'div')[0], 'hidden') !== undefined, id).toBe(!hasFormats);
+        expect(attr(tags(row, 'div')[0], 'data-rating-reveal') !== undefined, id).toBe(!hasFormats);
+      };
+
+      it('ends the row under the problem video, after its notice, with the widget', () => {
+        const block = elementByClass(main, 'problem-block', 'div');
         const video = elementByClass(block, 'video', 'div');
-        const widget = elementByClass(block, 'rating', 'div');
-        expect(tags(widget, 'div')[0]).toBe(`<div class="rating rating--row" data-rating="${data.problem_video}" hidden>`);
-        expect(block.indexOf(widget)).toBeGreaterThan(block.indexOf(video) + video.length - 1);
-        const formats = elementByClass(block, 'formats', 'div');
-        if (formats) expect(block.indexOf(formats)).toBeGreaterThan(block.indexOf(widget));
+        const row = elementByClass(block, 'video-controls', 'div');
+        expect(block.indexOf(row)).toBeGreaterThan(block.indexOf(video) + video.length - 1);
+        expect(attr(tags(row, 'div')[0], 'class')).toBe('video-controls problem-block__controls');
+        checkRow(row, data.problem_video);
       });
 
-      it('puts each card\'s widget in its open card before the formats, and an empty hidden summary in its meta row', () => {
+      it('ends the row under each card\'s video with its widget, and puts no rating summary in the closed card', () => {
         const cards = elements(main, 'solution', 'li');
         expect(cards).toHaveLength(solutions.length);
         cards.forEach((card, i) => {
           const id = solutions[i].video;
-          const tools = elementByClass(elementByClass(card, 'solution__panel', 'div'), 'solution__tools', 'div');
-          const widget = elementByClass(tools, 'rating', 'div');
-          expect(tags(widget, 'div')[0]).toBe(`<div class="rating rating--card" data-rating="${id}" hidden>`);
-          const formats = elementByClass(tools, 'formats', 'div');
-          expect(tags(tools, 'div')[0]).toBe(formats ? '<div class="solution__tools">' : '<div class="solution__tools" hidden data-rating-reveal>');
-          if (formats) expect(tools.indexOf(formats)).toBeGreaterThan(tools.indexOf(widget));
+          const row = elementByClass(elementByClass(card, 'solution__panel', 'div'), 'solution__tools', 'div');
+          expect(attr(tags(row, 'div')[0], 'class')).toBe('video-controls solution__tools');
+          checkRow(row, id);
           const meta = elementByClass(card, 'solution__meta', 'div');
-          expect(tags(meta, 'p')[0]).toBe(`<p class="solution__rating" data-rating-summary="${id}" hidden>`);
-          expect(elementByClass(meta, 'solution__rating', 'p')).toBe(`<p class="solution__rating" data-rating-summary="${id}" hidden></p>`);
+          expect(meta).not.toMatch(/rating|You rated/);
         });
+        expect(main).not.toMatch(/data-rating-summary/);
       });
     });
   });
@@ -135,7 +141,7 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
       expect(widgets.length).toBeGreaterThan(37);
     });
 
-    it.each(widgets)('%s: ships hidden, unchecked and without a live region, with the copy SPEC §12 gives', (file, html) => {
+    it.each(widgets)('%s: ships hidden, unchecked and without a live region: the legend, five stars and the status line, and no notice', (file, html) => {
       const id = attr(tags(html, 'div')[0], 'data-rating');
       expect(attr(tags(html, 'div')[0], 'hidden')).toBe('');
       // The legend, then the video's title for screen readers.
@@ -158,24 +164,29 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
       expect(elementByClass(html, 'rating__status', 'p')).toMatch(/^<p [^>]*><\/p>$/);
       // The sizers hold the longest messages rating.js shows.
       expect(elements(html, 'rating__sizer', 'p').map(text)).toEqual([thanksText(STARS), SEND_FAILED]);
-      // Then the §15.1 notice, last.
-      const notice = elementByClass(html, 'notice-text', 'p');
-      expect(text(notice)).toBe(NOTICE);
-      expect(tags(notice, 'a').map((t) => attr(t, 'href'))).toEqual(['/privacy/']);
-      expect(html.indexOf(notice)).toBeGreaterThan(html.indexOf('rating__status-box'));
+      // Nothing else: no §15.1 ratings notice, link or summary (project lead,
+      // 2026-11-06). The status box closes the widget.
+      expect(tags(html, 'legend')).toHaveLength(1);
+      expect(tags(html, 'fieldset')).toHaveLength(1);
+      expect(tags(html, 'a')).toEqual([]);
+      expect(html).not.toMatch(/notice-text|anonymous|About the information|privacy/i);
+      expect(html).toMatch(/<\/fieldset>\s*<div class="rating__status-box">[\s\S]*<\/div>\s*<\/div>$/);
     });
   });
 
-  it.runIf(ratingsOn)('hides the Start here bar until rating.js runs when the rating is all it holds', () => {
+  it.runIf(ratingsOn)('hides a Start here row until rating.js runs when the rating is all it holds', () => {
     const main = mainOf(pageAt(site, '/start/'));
-    const bars = elements(main, 'start-chapter__bar', 'div');
-    expect(bars).toHaveLength(chapters.length);
-    bars.forEach((bar, i) => {
-      const hasFormats = Boolean(elementByClass(bar, 'formats', 'div'));
-      expect(tags(bar, 'div')[0], chapters[i]).toBe(hasFormats ? '<div class="start-chapter__bar">' : '<div class="start-chapter__bar" hidden data-rating-reveal>');
+    const rows = elements(main, 'video-controls', 'div');
+    expect(rows).toHaveLength(chapters.length);
+    rows.forEach((row, i) => {
+      const hasFormats = /class="format-button"|<details/.test(row);
+      const { handout, audio } = model.videos.get(chapters[i]).data;
+      expect(hasFormats, chapters[i]).toBe(Boolean(handout || audio));
+      expect(tags(row, 'div')[0], chapters[i]).toBe(hasFormats ? '<div class="video-controls">' : '<div class="video-controls" hidden data-rating-reveal>');
     });
-    // how-to-use-this-program has no formats yet.
-    expect(bars.filter((bar) => bar.startsWith('<div class="start-chapter__bar" hidden'))).toHaveLength(1);
+    // Only how-sleep-works has a handout and audio yet; a transcript no
+    // longer counts as a format (SPEC §9.3).
+    expect(rows.filter((row) => row.startsWith('<div class="video-controls" hidden'))).toHaveLength(2);
   });
 });
 
@@ -401,7 +412,15 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
   const radios = (id) => [1, 2, 3, 4, 5].map((n) => radio(id, n));
   const checked = (id) => radios(id).findIndex((r) => r.checked) + 1;
   const status = (id) => widget(id).querySelector('[data-rating-status]');
-  const summary = (id) => $(`[data-rating-summary="${id}"]`);
+  // What the closed card shows of a video's rating: nothing (no summary
+  // line, project lead, 2026-11-06). Only the status line in the open card's
+  // row says what was rated.
+  const cardShows = (id) => {
+    const card = dom.document.getElementById(`solution-${id}`);
+    const meta = card.querySelector('.solution__meta').textContent;
+    const face = card.querySelector('.solution__face').textContent;
+    return `${meta} ${face}`.match(/You rated[^.]*\./)?.[0] ?? '';
+  };
   const event = (type, props = {}) => Object.assign(new Event(type, { bubbles: true }), props);
 
   /**
@@ -490,7 +509,7 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
   const CARD_VIDEO = 'conditioning';
 
   describe('on load', () => {
-    it('reveals every widget and makes its status line a live region, leaving the summaries hidden', async () => {
+    it('reveals every widget, and every row of controls, and makes each status line a live region', async () => {
       await open(PROBLEM, { modules: ['solutions', 'rating'] });
       const ids = [...$$('[data-rating]')].map((w) => w.getAttribute('data-rating'));
       expect(ids).toEqual(['tired-but-wired-about', ...model.problems.get('tired-but-wired').data.solutions.map((s) => s.video)]);
@@ -500,7 +519,9 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
         expect(status(id).textContent).toBe('');
         expect(radios(id).some((r) => r.checked || r.disabled)).toBe(false);
       }
-      for (const p of $$('[data-rating-summary]')) expect([p.hidden, p.textContent]).toEqual([true, '']);
+      expect($$('[data-rating-summary]')).toEqual([]);
+      // The rows that would hold only a widget are revealed with it.
+      for (const row of $$('.video-controls')) expect(row.hidden).toBe(false);
       expect(requests).toEqual([]);
     });
 
@@ -510,13 +531,13 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       expect(requests).toEqual([]);
     });
 
-    it('on Start here, reveals the three widgets and the bar that holds only a widget', async () => {
+    it('on Start here, reveals the three widgets and the row that holds only a widget', async () => {
       await open('/start/', { modules: ['players', 'rating'] });
       expect([...$$('[data-rating]')].map((w) => [w.getAttribute('data-rating'), w.hidden])).toEqual(
         model.start.data.chapters.map((c) => [c.video, false]),
       );
-      expect([...$$('.start-chapter__bar')].map((bar) => bar.hidden)).toEqual([false, false, false]);
-      expect($$('[data-rating-reveal]')).toHaveLength(1);
+      expect([...$$('.video-controls')].map((row) => row.hidden)).toEqual([false, false, false]);
+      expect($$('[data-rating-reveal]')).toHaveLength(2);
       radio('how-to-use-this-program', 5).click();
       await settle();
       expect(requests.map((r) => r.body)).toEqual([{ page_id: 'start', video_id: 'how-to-use-this-program', stars: 5 }]);
@@ -566,16 +587,15 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       expect(status(PROBLEM_VIDEO).textContent).toBe(THANKS(4));
     });
 
-    it('thanks the visitor, fills in the closed card\'s summary, and sends a changed rating as a new request', async () => {
+    it('thanks the visitor in the status line only, and sends a changed rating as a new request', async () => {
       await open(PROBLEM, { modules: ['solutions', 'rating'] });
       radio(CARD_VIDEO, 4).click();
       await settle();
-      expect([status(CARD_VIDEO).textContent, summary(CARD_VIDEO).textContent, summary(CARD_VIDEO).hidden]).toEqual([THANKS(4), SUMMARY(4), false]);
+      expect([status(CARD_VIDEO).textContent, cardShows(CARD_VIDEO)]).toEqual([THANKS(4), '']);
       radio(CARD_VIDEO, 2).click();
       await settle();
       expect(requests.map((r) => r.body.stars)).toEqual([4, 2]);
-      expect([status(CARD_VIDEO).textContent, summary(CARD_VIDEO).textContent, checked(CARD_VIDEO)]).toEqual([THANKS(2), SUMMARY(2), 2]);
-      expect(summary(CARD_VIDEO).hasAttribute('role')).toBe(false);
+      expect([status(CARD_VIDEO).textContent, cardShows(CARD_VIDEO), checked(CARD_VIDEO)]).toEqual([THANKS(2), '', 2]);
       for (const r of requests) expect(validateRating(r.body, index).row).toBeTruthy();
     });
 
@@ -658,7 +678,7 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       expect(requests[0].init.signal.aborted).toBe(true);
     });
 
-    it('goes back to the last rating the API accepted, and leaves the summary at it', async () => {
+    it('goes back to the last rating the API accepted', async () => {
       await open(PROBLEM, { modules: ['solutions', 'rating'], answer: 'manual' });
       radio(CARD_VIDEO, 3).click();
       requests[0].answer(204);
@@ -666,7 +686,7 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       radio(CARD_VIDEO, 5).click();
       requests[1].answer(503);
       await settle();
-      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO), summary(CARD_VIDEO).textContent]).toEqual([SEND_FAILED, 3, SUMMARY(3)]);
+      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO), cardShows(CARD_VIDEO)]).toEqual([SEND_FAILED, 3, '']);
     });
 
     it('announces a repeated message again: cleared, then set after a moment', async () => {
@@ -821,11 +841,11 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       requests[0].answer(204);
       await settle();
       // Stored, but a star is still held, so the status waits for the hold.
-      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO), summary(CARD_VIDEO).textContent]).toEqual(['', 4, SUMMARY(4)]);
+      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO)]).toEqual(['', 4]);
       await end(module);
       await settle();
       expect(requests.map((r) => r.body.stars)).toEqual([4]);
-      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO), summary(CARD_VIDEO).textContent]).toEqual([THANKS(4), 4, SUMMARY(4)]);
+      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO)]).toEqual([THANKS(4), 4]);
     });
 
     it('thanks the visitor when the arrows come back to the stored star after a failure', async () => {
@@ -982,22 +1002,22 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
   });
 
   describe('the page hidden with a request in flight, then back from the back/forward cache', () => {
-    it('sends the newest waiting star at once, and only its answer sets the accepted star and the closed card\'s summary', async () => {
+    it('sends the newest waiting star at once, and only its answer sets the accepted star and the status line', async () => {
       await open(PROBLEM, { modules: ['solutions', 'rating'], answer: 'manual' });
       press(CARD_VIDEO, 2);
       press(CARD_VIDEO, 3);
       arrowTo(CARD_VIDEO, 4);
       dom.window.dispatchEvent(new Event('pagehide'));
       expect(requests.map((r) => [r.body.stars, r.init.keepalive])).toEqual([[2, true], [4, true]]);
-      const shown = () => [status(CARD_VIDEO).textContent, checked(CARD_VIDEO), summary(CARD_VIDEO).hidden, summary(CARD_VIDEO).textContent];
+      const shown = () => [status(CARD_VIDEO).textContent, checked(CARD_VIDEO), cardShows(CARD_VIDEO)];
       // Back from the cache: the older answer comes first and changes nothing.
       requests[0].answer(204);
       await settle();
       expect(requests).toHaveLength(2);
-      expect(shown()).toEqual(['', 4, true, '']);
+      expect(shown()).toEqual(['', 4, '']);
       requests[1].answer(204);
       await settle();
-      expect(shown()).toEqual([THANKS(4), 4, false, SUMMARY(4)]);
+      expect(shown()).toEqual([THANKS(4), 4, '']);
       // 4 is the accepted star, so arrowing on to 5 and back down to 2 sends 2.
       arrowTo(CARD_VIDEO, 5);
       for (const n of [4, 3, 2]) arrowTo(CARD_VIDEO, n, 'ArrowLeft');
@@ -1005,7 +1025,7 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       expect(requests.map((r) => r.body.stars)).toEqual([2, 4, 2]);
       requests[2].answer(204);
       await settle();
-      expect(shown()).toEqual([THANKS(2), 2, false, SUMMARY(2)]);
+      expect(shown()).toEqual([THANKS(2), 2, '']);
     });
 
     it('ignores an older answer that comes after the newer one, even a failure', async () => {
@@ -1018,7 +1038,7 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       requests[0].answer(500);
       await settle();
       expect(requests).toHaveLength(2);
-      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO), summary(CARD_VIDEO).textContent]).toEqual([THANKS(4), 4, SUMMARY(4)]);
+      expect([status(CARD_VIDEO).textContent, checked(CARD_VIDEO)]).toEqual([THANKS(4), 4]);
     });
 
     it('sends nothing more when the waiting star is the one in flight', async () => {

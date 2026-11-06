@@ -13,8 +13,9 @@
 // - keywords: the page's row in data/keywords.csv, as words (SPEC §8.2);
 // - transcript: plain text. For a problem, its "Is this you?" text and, for
 //   every video on the page, the video's title, the solution's blurb and the
-//   transcript, so a match in a solution video leads to the problem page. For
-//   Start here, each intro video's title, description and transcript. For an
+//   transcript (the video file's body, which the site doesn't show), so a
+//   match in a solution video leads to the problem page. For Start here,
+//   each intro video's title, description and transcript. For an
 //   information page, the text of its rendered body.
 // - type: "problem", "start" or "page".
 //
@@ -134,10 +135,10 @@ export function searchIndex({ problems = [], videos = [], start, pages = [], key
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // The attributes that name a video in the HTML, each holding its video_id:
-// the facade (data-video), the transcript (data-transcript), the handout link
-// (data-handout), the audio-only player (data-media), SPEC §9.4, and the
-// ratings widget (data-rating), SPEC §12.
-const VIDEO_ATTRIBUTES = /\sdata-(?:video|transcript|handout|media|rating)="([^"]*)"/g;
+// the facade (data-video), the handout links (data-handout), the
+// audio-only player (data-media), SPEC §9.4, and the ratings widget
+// (data-rating), SPEC §12.
+const VIDEO_ATTRIBUTES = /\sdata-(?:video|handout|media|rating)="([^"]*)"/g;
 
 /** The value of an attribute in an opening tag, or undefined if it isn't there. */
 function attribute(tag, name) {

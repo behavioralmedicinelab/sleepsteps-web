@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
-import { attr, readHtmlPages, tags } from './helpers.js';
+import { attr, readHtmlPages, tags, text } from './helpers.js';
 
 const site = inject('builtSite');
 const pages = readHtmlPages(site);
@@ -202,5 +202,24 @@ describe.each(pages.map((p) => [p.file, p.html]))('%s', (file, html) => {
     for (const nav of tags(html, 'nav')) {
       expect(attr(nav, 'aria-label'), nav).toBeTruthy();
     }
+  });
+
+  // The project lead's decisions of 2026-11-06 (SPEC §9.3, §12, §15.1, §22).
+  it('offers or mentions no transcript: no disclosure, print button, link or visible text', () => {
+    const visible = text(
+      html
+        .replace(/<(script|style)\b[\s\S]*?<\/\1>/g, ' ')
+        .replace(/<p class="rating__sizer"[\s\S]*?<\/p>/g, ' ')
+        .replace(/<span class="visually-hidden">[\s\S]*?<\/span>/g, ' '),
+    );
+    expect(visible).not.toMatch(/transcript/i);
+    const description = attr(tags(html, 'meta').find((t) => attr(t, 'name') === 'description') ?? '<meta>', 'content') ?? '';
+    expect(description).not.toMatch(/transcript/i);
+    expect(html).not.toMatch(/\sdata-transcript=|\sid="transcript-|href="#transcript-|class="transcript|transcript__print|print-sheet|solution__quick-transcript/);
+  });
+
+  it('has no ratings notice and no closed-card rating summary', () => {
+    expect(html).not.toMatch(/Ratings are anonymous|We use them to improve these resources|About the information we collect/);
+    expect(html).not.toMatch(/data-rating-summary|class="solution__rating"/);
   });
 });

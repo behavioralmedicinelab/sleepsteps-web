@@ -10,7 +10,7 @@ page_id: home
 title: Sleep during and after cancer
 styles: ["pages/home.css"]
 # The hero subline under the H1; also the page's meta description.
-summary: Short videos and practical ideas for the sleep problems people often have during and after cancer. Watch, listen, read or print, whichever suits you.
+summary: Short videos and practical ideas for the sleep problems people often have during and after cancer. Watch, listen or read, whichever suits you.
 hero:
   eyebrow: Free · Short videos · At your own pace
   heading: Sleep can be hard after cancer. It can also get better.
@@ -20,11 +20,12 @@ hero:
   # photo: "home-hero.jpg". It is decorative (alt=""), so choose mood
   # imagery: the H1 carries the message.
   photo: ""
-# "Watch, listen, read or print": the line beside the format tiles. Each
-# tile shows only if some video has that format (SPEC §7.5). Every video is
-# to have an audio-only version, a transcript and a handout by launch
-# (SPEC §7.1, §9.2, §9.3).
-formats_intro: Video comes first, but every video also has an audio-only version, a transcript and a handout with the same ideas.
+# "Watch, listen or read": the line beside the format tiles. Each tile
+# shows only if some video has that format (SPEC §7.5). Every video is to
+# have an audio-only version and a handout by launch (SPEC §7.1, §9.2,
+# §9.3). There are no transcripts on the site: the handout carries what the
+# video says.
+formats_intro: Video comes first, but every video also has an audio-only version and a handout you can read or print.
 # The "About the trial" band. Drafted from the trial's concept note (version
 # 0.3, July 2026) for the team to confirm (SPEC §22).
 trial_text: "We're testing this program in a research trial run by a team at Monash University. The trial is for adults with cancer who have trouble sleeping. It tests whether this self-help program helps people sleep better, and whether extra help from a therapist, then a sleep specialist, helps those who need more. You don't need to be in the trial to use this website."
@@ -82,7 +83,7 @@ trial_text: "We're testing this program in a research trial run by a team at Mon
       {{ stepChip(3, 'Step 3', tag='p', hideNum=true) }}
       <div class="home-step__body">
         <h3 class="home-step__title">Try what fits you</h3>
-        <p class="home-step__text">Each problem has a short video, and most have a few things to try. Watch a video, listen to it, read its transcript or print its handout.</p>
+        <p class="home-step__text">Each problem has a short video, and most have a few things to try. Watch a video, listen to it, or read its handout.</p>
         {#- The board's note (Main.dc.html; SPEC §7.5, §11, §12), only while the ratings widgets render. It ships hidden, and menu.js shows it ([data-js-only]): without JavaScript no stars show, so neither does the note. #}
         {%- if site.features.ratings === true %}
         <p class="home-step__note" hidden data-js-only>Rate each video to help us improve</p>
@@ -109,24 +110,21 @@ trial_text: "We're testing this program in a research trial run by a team at Mon
   </ul>
 </section>
 
-{%- if formats.transcript or formats.handout or formats.audio %}
+{%- if formats.handout or formats.audio %}
 <section class="home-formats container">
   <div class="panel panel--wash home-formats__panel">
     <div class="home-formats__intro">
-      <h2 class="home-formats__heading">Watch, listen, read or print</h2>
+      <h2 class="home-formats__heading">Watch, listen or read</h2>
       <p>{{ formats_intro }}</p>
     </div>
     <ul class="home-formats__list" role="list">
-      {#- In the heading's order: watch, listen, read, print. Audio is not on the board, which has three tiles (SPEC §7.5). #}
+      {#- In the heading's order: watch, listen, read. The board's tiles are Video, Transcript and Handout; here Audio takes the Transcript's place, since there are no transcripts on the site (SPEC §7.5). #}
       <li class="home-format"><strong class="home-format__name">Video</strong> Short, with captions</li>
       {%- if formats.audio %}
       <li class="home-format"><strong class="home-format__name">Audio</strong> Listen without watching</li>
       {%- endif %}
-      {%- if formats.transcript %}
-      <li class="home-format"><strong class="home-format__name">Transcript</strong> Read at your own speed</li>
-      {%- endif %}
       {%- if formats.handout %}
-      <li class="home-format"><strong class="home-format__name">Handout</strong> One page to print or keep</li>
+      <li class="home-format"><strong class="home-format__name">Handout</strong> Read, print or keep</li>
       {%- endif %}
     </ul>
   </div>
