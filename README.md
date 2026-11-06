@@ -59,16 +59,21 @@ audio: "sleep-drive.mp3"            # the audio-only version: a file in media/au
 handout: "sleep-drive.pdf"          # the handout: a file in media/pdf/
 thumbnail: "sleep-drive.jpg"        # optional: a file in media/thumbs/
 ---
-The transcript goes here, as plain paragraphs: word for word, naming the speakers.
-Leave a blank line between paragraphs. No headings (#), no HTML, no images,
-and no links except to pages on this site, such as [Pain](/problems/pain/).
+Optional: a transcript, as plain paragraphs. The site never shows it, but its
+words help the site search find the video's page. Leave a blank line between
+paragraphs. No headings (#), no HTML, no images, and no links except to pages
+on this site, such as [Pain](/problems/pain/).
 ```
 
-Every video needs a handout, an audio-only version and a transcript by launch. The build warns about a video that is missing any of them, and the launch check (`node scripts/validate-content.js --no-placeholders`) fails on it. Any format a video doesn't have yet is simply not shown.
+Every video needs a handout and an audio-only version by launch. The build warns about a video that is missing either, and the launch check (`node scripts/validate-content.js --no-placeholders`) fails on it. Any format a video doesn't have yet is simply not shown. Under each video the page shows one row: "Audio only", "Handout" and "Was this helpful?" with its stars.
+
+**The handout carries the narration.** There are no transcripts on the site: the handout is each video's text version (the text alternative for people who can't hear the audio), so it has the video's full narration, word for word, naming the speakers, plus anything that matters on screen. The "Handout" button under each video links to it. Make it accessible: for a PDF, export it from Word as a tagged PDF and check it (`SPEC.md` §9.3).
+
+A transcript in the video file is optional. If there is one, it is never shown, but the site search indexes it, and it can be the source for the YouTube captions.
 
 The handout's format (PDF, Word or a web page) is still being decided (`SPEC.md` §9.3); until then it is a PDF.
 
-**Placeholder videos.** Until a video is on YouTube, its file has `placeholder: true`, `youtube_id: "PLACEHOLDER"` and `duration: "[mm:ss]"`; the page shows "[Video coming soon]". To make it real, put in the YouTube ID and duration, replace the bracketed stand-in transcript (if it has one) with the real transcript, and delete the `placeholder: true` line. The build fails on a real video that still has the stand-in. The build lists the placeholders that are left; there must be none at launch.
+**Placeholder videos.** Until a video is on YouTube, its file has `placeholder: true`, `youtube_id: "PLACEHOLDER"` and `duration: "[mm:ss]"`; the page shows "[Video coming soon]". To make it real, put in the YouTube ID and duration, replace the bracketed stand-in transcript (if it has one) with the real transcript or delete it, and delete the `placeholder: true` line. The build fails on a real video that still has the stand-in, since the search would index it. The build lists the placeholders that are left; there must be none at launch.
 
 ### Exporting the audio-only version
 
@@ -111,7 +116,7 @@ Use the settings in `SPEC.md` §19.2: upload as Unlisted, check on the site that
 ```text
 [One or two sentences on what this video covers.]
 
-Find its transcript, handout and audio-only version on our website: https://[domain]/[page]/
+Find its handout (the full text of the video) and audio-only version on our website: https://[domain]/[page]/
 
 This video gives general information about sleep. It is not medical advice and does not replace advice from your doctor or treating team.
 
@@ -169,7 +174,7 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 - **Problem areas:** `data/areas.csv` (edit in Excel, save as CSV UTF-8).
 - **The team** on About ("Who we are"): `data/team.csv` (edit in Excel, save as CSV UTF-8). One row per person, in the order shown: `name`, `role` and an optional `organisation`. The build stops if a row has no name or role.
 - **Search keywords:** `data/keywords.csv` (edit in Excel, save as CSV UTF-8). One row per page: `page_id` is a problem's file name (without `.md`), `start`, or an information page's file name; `keywords` lists the words people might type, separated by `;`, including misspellings and US spellings. The site search and the filter on the Sleep problems page both use them. The build stops on an unknown or repeated `page_id`, and lists pages with no keywords. `npm test` checks that example searches (`test/node/search-queries.test.js`) still find the right page, so add a case there when you add keywords for something new. An information page with `search: false` in its front matter is left out of the search.
-- **Star ratings** under each video: on or off with `ratings` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there are no stars and no note on Home). The question ("Was this helpful?") and the star names are in `src/_includes/partials/rating.njk`, and the anonymity line under the stars in `src/_includes/notices/ratings.njk` (draft wording for the privacy officer, `SPEC.md` §15.1). The messages after a rating ("Thanks. You rated this 4 of 5.", and "You rated this 4 of 5." on a closed solution card) are in `src/js/rating.js`, and the failure message in `src/js/api.js`. `rating.njk` also holds hidden copies of the two longest messages, which keep room for them, so change them together. Home's "Rate each video to help us improve" is in `content/index.njk`; like the stars, it shows only when JavaScript runs. The tests check all of this wording word for word, so a change also needs the tests updated, or the build stops; ask a developer (or Claude) to make it.
+- **Star ratings** under each video: on or off with `ratings` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there are no stars and no note on Home). The question ("Was this helpful?") and the star names are in `src/_includes/partials/rating.njk`; there is no line under the stars (`SPEC.md` §15.1). The row under each video (Audio only, Handout, the stars) is in `src/_includes/partials/video-controls.njk`. The message after a rating ("Thanks. You rated this 4 of 5.") is in `src/js/rating.js`, and the failure message in `src/js/api.js`. `rating.njk` also holds hidden copies of the two longest messages, which keep room for them, so change them together. Home's "Rate each video to help us improve" is in `content/index.njk`; like the stars, it shows only when JavaScript runs. The tests check all of this wording word for word, so a change also needs the tests updated, or the build stops; ask a developer (or Claude) to make it.
 - **Information pages:** `content/pages/*.md`. The front matter they take is described at the top of `src/_includes/layouts/info.njk`.
 - **Crisis numbers** on Getting urgent help: `crisisContacts` in `site.config.json`. The smaller cards under them (your treating team, Cancer Council) are `other_contacts` in `content/pages/urgent-help.md`; a card becomes a phone link once its `value` is a real number (only its number, if the card also links to a website). A card there, or a service card on Getting more help (`services` in `content/pages/help.md`), can link to the service's website with `url` and `link_text`, but only to a site on the allowed list in `SPEC.md` §16.1 (a new site is added there and to `OUTBOUND_HOSTS` in `test/node/build-output.test.js`).
 

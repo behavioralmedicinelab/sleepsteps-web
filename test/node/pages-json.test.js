@@ -33,14 +33,16 @@ describe('pagesIndex()', () => {
         '/problems/pain/',
         '<body class="page--wide" data-page-id="pain" data-page-view>',
         '<title>Can&#39;t sleep &amp; pain</title>',
-        '<div data-video="b-video" data-title="B"></div><details data-transcript="b-video"></details>' +
-          '<a data-handout="a-video" href="/media/pdf/a.pdf"></a><audio data-media="c-video"></audio>',
+        '<div data-video="b-video" data-title="B"></div><div data-rating="d-video"></div>' +
+          '<a data-handout="a-video" href="/media/pdf/a.pdf"></a><audio data-media="c-video"></audio>' +
+          // Not an attribute that names a video any more (no transcripts, SPEC §9.3).
+          '<details data-transcript="e-video"></details>',
       ),
       result('/about/', '<body data-page-id="about">', '<title>About us</title>'),
     ]);
     expect(json).toEqual({
       about: { url: '/about/', title: 'About us', page_view: false, videos: [] },
-      pain: { url: '/problems/pain/', title: "Can't sleep & pain", page_view: true, videos: ['a-video', 'b-video', 'c-video'] },
+      pain: { url: '/problems/pain/', title: "Can't sleep & pain", page_view: true, videos: ['a-video', 'b-video', 'c-video', 'd-video'] },
     });
     expect(Object.keys(json)).toEqual(['about', 'pain']);
   });
@@ -153,15 +155,16 @@ describe('the HTML pages.json is read from', () => {
     expect(marked).toEqual(TRACKED);
   });
 
-  it('names videos only by video_id: data-video, data-transcript, data-handout, the audio’s data-media and the ratings widget’s data-rating', () => {
+  it('names videos only by video_id: data-video, data-handout, the audio’s data-media and the ratings widget’s data-rating', () => {
     const seen = new Set();
     for (const { file, html } of built) {
-      for (const [, name, value] of html.matchAll(/\sdata-(video|transcript|handout|media|rating)="([^"]*)"/g)) {
+      for (const [, name, value] of html.matchAll(/\sdata-(video|handout|media|rating)="([^"]*)"/g)) {
         expect(model.videos.has(value), `${file}: data-${name}="${value}"`).toBe(true);
         seen.add(name);
       }
+      expect(html, file).not.toMatch(/\sdata-transcript=/);
     }
-    expect([...seen].sort()).toEqual(['handout', 'media', ...(config.features.ratings === true ? ['rating'] : []), 'transcript', 'video']);
+    expect([...seen].sort()).toEqual(['handout', 'media', ...(config.features.ratings === true ? ['rating'] : []), 'video']);
   });
 
   it('gives each audio player the video_id of its own "Audio only" disclosure (audio_play, SPEC §10.2)', () => {
