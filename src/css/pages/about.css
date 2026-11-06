@@ -59,51 +59,29 @@
 
 .info-body--about .about-team {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
-  gap: var(--space-6);
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  column-gap: var(--space-7);
   margin-top: var(--space-6);
   padding: 0;
   list-style: none;
 }
 
-/* Nothing inside a team card can take focus, so overflow can be clipped to
-   round the photo's top corners. */
+/* A compact list, no photos: the name, then the role and organisation, each
+   row above a keyline (the team is too large for the board's photo cards). */
 .info-body--about .about-person {
-  padding: 0;
-  overflow: hidden;
-}
-
-/* Placeholder until there are photos: a 4:3 block cycling teal-wash, sand
-   and panel (the board's colour cycle), hidden from screen readers. */
-.about-person__photo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  aspect-ratio: 4 / 3;
-  background: var(--teal-wash);
-  color: var(--ink);
-  font-size: var(--fs-helper);
-  line-height: var(--lh-helper);
-}
-
-.about-person:nth-child(3n + 2) .about-person__photo {
-  background: var(--sand);
-}
-
-.about-person:nth-child(3n) .about-person__photo {
-  background: var(--panel);
-}
-
-.about-person__body {
-  padding: var(--space-5); /* board 14 x 16 */
+  padding-block: var(--space-4);
+  border-top: var(--border-width) solid var(--keyline);
 }
 
 .info-body--about .about-person__name {
+  display: block;
   color: var(--ink);
+  font-weight: var(--weight-semibold);
 }
 
 /* The role is metadata under the name: helper size. */
 .about-person__role {
+  display: block;
   margin-top: var(--space-1);
   color: var(--slate-grey);
   font-size: var(--fs-helper);

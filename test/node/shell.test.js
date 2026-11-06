@@ -242,6 +242,18 @@ describe('information pages', () => {
     expect(html).toContain('<h2>Why we made this program</h2>');
   });
 
+  it('lists the team in "Who we are" as one row per person, no photos (SPEC §7.5)', () => {
+    const html = pageAt(site, '/about/');
+    const list = elementByClass(html, 'about-team', 'ul');
+    const rows = list.match(/<li class="about-person">[\s\S]*?<\/li>/g).map(text);
+    expect(rows).toHaveLength(17);
+    expect(rows[0]).toBe('Joshua Wiley Coordinating principal investigator, Monash University');
+    expect(rows[1]).toBe('Alix Mellor Trial coordinator, Monash University');
+    expect(rows).toContain('Alysia Kepert Lived experience expert');
+    expect(rows).toContain('Oxana Palesh Researcher, Virginia Commonwealth University (USA)');
+    expect(list).not.toMatch(/<h3|\[Photo\]|\[Name\]/);
+  });
+
   it("links Privacy to Google's privacy policy", () => {
     expect(pageAt(site, '/privacy/')).toContain(
       '<p class="link-standalone"><a href="https://policies.google.com/privacy" rel="noreferrer">Google privacy policy</a></p>',
