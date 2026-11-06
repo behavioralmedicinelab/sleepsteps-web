@@ -194,6 +194,27 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   }
   const areaIds = new Set(areas.map((a) => a.area_id));
 
+  // ---- Team (data/team.csv, About's "Who we are", SPEC §7.4) -------------
+  // Optional file: columns name, role, organisation; name and role required.
+  const teamFile = 'data/team.csv';
+  if (existsSync(at(teamFile))) {
+    let team = [];
+    try {
+      team = parseCsvRecords(readFileSync(at(teamFile), 'utf8'));
+    } catch (e) {
+      error(teamFile, '', e.message);
+    }
+    const columns = Object.keys(team[0] ?? {});
+    if (team.length && columns.join(',') !== 'name,role,organisation') {
+      error(teamFile, '', `the columns must be name,role,organisation (found ${columns.join(',')})`);
+    } else {
+      team.forEach((person, i) => {
+        if (!isText(person.name)) error(teamFile, `row ${i + 2}`, 'name is empty');
+        if (!isText(person.role)) error(teamFile, `row ${i + 2}`, 'role is empty');
+      });
+    }
+  }
+
   // ---- Videos (content/videos/<video_id>.md, SPEC §7.1) ------------------
   const videos = new Map();
   for (const name of listMarkdown(at('content/videos'))) {
