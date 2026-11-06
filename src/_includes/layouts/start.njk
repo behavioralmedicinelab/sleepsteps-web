@@ -2,7 +2,7 @@
 layout: layouts/base.njk
 ---
 {#-
-  Start here (/start/): SPEC §7.3, §9.1-§9.3, §12 (slot only), §15.1, §20 M1b;
+  Start here (/start/): SPEC §7.3, §9.1-§9.3, §12, §15.1, §20 M1b;
   HANDOFF §6.2; board Intro-B.dc.html. There is no phone board, so phones
   follow the problem page's (Problem-Phone.dc.html; HANDOFF §11): full-bleed
   videos, full-width format buttons and a full-width end-card button.
@@ -22,10 +22,12 @@ layout: layouts/base.njk
 
   Each chapter: a large faint number, "Video n of N · duration", the title
   (H2) and description, the video facade with its YouTube notice
-  (partials/video.njk), then a white bar with the ratings slot (M4) and the
-  video's formats (partials/formats.njk). The bar is left out when it would
-  be empty. No per-video feedback (SPEC §7.5, §13). Then the end card to the
-  Sleep problems page.
+  (partials/video.njk), then a white bar with the ratings widget (SPEC §12,
+  partials/rating.njk, while site.features.ratings is exactly true) above
+  the video's formats (partials/formats.njk). The bar is left out when it
+  would be empty; holding only the widget, it ships hidden for rating.js to
+  reveal, so no empty bar shows without JavaScript. No per-video feedback
+  (SPEC §7.5, §13). Then the end card to the Sleep problems page.
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- from "partials/video.njk" import videoEmbed -%}
@@ -69,14 +71,20 @@ layout: layouts/base.njk
           </div>
         </div>
         {{ videoEmbed(video, bleed='page', arc=true, size='lg') }}
-        {%- set ratingHtml = rating(video, page_id, 'row') if site.features.ratings else '' %}
+        {%- set ratingHtml = rating(video, 'row') if site.features.ratings === true else '' %}
         {%- set formatsHtml = formatLinks(video) %}
         {#- `| length`: a trimmed macro result is a SafeString object, truthy even when empty. #}
-        {%- if (ratingHtml | trim | length) or (formatsHtml | trim | length) %}
-        <div class="start-chapter__bar">
-          {#- M4 (SPEC §12): the ratings widget renders here, left of or above the formats, through rating() above: a <fieldset> "Was this helpful?" with five radio stars, the status line and notices/ratings.njk, only while site.features.ratings is on. It renders nothing before M4. No "Send feedback" link here: feedback is only the footer link (SPEC §7.5, §13). #}
+        {%- set hasRating = ratingHtml | trim | length %}
+        {%- set hasFormats = formatsHtml | trim | length %}
+        {%- if hasRating or hasFormats %}
+        <div class="start-chapter__bar"{% if not hasFormats %} hidden data-rating-reveal{% endif %}>
+          {#- The ratings widget (SPEC §12) above the formats. No "Send feedback" link here: feedback is only the footer link (SPEC §7.5, §13). #}
+          {%- if hasRating %}
           {{ ratingHtml }}
+          {%- endif %}
+          {%- if hasFormats %}
           {{ formatsHtml }}
+          {%- endif %}
         </div>
         {%- endif %}
       </article>

@@ -10,7 +10,9 @@ eyebrow: Start here
 heading: The introduction
 summary: Three short videos everyone watches first. Watch them in order, in one sitting or over a few days.
 styles: ["pages/start.css"]
-scripts: ["players.js"]
+# rating.js: the ratings widgets (SPEC §12), dropped by the moduleScripts
+# filter unless features.ratings is exactly true.
+scripts: ["players.js", "rating.js"]
 # Analytics (SPEC §10.2): this page sends a page_view. base.njk renders it as
 # <body data-page-view>, which events.js and pages.json (SPEC §8.3) read.
 track_page_view: true

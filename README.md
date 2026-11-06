@@ -13,25 +13,28 @@ npm install
 npm run build   # build the site into dist/
 npm run dev     # local site + Worker at http://localhost:8787
 npm test        # run tests
-npm run db:migrate:local && npm run dev:collect   # the same, collecting usage statistics locally (below)
+npm run db:migrate:local && npm run dev:collect   # the same, storing usage statistics and ratings locally (below)
 ```
 
 `npm run dev` passes extra flags to `wrangler dev`, e.g. `npm run dev -- --port 8799`.
 
-### Usage statistics locally
+### Usage statistics and ratings locally
 
-`npm run dev` keeps data collection off, as production does until the privacy officer's go-ahead: pages still send their usage statistics, and the API answers 404 and stores nothing (`SPEC.md` §11). To try the statistics end to end against a local database:
+`npm run dev` keeps data collection off, as production does until the privacy officer's go-ahead: pages still send their usage statistics, and the API answers 404 and stores nothing (`SPEC.md` §11). The stars under each video show, but a rating gets "Couldn't send right now — please try again later". To try the statistics and ratings end to end against a local database:
 
 ```sh
 npm run db:migrate:local   # once, and again after each new file in migrations/
 npm run dev:collect        # like npm run dev, with collection on for this run
 ```
 
-Open http://localhost:8787 (the API answers only on port 8787, at `localhost` or `127.0.0.1`). Open a sleep problem page, play an audio-only version, open a handout or search, then look at what was stored:
+Open http://localhost:8787 (the API answers only on port 8787, at `localhost` or `127.0.0.1`). Open a sleep problem page, play an audio-only version, open a handout, rate a video or search, then look at what was stored:
 
 ```sh
 npx wrangler d1 execute sleepsteps --local --command "SELECT ts, session_id, page, type, detail FROM events ORDER BY ts DESC LIMIT 20"
+npx wrangler d1 execute sleepsteps --local --command "SELECT ts, page, video, stars FROM ratings ORDER BY id DESC LIMIT 20"
 ```
+
+A star clicked or tapped is sent at once; a star reached with the arrow keys is sent after a 2-second pause, when focus leaves the stars, or on Enter (`SPEC.md` §12).
 
 Keep `--local` (Wrangler's default, written out so the command says what it does) and never use `--remote`, which reaches the real database. Never put `DATA_COLLECTION` or `API_HOSTS` in `.dev.vars`; `dev:collect` passes them on the command line for that run only, and the tests check this. The "Turn off usage statistics" switch on the privacy page works in this mode too.
 
@@ -166,12 +169,13 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 - **Problem areas:** `data/areas.csv` (edit in Excel, save as CSV UTF-8).
 - **The team** on About ("Who we are"): `data/team.csv` (edit in Excel, save as CSV UTF-8). One row per person, in the order shown: `name`, `role` and an optional `organisation`. The build stops if a row has no name or role.
 - **Search keywords:** `data/keywords.csv` (edit in Excel, save as CSV UTF-8). One row per page: `page_id` is a problem's file name (without `.md`), `start`, or an information page's file name; `keywords` lists the words people might type, separated by `;`, including misspellings and US spellings. The site search and the filter on the Sleep problems page both use them. The build stops on an unknown or repeated `page_id`, and lists pages with no keywords. `npm test` checks that example searches (`test/node/search-queries.test.js`) still find the right page, so add a case there when you add keywords for something new. An information page with `search: false` in its front matter is left out of the search.
+- **Star ratings** under each video: on or off with `ratings` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there are no stars and no note on Home). The question ("Was this helpful?") and the star names are in `src/_includes/partials/rating.njk`, and the anonymity line under the stars in `src/_includes/notices/ratings.njk` (draft wording for the privacy officer, `SPEC.md` §15.1). The messages after a rating ("Thanks. You rated this 4 of 5.", and "You rated this 4 of 5." on a closed solution card) are in `src/js/rating.js`, and the failure message in `src/js/api.js`. `rating.njk` also holds hidden copies of the two longest messages, which keep room for them, so change them together. Home's "Rate each video to help us improve" is in `content/index.njk`; like the stars, it shows only when JavaScript runs. The tests check all of this wording word for word, so a change also needs the tests updated, or the build stops; ask a developer (or Claude) to make it.
 - **Information pages:** `content/pages/*.md`. The front matter they take is described at the top of `src/_includes/layouts/info.njk`.
 - **Crisis numbers** on Getting urgent help: `crisisContacts` in `site.config.json`. The smaller cards under them (your treating team, Cancer Council) are `other_contacts` in `content/pages/urgent-help.md`; a card becomes a phone link once its `value` is a real number (only its number, if the card also links to a website). A card there, or a service card on Getting more help (`services` in `content/pages/help.md`), can link to the service's website with `url` and `link_text`, but only to a site on the allowed list in `SPEC.md` §16.1 (a new site is added there and to `OUTBOUND_HOSTS` in `test/node/build-output.test.js`).
 
 ## Tests
 
-`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages the Worker checks events against (`SPEC.md` §8.3).
+`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages and their videos the Worker checks events and ratings against (`SPEC.md` §8.3).
 
 ## Deployment
 
@@ -179,7 +183,7 @@ Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 
 - **Merging to `main`** runs `npm test && npm run build` and deploys production. Until launch, production is at `sleepsteps.behavioural-medicine-lab.workers.dev`, marked `noindex` so search engines leave it out.
 - **Other branches** each get a preview at `<branch>-sleepsteps.behavioural-medicine-lab.workers.dev`. All previews share one database, `sleepsteps-preview`, separate from production's, for test data only.
-- **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing. The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
+- **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing; the stars under each video show, and say "Couldn't send right now — please try again later" when used. The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
 - **Database changes** are new files in `migrations/`, never edits to an applied one; the first, `0001_init.sql`, creates the `ratings`, `feedback` and `events` tables (`SPEC.md` §17). `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`). This is needed only before data collection is turned on there; after that, each new migration is applied to production just before its pull request merges (`SPEC.md` §17, §18.4).
 
 ## Licence

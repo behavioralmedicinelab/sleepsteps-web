@@ -250,9 +250,16 @@
   }
 }
 
-/* Links line up at the foot of the cards. */
-.home-step__more {
+/* Links line up at the foot of the cards, with step 3's ratings note
+   (Main.dc.html; its 15px raised to 17px, SPEC §7.5). */
+.home-step__more,
+.home-step__note {
   margin-top: auto;
+}
+
+.home-step__note {
+  color: var(--slate-grey);
+  font-weight: var(--weight-semibold);
 }
 
 @media (min-width: 37.5em) {

@@ -11,6 +11,7 @@ import { validateContent } from '../../scripts/validate-content.js';
 import { attr, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
 const site = inject('builtSite');
+const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
 const { model } = validateContent(process.cwd());
 const problems = [...model.problems.entries()];
 const video = (id) => model.videos.get(id);
@@ -295,7 +296,11 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     expect(main).toMatch(/<audio\b[^>]*\scontrols\b/);
     expect(text(elementByClass(main, 'transcript__body', 'div'))).toBe(`[Transcript of “${v.title.slice(1, -1)}”.]`);
     const hidden = [...main.matchAll(/<([a-z0-9]+)\b[^>]*\shidden(?=[\s>])[^>]*>/g)].map((m) => [m[1], attr(m[0], 'class')]);
-    expect(hidden).toEqual([['button', 'transcript__print link-button']]);
+    // The ratings widget (SPEC §12) needs JavaScript too.
+    expect(hidden).toEqual([
+      ...(config.features.ratings === true ? [['div', 'rating rating--row']] : []),
+      ['button', 'transcript__print link-button'],
+    ]);
     expect(elementByClass(main, 'problem__all', 'p')).toBe('<p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>');
   });
 
@@ -392,10 +397,38 @@ describe('solutionsSection with a playable video', () => {
     expect(env.renderString('{% from "problem/solutions.njk" import solutionsSection %}[{{ solutionsSection("extra", items, "a-page") }}]', { items: [] })).toBe('[]');
   });
 
-  it('renders nothing visible in the ratings slots until M4, even with ratings on', () => {
-    expect(render([{ tier: 'main', video: 'bare', blurb: 'Or this.' }], true)).toBe(
-      render([{ tier: 'main', video: 'bare', blurb: 'Or this.' }], false),
-    );
+  describe('with ratings on (SPEC §12)', () => {
+    const [onFull, onBare] = elements(render([{ tier: 'main', video: 'full', blurb: 'Try this.' }, { tier: 'main', video: 'bare', blurb: 'Or this.' }], true), 'solution', 'li');
+
+    it('puts the card widget in the open card, after the video and before the formats', () => {
+      const panel = elementByClass(onFull, 'solution__panel', 'div');
+      const tools = elementByClass(panel, 'solution__tools', 'div');
+      expect(tags(tools, 'div')[0]).toBe('<div class="solution__tools">');
+      const widget = elementByClass(tools, 'rating', 'div');
+      expect(tags(widget, 'div')[0]).toBe('<div class="rating rating--card" data-rating="full" hidden>');
+      expect(tools.indexOf(widget)).toBeLessThan(tools.indexOf('class="formats"'));
+      expect(panel.indexOf('solution__video')).toBeLessThan(panel.indexOf('solution__tools'));
+      expect(onFull.match(/data-rating="/g)).toHaveLength(1);
+      expect(elementByClass(onFull, 'solution__face', 'summary')).not.toMatch(/rating/);
+    });
+
+    it('puts the empty, hidden summary line first in the closed card\'s meta row', () => {
+      const meta = elementByClass(onFull, 'solution__meta', 'div');
+      expect(meta).toMatch(/^<div class="solution__meta">\s*<p class="solution__rating" data-rating-summary="full" hidden><\/p>\s*<ul class="solution__quick"/);
+    });
+
+    it('hides the tools block until rating.js runs when the widget is all it holds', () => {
+      const tools = elementByClass(onBare, 'solution__tools', 'div');
+      expect(tags(tools, 'div')[0]).toBe('<div class="solution__tools" hidden data-rating-reveal>');
+      expect(tools).not.toMatch(/class="formats"/);
+      expect(elementByClass(onBare, 'solution__meta', 'div')).toMatch(/^<div class="solution__meta">\s*<p class="solution__rating" data-rating-summary="bare" hidden><\/p>\s*<\/div>$/);
+    });
+
+    it('renders the slots only for exactly true', () => {
+      const off = render([{ tier: 'main', video: 'bare', blurb: 'Or this.' }], false);
+      expect(render([{ tier: 'main', video: 'bare', blurb: 'Or this.' }], 'true')).toBe(off);
+      expect(off).not.toMatch(/rating/);
+    });
   });
 });
 

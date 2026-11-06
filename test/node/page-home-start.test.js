@@ -2,12 +2,17 @@
 // §9.1-§9.3, §10.2, §12, §13, §15.1, §20 M1b; HANDOFF §6.1, §6.2). Expected
 // values come from the content files, so the checks follow content edits.
 import { readFileSync } from 'node:fs';
-import { describe, expect, inject, it } from 'vitest';
+import { createRequire } from 'node:module';
+import { describe, expect, inject, it, vi } from 'vitest';
+import configure from '../../eleventy.config.js';
 import { parseCsvRecords } from '../../scripts/lib/csv.js';
 import { parseFrontMatter, validateContent } from '../../scripts/validate-content.js';
-import { attr, elementByClass, pageAt, tags, text } from './helpers.js';
+import { attr, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
+import { installDom } from './mini-dom.js';
 
 const site = inject('builtSite');
+const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
+const ratingsOn = config.features.ratings === true;
 const { model } = validateContent();
 const areas = parseCsvRecords(readFileSync('data/areas.csv', 'utf8')).sort((a, b) => Number(a.order) - Number(b.order));
 const problems = [...model.problems.values()];
@@ -85,8 +90,70 @@ describe('Home (/)', () => {
     expect(text(cards[1][2])).toContain(`There are ${problems.length}, grouped into ten areas.`);
   });
 
-  it('has no ratings prompt before the ratings widget ships (M4)', () => {
-    expect(text(main)).not.toMatch(/Rate each video|Was this helpful/);
+  it('ends step 3 with the ratings note while ratings are on (Main.dc.html, SPEC §7.5), and has no widget', () => {
+    const body = elementByClass(elementByClass(html, 'home-step--3', 'li'), 'home-step__body', 'div');
+    const note = elementByClass(body, 'home-step__note', 'p');
+    if (ratingsOn) {
+      expect(note).toBe('<p class="home-step__note" hidden data-js-only>Rate each video to help us improve</p>');
+      expect(body).toMatch(/<\/p>\s*<p class="home-step__note" [^>]*>[^<]*<\/p>\s*<\/div>$/);
+    } else {
+      expect(note).toBeUndefined();
+    }
+    expect(text(main).match(/Rate each video/g) ?? []).toHaveLength(ratingsOn ? 1 : 0);
+    expect(main).not.toMatch(/data-rating|Was this helpful|<fieldset/);
+  });
+
+  it('ships the ratings note hidden, so without JavaScript Home reads as with ratings off (SPEC §11)', () => {
+    const note = tags(main, 'p').find((t) => attr(t, 'class') === 'home-step__note');
+    if (!ratingsOn) {
+      expect(note).toBeUndefined();
+      return;
+    }
+    expect([attr(note, 'hidden'), attr(note, 'data-js-only')]).toEqual(['', '']);
+    // menu.js shows it, and Home loads menu.js but not rating.js.
+    const scripts = tags(html, 'script').map((t) => attr(t, 'src'));
+    expect(scripts).toContain('/js/menu.js');
+    expect(scripts).not.toContain('/js/rating.js');
+  });
+
+  it('renders the note only while features.ratings is exactly true (SPEC §11)', () => {
+    // Home's body rendered with each switch value, as the built site can't
+    // show more than one (site.config.json is fixed for the test build).
+    const require = createRequire(import.meta.url);
+    const nunjucks = createRequire(require.resolve('@11ty/eleventy'))('nunjucks');
+    const filters = {};
+    configure({
+      on: () => {},
+      addGlobalData: () => {},
+      addDataExtension: () => {},
+      addPassthroughCopy: () => {},
+      addCollection: () => {},
+      addFilter: (name, fn) => (filters[name] = fn),
+    });
+    const env = new nunjucks.Environment(new nunjucks.FileSystemLoader('src/_includes'), { autoescape: true });
+    for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
+    const { data, body } = parseFrontMatter(readFileSync('content/index.njk', 'utf8'));
+    const notes = (ratings) =>
+      env.renderString(body, { ...data, site: { features: { ratings } }, collections: { problems: [], videos: [] }, areas: [] }).match(/<p class="home-step__note"[^>]*>[^<]*<\/p>/g) ?? [];
+    expect(notes(true)).toEqual(['<p class="home-step__note" hidden data-js-only>Rate each video to help us improve</p>']);
+    for (const off of [false, 'true', 1, undefined]) expect(notes(off), String(off)).toEqual([]);
+  });
+
+  it('shows the ratings note once menu.js runs, and only the note (SPEC §11)', async () => {
+    const dom = installDom(html);
+    try {
+      vi.resetModules();
+      await import('../../src/js/menu.js');
+      const note = dom.document.querySelector('.home-step__note');
+      if (ratingsOn) {
+        expect([note.hidden, note.textContent]).toEqual([false, 'Rate each video to help us improve']);
+        expect(dom.document.querySelectorAll('[data-js-only]')).toEqual([note]);
+      } else {
+        expect(note).toBeNull();
+      }
+    } finally {
+      dom.restore();
+    }
   });
 
   it('links each area, in areas.csv order, to its place on the Sleep problems page, with its topic count', () => {
@@ -269,13 +336,23 @@ describe('Start here (/start/)', () => {
       }
     });
 
-    it('has the white bar only when the video has a format, holding just the formats it has', () => {
+    it('has the white bar with the ratings widget, hidden without JavaScript when it would hold nothing else, then the formats it has', () => {
       const bar = elementByClass(html, 'start-chapter__bar', 'div');
-      if (!c.transcript && !c.handout && !c.audio) {
+      const hasFormats = c.transcript || c.handout || c.audio;
+      if (!ratingsOn && !hasFormats) {
         expect(bar).toBeUndefined();
         return;
       }
       expect(bar).toBeTruthy();
+      expect(tags(bar, 'div')[0]).toBe(hasFormats ? '<div class="start-chapter__bar">' : '<div class="start-chapter__bar" hidden data-rating-reveal>');
+      const widget = elementByClass(bar, 'rating', 'div');
+      if (ratingsOn) {
+        expect(tags(widget, 'div')[0]).toBe(`<div class="rating rating--row" data-rating="${c.video}" hidden>`);
+        const formats = elementByClass(bar, 'formats', 'div');
+        if (formats) expect(bar.indexOf(formats)).toBeGreaterThan(bar.indexOf(widget));
+      } else {
+        expect(widget).toBeUndefined();
+      }
       expect(tags(bar, 'a').filter((t) => attr(t, 'class') === 'format-button').map((t) => attr(t, 'href'))).toEqual(
         c.handout ? [`/media/pdf/${c.handout}`] : [],
       );
@@ -284,10 +361,12 @@ describe('Start here (/start/)', () => {
     });
   });
 
-  it('has no per-video feedback, and no ratings widget before M4', () => {
+  it('has one ratings widget per chapter while ratings are on, and no per-video feedback', () => {
     const content = elementByClass(main, 'start-flow', 'div');
     expect(links(content).filter((l) => /feedback/i.test(l.name))).toEqual([]);
-    expect(content).not.toMatch(/<textarea|<fieldset|Was this helpful/);
+    expect(content).not.toMatch(/<textarea|<form\b/);
+    expect(tags(content, 'fieldset')).toHaveLength(ratingsOn ? chapters.length : 0);
+    expect([...content.matchAll(/\sdata-rating="([^"]+)"/g)].map((m) => m[1])).toEqual(ratingsOn ? chapters.map((c) => c.video) : []);
   });
 
   it('ends with the card to the Sleep problems page', () => {
@@ -303,5 +382,22 @@ describe('Start here (/start/)', () => {
   it('contacts nothing before play: no resource hints, iframes or YouTube scripts', () => {
     expect(tags(html, 'link').map((t) => attr(t, 'rel'))).toEqual(tags(html, 'link').map(() => 'stylesheet'));
     expect(html).not.toMatch(/<iframe|iframe_api|youtube-nocookie|ytimg/);
+  });
+});
+
+// Text that needs JavaScript (SPEC §11): it ships hidden, and menu.js, which
+// only pages with the site header load, shows it.
+describe('[data-js-only] across the built site', () => {
+  const pages = readHtmlPages(site).filter((p) => /\sdata-js-only[\s>=]/.test(p.html));
+
+  it('is on Home alone, while ratings are on', () => {
+    expect(pages.map((p) => p.file)).toEqual(ratingsOn ? ['index.html'] : []);
+  });
+
+  it.each(pages.map((p) => [p.file, p.html]))('%s ships each one hidden and loads menu.js, which shows them', (file, html) => {
+    const marked = [...html.matchAll(/<[a-z][a-z0-9]*\s[^>]*\bdata-js-only\b[^>]*>/g)].map((m) => m[0]);
+    expect(marked.length).toBeGreaterThan(0);
+    for (const tag of marked) expect(attr(tag, 'hidden'), tag).toBe('');
+    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toContain('/js/menu.js');
   });
 });

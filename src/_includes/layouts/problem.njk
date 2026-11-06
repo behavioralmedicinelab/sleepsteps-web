@@ -2,11 +2,13 @@
 layout: layouts/topics.njk
 # Page assets. Eleventy merges these lists with the directory data
 # (content/problems/problems.11tydata.js, which loads players.js and leaves
-# solutions.js out for a stand-alone problem).
+# solutions.js out for a stand-alone problem). The moduleScripts filter drops
+# rating.js unless features.ratings is exactly true (SPEC §11, §12).
 styles:
   - pages/problem.css
 scripts:
   - solutions.js
+  - rating.js
 ---
 {#-
   Problem page (HANDOFF §6.4, design A; boards Problem-A.dc.html and
@@ -34,9 +36,11 @@ scripts:
   Front matter: SPEC §7.2 (title, statement, area, problem_video, standalone,
   is_this_you, solutions, related). The problem file's body isn't shown.
 
-  Ratings (M4, SPEC §12) have slots under each video and in each closed card;
-  they render nothing until then. There is no per-video feedback (SPEC §13):
-  the footer's "Send feedback" is the only route.
+  Ratings (SPEC §12, partials/rating.njk), while site.features.ratings is
+  exactly true: a widget under each video, between it and its formats, and
+  a summary line in each closed card, all hidden until rating.js reveals
+  them. There is no per-video feedback (SPEC §13): the footer's "Send
+  feedback" is the only route.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/video.njk" import videoEmbed -%}
@@ -46,7 +50,7 @@ scripts:
 {%- set problemArea = areas | areaById(area) -%}
 {%- set problemVideo = problem_video | videoById(collections.videos) -%}
 {%- set tiers = solutions | solutionsByTier(collections.videos) -%}
-{%- set ratingsOn = site.features.ratings -%}
+{%- set ratingsOn = site.features.ratings === true -%}
 {%- set mainCount = tiers.main.length -%}
 {%- set extraCount = tiers.extra.length -%}
 {%- set thisIsYou = is_this_you or {} -%}
@@ -79,8 +83,10 @@ scripts:
     <div class="problem-block" id="about-this">
       <div class="problem-block__video">
         {{ videoEmbed(problemVideo, showTitle=true, bleed='page', arc=true) }}
-        {#- M4: the SPEC §12 ratings widget renders here (nothing until then). #}
-        {%- if ratingsOn %}{{ rating(problemVideo, page_id, 'row') }}{% endif %}
+        {#- The ratings widget (SPEC §12), between the video and its formats. #}
+        {%- if ratingsOn %}
+        {{ rating(problemVideo, 'row') }}
+        {%- endif %}
         {{ formatLinks(problemVideo) }}
       </div>
       {%- if thisIsYou.summary or bullets.length %}

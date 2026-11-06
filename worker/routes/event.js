@@ -20,9 +20,10 @@
 // own text. A search is stored without a session_id. The D1 insert is
 // awaited, so a failed write answers 500. Nothing from the request is ever
 // logged: a failed write logs a fixed message and the error's D1_ code only
-// (D1 messages can echo bound values).
+// (D1 messages can echo bound values; lib/d1.js, shared with /api/rate).
 
-import { apiError, apiNoContent } from '../lib/http.js';
+import { insertRow } from '../lib/d1.js';
+import { apiError, hasExactKeys, isPlainObject } from '../lib/http.js';
 
 /** type -> the exact keys of its detail (SPEC §10.2). events.js keeps the same list. */
 export const SHAPES = new Map([
@@ -46,14 +47,6 @@ export const MAX_SEARCH_RESULTS = 1000;
 
 const BODY_KEYS = ['type', 'page', 'session_id', 'detail'];
 const REQUIRED_KEYS = ['type', 'page', 'detail'];
-
-const isObject = (value) =>
-  value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-const hasExactly = (object, keys) => {
-  const own = Object.keys(object);
-  return own.length === keys.length && keys.every((key) => Object.hasOwn(object, key));
-};
 
 /** The detail to store, rebuilt from checked values, or undefined if a value fails. */
 function checkedDetail(type, detail, page) {
@@ -89,7 +82,7 @@ function checkedDetail(type, detail, page) {
  *   row.detail is the JSON text to store.
  */
 export function validateEvent(body, index) {
-  if (!isObject(body)) return { error: 'body' };
+  if (!isPlainObject(body)) return { error: 'body' };
   if (!Object.keys(body).every((key) => BODY_KEYS.includes(key))) return { error: 'body' };
   if (!REQUIRED_KEYS.every((key) => Object.hasOwn(body, key))) return { error: 'body' };
 
@@ -106,7 +99,7 @@ export function validateEvent(body, index) {
     return { error: 'session_id' };
   }
 
-  if (!isObject(detail) || !hasExactly(detail, SHAPES.get(type))) return { error: 'detail' };
+  if (!isPlainObject(detail) || !hasExactKeys(detail, SHAPES.get(type))) return { error: 'detail' };
   const stored = checkedDetail(type, detail, entry);
   if (stored === undefined) return { error: 'detail' };
 
@@ -118,15 +111,6 @@ export function validateEvent(body, index) {
       detail: JSON.stringify(stored),
     },
   };
-}
-
-/** "D1_ERROR" from "D1_ERROR: no such table: ..."; the rest may echo bound values. */
-function d1Code(error) {
-  try {
-    return /^D1_[A-Z_]+/.exec(String(error?.message ?? ''))?.[0] ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
 }
 
 /**
@@ -146,13 +130,11 @@ export async function handleEvent(body, env, index, now = new Date()) {
   // A search is kept apart from the rest of its visit (SPEC §10.1).
   if (row.type === 'search') ts.setUTCMinutes(0, 0, 0);
 
-  try {
-    await env.DB.prepare('INSERT INTO events (ts, session_id, page, type, detail) VALUES (?, ?, ?, ?, ?)')
-      .bind(ts.toISOString(), row.session_id, row.page, row.type, row.detail)
-      .run();
-  } catch (error) {
-    console.error('/api/event: database write failed', d1Code(error));
-    return apiError(500, 'server');
-  }
-  return apiNoContent();
+  return insertRow(env, '/api/event', 'INSERT INTO events (ts, session_id, page, type, detail) VALUES (?, ?, ?, ?, ?)', [
+    ts.toISOString(),
+    row.session_id,
+    row.page,
+    row.type,
+    row.detail,
+  ]);
 }

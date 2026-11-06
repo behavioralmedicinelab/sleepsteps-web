@@ -4,8 +4,9 @@
 
     {% from "problem/solutions.njk" import solutionsSection %}
     {% set tiers = solutions | solutionsByTier(collections.videos) %}
-    {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, page_id, site.features.ratings) }}{% endif %}
-    {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, page_id, site.features.ratings) }}{% endif %}
+    {% set ratingsOn = site.features.ratings === true %}
+    {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, page_id, ratingsOn) }}{% endif %}
+    {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, page_id, ratingsOn) }}{% endif %}
 
   solutionsSection(tier, items, pageId, ratings)
     tier     'main' ("Main solutions", #main-solutions) or 'extra' ("Other
@@ -14,8 +15,11 @@
              and both on a stand-alone problem (SPEC §7.2).
     items    tiers.main or tiers.extra from `solutionsByTier`; with none,
              the macro renders nothing (no heading without cards)
-    pageId   the page's page_id (for the M4 ratings slots)
-    ratings  site.features.ratings: renders the M4 ratings slots
+    pageId   the page's page_id (unused by the cards; kept so callers
+             don't change)
+    ratings  exactly true (the layout passes site.features.ratings ===
+             true): renders each card's ratings widget and closed-card
+             summary line (SPEC §12, partials/rating.njk)
 
   solutionCard(solution, pageId, ratings): one card, an <li> in the grid.
 
@@ -49,6 +53,7 @@
 {%- set id = 'solution-' + video.video_id -%}
 {%- set label = 'Main' if solution.tier == 'main' else 'Extra' -%}
 {%- set spoken = video.duration | spokenDuration -%}
+{%- set ratingsOn = ratings === true -%}
 <li class="solution solution--{{ solution.tier }}" id="{{ id }}">
   <details class="solution__disclosure" name="solution">
     <summary class="solution__face"><span class="solution__face-inner">
@@ -80,19 +85,31 @@
       <div class="solution__video">
         {{ videoEmbed(video, bleed='card') }}
       </div>
-      {#- M4: the SPEC §12 ratings widget renders here, before the formats
-          (nothing until then). The block is left out when it would be empty. #}
-      {%- set tools %}{% if ratings %}{{ rating(video, pageId, 'card') }}{% endif %}{{ formatLinks(video) }}{% endset %}
-      {%- if tools | trim %}
-      <div class="solution__tools">
-        {{ tools | trim | safe }}
+      {#- The ratings widget (SPEC §12), then the formats. The block is left
+          out when it would be empty, and holding only the widget it ships
+          hidden for rating.js to reveal (nothing to show without
+          JavaScript). `| length`: a trimmed macro result is a SafeString
+          object, truthy even when empty. #}
+      {%- set formatsHtml = formatLinks(video) %}
+      {%- set hasFormats = formatsHtml | trim | length %}
+      {%- if ratingsOn or hasFormats %}
+      <div class="solution__tools"{% if not hasFormats %} hidden data-rating-reveal{% endif %}>
+        {%- if ratingsOn %}
+        {{ rating(video, 'card') }}
+        {%- endif %}
+        {%- if hasFormats %}
+        {{ formatsHtml }}
+        {%- endif %}
       </div>
       {%- endif %}
     </div>
   </details>
   <div class="solution__meta">
-    {#- M4: the rating status ("Ratings are anonymous.") renders here. #}
-    {%- if ratings %}{{ ratingStatus(video, pageId) }}{% endif %}
+    {#- "You rated this n of 5." once a rating is accepted (rating.js);
+        empty and hidden until then, and without JavaScript. #}
+    {%- if ratingsOn %}
+    {{ ratingStatus(video) }}
+    {%- endif %}
     {%- if video.hasTranscript or video.handout %}
     <ul class="solution__quick" role="list">
       {%- if video.hasTranscript %}

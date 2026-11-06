@@ -1,5 +1,6 @@
 // Unit tests for the filters and data extension in eleventy.config.js,
 // registered against a stand-in for Eleventy's config API.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import configure, { config } from '../../eleventy.config.js';
 
@@ -63,6 +64,15 @@ describe('eleventy.config.js', () => {
     expect(() => f.groupByArea([item('x', 'nope')], areas)).toThrow(/unknown area "nope"/);
   });
 
+  // The templates, the moduleScripts filter and the Worker (worker/router.js)
+  // all treat a feature as on only when it is exactly true, so a string such
+  // as "false" can't render widgets the API then refuses (SPEC §11).
+  it('site.config.json gives every feature switch as a boolean', () => {
+    const { features } = JSON.parse(readFileSync('site.config.json', 'utf8'));
+    expect(Object.keys(features).sort()).toEqual(['events', 'feedback', 'ratings']);
+    for (const [name, value] of Object.entries(features)) expect(typeof value, `features.${name}`).toBe('boolean');
+  });
+
   it('moduleScripts maps front-matter file names to /js/ URLs, once each, and rejects anything else', () => {
     expect(f.moduleScripts(undefined)).toEqual([]);
     expect(f.moduleScripts('players.js')).toEqual(['/js/players.js']);
@@ -106,6 +116,19 @@ describe('eleventy.config.js', () => {
       for (const options of [{ features: off }, { features: {} }, undefined]) {
         expect(f.moduleScripts(['stats-switch.js'], options), JSON.stringify(options)).toEqual([]);
       }
+    });
+
+    it('keeps rating.js only while features.ratings is exactly true (SPEC §11, §12)', () => {
+      expect(f.moduleScripts(['players.js', 'rating.js'], { features: { ratings: true } })).toEqual(['/js/players.js', '/js/rating.js']);
+      expect(f.moduleScripts(['solutions.js', 'rating.js', 'players.js'], { features: { ratings: true, events: true }, track: true })).toEqual([
+        '/js/events.js', '/js/solutions.js', '/js/rating.js', '/js/players.js',
+      ]);
+      for (const options of [{ features: { ratings: false } }, { features: { ratings: 'true' } }, { features: { ratings: 1 } }, { features: {} }, {}, undefined]) {
+        expect(f.moduleScripts(['players.js', 'rating.js'], options), JSON.stringify(options)).toEqual(['/js/players.js']);
+      }
+      // Each feature drops only its own modules.
+      expect(f.moduleScripts(['stats-switch.js', 'rating.js'], { features: { ratings: true, events: false } })).toEqual(['/js/rating.js']);
+      expect(f.moduleScripts(['stats-switch.js', 'rating.js'], { features: { ratings: false, events: true } })).toEqual(['/js/stats-switch.js']);
     });
 
     it('refuses events.js in front matter: the layout adds it', () => {

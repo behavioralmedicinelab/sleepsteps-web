@@ -150,10 +150,12 @@
   color: var(--slate-grey);
 }
 
-/* The white bar under the video: the ratings widget from M4, then the
-   video's formats. Inside the gutters on phones, while the video runs
-   full-bleed. */
+/* The white bar under the video: the ratings widget, then the video's
+   formats. Inside the gutters on phones, while the video runs full-bleed. */
 .start-chapter__bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
   border: var(--border-width) solid var(--keyline);
   border-radius: var(--radius-md);

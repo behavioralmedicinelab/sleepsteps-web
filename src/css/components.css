@@ -1,7 +1,8 @@
 /*
  * Shared components used on more than one page (SPEC §7.5; HANDOFF §4, §5):
  * VideoEmbed, FormatLinks and transcripts, step chips, buttons, section
- * headings and topic cards. Loaded on every page, after site.css. Page
+ * headings, topic cards and the ratings widget. Loaded on every page, after
+ * site.css. Page
  * layouts stay in site.css and src/css/pages/.
  *
  * Values come from tokens.css (no colour literals: a test enforces it).
@@ -15,7 +16,8 @@
  *   3. Step chip (partials/step-chip.njk)
  *   4. Buttons
  *   5. Section heading, topic card
- *   6. Motion, print
+ *   6. Ratings widget (partials/rating.njk)
+ *   7. Motion, forced colours, print
  */
 
 /* 1. VideoEmbed -------------------------------------------------------------- */
@@ -612,7 +614,120 @@ a.format-button:hover,
   color: var(--slate-grey);
 }
 
-/* 6. Motion, print ------------------------------------------------------------ */
+/* 6. Ratings widget ---------------------------------------------------------- */
+
+/* SPEC §12 (src/js/rating.js): the legend, five 44px stars, the status line
+   and the §15.1 notice, left-aligned at every width (SPEC §7.5). Without
+   JavaScript the whole widget stays [hidden]. */
+.rating {
+  display: grid;
+  row-gap: var(--space-2);
+}
+
+.rating__group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* 'row' (a problem video, Start here): the legend floats beside the stars,
+   and they drop below it when there isn't room (under about 360px): the
+   stars are one inline box, and a line box too short for it moves below the
+   float. A floated legend is laid out inside the fieldset like any float,
+   and the fieldset contains it. */
+.rating__legend {
+  float: left;
+  margin-inline-end: var(--space-4);
+  padding: 0;
+  color: var(--ink);
+  font-size: var(--fs-label);
+  line-height: var(--target-min);
+  font-weight: var(--weight-semibold);
+}
+
+/* 'card' (an open solution card): the legend above the stars. */
+.rating--card .rating__legend {
+  float: none;
+  padding-block-end: var(--space-2);
+  line-height: var(--lh-label);
+}
+
+/* Positioned, so the visually hidden radios sit here and focusing one never
+   scrolls the page. */
+.rating__stars {
+  position: relative;
+  display: inline-flex;
+  vertical-align: top;
+}
+
+/* Each <label> is the star and its 44x44px target. Unfilled: a slate-grey
+   outline (stroke 1.6, the boards'). */
+.rating__star {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  border-radius: var(--radius-sm);
+  color: var(--slate-grey);
+  cursor: pointer;
+}
+
+.rating__star:hover {
+  background: var(--clay-wash);
+}
+
+.rating__icon {
+  fill: none;
+  stroke-width: 1.6;
+}
+
+/* Filled: the checked star and those before it, warm-clay with a clay-deep
+   outline. Separate rules, so a browser without :has() still fills the
+   checked star (the status line gives the value). */
+.rating__input:checked + .rating__star {
+  color: var(--clay-deep);
+}
+
+.rating__input:checked + .rating__star .rating__icon {
+  fill: var(--warm-clay);
+}
+
+.rating__star:has(~ .rating__input:checked) {
+  color: var(--clay-deep);
+}
+
+.rating__star:has(~ .rating__input:checked) .rating__icon {
+  fill: var(--warm-clay);
+}
+
+/* The radio is visually hidden, so its star carries the ring. */
+.rating__input:focus-visible + .rating__star {
+  outline: var(--focus-width) solid var(--focus-colour);
+  outline-offset: var(--focus-offset);
+}
+
+/* The status line and, hidden in the same grid cell, copies of the longest
+   messages: the cell is as tall as the tallest at any width or zoom, so the
+   answer never moves the notice (SPEC §11). */
+.rating__status-box {
+  display: grid;
+}
+
+.rating__status-box > * {
+  grid-area: 1 / 1;
+  color: var(--slate-grey);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.rating__sizer {
+  visibility: hidden;
+}
+
+/* 7. Motion, forced colours, print -------------------------------------------- */
 
 /* Colour fades and the chevron turn only, when motion is allowed
    (HANDOFF §10). */
@@ -623,8 +738,21 @@ a.format-button:hover,
 
   .button,
   .format-button,
-  .play-disc {
+  .play-disc,
+  .rating__star {
     transition: background-color var(--duration);
+  }
+}
+
+/* Forced colours: fill the chosen stars with the system text colour, so
+   they stand out on the system ground whatever becomes of warm-clay. */
+@media (forced-colors: active) {
+  .rating__input:checked + .rating__star .rating__icon {
+    fill: currentColor;
+  }
+
+  .rating__star:has(~ .rating__input:checked) .rating__icon {
+    fill: currentColor;
   }
 }
 
@@ -653,9 +781,10 @@ a.format-button:hover,
     margin-block: var(--space-3) var(--space-7);
   }
 
-  /* A video can't play on paper. */
+  /* A video can't play on paper, nor a rating be given. */
   .video,
-  .transcript__print {
+  .transcript__print,
+  .rating {
     display: none;
   }
 }

@@ -1,5 +1,5 @@
 // The shared M1b components (SPEC §9.1-§9.3, §12, §15.1; HANDOFF §5):
-// VideoEmbed, FormatLinks, the step chip and the ratings slot, rendered with
+// VideoEmbed, FormatLinks, the step chip and the ratings widget, rendered with
 // Eleventy's own Nunjucks and our filters, plus the plumbing they rely on in
 // the built site.
 import { readFileSync } from 'node:fs';
@@ -175,7 +175,7 @@ describe('formatLinks (FormatLinks, SPEC §9.2, §9.3)', () => {
   });
 });
 
-describe('stepChip and the ratings slot', () => {
+describe('stepChip', () => {
   it('renders a step chip, hiding the disc when the label repeats the number', () => {
     expect(render("{{ stepChip(2, 'Main', variant='sm paper') }}")).toBe(
       '<span class="step-chip step-chip--sm step-chip--paper"><span class="step-chip__num">2</span> <span class="step-chip__label">Main</span></span>',
@@ -185,8 +185,59 @@ describe('stepChip and the ratings slot', () => {
     );
   });
 
-  it('renders nothing in the ratings slots until M4 (SPEC §12)', () => {
-    expect(render("[{{ rating(v, 'pain', 'row') }}][{{ ratingStatus(v, 'pain') }}]", { v: video('full') })).toBe('[][]');
+});
+
+// The widget itself (partials/rating.njk; SPEC §12, §15.1). rating.js and
+// the built pages are checked in rating.test.js.
+describe('rating and ratingStatus (SPEC §12)', () => {
+  const html = render("{{ rating(v, 'row') }}", { v: video('full') });
+  const root = tags(html, 'div')[0];
+
+  it('ships the widget hidden, named by its video in data-rating', () => {
+    expect(root).toBe('<div class="rating rating--row" data-rating="full" hidden>');
+    expect(render("{{ rating(v, 'card') }}", { v: video('full') })).toMatch(/^<div class="rating rating--card" data-rating="full" hidden>/);
+    expect(render('{{ rating(v) }}', { v: video('full') })).toMatch(/^<div class="rating rating--row" /);
+  });
+
+  it('is a fieldset whose legend asks "Was this helpful?" and names the video for screen readers, escaped', () => {
+    expect(tags(html, 'fieldset')).toEqual(['<fieldset class="rating__group">']);
+    expect(elementByClass(html, 'rating__legend', 'legend')).toBe(
+      '<legend class="rating__legend">Was this helpful?<span class="visually-hidden"> Settling &quot;your&quot; body</span></legend>',
+    );
+  });
+
+  it('has five unchecked radios, 1 to 5, sharing one name, each with its own "n star(s)" label', () => {
+    const inputs = tags(html, 'input');
+    expect(inputs.map((t) => [attr(t, 'type'), attr(t, 'name'), attr(t, 'id'), attr(t, 'value'), attr(t, 'autocomplete')])).toEqual(
+      [1, 2, 3, 4, 5].map((n) => ['radio', 'rating-full', `rating-full-${n}`, String(n), 'off']),
+    );
+    for (const t of inputs) expect(attr(t, 'checked'), t).toBeUndefined();
+    const labels = [...html.matchAll(/<label class="rating__star" for="([^"]+)">([\s\S]*?)<\/label>/g)];
+    expect(labels.map((m) => [m[1], text(m[2])])).toEqual([1, 2, 3, 4, 5].map((n) => [`rating-full-${n}`, n === 1 ? '1 star' : `${n} stars`]));
+    // Each radio comes just before its label, which the CSS fills from.
+    expect(html).toMatch(/(?:<input class="rating__input visually-hidden"[^>]*>\s*<label class="rating__star"[\s\S]*?<\/label>\s*){5}<\/div>\s*<\/fieldset>/);
+    expect(tags(html, 'svg').map((t) => [attr(t, 'class'), attr(t, 'width'), attr(t, 'aria-hidden')])).toEqual(Array(5).fill(['icon rating__icon', '26', 'true']));
+    expect(tags(render("{{ rating(v, 'card') }}", { v: video('full') }), 'svg').map((t) => attr(t, 'width'))).toEqual(Array(5).fill('28'));
+  });
+
+  it('has an empty status line, not yet a live region, and hidden copies of the longest messages', () => {
+    const box = elementByClass(html, 'rating__status-box', 'div');
+    expect(tags(box, 'p')).toEqual([
+      '<p class="rating__status" id="rating-full-status" data-rating-status>',
+      '<p class="rating__sizer" aria-hidden="true">',
+      '<p class="rating__sizer" aria-hidden="true">',
+    ]);
+    expect(elementByClass(box, 'rating__status', 'p')).toBe('<p class="rating__status" id="rating-full-status" data-rating-status></p>');
+  });
+
+  it('ends with the SPEC §15.1 notice', () => {
+    expect(html).toMatch(
+      /<\/div>\s*<p class="notice-text">Ratings are anonymous\. We use them to improve these resources\. <a href="\/privacy\/">About the information we collect<\/a><\/p>\s*<\/div>$/,
+    );
+  });
+
+  it('gives a closed card an empty, hidden summary line', () => {
+    expect(render('{{ ratingStatus(v) }}', { v: video('bare') })).toBe('<p class="solution__rating" data-rating-summary="bare" hidden></p>');
   });
 });
 
