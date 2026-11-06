@@ -46,6 +46,7 @@ scripts:
   "Send feedback" is the only route.
 -#}
 {%- from "partials/icons.njk" import icon -%}
+{%- from "notices/video.njk" import youtubeNote -%}
 {%- from "partials/video.njk" import videoEmbed -%}
 {%- from "partials/video-controls.njk" import videoControls -%}
 {%- from "problem/solutions.njk" import solutionsSection -%}
@@ -136,5 +137,7 @@ scripts:
     </section>
     {%- endif %}
     <p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>
+    {#- The page's YouTube note, once, last (SPEC §15.1). #}
+    {{ youtubeNote() }}
   </div>
 </div>

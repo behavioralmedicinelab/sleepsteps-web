@@ -37,7 +37,8 @@ const videos = [
 const videoPage = env.renderString(
   '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
     '{% from "partials/video.njk" import videoEmbed %}{% from "partials/video-controls.njk" import videoControls %}' +
-    '{{ videoEmbed(v) }}{{ videoControls(v) }}<a id="elsewhere" href="/about/">Elsewhere</a></main></body></html>',
+    '{% from "notices/video.njk" import youtubeNote %}' +
+    '{{ videoEmbed(v) }}{{ videoControls(v) }}<a id="elsewhere" href="/about/">Elsewhere</a>{{ youtubeNote() }}</main></body></html>',
   { v: filters.videoById('full', videos) },
 );
 
@@ -97,7 +98,7 @@ describe('players.js', () => {
       .map((el) => el.getAttribute('src') ?? el.getAttribute('href'))
       .filter((url) => /youtube|ytimg/.test(url) && !url.startsWith('https://www.youtube.com/watch?v='));
 
-  it('contacts nothing on load: the facade becomes a "Play video" button, still described by the notice', async () => {
+  it('contacts nothing on load: the facade becomes a "Play video" button, still described by the page\'s YouTube note', async () => {
     await load(videoPage, ['players']);
     const { document, window } = dom;
     expect(scripts()).toEqual([]);
@@ -107,8 +108,8 @@ describe('players.js', () => {
     const button = document.querySelector('button.video__facade');
     expect(button.getAttribute('type')).toBe('button');
     expect(button.textContent.replace(/\s+/g, ' ').trim()).toBe('Play video: Settling your body 6:40, 6 minutes 40 seconds');
-    expect(button.getAttribute('aria-describedby')).toBe('video-notice-full');
-    expect(document.getElementById('video-notice-full').textContent).toMatch(/^Pressing play loads this video from YouTube \(Google\)\./);
+    expect(button.getAttribute('aria-describedby')).toBe('youtube-note-text');
+    expect(document.getElementById('youtube-note-text').textContent).toMatch(/^Pressing play on a video loads it from YouTube \(Google\)\./);
   });
 
   it('loads the IFrame API only when play is pressed, once, and creates the player on the privacy-enhanced host', async () => {
@@ -139,8 +140,8 @@ describe('players.js', () => {
     expect(iframe.title).toBe('Settling your body');
     expect(document.querySelector('.video__facade, .video__status')).toBeNull();
     expect(document.activeElement).toBe(iframe);
-    // The notice stays under the player.
-    expect(document.getElementById('video-notice-full')).not.toBeNull();
+    // The page's note stays where it is.
+    expect(document.getElementById('youtube-note-text')).not.toBeNull();
   });
 
   it('leaves focus alone if the visitor moved on while the player loaded', async () => {
@@ -187,8 +188,8 @@ describe('players.js', () => {
     const click = new Event('click', { bubbles: true, cancelable: true });
     handout.dispatchEvent(click);
     expect(click.defaultPrevented).toBe(false);
-    // The notice's privacy link, and other links, report nothing.
-    document.querySelector('.video__notice a').click();
+    // The note's privacy link, and other links, report nothing.
+    document.querySelector('.youtube-note a').click();
     document.getElementById('elsewhere').click();
     expect(reported).toEqual([
       { type: 'handout_open', detail: { media: 'full' } }, // the video_id, not full.pdf (SPEC §10.2)
@@ -313,7 +314,7 @@ describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => 
     const reported = [];
     document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
 
-    expect(document.querySelector('.video__notice a[data-handout]')).toBeNull();
+    expect(document.querySelector('.youtube-note a[data-handout]')).toBeNull();
     const handout = document.querySelector('.video-controls a[data-handout]');
     const click = new Event('click', { bubbles: true, cancelable: true });
     handout.dispatchEvent(click);
@@ -397,7 +398,7 @@ describe('problems.js on /problems/', () => {
     expect(radios.map((r) => [r.value, r.checked])).toEqual([['area', true], ['time', false]]);
   });
 
-  it('makes every group in both views a button, with only the first of each open', async () => {
+  it('makes every group in both views a button, all closed (project lead, 2026-11-07)', async () => {
     await load(html, ['problems']);
     for (const [view, n] of [['area', 10], ['time', 6]]) {
       const sections = groups(view);
@@ -408,8 +409,8 @@ describe('problems.js on /problems/', () => {
         expect(header.parentNode.tagName.toLowerCase()).toBe('h2');
         expect(header.getAttribute('type')).toBe('button');
         expect(header.getAttribute('aria-controls')).toBe(list.id);
-        expect(header.getAttribute('aria-expanded')).toBe(String(i === 0));
-        expect(list.hidden).toBe(i !== 0);
+        expect(header.getAttribute('aria-expanded')).toBe('false');
+        expect(list.hidden).toBe(true);
         expect(section.querySelector('span.group-list__header')).toBeNull();
       });
     }
@@ -427,11 +428,11 @@ describe('problems.js on /problems/', () => {
     }
   });
 
-  it('opens the area named in the URL instead of the first', async () => {
+  it('opens only the area named in the URL, leaving every time of day closed', async () => {
     await load(html, ['problems'], { hash: '#mind' });
     const open = areaSections().filter((s) => button(s).getAttribute('aria-expanded') === 'true');
     expect(open.map((s) => s.id)).toEqual(['mind']);
-    expect(expanded('time')).toEqual(['true', ...Array(5).fill('false')]);
+    expect(expanded('time')).toEqual(Array(6).fill('false'));
   });
 
   it('switches to "When it happens" and back, and the result line follows the view', async () => {
@@ -478,12 +479,12 @@ describe('problems.js on /problems/', () => {
     expect(status.getAttribute('aria-live')).toBe('polite');
     expect(status.textContent).toBe(`${matched.length} topics match “night”`);
 
-    // Clearing it puts the areas back as they were: only the first open.
+    // Clearing it puts the areas back as they were: all closed.
     typeQuery('');
     vi.advanceTimersByTime(STATUS_DELAY);
     expect(status.textContent).toBe(before);
     expect(areaSections().filter((s) => s.hidden)).toEqual([]);
-    expect(expanded('area')).toEqual(['true', ...Array(9).fill('false')]);
+    expect(expanded('area')).toEqual(Array(10).fill('false'));
   });
 
   it('filters "When it happens" the same way: "3am" hides the times without matches and opens the rest', async () => {
@@ -519,7 +520,7 @@ describe('problems.js on /problems/', () => {
     typeQuery('');
     vi.advanceTimersByTime(STATUS_DELAY);
     expect(groups('time').filter((s) => s.hidden)).toEqual([]);
-    expect(expanded('time')).toEqual(['true', 'false', 'true', 'false', 'false', 'false']);
+    expect(expanded('time')).toEqual(['false', 'false', 'true', 'false', 'false', 'false']);
     expect(groups('time').map((s) => s.querySelector('[data-group-count]').textContent)).toEqual(
       groups('time').map((s) => String(s.querySelectorAll('li[data-slug]').length)),
     );

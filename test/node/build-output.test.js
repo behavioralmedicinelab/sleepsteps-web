@@ -16,7 +16,7 @@ const EXTERNAL_URL = /^\s*(?:[a-z][a-z0-9+.-]*:|\/\/|\\\\)/i;
 // YouTube" fallback (§9.1) and YouTube's Terms of Service on /privacy/ (§15.2).
 // Google: its privacy policy, on /privacy/ (§15.2). Creative Commons: the
 // content licence in the footer (§22). Cancer Council: its website, on
-// Getting urgent help and Getting more help (§7.4).
+// Getting urgent help and Get more help (§7.4).
 const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommons.org', 'www.cancer.org.au'];
 
 describe('build output', () => {
@@ -216,6 +216,27 @@ describe.each(pages.map((p) => [p.file, p.html]))('%s', (file, html) => {
     const description = attr(tags(html, 'meta').find((t) => attr(t, 'name') === 'description') ?? '<meta>', 'content') ?? '';
     expect(description).not.toMatch(/transcript/i);
     expect(html).not.toMatch(/\sdata-transcript=|\sid="transcript-|href="#transcript-|class="transcript|transcript__print|print-sheet|solution__quick-transcript/);
+  });
+
+  // The project lead's decision of 2026-11-07 (SPEC §15.1, §22): the YouTube
+  // note is once per page with a video, after its last video, and every play
+  // control names it, so it is heard before pressing play.
+  it('has the YouTube note once, after the last video, if it has a video; every play control describes itself by it', () => {
+    const videoAt = [...html.matchAll(/<div class="video video--/g)].map((m) => m.index);
+    const notes = [...html.matchAll(/<p class="notice-text youtube-note">/g)].map((m) => m.index);
+    expect(html).not.toMatch(/video__notice|id="video-notice-/);
+    if (videoAt.length === 0) {
+      expect(notes).toEqual([]);
+      expect(html).not.toMatch(/youtube-note-text/);
+      return;
+    }
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toBeGreaterThan(videoAt.at(-1));
+    expect(notes[0]).toBeLessThan(html.indexOf('</main>'));
+    expect(html.match(/ id="youtube-note-text"/g)).toHaveLength(1);
+    for (const facade of tags(html, 'a').filter((a) => attr(a, 'class') === 'video__facade')) {
+      expect(attr(facade, 'aria-describedby'), facade).toBe('youtube-note-text');
+    }
   });
 
   it('has no ratings notice and no closed-card rating summary', () => {

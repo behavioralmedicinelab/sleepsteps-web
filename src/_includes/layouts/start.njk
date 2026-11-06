@@ -33,6 +33,7 @@ layout: layouts/base.njk
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- from "partials/video.njk" import videoEmbed -%}
+{%- from "notices/video.njk" import youtubeNote -%}
 {%- from "partials/video-controls.njk" import videoControls -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
 {%- set introVideos = chapters | introChapters(collections.videos) -%}
@@ -83,6 +84,8 @@ layout: layouts/base.njk
         </div>
         <a class="button button--light start-next__action" href="/problems/">See sleep problems</a>
       </section>
+      {#- The page's YouTube note, once, last (SPEC §15.1). #}
+      {{ youtubeNote() }}
     </div>
   </div>
 </main>

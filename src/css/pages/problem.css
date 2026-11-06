@@ -598,7 +598,6 @@ button.solution__face {
   gap: var(--space-4);
 }
 
-.solution__video .video__notice,
 .solution__tools {
   padding-inline: var(--space-4);
 }
@@ -676,7 +675,6 @@ button.solution__face {
     padding: var(--space-6);
   }
 
-  .solution__video .video__notice,
   .solution__tools {
     padding-inline: 0;
   }

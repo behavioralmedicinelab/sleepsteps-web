@@ -8,9 +8,9 @@
 // This module:
 //
 // - turns each group heading's <span>, in both views, into a <button
-//   aria-expanded aria-controls> (as menu.js does for the Menu) and opens
-//   only the first group of each view, or the area named in the URL
-//   (/problems/#mind), also on hashchange;
+//   aria-expanded aria-controls> (as menu.js does for the Menu) and closes
+//   every group of both views, except the area named in the URL
+//   (/problems/#mind), which it opens, also on hashchange;
 // - shows the toolbar: the filter and the By area / When it happens radios,
 //   and the lede's sentence about them (data-problems-hint);
 // - filters both views as you type, over each problem's short title,
@@ -265,9 +265,10 @@ function init(doc, win) {
     button.addEventListener('click', () => setOpen(group, !group.open));
   }
 
+  // Every group starts closed, in both views (project lead, 2026-11-07),
+  // except an area named in the URL, which someone chose to go to.
   const target = areaFromHash();
-  for (const group of groups.area) setOpen(group, group === (target ?? groups.area[0]));
-  for (const group of groups.time) setOpen(group, group === groups.time[0]);
+  for (const group of allGroups) setOpen(group, group === target);
 
   choices.area.checked = true;
   panels.area.hidden = false;

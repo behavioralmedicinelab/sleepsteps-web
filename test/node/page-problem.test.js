@@ -86,19 +86,14 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     for (const [href] of links) expect(main).toContain(`id="${href.slice(1)}"`);
   });
 
-  it('has one video per page video, in order, each followed by the YouTube notice', () => {
+  it('has one video per page video, in order, none with a notice of its own; the YouTube note is once, last (SPEC §15.1)', () => {
     const blocks = elements(main, 'video', 'div');
     expect(blocks.map((b) => attr(tags(b, 'div')[0], 'data-video'))).toEqual(pageVideos);
-    blocks.forEach((block, i) => {
-      const notice = elementByClass(block, 'video__notice', 'p');
-      expect(text(notice)).toMatch(/^Pressing play loads this video from YouTube \(Google\)\./);
-      const links = tags(notice, 'a').map((t) => attr(t, 'href'));
-      // Only the privacy link: no handout link (the row of controls has
-      // "Handout", SPEC §15.1) and never a transcript link.
-      expect(links).toEqual(['/privacy/#cookies-and-browser-storage']);
-      expect(text(notice).endsWith('More about this')).toBe(true);
-      expect(notice).not.toMatch(/data-handout|handout/i);
-    });
+    for (const block of blocks) expect(block).not.toMatch(/notice-text|video__notice|youtube-note"/);
+    const notes = elements(main, 'youtube-note', 'p');
+    expect(notes).toHaveLength(1);
+    expect(main.indexOf(notes[0])).toBeGreaterThan(main.lastIndexOf('problem__all'));
+    expect(tags(notes[0], 'a').map((t) => attr(t, 'href'))).toEqual(['/privacy/#cookies-and-browser-storage']);
     // The problem's own video carries a visible title plate; solution videos
     // are named by their card.
     expect(blocks[0]).toMatch(/<span class="video__title">/);
@@ -142,7 +137,7 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
         expect(row, id).toBeUndefined();
         return;
       }
-      expect(holder.indexOf(row), id).toBeGreaterThan(holder.lastIndexOf('video__notice'));
+      expect(holder.indexOf(row), id).toBeGreaterThan(holder.lastIndexOf('video__frame'));
       const after = holder.slice(holder.indexOf(row) + row.length);
       if (i === 0) {
         const column = elementByClass(block, 'problem-block__video', 'div');
@@ -220,8 +215,8 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
   it('has no ratings notice and no rating summary in the closed cards', () => {
     expect(visibleText(main)).not.toMatch(/Ratings are anonymous|We use them to improve|About the information we collect|You rated this/);
     expect(main).not.toMatch(/data-rating-summary|solution__rating\b|notice-text">Ratings/);
-    // The only notices are the YouTube notices, one per video.
-    expect(tags(main, 'p').filter((t) => /\bnotice-text\b/.test(attr(t, 'class')))).toHaveLength(pageVideos.length);
+    // The only notice is the page's YouTube note, once (SPEC §15.1).
+    expect(tags(main, 'p').filter((t) => /\bnotice-text\b/.test(attr(t, 'class')))).toEqual(['<p class="notice-text youtube-note">']);
   });
 
   it('puts "Other things that can help" after the main solutions, only when there are extras, and neither on a stand-alone page', () => {
@@ -341,7 +336,8 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     expect(block).toContain(videos[0]);
     expect(attr(tags(videos[0], 'div')[0], 'data-video')).toBe(data.problem_video);
     expect(text(elementByClass(videos[0], 'video__title', 'span'))).toBe(v.title);
-    expect(text(elementByClass(videos[0], 'video__notice', 'p'))).toMatch(/^Pressing play loads this video from YouTube \(Google\)\./);
+    expect(videos[0]).not.toMatch(/video__notice|notice-text/);
+    expect(elements(main, 'youtube-note', 'p')).toHaveLength(1);
     const row = elementByClass(block, 'video-controls', 'div');
     expect(tags(row, 'div')[0]).toBe('<div class="video-controls problem-block__controls">');
     expect(tags(row, 'a').filter((t) => attr(t, 'data-handout') === data.problem_video)).toHaveLength(1);
@@ -426,14 +422,15 @@ describe('solutionsSection with a playable video', () => {
   const html = render([{ tier: 'main', video: 'full', blurb: 'Try this.' }, { tier: 'main', video: 'bare', blurb: 'Or this.' }]);
   const [full, bare] = elements(html, 'solution', 'li');
 
-  it('puts the "Watch on YouTube" facade and its notice inside the panel, not the closed card', () => {
+  it('puts the "Watch on YouTube" facade inside the panel, not the closed card, with no notice of its own', () => {
     const summary = full.match(/<summary[\s\S]*?<\/summary>/)[0];
     expect(summary).not.toMatch(/youtube/i);
     const panel = elementByClass(full, 'solution__panel', 'div');
     const facade = tags(panel, 'a').find((t) => attr(t, 'class') === 'video__facade');
     expect([attr(facade, 'href'), attr(facade, 'rel')]).toEqual(['https://www.youtube.com/watch?v=AbCdEfGhIjK', 'noreferrer']);
     expect(text(elementByClass(panel, 'video__facade', 'a'))).toBe('Watch on YouTube: Settling your body 6:40 , 6 minutes 40 seconds');
-    expect(panel.indexOf('video__notice')).toBeGreaterThan(panel.indexOf('video__facade'));
+    expect(panel).not.toMatch(/video__notice|notice-text/);
+    expect(attr(facade, 'aria-describedby')).toBe('youtube-note-text');
   });
 
   it('describes the card with its spoken length and orders the panel header, video, row of controls', () => {
@@ -464,7 +461,7 @@ describe('solutionsSection with a playable video', () => {
     // "Audio only" first, so opening it never moves its button (SPEC §7.5).
     expect(row.indexOf('<details class="format-disclosure" id="audio-full">')).toBeGreaterThan(-1);
     expect(row.indexOf('<details class="format-disclosure" id="audio-full">')).toBeLessThan(row.indexOf('<a class="format-button"'));
-    expect(panel.indexOf(row)).toBeGreaterThan(panel.indexOf('video__notice'));
+    expect(panel.indexOf(row)).toBeGreaterThan(panel.indexOf('video__frame'));
   });
 
   it('leaves out the row of controls and quick link for a video without formats', () => {

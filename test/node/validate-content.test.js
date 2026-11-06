@@ -69,7 +69,7 @@ function baseTree() {
     'content/problems/two.md': md(problem('Two', { problem_video: 'about-two' })),
     'content/problems/three.md': md(problem('Three', { problem_video: 'about-three' })),
     'content/start.md': md({ title: 'Start here', chapters: [{ video: 'intro', description: 'First.' }] }),
-    'content/pages/help.md': md({ title: 'Getting more help', summary: 'When to see someone.' }, '<p>Body.</p>\n'),
+    'content/pages/help.md': md({ title: 'Get more help', summary: 'When to see someone.' }, '<p>Body.</p>\n'),
     'content/pages/search-free.md': md({ title: 'Not searchable', search: false }),
     // Every searchable page has keywords (SPEC §8.2); search-free.md opts out.
     'data/keywords.csv': 'page_id,keywords\none,"one; uno"\ntwo,"two; dos"\nthree,three\nstart,"intro; start"\nhelp,"GP; doctor"\n',

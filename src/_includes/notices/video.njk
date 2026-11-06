@@ -1,22 +1,20 @@
 {#-
-  Notice under each video facade, shown before the visitor presses play
-  (SPEC §9.1, §15.1). It makes pressing play an informed choice about
-  YouTube's storage. Draft wording until HREC approval.
+  The YouTube note (SPEC §9.1, §15.1): once per page, at the end of every
+  page with a video (layouts/problem.njk and layouts/start.njk), as a quiet
+  note in smaller, slate-grey italic text. It says what pressing play does
+  about YouTube's storage. Draft wording until HREC approval.
 
-  A macro (not a plain include), so the id is passed in rather than read
-  from whatever is in scope:
-    {% from "notices/video.njk" import videoNotice %}
-    {{ videoNotice('video-notice-' + video.video_id) }}
-  partials/video.njk calls it for every facade; templates don't need to.
+  It used to sit under each video; the project lead moved it to the end of
+  the page on 2026-11-07 (SPEC §22), with the privacy officer to confirm
+  (§21). So that pressing play stays an informed choice for screen-reader
+  users, every play control names the note's sentences (id youtube-note-text,
+  not the link) in aria-describedby (partials/video.njk): they hear the note
+  with "Play video" although it is at the end of the page. A build test
+  checks that each page with a video has the note exactly once.
 
-  `id` goes on the notice's two sentences (not its link). The play control
-  names it in aria-describedby, so a screen reader hears the notice with
-  "Play video" although the notice comes after it in the page.
-
-  The notice doesn't link the handout: the row of controls under it
-  (partials/video-controls.njk) has the video's "Handout" button, its text
-  alternative (SPEC §9.3), and a second link would only repeat it.
+    {% from "notices/video.njk" import youtubeNote %}
+    {{ youtubeNote() }}
 -#}
-{%- macro videoNotice(id='') -%}
-<p class="notice-text video__notice"><span{% if id %} id="{{ id }}"{% endif %}>Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch.</span> <a href="/privacy/#cookies-and-browser-storage">More about this</a></p>
+{%- macro youtubeNote() -%}
+<p class="notice-text youtube-note"><span id="youtube-note-text">Pressing play on a video loads it from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch.</span> <a href="/privacy/#cookies-and-browser-storage">More about this</a></p>
 {%- endmacro -%}

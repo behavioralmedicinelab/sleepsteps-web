@@ -29,6 +29,17 @@ function toVideo(item) {
   };
 }
 
+/**
+ * People sorted by last name, taken as the last word of `name`, then by the
+ * whole name (About's "Who we are", data/team.csv; project lead, 2026-11-07).
+ * Compares as Australian English does, ignoring case and accents.
+ */
+export function byLastName(people) {
+  const last = (person) => String(person.name ?? '').trim().split(/\s+/).at(-1);
+  const collator = new Intl.Collator('en-AU', { sensitivity: 'base' });
+  return [...people].sort((a, b) => collator.compare(last(a), last(b)) || collator.compare(a.name, b.name));
+}
+
 const NUMBER_WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
 
 export default function (eleventyConfig) {
@@ -237,6 +248,8 @@ export default function (eleventyConfig) {
   // 10 -> "ten" (0-20), for copy such as "grouped into ten areas"; larger
   // numbers stay as digits.
   eleventyConfig.addFilter('numberWord', (n) => NUMBER_WORDS[n] ?? String(n));
+
+  eleventyConfig.addFilter('byLastName', byLastName);
 
   eleventyConfig.addFilter('areaById', (areas, id) => areas.find((a) => a.area_id === id));
 

@@ -82,31 +82,29 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
     }
   });
 
-  it('is followed by the SPEC §15.1 notice, with one link, to the privacy page, whatever the video has', () => {
-    const notice = elementByClass(html, 'notice-text', 'p');
-    expect(text(notice)).toBe(
-      'Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch. More about this',
-    );
-    expect(html.indexOf('notice-text')).toBeGreaterThan(html.indexOf('video__frame'));
-    // No handout link (the row of controls has "Handout", SPEC §15.1, §22
-    // 2026-11-07), and a transcript (the file's body) isn't linked or shown.
-    for (const id of ['full', 'handout', 'bare', 'words', 'audio']) {
+  it('carries no notice of its own: the YouTube note is once per page, at its end (SPEC §15.1, §22 2026-11-07)', () => {
+    for (const id of ['full', 'handout', 'bare', 'words', 'audio', 'soon']) {
       const out = render('{{ videoEmbed(v) }}', { v: video(id) });
-      const notice = elementByClass(out, 'notice-text', 'p');
-      expect(tags(notice, 'a').map((t) => attr(t, 'href')), id).toEqual(['/privacy/#cookies-and-browser-storage']);
-      expect(notice, id).not.toMatch(/data-handout|media\/pdf|Read the handout|·/i);
+      expect(out, id).not.toMatch(/notice-text|video__notice|youtube-note"|Pressing play/);
+      // No handout link and no transcript (the file's body isn't shown).
       expect(out, id).not.toMatch(/data-handout|media\/pdf|transcript|Just words|The transcript/i);
     }
   });
 
-  it('describes the play control with the notice, so it is heard before pressing play (SPEC §9.1)', () => {
-    const id = attr(facade, 'aria-describedby');
-    expect(id).toBe('video-notice-full');
-    const described = html.match(new RegExp(`<span id="${id}">([^<]*)</span>`));
-    expect(described?.[1]).toBe(
-      'Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch.',
+  it('describes the play control with the page\'s YouTube note, so it is heard before pressing play (SPEC §9.1)', () => {
+    expect(attr(facade, 'aria-describedby')).toBe('youtube-note-text');
+  });
+
+  it('youtubeNote() is the SPEC §15.1 note: its sentences under the id the play control names, then one link, to the privacy page', () => {
+    const note = env.renderString('{% from "notices/video.njk" import youtubeNote %}{{ youtubeNote() }}');
+    expect(tags(note, 'p')).toEqual(['<p class="notice-text youtube-note">']);
+    expect(text(note)).toBe(
+      'Pressing play on a video loads it from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch. More about this',
     );
-    expect(html.match(/ id="video-notice-full"/g)).toHaveLength(1);
+    expect(note.match(/<span id="youtube-note-text">([^<]*)<\/span>/)?.[1]).toBe(
+      'Pressing play on a video loads it from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch.',
+    );
+    expect(tags(note, 'a').map((a) => attr(a, 'href'))).toEqual(['/privacy/#cookies-and-browser-storage']);
   });
 
   it('shows a self-hosted thumbnail if there is one, otherwise the arc when asked', () => {
@@ -129,7 +127,7 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
     expect(out).not.toMatch(/<a class="video__facade|<button|data-youtube-id|youtube\.com\/watch|PLACEHOLDER/);
     expect(text(elementByClass(out, 'video__facade', 'div'))).toBe('[Coming] [Video coming soon] [mm:ss]');
     expect(attr(tags(out, 'div')[0], 'class')).toBe('video video--inset video--placeholder');
-    expect(tags(elementByClass(out, 'notice-text', 'p'), 'a').map((t) => attr(t, 'href'))).toEqual(['/privacy/#cookies-and-browser-storage']);
+    // The page's YouTube note still shows (from the layout), so the page reads as it will at launch.
     expect(out).not.toContain('Words.');
   });
 });

@@ -2,6 +2,7 @@
 // layout and the urgent-help page, checked on the built HTML.
 import { readFileSync } from 'node:fs';
 import { describe, expect, inject, it } from 'vitest';
+import { byLastName } from '../../eleventy.config.js';
 import { parseCsvRecords } from '../../scripts/lib/csv.js';
 import { attr, currentLinks, elementByClass, listFiles, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
@@ -22,9 +23,9 @@ const NAV_CURRENT = {
   '/problems/': ['Sleep problems', 'page'],
   '/problems/tired-but-wired/': ['Sleep problems', 'true'],
   '/problems/restless-legs/': ['Sleep problems', 'true'],
-  '/about/': ['About', 'page'],
+  '/about/': null,
   '/contact/': ['Contact', 'page'],
-  '/help/': null,
+  '/help/': ['Get more help', 'page'],
   '/privacy/': null,
   '/search/': null,
   '/404.html': null,
@@ -48,10 +49,10 @@ describe('SiteHeader and MobileHeader', () => {
     const html = pageAt(site, '/');
     const desktop = elementByClass(html, 'site-header__desktop', 'div');
     expect(tags(desktop, 'a').map((t) => attr(t, 'href'))).toEqual([
-      '/', '/start/', '/problems/', '/about/', '/contact/', '/urgent-help/',
+      '/', '/start/', '/problems/', '/help/', '/contact/', '/urgent-help/',
     ]);
     const grid = elementByClass(html, 'mobile-nav', 'nav');
-    expect(tags(grid, 'a').map((t) => attr(t, 'href'))).toEqual(['/problems/', '/start/', '/about/', '/contact/']);
+    expect(tags(grid, 'a').map((t) => attr(t, 'href'))).toEqual(['/problems/', '/start/', '/help/', '/contact/']);
 
     // The header's two search forms (the feedback dialog's form is in feedback.test.js).
     const forms = tags(html, 'form').filter((t) => attr(t, 'method') !== 'dialog');
@@ -144,7 +145,7 @@ describe('TopicNav', () => {
       expect(tags(html, 'nav').filter((t) => attr(t, 'aria-label') === 'All topics')).toHaveLength(1);
       const nav = panelNav(html);
       expect(tags(nav, 'details').filter((t) => attr(t, 'open') !== undefined)).toHaveLength(0);
-      const expected = ['/help/', '/about/', '/contact/'].includes(url) ? [url] : [];
+      const expected = ['/help/', '/contact/'].includes(url) ? [url] : [];
       expect(currentLinks(nav).map((l) => l.href)).toEqual(expected);
     },
   );
@@ -184,7 +185,7 @@ describe('problem pages and the Sleep problems page', () => {
 
 describe('information pages', () => {
   const INFO = {
-    '/help/': 'Getting more help',
+    '/help/': 'Get more help',
     '/about/': 'About us',
     '/contact/': 'Contact us',
     '/privacy/': 'Privacy and your data',
@@ -215,9 +216,11 @@ describe('information pages', () => {
       const html = pageAt(site, url);
       const siteNav = elementByClass(html, 'site-nav', 'nav');
       expect(attr(tags(siteNav, 'nav')[0], 'aria-label')).toBe('Main');
-      expect(hrefs(siteNav)).toEqual(['/start/', '/problems/', '/about/', '/contact/']);
+      expect(hrefs(siteNav)).toEqual(['/start/', '/problems/', '/help/', '/contact/']);
       expect(hrefs(elementByClass(html, 'site-header__desktop', 'div'))).toContain('/urgent-help/');
-      expect(hrefs(menuPanel(html))).toEqual(expect.arrayContaining(['/about/', '/contact/', '/urgent-help/']));
+      expect(hrefs(menuPanel(html))).toEqual(expect.arrayContaining(['/help/', '/contact/', '/urgent-help/']));
+      // About is in the footer only (project lead, 2026-11-07).
+      expect(hrefs(elementByClass(html, 'site-header', 'header'))).not.toContain('/about/');
       const footer = elementByClass(html, 'site-footer', 'footer');
       expect(tags(footer, 'nav').map((t) => attr(t, 'aria-label'))).toEqual(['Footer', 'Help and policies']);
       expect(hrefs(footer)).toEqual(expect.arrayContaining(['/about/', '/contact/', '/help/', '/privacy/', '/urgent-help/']));
@@ -226,10 +229,12 @@ describe('information pages', () => {
 
   it.each(Object.entries(INFO))('marks %s as the current page in the header and footer menus', (url, label) => {
     const html = pageAt(site, url);
-    // About and Contact are "About" and "Contact" in the menus; Getting more
-    // help and Privacy and your data are in the footer only.
+    // Get more help and Contact are in the header too, Contact as
+    // "Contact"; About ("About" in the footer) and Privacy and your data are
+    // in the footer only.
+    const header = { '/help/': 'Get more help', '/contact/': 'Contact' }[url];
     const short = { '/about/': 'About', '/contact/': 'Contact' }[url];
-    expect(currentLinks(elementByClass(html, 'site-nav', 'nav'))).toEqual(short ? [{ href: url, value: 'page', label: short }] : []);
+    expect(currentLinks(elementByClass(html, 'site-nav', 'nav'))).toEqual(header ? [{ href: url, value: 'page', label: header }] : []);
     expect(currentLinks(elementByClass(html, 'site-footer', 'footer'))).toEqual([{ href: url, value: 'page', label: short ?? label }]);
   });
 
@@ -257,7 +262,7 @@ describe('information pages', () => {
     if (url === '/privacy/') expect(text(html).replace(/ ([,.])/g, '$1')).toContain('Contact the team at psych.sleepsteps@monash.edu,');
   });
 
-  it('starts "Other support" on Getting more help with Cancer Council, its number, hours and website (SPEC §7.4)', () => {
+  it('starts "Other support" on Get more help with Cancer Council, its number, hours and website (SPEC §7.4)', () => {
     const services = elementByClass(pageAt(site, '/help/'), 'help-services', 'ul');
     const first = services.match(/<li\b[^>]*>([\s\S]*?)<\/li>/)[1];
     expect(first).toMatch(/^<h3 class="help-service__name">Cancer Council<\/h3>/);
@@ -289,14 +294,32 @@ describe('information pages', () => {
     expect(html).toContain('<h2>Why we made this program</h2>');
   });
 
-  it('lists the team from data/team.csv in "Who we are", one row per person in file order, no photos (SPEC §7.4, §7.5)', () => {
+  it('lists the team from data/team.csv in "Who we are", one row per person by last name, no photos (SPEC §7.4, §7.5)', () => {
     const html = pageAt(site, '/about/');
     const list = elementByClass(html, 'about-team', 'ul');
     const rows = list.match(/<li class="about-person">[\s\S]*?<\/li>/g).map(text);
     const team = parseCsvRecords(readFileSync('data/team.csv', 'utf8'));
     expect(team.length).toBeGreaterThan(0);
-    expect(rows).toEqual(team.map((p) => `${p.name} ${p.role}${p.organisation ? `, ${p.organisation}` : ''}`));
+    // Sorted here independently of byLastName: last word of the name, then the whole name.
+    const last = (p) => p.name.trim().split(/\s+/).at(-1).toLowerCase();
+    const sorted = [...team].sort((a, b) => last(a).localeCompare(last(b)) || a.name.localeCompare(b.name));
+    expect(rows).toEqual(sorted.map((p) => `${p.name} ${p.role}${p.organisation ? `, ${p.organisation}` : ''}`));
+    expect(rows[0]).toMatch(/^Lisa Beatty /);
+    expect(rows.at(-1)).toMatch(/^Joshua Wiley /);
     expect(list).not.toMatch(/<h3|\[Photo\]/);
+  });
+
+  it('sorts people by the last word of their name, then the whole name, ignoring case and accents', () => {
+    const names = (people) => byLastName(people).map((p) => p.name);
+    expect(names([{ name: 'Joshua Wiley' }, { name: 'Bei Bei' }, { name: 'Lisa Beatty' }, { name: 'Alix Mellor' }])).toEqual([
+      'Lisa Beatty', 'Bei Bei', 'Alix Mellor', 'Joshua Wiley',
+    ]);
+    expect(names([{ name: 'Zoe Smith' }, { name: 'Anna Smith' }, { name: 'émile zola' }, { name: 'Ada Young' }])).toEqual([
+      'Anna Smith', 'Zoe Smith', 'Ada Young', 'émile zola',
+    ]);
+    const team = [{ name: 'B A' }, { name: 'A B' }];
+    byLastName(team);
+    expect(team.map((p) => p.name)).toEqual(['B A', 'A B']); // the input is left as it was
   });
 
   it("links Privacy to Google's privacy policy", () => {
@@ -305,7 +328,7 @@ describe('information pages', () => {
     );
   });
 
-  it('offers no GP summary or sleep diary on Getting more help (SPEC §7.5, §21: not for now)', () => {
+  it('offers no GP summary or sleep diary on Get more help (SPEC §7.5, §21: not for now)', () => {
     const page = pageAt(site, '/help/');
     expect(text(page)).not.toMatch(/GP summary|summary for your GP|diary/i);
     expect(page).not.toMatch(/help-print/);
