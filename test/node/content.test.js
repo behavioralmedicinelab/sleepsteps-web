@@ -1,7 +1,8 @@
 // The areas and the 36 problem files match the handoff's content model
 // (SPEC §7.2; HANDOFF §8), and the M1b content is in place: a problem video
-// and solutions for every problem, the Start here chapters and the sample
-// problems that exercise the layouts. Full validation is in
+// for every problem, solutions from the team's planning sheet (or none, for
+// the 13 stand-alone problems), the eight mechanism videos, the Start here
+// chapters and the problems that exercise each layout. Full validation is in
 // validate-content.test.js.
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,19 @@ import { listFiles } from './helpers.js';
 const handoff = readFileSync('docs/design/HANDOFF.md', 'utf8');
 const handoffProblems = JSON.parse(handoff.match(/```json\n([\s\S]*?)\n```/)[1]);
 const areas = parseCsvRecords(readFileSync('data/areas.csv', 'utf8'));
+
+// The planning sheet's "Separate video" rows (SPEC §7.2): one video made for
+// the problem, and no solutions.
+const STANDALONE = [
+  'uncomfortable-sleep-environment', 'sleeping-in-hospital', 'sharing-a-bed', 'parents-of-young-children',
+  'involving-others', 'sleep-not-improving-yet', 'setbacks-and-bad-nights', 'following-sleep-advice',
+  'if-sleep-problems-return', 'dreams-and-nightmares', 'snoring', 'restless-legs', 'accepting-changes-to-my-sleep',
+];
+// The shared solution library: the eight mechanism videos (SPEC §7.1, §7.2).
+const MECHANISMS = [
+  'sleep-drive', 'circadian-rhythm', 'conditioning', 'cognitive-arousal', 'physiological-arousal',
+  'sleep-effort-and-control', 'treatment-symptoms-and-sleep', 'daytime-rhythms-and-sleep',
+];
 
 // The top-level one-line `key: value` scalars of a problem file, with strings
 // written as JSON-style double-quoted scalars (valid YAML). Nested fields
@@ -70,6 +84,7 @@ describe('content/problems', () => {
       order: order * 10,
       new: p.isNew === true,
       problem_video: `${slug}-about`,
+      ...(STANDALONE.includes(slug) ? { standalone: true } : {}),
     });
     expect(areas.map((a) => a.area_id)).toContain(fm.area);
   });
@@ -80,7 +95,7 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
   const problems = model.problems;
   const tiers = (slug) => {
     const counts = { main: 0, extra: 0 };
-    for (const s of problems.get(slug).data.solutions) counts[s.tier] += 1;
+    for (const s of problems.get(slug).data.solutions ?? []) counts[s.tier] += 1;
     return counts;
   };
 
@@ -88,25 +103,67 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
     expect(errors).toEqual([]);
   });
 
-  it('gives all 36 problems a problem video, "Is this you?" text and at least one main solution', () => {
+  it('gives all 36 problems a problem video, "Is this you?" text and at least one main solution, or stand-alone status', () => {
     expect(problems.size).toBe(36);
     for (const [slug, { data }] of problems) {
       expect(model.videos.has(data.problem_video), slug).toBe(true);
       expect(data.is_this_you.summary, slug).toBeTruthy();
       expect(data.is_this_you.bullets.length, slug).toBeGreaterThanOrEqual(2);
-      expect(tiers(slug).main, slug).toBeGreaterThanOrEqual(1);
+      if (data.standalone) expect(tiers(slug), slug).toEqual({ main: 0, extra: 0 });
+      else expect(tiers(slug).main, slug).toBeGreaterThanOrEqual(1);
     }
   });
 
-  it.each([
-    ['tired-but-wired', 3, 3],
-    ['cant-get-back-to-sleep', 2, 1],
-    ['pain', 1, 0],
-    ['hot-flushes-and-night-sweats', 2, 2],
-  ])('sample problem %s has %i main and %i extra solutions, and 2-3 related topics', (slug, main, extra) => {
-    expect(tiers(slug)).toEqual({ main, extra });
-    expect(problems.get(slug).data.related.length).toBeGreaterThanOrEqual(2);
+  it('has the 13 stand-alone problems, each with its own [bracketed] video title and no solutions', () => {
+    const standalone = [...problems].filter(([, { data }]) => data.standalone === true).map(([slug]) => slug);
+    expect(standalone.sort()).toEqual([...STANDALONE].sort());
+    for (const slug of STANDALONE) {
+      const { data } = problems.get(slug);
+      expect(data.solutions, slug).toBeUndefined();
+      const title = model.videos.get(data.problem_video).data.title;
+      expect(title, slug).toMatch(/^\[.+\]$/);
+      expect(title, slug).not.toMatch(/^\[About:/);
+    }
   });
+
+  it('uses only the eight mechanism videos as solutions, each with a [bracketed] blurb', () => {
+    const used = new Set();
+    for (const [slug, { data }] of problems) {
+      for (const s of data.solutions ?? []) {
+        expect(MECHANISMS, `${slug}: ${s.video}`).toContain(s.video);
+        expect(s.blurb, `${slug}: ${s.video}`).toMatch(/^\[.+\]$/);
+        used.add(s.video);
+      }
+    }
+    expect([...used].sort()).toEqual([...MECHANISMS].sort());
+  });
+
+  it('gives each mechanism video a [bracketed] title and stand-in transcript', () => {
+    for (const id of MECHANISMS) {
+      const { data, body } = model.videos.get(id);
+      expect(data.title, id).toMatch(/^\[.+\]$/);
+      expect(body.trim(), id).toBe(`[Transcript of “${data.title.slice(1, -1)}”.]`);
+    }
+  });
+
+  // One problem for each shape the layout handles (SPEC §7).
+  it.each([
+    ['cant-get-back-to-sleep', 3, 3],
+    ['tired-but-wired', 3, 2],
+    ['stress-and-worries', 3, 1],
+    ['sleep-timing-all-over-the-place', 3, 0],
+    ['putting-off-going-to-bed', 2, 2],
+    ['sharing-a-bed', 0, 0],
+  ])('layout sample %s has %i main and %i extra solutions', (slug, main, extra) => {
+    expect(tiers(slug)).toEqual({ main, extra });
+  });
+
+  it.each(['tired-but-wired', 'cant-get-back-to-sleep', 'pain', 'hot-flushes-and-night-sweats'])(
+    '%s has 2-3 placeholder related topics',
+    (slug) => {
+      expect(problems.get(slug).data.related.length).toBeGreaterThanOrEqual(2);
+    },
+  );
 
   it('lists the three Start here videos in order', () => {
     expect(model.start.data.chapters.map((c) => c.video)).toEqual(['how-sleep-works', 'why-cancer-can-change-sleep', 'how-to-use-this-program']);

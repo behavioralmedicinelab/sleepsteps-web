@@ -239,8 +239,8 @@ describe('players.js', () => {
   });
 });
 
-describe('solutions.js on /problems/tired-but-wired/ (3 main, 3 extra)', () => {
-  const html = pageAt(site, '/problems/tired-but-wired/');
+describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', () => {
+  const html = pageAt(site, '/problems/cant-get-back-to-sleep/');
   const cards = () => dom.document.querySelectorAll('.solution');
   const face = (card) => card.querySelector('.solution__face');
   const panel = (card) => card.querySelector('.solution__panel');
@@ -298,6 +298,36 @@ describe('solutions.js on /problems/tired-but-wired/ (3 main, 3 extra)', () => {
     face(first).click();
     expect(face(first).getAttribute('aria-expanded')).toBe('true');
     expect(document.activeElement).toBe(face(first));
+  });
+});
+
+// A stand-alone problem (SPEC §7.2) loads players.js but not solutions.js:
+// its one video, with its formats, is the page.
+describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => {
+  const html = pageAt(site, '/problems/sharing-a-bed/');
+
+  it('opens the transcript from the notice link and reports it with the problem video, with no cards to open', async () => {
+    await load(html, ['players']);
+    const { document } = dom;
+    expect(document.querySelectorAll('.solution')).toEqual([]);
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const details = document.getElementById('transcript-sharing-a-bed-about');
+    expect(details.open).toBe(false);
+    expect(details.querySelector('.transcript__print').hidden).toBe(false);
+
+    const link = document.querySelector('.video__notice a[href="#transcript-sharing-a-bed-about"]');
+    const click = new Event('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(details.open).toBe(true);
+    expect(document.activeElement).toBe(details.querySelector('summary'));
+
+    document.querySelector('a[data-handout]').click();
+    expect(reported).toEqual([
+      { type: 'transcript_open', detail: { media: 'sharing-a-bed-about' } },
+      { type: 'handout_open', detail: { media: 'sharing-a-bed-about' } },
+    ]);
   });
 });
 

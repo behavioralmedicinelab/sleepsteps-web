@@ -1,8 +1,10 @@
 // Problem pages (SPEC §7.2, §9.1-§9.3, §12, §15.1, §20 M1b; HANDOFF §6.4):
-// the built pages for all 36 problems and the four layout samples, the
-// solution card rendered with a playable (fake) video, and solutions.js.
+// the built pages for all 36 problems, a problem of each layout shape, a
+// stand-alone problem (no solutions), the solution card rendered with a
+// playable (fake) video, and solutions.js.
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import configure from '../../eleventy.config.js';
 import { validateContent } from '../../scripts/validate-content.js';
@@ -26,29 +28,37 @@ function elements(html, className, tagName = '[a-z0-9]+') {
 }
 
 const mainOf = (html) => html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+// A stand-alone problem (SPEC §7.2) has no `solutions`.
+const solutionsOf = (data) => data.solutions ?? [];
 const tiersOf = (data) => ({
-  main: data.solutions.filter((s) => s.tier === 'main'),
-  extra: data.solutions.filter((s) => s.tier === 'extra'),
+  main: solutionsOf(data).filter((s) => s.tier === 'main'),
+  extra: solutionsOf(data).filter((s) => s.tier === 'extra'),
 });
 
 describe.each(problems)('/problems/%s/', (slug, { data }) => {
   const html = pageAt(site, `/problems/${slug}/`);
   const main = mainOf(html);
   const tiers = tiersOf(data);
-  const pageVideos = [data.problem_video, ...data.solutions.map((s) => s.video)];
+  const solutions = solutionsOf(data);
+  const pageVideos = [data.problem_video, ...solutions.map((s) => s.video)];
   const cards = elements(main, 'solution', 'li');
 
-  it('loads the page stylesheet, players.js and solutions.js', () => {
+  it('loads the page stylesheet, players.js and, with solutions, solutions.js', () => {
     expect(tags(html, 'link').map((t) => attr(t, 'href'))).toContain('/css/pages/problem.css');
     const scripts = tags(html, 'script').map((t) => attr(t, 'src'));
     expect(scripts).toContain('/js/players.js');
-    expect(scripts).toContain('/js/solutions.js');
+    expect(scripts.includes('/js/solutions.js')).toBe(solutions.length > 0);
   });
 
-  it('shows the phone back link to the area and the "On this page" chips', () => {
+  it('shows the phone back link to the area and, with solutions, the "On this page" chips', () => {
     const back = tags(main, 'a').find((t) => attr(t, 'class') === 'problem__back');
     expect(attr(back, 'href')).toBe(`/problems/#${data.area}`);
     const chips = elementByClass(main, 'on-this-page', 'nav');
+    if (!solutions.length) {
+      // A stand-alone page: nothing below the problem block to jump to.
+      expect(chips).toBeUndefined();
+      return;
+    }
     expect(attr(tags(chips, 'nav')[0], 'aria-label')).toBe('On this page');
     const links = [...chips.matchAll(/<a (?:class="([^"]+)" )?href="([^"]+)">([\s\S]*?)<\/a>/g)].map((m) => [m[2], text(m[3])]);
     // The first chip is filled, as on the board (Start here's lead pill).
@@ -105,7 +115,7 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
 
   it('renders each solution as a closed native <details name="solution">, numbered within its tier', () => {
     const details = tags(main, 'details').filter((t) => /\bsolution__disclosure\b/.test(attr(t, 'class')));
-    expect(details).toHaveLength(data.solutions.length);
+    expect(details).toHaveLength(solutions.length);
     for (const t of details) {
       expect(attr(t, 'name')).toBe('solution');
       expect(attr(t, 'open')).toBeUndefined();
@@ -115,7 +125,7 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       ...tiers.main.map((_, i) => `${i + 1} Main`),
       ...tiers.extra.map((_, i) => `${i + 1} Extra`),
     ]);
-    expect(cards.map((card) => attr(tags(card, 'li')[0], 'id'))).toEqual(data.solutions.map((s) => `solution-${s.video}`));
+    expect(cards.map((card) => attr(tags(card, 'li')[0], 'id'))).toEqual(solutions.map((s) => `solution-${s.video}`));
   });
 
   it('shows each card\'s title, blurb and length, with nothing interactive inside the summary', () => {
@@ -146,9 +156,16 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     }
   });
 
-  it('puts "Other things that can help" after the main solutions, only when there are extras', () => {
+  it('puts "Other things that can help" after the main solutions, only when there are extras, and neither on a stand-alone page', () => {
     const order = [...main.matchAll(/<section class="solutions solutions--(main|extra)" id="([a-z-]+)"/g)].map((m) => [m[1], m[2]]);
-    expect(order).toEqual([['main', 'main-solutions'], ...(tiers.extra.length ? [['extra', 'more-solutions']] : [])]);
+    expect(order).toEqual([
+      ...(tiers.main.length ? [['main', 'main-solutions']] : []),
+      ...(tiers.extra.length ? [['extra', 'more-solutions']] : []),
+    ]);
+    if (!solutions.length) {
+      expect(main).not.toMatch(/solution-grid|main-solutions|more-solutions/);
+      return;
+    }
     expect(text(elementByClass(main, 'solutions--main', 'section'))).toMatch(/^Things to try Main solutions Most people start here\./);
     if (tiers.extra.length) {
       expect(text(elementByClass(main, 'solutions--extra', 'section'))).toMatch(/^If you want more Other things that can help Useful extras/);
@@ -199,23 +216,95 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     levels.forEach((level, i) => {
       if (i) expect(level, `heading ${i + 1}`).toBeLessThanOrEqual(levels[i - 1] + 1);
     });
-    expect(levels.filter((l) => l === 3)).toHaveLength(data.solutions.length);
+    expect(levels.filter((l) => l === 3)).toHaveLength(solutions.length);
     expect(main.slice(main.indexOf('>') + 1)).not.toMatch(/\sid="main"/);
   });
 });
 
 describe('the layout samples (SPEC §7)', () => {
+  // One problem of each shape the planning sheet gives.
   it.each([
-    ['tired-but-wired', 3, 3],
-    ['cant-get-back-to-sleep', 2, 1],
-    ['pain', 1, 0],
-    ['hot-flushes-and-night-sweats', 2, 2],
+    ['cant-get-back-to-sleep', 3, 3],
+    ['tired-but-wired', 3, 2],
+    ['stress-and-worries', 3, 1],
+    ['sleep-timing-all-over-the-place', 3, 0],
+    ['putting-off-going-to-bed', 2, 2],
+    ['sharing-a-bed', 0, 0],
   ])('/problems/%s/ shows %i main and %i extra cards', (slug, main, extra) => {
     const html = mainOf(pageAt(site, `/problems/${slug}/`));
     const grid = (tier) => elementByClass(html, `solutions--${tier}`, 'section') ?? '';
     expect(elements(grid('main'), 'solution', 'li')).toHaveLength(main);
     expect(elements(grid('extra'), 'solution', 'li')).toHaveLength(extra);
-    expect(elements(html, 'topic-card', 'a').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it.each(['tired-but-wired', 'cant-get-back-to-sleep', 'pain', 'hot-flushes-and-night-sweats'])(
+    '/problems/%s/ shows its placeholder related topics',
+    (slug) => {
+      expect(elements(mainOf(pageAt(site, `/problems/${slug}/`)), 'topic-card', 'a').length).toBeGreaterThanOrEqual(2);
+    },
+  );
+});
+
+// A stand-alone problem (SPEC §7.2): its own video, made for it, is the main
+// content, with no solutions. sharing-a-bed's video has every format.
+describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
+  const slug = 'sharing-a-bed';
+  const { data } = model.problems.get(slug);
+  const html = pageAt(site, `/problems/${slug}/`);
+  const main = mainOf(html);
+  const { data: v } = video(data.problem_video);
+
+  it('is a stand-alone problem whose video has a handout, audio and a transcript', () => {
+    expect([data.standalone, data.solutions]).toEqual([true, undefined]);
+    expect([Boolean(v.handout), Boolean(v.audio), hasTranscript(data.problem_video)]).toEqual([true, true, true]);
+  });
+
+  it('has no solutions section, solution cards, chips or solutions.js', () => {
+    expect(main).not.toMatch(/class="solutions\b|solution-grid|class="solution\b|on-this-page|#main-solutions|#more-solutions/);
+    expect(text(main)).not.toMatch(/Things to try|Main solutions|Other things that can help|If you want more/);
+    expect(html).not.toContain('/js/solutions.js');
+  });
+
+  it('shows the problem video, titled, with its notice and every format, as the main content', () => {
+    const block = elementByClass(main, 'problem-block', 'div');
+    const videos = elements(main, 'video', 'div');
+    expect(videos).toHaveLength(1);
+    expect(block).toContain(videos[0]);
+    expect(attr(tags(videos[0], 'div')[0], 'data-video')).toBe(data.problem_video);
+    expect(text(elementByClass(videos[0], 'video__title', 'span'))).toBe(v.title);
+    expect(text(elementByClass(videos[0], 'video__notice', 'p'))).toMatch(/^Pressing play loads this video from YouTube \(Google\)\./);
+    const formats = elementByClass(block, 'formats', 'div');
+    expect(tags(formats, 'a').filter((t) => attr(t, 'data-handout') === data.problem_video)).toHaveLength(1);
+    expect(formats).toContain(`id="audio-${data.problem_video}"`);
+    expect(formats).toContain(`id="transcript-${data.problem_video}"`);
+  });
+
+  it('keeps its headings in order: the title, then "Is this you?" (and Related topics, when it has some)', () => {
+    const headings = [...main.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => [Number(m[1]), text(m[2])]);
+    expect(headings).toEqual([
+      [1, data.title],
+      [2, 'Is this you?'],
+      ...(data.related.length ? [[2, 'Related topics']] : []),
+    ]);
+  });
+
+  it('works without JavaScript: native disclosures, a plain handout link, and only the print button hidden', () => {
+    for (const id of [`audio-${data.problem_video}`, `transcript-${data.problem_video}`]) {
+      expect(tags(main, 'details').some((t) => attr(t, 'id') === id), id).toBe(true);
+    }
+    expect(main).toMatch(/<audio\b[^>]*\scontrols\b/);
+    expect(text(elementByClass(main, 'transcript__body', 'div'))).toBe(`[Transcript of “${v.title.slice(1, -1)}”.]`);
+    const hidden = [...main.matchAll(/<([a-z0-9]+)\b[^>]*\shidden(?=[\s>])[^>]*>/g)].map((m) => [m[1], attr(m[0], 'class')]);
+    expect(hidden).toEqual([['button', 'transcript__print link-button']]);
+    expect(elementByClass(main, 'problem__all', 'p')).toBe('<p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>');
+  });
+
+  it('is still in the site search index, with its video title in its text (SPEC §8.3)', () => {
+    const entries = JSON.parse(readFileSync(path.join(site, 'search-index.json'), 'utf8'));
+    const entry = entries.find((e) => e.id === slug);
+    expect([entry?.type, entry?.url, entry?.title, entry?.summary]).toEqual(['problem', `/problems/${slug}/`, data.title, data.statement]);
+    expect(entry.transcript).toContain(v.title);
+    expect(entry.transcript).toContain(data.is_this_you.summary);
   });
 });
 
@@ -296,6 +385,11 @@ describe('solutionsSection with a playable video', () => {
   it('leaves out the formats and quick links for a video without them', () => {
     expect(bare).not.toMatch(/solution__tools|solution__quick/);
     expect(bare).toMatch(/<div class="solution__meta">\s*<\/div>/);
+  });
+
+  it('renders nothing for a tier with no solutions (a stand-alone problem has none, SPEC §7.2)', () => {
+    expect(render([]).trim()).toBe('');
+    expect(env.renderString('{% from "problem/solutions.njk" import solutionsSection %}[{{ solutionsSection("extra", items, "a-page") }}]', { items: [] })).toBe('[]');
   });
 
   it('renders nothing visible in the ratings slots until M4, even with ratings on', () => {

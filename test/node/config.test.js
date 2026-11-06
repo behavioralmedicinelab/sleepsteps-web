@@ -102,8 +102,8 @@ describe('eleventy.config.js', () => {
     });
     const videos = [
       item('intro', { title: 'Intro', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'intro.pdf', audio: 'intro.mp3' }, 'Words.'),
-      item('wind-down', { title: '[Wind down]', youtube_id: 'PLACEHOLDER', duration: '[mm:ss]', placeholder: true }),
-      item('worry-time', { title: 'Worry time', youtube_id: 'AbCdEfGhIj0', duration: '3:05', thumbnail: 'w.jpg' }, '\n  \n'),
+      item('sleep-drive', { title: '[Sleep drive]', youtube_id: 'PLACEHOLDER', duration: '[mm:ss]', placeholder: true }),
+      item('cognitive-arousal', { title: 'Cognitive arousal', youtube_id: 'AbCdEfGhIj0', duration: '3:05', thumbnail: 'w.jpg' }, '\n  \n'),
     ];
 
     it('videoById returns the template shape, with the transcript read lazily', () => {
@@ -112,9 +112,9 @@ describe('eleventy.config.js', () => {
         video_id: 'intro', title: 'Intro', youtube_id: 'AbCdEfGhIjK', duration: '6:40', audio: 'intro.mp3',
         handout: 'intro.pdf', thumbnail: '', placeholder: false, hasTranscript: true, transcriptHtml: '<p>Words.</p>\n',
       });
-      const worry = f.videoById('worry-time', videos);
-      expect([worry.hasTranscript, worry.transcriptHtml, worry.thumbnail]).toEqual([false, '', 'w.jpg']);
-      expect(f.videoById('wind-down', videos).placeholder).toBe(true);
+      const arousal = f.videoById('cognitive-arousal', videos);
+      expect([arousal.hasTranscript, arousal.transcriptHtml, arousal.thumbnail]).toEqual([false, '', 'w.jpg']);
+      expect(f.videoById('sleep-drive', videos).placeholder).toBe(true);
       expect(f.videoById('intro', videos)).toBe(intro); // cached per collection
       expect(() => f.videoById('nope', videos)).toThrow(/unknown video "nope"/);
       expect(() => f.videoById('intro', undefined)).toThrow(/collections\.videos/);
@@ -124,22 +124,22 @@ describe('eleventy.config.js', () => {
       const tiers = f.solutionsByTier(
         [
           { tier: 'main', video: 'intro', blurb: 'A' },
-          { tier: 'extra', video: 'worry-time', blurb: 'B' },
-          { tier: 'main', video: 'wind-down', blurb: 'C' },
+          { tier: 'extra', video: 'cognitive-arousal', blurb: 'B' },
+          { tier: 'main', video: 'sleep-drive', blurb: 'C' },
         ],
         videos,
       );
-      expect(tiers.main.map((s) => [s.n, s.blurb, s.video.video_id])).toEqual([[1, 'A', 'intro'], [2, 'C', 'wind-down']]);
-      expect(tiers.extra.map((s) => [s.n, s.tier, s.video.title])).toEqual([[1, 'extra', 'Worry time']]);
+      expect(tiers.main.map((s) => [s.n, s.blurb, s.video.video_id])).toEqual([[1, 'A', 'intro'], [2, 'C', 'sleep-drive']]);
+      expect(tiers.extra.map((s) => [s.n, s.tier, s.video.title])).toEqual([[1, 'extra', 'Cognitive arousal']]);
       expect(f.solutionsByTier(undefined, videos)).toEqual({ main: [], extra: [] });
       expect(() => f.solutionsByTier([{ tier: 'other', video: 'intro' }], videos)).toThrow(/tier/);
     });
 
     it('introChapters resolves Start here chapters, and gives [] without any', () => {
-      const chapters = f.introChapters([{ video: 'intro', description: 'One.' }, { video: 'worry-time', description: 'Two.' }], videos);
+      const chapters = f.introChapters([{ video: 'intro', description: 'One.' }, { video: 'cognitive-arousal', description: 'Two.' }], videos);
       expect(chapters.map(({ video, ...rest }) => rest)).toEqual([
         { n: 1, id: 'v1', video_id: 'intro', title: 'Intro', duration: '6:40', description: 'One.' },
-        { n: 2, id: 'v2', video_id: 'worry-time', title: 'Worry time', duration: '3:05', description: 'Two.' },
+        { n: 2, id: 'v2', video_id: 'cognitive-arousal', title: 'Cognitive arousal', duration: '3:05', description: 'Two.' },
       ]);
       expect(chapters[0].video).toBe(f.videoById('intro', videos));
       expect(f.introChapters(undefined, videos)).toEqual([]);

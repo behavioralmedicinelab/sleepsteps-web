@@ -106,6 +106,15 @@ describe('validateContent on a valid tree', () => {
     expect(result.model.start.data.chapters).toHaveLength(1);
   });
 
+  it('accepts a stand-alone problem with no solutions, or an empty list, without warnings (SPEC §7.2)', () => {
+    for (const solutions of [undefined, []]) {
+      const result = run({ 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', standalone: true, solutions })) });
+      expect(messages(result)).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.model.problems.get('two').data.standalone).toBe(true);
+    }
+  });
+
   it('accepts the real content in this repository', () => {
     expect(validateContent(process.cwd()).errors.map(formatIssue)).toEqual([]);
   });
@@ -154,6 +163,20 @@ describe('validateContent fails the build on', () => {
     ['an unknown solution video', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'gone', blurb: 'A' }] })) }, 'two.md: solutions[1].video: unknown video "gone"'],
     ['no main solution', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'extra', video: 'x1', blurb: 'A' }] })) }, 'two.md: solutions: has 0 main solutions; allowed 1-3'],
     ['no solutions at all', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: undefined })) }, 'two.md: solutions: required'],
+    // SPEC §7.2: only a stand-alone problem has no solutions, and it has none.
+    [
+      'an empty solutions list on a problem that is not stand-alone',
+      { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [] })) },
+      'two.md: solutions: required: 1-3 main and 0-3 extra solutions; or, for a problem whose own video is its only video, add `standalone: true`',
+    ],
+    ['no solutions with standalone: false', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', standalone: false, solutions: undefined })) }, 'two.md: solutions: required: 1-3 main'],
+    [
+      'solutions on a stand-alone problem',
+      { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', standalone: true })) },
+      'two.md: solutions: a stand-alone problem (standalone: true) has no solutions: delete `solutions`, or delete `standalone: true` to list them',
+    ],
+    ['a standalone flag that is not true or false', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', standalone: 'yes' })) }, 'two.md: standalone: must be true or false'],
+    ['solutions that are not a list', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: 'm1' })) }, 'two.md: solutions: must be a list of 1-3 main and 0-3 extra solutions'],
     [
       '4 main solutions',
       { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: ['m1', 'm2', 'm3', 'x1'].map((v) => ({ tier: 'main', video: v, blurb: 'A' })) })) },

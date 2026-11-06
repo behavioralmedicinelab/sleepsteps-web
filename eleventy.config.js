@@ -135,7 +135,7 @@ export default function (eleventyConfig) {
     return video;
   };
 
-  // "wind-down-hour" | videoById(collections.videos) ->
+  // "sleep-drive" | videoById(collections.videos) ->
   // { video_id, title, youtube_id, duration, audio, handout, thumbnail,
   //   placeholder, hasTranscript, transcriptHtml }. Unknown ids fail the build.
   eleventyConfig.addFilter('videoById', lookupVideo);

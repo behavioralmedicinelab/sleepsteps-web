@@ -13,11 +13,21 @@ is_this_you:
   bullets:
     - "[a sign this topic fits]"
     - "[another sign this topic fits]"
-# 1-3 main and 0-3 extra solutions, in display order. Placeholder blurbs.
+# Solutions from the team's planning sheet (SPEC §7.2): main (1) and extra (2),
+# in display order, the suggested start first. Placeholder blurbs.
 solutions:
   - tier: main
-    video: first-thing-to-try
-    blurb: "[One or two sentences: who this suits and what it involves.]"
+    video: cognitive-arousal
+    blurb: "[Try this if worry about not sleeping, and what it will do to you, keeps you awake.]"
+  - tier: main
+    video: conditioning
+    blurb: "[Try this if you start to worry as soon as you get into bed.]"
+  - tier: main
+    video: sleep-effort-and-control
+    blurb: "[Try this if you try harder and harder to sleep, and it doesn't work.]"
+  - tier: extra
+    video: physiological-arousal
+    blurb: "[Try this if worry about sleep leaves your body tense or restless.]"
 # 2-3 hand-picked related problem slugs, still to choose (SPEC §21).
 related: []
 ---

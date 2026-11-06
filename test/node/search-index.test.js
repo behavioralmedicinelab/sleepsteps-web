@@ -101,7 +101,7 @@ describe('/search-index.json, built from the real content', () => {
     for (const [slug, { data }] of model.problems) {
       const e = byId.get(slug);
       expect([e.type, e.url, e.title, e.summary], slug).toEqual(['problem', `/problems/${slug}/`, data.title, data.statement]);
-      for (const id of [data.problem_video, ...data.solutions.map((s) => s.video)]) {
+      for (const id of [data.problem_video, ...(data.solutions ?? []).map((s) => s.video)]) {
         expect(e.transcript, `${slug}: ${id}`).toContain(model.videos.get(id).data.title);
       }
     }

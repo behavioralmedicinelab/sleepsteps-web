@@ -14,26 +14,24 @@ is_this_you:
     - "[feel exhausted but alert in bed]"
     - "[take a long time to fall asleep]"
     - "[feel restless or keyed up at night]"
-# 1-3 main and 0-3 extra solutions, in display order. Placeholder blurbs.
+# Solutions from the team's planning sheet (SPEC §7.2): main (1) and extra (2),
+# in display order, the suggested start first. Placeholder blurbs.
 solutions:
   - tier: main
-    video: wind-down-hour
-    blurb: "[Give your body a signal that the day is ending. Good if you go straight from busy to bed.]"
+    video: conditioning
+    blurb: "[Try this if bed has become a place where you lie awake, so it can feel sleepy again.]"
   - tier: main
-    video: get-up-if-awake
-    blurb: "[What to do instead of lying awake, and how it helps bed feel sleepy again.]"
+    video: cognitive-arousal
+    blurb: "[Try this if your mind gets busy as soon as you lie down.]"
   - tier: main
-    video: settling-your-body
-    blurb: "[A short guided exercise to ease tension when you feel keyed up.]"
+    video: physiological-arousal
+    blurb: "[Try this if your body feels tense or keyed up at bedtime, even though you're tired.]"
   - tier: extra
-    video: worry-time
-    blurb: "[Set aside time in the evening so worries have somewhere to go.]"
+    video: sleep-effort-and-control
+    blurb: "[Try this if trying hard to fall asleep leaves you more frustrated and awake.]"
   - tier: extra
-    video: caffeine-alcohol-timing
-    blurb: "[Small changes to what you drink, and when.]"
-  - tier: extra
-    video: steady-wake-up-time
-    blurb: "[Why getting up at the same time each day helps your body clock.]"
+    video: treatment-symptoms-and-sleep
+    blurb: "[Try this if treatment or its side effects leave you restless or uncomfortable at night.]"
 # Placeholder picks: the team should replace these with 2-3 hand-picked topics (SPEC §21).
 related:
   - not-sleepy-at-bedtime
