@@ -219,16 +219,10 @@ describe('information pages', () => {
     );
   });
 
-  it('shows the GP summary on Getting more help as a link only once gp_summary is set', () => {
-    const file = readFileSync('content/pages/help.md', 'utf8').match(/^gp_summary:\s*"([^"]*)"/m)[1];
-    const line = elementByClass(pageAt(site, '/help/'), 'help-print', 'p');
-    if (file) {
-      expect(tags(line, 'a').map((t) => attr(t, 'href'))).toEqual([`/media/pdf/${file}`]);
-      expect(text(line)).toBe('Print a one-page summary for your GP');
-    } else {
-      expect(line).not.toMatch(/<a\b/);
-      expect(text(line)).toBe('[Print a one-page summary for your GP]');
-    }
+  it('offers no GP summary or sleep diary on Getting more help (SPEC §7.5, §21: not for now)', () => {
+    const page = pageAt(site, '/help/');
+    expect(text(page)).not.toMatch(/GP summary|summary for your GP|diary/i);
+    expect(page).not.toMatch(/help-print/);
   });
 
   it('gives About the hero band with the settling arc', () => {

@@ -17,6 +17,7 @@
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
+{%- set navChapters = chapters | introChapters(collections.videos) -%}
 <header class="site-header">
   <div class="site-header__desktop">
     <div class="site-header__inner container">
@@ -71,7 +72,7 @@
             {%- endfor %}
           </ul>
         </nav>
-        {{ topicNav(topicAreas, page_id, area, chapters, 'm-', page.url) }}
+        {{ topicNav(topicAreas, page_id, area, navChapters, 'm-', page.url) }}
         <a class="mobile-menu__urgent" href="/urgent-help/">Get urgent help</a>
       </div>
     </details>

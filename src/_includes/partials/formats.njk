@@ -1,0 +1,58 @@
+{#-
+  FormatLinks (HANDOFF §5; SPEC §9.2, §9.3): the other ways to take in a
+  video, each shown only if the video has it. With none, nothing renders.
+
+    {% from "partials/formats.njk" import formatLinks %}
+    {{ formatLinks(video) }}
+
+  - Handout: a link to the PDF in media/pdf/. Every video is to have one;
+    the format is still open (PDF, Word or web page, SPEC §9.3, §21), so
+    the label lives only here and in problem/solutions.njk's quick link.
+  - Audio only: a native <details> holding <audio controls preload="none">
+    (the video's own soundtrack; every video is to have one, SPEC §9.2).
+  - Read transcript: a native <details> (SPEC §9.3), on its own line under
+    the other two so it opens across the full width. Its id is
+    transcript-<video_id>, the target of the notice's "Read the transcript
+    instead" link. "Print transcript" is a button that only JavaScript shows.
+
+  Without JavaScript all three work as they are. src/js/players.js opens a
+  transcript a link points to, shows the print buttons, pauses other media
+  when audio plays, and has the M3 hooks (data-handout and data-transcript
+  hold the video_id, whatever the handout's format; data-media holds the
+  audio file name; SPEC §10.2). The page must declare
+  `eleventyImport: { collections: ['videos'] }` to show transcripts.
+
+  ids: transcript-<video_id>, audio-<video_id>. The validator allows each
+  video once per page, so they are unique.
+-#}
+{%- from "partials/icons.njk" import icon -%}
+{%- macro formatLinks(video) -%}
+{%- if video.handout or video.audio or video.hasTranscript %}
+<div class="formats" role="group" aria-label="Other formats">
+  {%- if video.handout or video.audio %}
+  <div class="formats__row">
+    {%- if video.handout %}
+    <a class="format-button" href="/media/pdf/{{ video.handout }}" type="application/pdf" data-handout="{{ video.video_id }}">{{ icon('download', 18, 'format-button__icon') }}Handout (PDF)<span class="visually-hidden">: {{ video.title }}</span></a>
+    {%- endif %}
+    {%- if video.audio %}
+    <details class="format-disclosure format-disclosure--audio" id="audio-{{ video.video_id }}">
+      <summary class="format-disclosure__toggle"><span class="format-button">{{ icon('headphones', 18, 'format-button__icon') }}Audio only<span class="visually-hidden">: {{ video.title }}</span>{{ icon('chevron-down', 16, 'format-disclosure__chevron') }}</span></summary>
+      <div class="format-disclosure__panel">
+        <audio class="format-audio" controls preload="none" src="/media/audio/{{ video.audio }}" data-media="{{ video.audio }}" aria-label="Audio only: {{ video.title }}"><a href="/media/audio/{{ video.audio }}">Download the audio (MP3)</a></audio>
+      </div>
+    </details>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {%- if video.hasTranscript %}
+  <details class="format-disclosure transcript" id="transcript-{{ video.video_id }}" data-transcript="{{ video.video_id }}" data-title="{{ video.title }}">
+    <summary class="format-disclosure__toggle"><span class="format-button">{{ icon('transcript', 18, 'format-button__icon') }}Read transcript<span class="visually-hidden">: {{ video.title }}</span>{{ icon('chevron-down', 16, 'format-disclosure__chevron') }}</span></summary>
+    <div class="transcript__panel">
+      <button type="button" class="transcript__print link-button" hidden>Print transcript</button>
+      <div class="transcript__body">{{ video.transcriptHtml | safe }}</div>
+    </div>
+  </details>
+  {%- endif %}
+</div>
+{%- endif %}
+{%- endmacro -%}

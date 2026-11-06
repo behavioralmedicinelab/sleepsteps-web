@@ -1,0 +1,853 @@
+/*
+ * Problem page (SPEC §7.2, §7.5; HANDOFF §6.4 design A; boards
+ * Problem-A.dc.html and Problem-Phone.dc.html). Loaded by
+ * layouts/problem.njk through `styles` front matter, after site.css and
+ * components.css (video facade, formats, step chip, section heading, topic
+ * card).
+ *
+ * Values come from tokens.css (no colour literals: a test enforces it).
+ * Mobile first: the base rules are the phone board; `min-width: 37.5em`
+ * (600px) is the desktop board. Rules for phones only use
+ * `not all and (min-width: 37.5em)` so the desktop needs no resets.
+ *
+ * Contents
+ *   1. Page and top (back link, breadcrumb, "On this page" chips)
+ *   2. Problem block ("Is this you?")
+ *   3. Solutions sections and grid
+ *   4. Solution card: closed
+ *   5. Solution card: open
+ *   6. Related topics and "Back to all sleep problems"
+ *   7. Motion, forced colours, print
+ */
+
+/* 1. Page and top -------------------------------------------------------- */
+
+/* Section gaps: 28px on the phone board (snapped to 32), 40px on desktop. */
+.problem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.problem__top {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Jump targets clear the top of the window a little. */
+.problem-block,
+.solutions,
+.solution,
+.solution__heading {
+  scroll-margin-top: var(--space-5);
+}
+
+/* Phones: a back link to the area replaces the breadcrumb. */
+.problem__top > .breadcrumb {
+  display: none;
+}
+
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0;
+  list-style: none;
+  color: var(--slate-grey);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+}
+
+.breadcrumb a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.breadcrumb__sep {
+  margin-inline: var(--space-2);
+}
+
+.problem__back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+.problem__back .icon {
+  flex: none;
+}
+
+/* Phone board spacing: back link 4, H1, quote 6, chips 16, video 12. */
+.problem__head {
+  margin-top: var(--space-1);
+}
+
+.problem__title {
+  font-size: var(--fs-display-phone);
+  line-height: var(--lh-display-phone);
+  letter-spacing: var(--tracking-heading);
+  color: var(--night-teal);
+  overflow-wrap: break-word;
+}
+
+.problem__statement {
+  margin-top: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: var(--fs-lede);
+  font-style: italic;
+  line-height: var(--lh-quote);
+}
+
+.on-this-page {
+  margin-top: var(--space-5);
+}
+
+.problem-block {
+  margin-top: var(--space-4);
+}
+
+/* "On this page" chips: outlined pills that wrap (no sideways scrolling at
+   320px), 44px tall (the board's 40px raised). The first is filled, as on
+   the board and like Start here's lead chapter pill: static emphasis on
+   where to begin, not a you-are-here marker. */
+.on-this-page ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.on-this-page a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding-inline: var(--space-5);
+  border: var(--border-width) solid var(--deep-teal);
+  border-radius: var(--radius-pill);
+  color: var(--deep-teal);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.on-this-page a:hover {
+  background: var(--teal-wash);
+  color: var(--deep-teal);
+}
+
+/* Paper on deep-teal (5.9:1), and on night-teal when hovered (10.5:1). */
+.on-this-page .on-this-page__lead,
+.on-this-page .on-this-page__lead:hover {
+  color: var(--paper);
+}
+
+.on-this-page .on-this-page__lead {
+  background: var(--deep-teal);
+}
+
+.on-this-page .on-this-page__lead:hover {
+  border-color: var(--night-teal);
+  background: var(--night-teal);
+}
+
+@media (min-width: 37.5em) {
+  .problem {
+    gap: var(--space-9);
+  }
+
+  .problem__top {
+    gap: var(--space-6);
+  }
+
+  .problem__top > .breadcrumb {
+    display: block;
+  }
+
+  .problem__back,
+  .on-this-page {
+    display: none;
+  }
+
+  .problem__head,
+  .problem-block {
+    margin-top: 0;
+  }
+
+  .problem__title {
+    font-size: var(--fs-display-problem);
+    line-height: var(--lh-display);
+  }
+
+  .problem__statement {
+    margin-top: var(--space-3);
+    font-size: var(--fs-quote-problem);
+  }
+}
+
+/* 2. Problem block --------------------------------------------------------- */
+
+/* The video (about 60%) and "Is this you?" (about 40%) side by side when the
+   main column is at least 784px (460 + 24 + 300), stacked below that. The
+   flex bases are the board's, not tokens. */
+.problem-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5) var(--space-7);
+}
+
+.problem-block__video {
+  display: flex;
+  flex: 3 1 460px;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Shown in full on phones too (the phone board shows only the summary), so
+   nothing is hidden. A div, not an <aside>: it isn't complementary. */
+.is-this-you {
+  flex: 2 1 300px;
+  padding: var(--space-5);
+  border: var(--border-width) solid transparent;
+}
+
+.is-this-you__title {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+
+.is-this-you__summary {
+  margin-bottom: var(--space-4);
+}
+
+.is-this-you__lead {
+  margin-bottom: var(--space-2);
+  font-weight: var(--weight-semibold);
+}
+
+.is-this-you__list {
+  padding-inline-start: var(--space-6);
+}
+
+.is-this-you__list li + li {
+  margin-top: var(--space-1);
+}
+
+.is-this-you__next {
+  margin-top: var(--space-5);
+}
+
+/* An in-sentence link with a 44px target (SPEC §7.5). */
+.is-this-you__next a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+@media (min-width: 37.5em) {
+  .is-this-you {
+    padding: var(--space-7);
+  }
+
+  /* Board 22px, snapped to the 24px title style. */
+  .is-this-you__title {
+    margin-bottom: var(--space-3);
+    font-size: var(--fs-title);
+    line-height: var(--lh-title);
+  }
+}
+
+/* 3. Solutions sections and grid ------------------------------------------- */
+
+.solutions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.solutions__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-7);
+}
+
+.solutions__eyebrow {
+  margin-bottom: var(--space-1);
+}
+
+.solutions__intro {
+  max-width: 460px; /* non-token: the board's measure for the intro */
+  color: var(--slate-grey);
+}
+
+/* 1, 2 or 3 cards per row (3 in the full-width main column). No dense
+   packing, so the reading order matches the DOM: an open card can leave
+   empty cells above it, as on the board. */
+.solution-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); /* 280px: board */
+  gap: var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 37.5em) {
+  .solutions__head {
+    gap: var(--space-3) var(--space-7);
+  }
+
+  .solution-grid {
+    gap: var(--space-6);
+  }
+}
+
+/* 4. Solution card: closed --------------------------------------------------- */
+
+/* The card. No overflow: hidden, which would clip the face's focus ring; the
+   band rounds its own top corners instead. */
+.solution {
+  --card-radius: calc(var(--radius-md) - var(--border-width));
+  display: flex;
+  flex-direction: column;
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.solution:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+/* The <details> (or, with JavaScript, its <div>) is the size container for
+   the open card's two-column layout (section 5). */
+.solution__disclosure {
+  container: solution / inline-size;
+}
+
+/* The face: the <summary> without JavaScript, an <h3><button> with it. The
+   summary keeps its default display (browsers keep its button semantics);
+   the inner span is the flex box, as in the phone Menu. */
+.solution__face-heading {
+  margin: 0;
+  font: inherit;
+}
+
+.solution__face {
+  border-radius: var(--card-radius);
+  color: var(--ink);
+  list-style: none;
+  cursor: pointer;
+}
+
+.solution__face::-webkit-details-marker {
+  display: none;
+}
+
+button.solution__face {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+}
+
+/* Phones: an accordion row (number disc, title and blurb, chevron). */
+.solution__face-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.solution__band {
+  display: none;
+}
+
+.solution__disc {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px; /* non-token: the phone board's disc */
+  height: 36px;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--deep-teal);
+  color: var(--paper);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+.solution__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.solution__title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  color: var(--night-teal);
+}
+
+.solution__blurb {
+  color: var(--slate-grey);
+}
+
+.solution__chevron {
+  display: flex;
+  flex: none;
+  color: var(--deep-teal);
+}
+
+.solution__chevron .icon {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.solution__face[aria-expanded="true"] .solution__chevron .icon,
+.solution__disclosure[open] > .solution__face .solution__chevron .icon {
+  transform: rotate(180deg);
+}
+
+/* Under the closed card (600px and up): the M4 rating status and quick
+   links. On phones the same links are inside the open card. */
+.solution__meta {
+  display: none;
+}
+
+.solution__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.solution__quick a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+@media (min-width: 37.5em) {
+  /* The board's card: a thumbnail band, then the title and blurb. */
+  .solution__face-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* Decorative: night-teal for main, teal-500 for extras. Text on it sits
+     on paper chips and ink badges. */
+  .solution__band {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: var(--border-width) solid transparent;
+    border-radius: var(--card-radius) var(--card-radius) 0 0;
+    background: var(--night-teal);
+  }
+
+  .solution--extra .solution__band {
+    background: var(--teal-500);
+  }
+
+  .solution__thumb {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .solution__band .play-disc {
+    position: relative;
+  }
+
+  .solution__face:hover .play-disc {
+    background: var(--teal-wash);
+  }
+
+  .solution__band .step-chip {
+    position: absolute;
+    top: var(--space-4);
+    left: var(--space-4);
+  }
+
+  .solution__duration {
+    position: absolute;
+    right: var(--space-4);
+    bottom: var(--space-4);
+  }
+
+  .solution__disc,
+  .solution__chevron {
+    display: none;
+  }
+
+  .solution__text {
+    gap: var(--space-2);
+    padding: var(--space-5) var(--space-6) var(--space-3);
+  }
+
+  .solution__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-4);
+    margin-top: auto;
+    padding: 0 var(--space-6) var(--space-3);
+  }
+}
+
+/* 5. Solution card: open ------------------------------------------------------ */
+
+/* Spans the grid row with a 2px deep-teal border. `.is-open` is set by
+   solutions.js; without JavaScript, an open <details> does the same (a
+   separate rule, so a browser without :has() keeps the first). */
+.solution.is-open {
+  grid-column: 1 / -1;
+  border: var(--border-width-strong) solid var(--deep-teal);
+}
+
+.solution:has(> .solution__disclosure[open]) {
+  grid-column: 1 / -1;
+  border: var(--border-width-strong) solid var(--deep-teal);
+}
+
+.solution.is-open:hover {
+  box-shadow: none;
+}
+
+.solution:has(> .solution__disclosure[open]):hover {
+  box-shadow: none;
+}
+
+/* Phones: the face stays on screen above the panel (an accordion), so the
+   panel's own header is hidden. Its video runs to the card's edges. */
+.solution__panel {
+  display: grid;
+  row-gap: var(--space-4);
+  padding-bottom: var(--space-5);
+}
+
+.solution__header {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.solution__video .video__notice,
+.solution__tools {
+  padding-inline: var(--space-4);
+}
+
+.solution__tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.solution__header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.solution__close {
+  min-height: var(--target-min);
+  margin: 0;
+  padding: 0 var(--space-5);
+  border: var(--border-width) solid var(--slate-grey);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.solution__close:hover {
+  background: var(--teal-wash);
+}
+
+/* Board 26px, snapped to the 24px title size at weight 400. */
+.solution__heading {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  color: var(--night-teal);
+}
+
+@media (min-width: 37.5em) {
+  /* With JavaScript the panel's header (chip, Close, heading, blurb)
+     replaces the face. Without it the header stays [hidden] and the face
+     turns into the compact row below, the card's only close control. */
+  .solution__header {
+    display: flex;
+  }
+
+  .solution.is-open .solution__face-heading,
+  .solution.is-open > .solution__meta {
+    display: none;
+  }
+
+  .solution:has(> .solution__disclosure[open]) > .solution__meta {
+    display: none;
+  }
+
+  .solution:has(> .solution__disclosure[open]) .solution__face-inner {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-6);
+  }
+
+  .solution:has(> .solution__disclosure[open]) .solution__band {
+    display: none;
+  }
+
+  .solution:has(> .solution__disclosure[open]) :is(.solution__disc, .solution__chevron) {
+    display: flex;
+  }
+
+  .solution:has(> .solution__disclosure[open]) .solution__text {
+    padding: 0;
+  }
+
+  .solution__panel {
+    row-gap: var(--space-5);
+    padding: var(--space-6);
+  }
+
+  .solution__video .video__notice,
+  .solution__tools {
+    padding-inline: 0;
+  }
+}
+
+/* A wide open card: the video on the left (3fr), the header and tools on
+   the right (2fr), as on the board (420 + 24 + 280 = 724px, not tokens).
+   The header comes first in the DOM, so Tab goes heading -> Play. */
+@container solution (min-width: 724px) {
+  .solution__panel {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-areas: "video tools";
+    align-items: start;
+    column-gap: var(--space-7);
+  }
+
+  [data-enhanced] > .solution__panel {
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "video header"
+      "video tools";
+    row-gap: var(--space-4);
+  }
+
+  .solution__header {
+    grid-area: header;
+  }
+
+  .solution__video {
+    grid-area: video;
+  }
+
+  .solution__tools {
+    grid-area: tools;
+  }
+}
+
+/* 6. Related topics and "Back to all sleep problems" ---------------------- */
+
+.problem__end {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.related__title {
+  margin-bottom: var(--space-4);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+
+/* Desktop: a grid of topic cards (components.css). */
+.related__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); /* 240px: board */
+  gap: var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+/* Desktop: a clay-deep text link. */
+.problem__all a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  color: var(--clay-deep);
+  font-weight: var(--weight-semibold);
+}
+
+.problem__all a:hover {
+  color: var(--clay-deep);
+  text-decoration-thickness: 2px;
+}
+
+/* Phones: one white list box, as on the board, but each row keeps the
+   topic's first-person line under its title in slate-grey (the board shows
+   titles only), so nothing is lost at 320px or 400% zoom; then a full-width
+   deep-teal button back to the list. */
+@media not all and (min-width: 37.5em) {
+  .related__list {
+    display: block;
+    border: var(--border-width) solid var(--keyline);
+    border-radius: var(--radius-md);
+    background: var(--white);
+  }
+
+  .related__list li + li {
+    border-top: var(--border-width) solid var(--keyline);
+  }
+
+  .related__list .topic-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: auto;
+    min-height: var(--target-lg);
+    padding: var(--space-3) var(--space-5);
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .related__list li:first-child .topic-card {
+    border-start-start-radius: calc(var(--radius-md) - var(--border-width));
+    border-start-end-radius: calc(var(--radius-md) - var(--border-width));
+  }
+
+  .related__list li:last-child .topic-card {
+    border-end-start-radius: calc(var(--radius-md) - var(--border-width));
+    border-end-end-radius: calc(var(--radius-md) - var(--border-width));
+  }
+
+  .related__list .topic-card:hover {
+    background: var(--teal-wash);
+  }
+
+  .related__list .topic-card__title {
+    font-family: var(--font-body);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    color: var(--ink);
+  }
+
+  .related__list .topic-card__statement {
+    margin-top: 0;
+  }
+
+  .problem__all a,
+  .problem__all a:hover {
+    display: flex;
+    justify-content: center;
+    min-height: var(--target-xl);
+    padding: var(--space-3) var(--space-5);
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--deep-teal);
+    color: var(--paper);
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .problem__all a:hover {
+    background: var(--night-teal);
+  }
+}
+
+@media (min-width: 37.5em) {
+  .problem__end {
+    gap: var(--space-6);
+    padding-top: var(--space-8);
+    border-top: var(--border-width) solid var(--keyline);
+  }
+
+  /* Board 22px, snapped to the 24px title style. */
+  .related__title {
+    margin-bottom: var(--space-5);
+    font-size: var(--fs-title);
+    line-height: var(--lh-title);
+  }
+}
+
+/* 7. Motion, forced colours, print -------------------------------------------- */
+
+/* Only the hover shadow, the chevron turn and the open panel's fade, and
+   only when motion is allowed (HANDOFF §10). */
+@media (prefers-reduced-motion: no-preference) {
+  .solution {
+    transition: box-shadow var(--duration);
+  }
+
+  .solution__chevron .icon {
+    transition: transform var(--duration);
+  }
+
+  .solution.is-open .solution__panel {
+    animation: solution-fade-in var(--duration) ease-out;
+  }
+}
+
+@keyframes solution-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media print {
+  .problem__back,
+  .on-this-page,
+  .solution__meta {
+    display: none;
+  }
+}

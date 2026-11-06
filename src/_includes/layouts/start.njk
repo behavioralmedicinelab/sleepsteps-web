@@ -1,0 +1,94 @@
+---
+layout: layouts/base.njk
+---
+{#-
+  Start here (/start/): SPEC §7.3, §9.1-§9.3, §12 (slot only), §15.1, §20 M1b;
+  HANDOFF §6.2; board Intro-B.dc.html. There is no phone board, so phones
+  follow the problem page's (Problem-Phone.dc.html; HANDOFF §11): full-bleed
+  videos, full-width format buttons and a full-width end-card button.
+
+  Only content/start.md uses it, and that file is data only: its body is not
+  shown. The title band (with the chapter pills inside it), then TopicNav
+  beside the content, all inside <main> so the skip link lands on the H1.
+  The band uses the title-band classes from site.css; it is written out here
+  because partials/title-band.njk has no place for the pills.
+
+  Front matter read here (plus everything base.njk reads):
+    eyebrow, heading, summary  the title band ("Start here", the H1, the lede)
+    chapters                   [{ video, description }] (SPEC §7.3): one
+                               chapter per intro video, #v1, #v2, ..., with
+                               the title, duration and formats from the video
+                               file (introChapters filter)
+
+  Each chapter: a large faint number, "Video n of N · duration", the title
+  (H2) and description, the video facade with its YouTube notice
+  (partials/video.njk), then a white bar with the ratings slot (M4) and the
+  video's formats (partials/formats.njk). The bar is left out when it would
+  be empty. No per-video feedback (SPEC §7.5, §13). Then the end card to the
+  Sleep problems page.
+-#}
+{%- from "partials/topic-nav.njk" import topicNav -%}
+{%- from "partials/video.njk" import videoEmbed -%}
+{%- from "partials/formats.njk" import formatLinks -%}
+{%- from "partials/rating.njk" import rating -%}
+{%- set topicAreas = collections.problems | groupByArea(areas) -%}
+{%- set introVideos = chapters | introChapters(collections.videos) -%}
+{%- set chapterCount = introVideos | length -%}
+<main id="main">
+  <div class="band on-dark start-band">
+    <div class="band__inner container">
+      <p class="band__eyebrow">{{ eyebrow }}</p>
+      <h1 class="band__title">{{ heading or title }}</h1>
+      <p class="band__lede start-band__lede">{{ summary }}</p>
+      {#- Jump links to the chapters. The first is filled as static emphasis
+          ("start with this one"), not as a you-are-here marker. #}
+      <nav class="chapter-pills" aria-label="On this page">
+        <ol class="chapter-pills__list" role="list">
+          {%- for chapter in introVideos %}
+          <li><a class="chapter-pill{% if loop.first %} chapter-pill--lead{% endif %}" href="#{{ chapter.id }}"><span class="chapter-pill__num">{{ chapter.n }}<span class="visually-hidden">.</span></span> {{ chapter.title }}</a></li>
+          {%- endfor %}
+        </ol>
+      </nav>
+    </div>
+  </div>
+  <div class="with-sidebar with-sidebar--roomy container start-layout">
+    <div class="with-sidebar__side">
+      {{ topicNav(topicAreas, page_id, area, introVideos, 's-', page.url) }}
+    </div>
+    <div class="with-sidebar__main start-flow">
+      {%- for chapter in introVideos %}
+      {%- set video = chapter.video %}
+      {%- set spoken = video.duration | spokenDuration %}
+      <article class="start-chapter" id="{{ chapter.id }}" aria-labelledby="{{ chapter.id }}-title">
+        <div class="start-chapter__head">
+          <span class="start-chapter__num" aria-hidden="true">{{ chapter.n }}</span>
+          <div class="start-chapter__heading">
+            <p class="eyebrow start-chapter__eyebrow">Video {{ chapter.n }} of {{ chapterCount }}<span aria-hidden="true"> · {{ video.duration }}</span><span class="visually-hidden">, {{ spoken or video.duration }}</span></p>
+            <h2 class="section-heading start-chapter__title" id="{{ chapter.id }}-title">{{ chapter.title }}</h2>
+            <p class="start-chapter__desc">{{ chapter.description }}</p>
+          </div>
+        </div>
+        {{ videoEmbed(video, bleed='page', arc=true, size='lg') }}
+        {%- set ratingHtml = rating(video, page_id, 'row') if site.features.ratings else '' %}
+        {%- set formatsHtml = formatLinks(video) %}
+        {#- `| length`: a trimmed macro result is a SafeString object, truthy even when empty. #}
+        {%- if (ratingHtml | trim | length) or (formatsHtml | trim | length) %}
+        <div class="start-chapter__bar">
+          {#- M4 (SPEC §12): the ratings widget renders here, left of or above the formats, through rating() above: a <fieldset> "Was this helpful?" with five radio stars, the status line and notices/ratings.njk, only while site.features.ratings is on. It renders nothing before M4. No "Send feedback" link here: feedback is only the footer link (SPEC §7.5, §13). #}
+          {{ ratingHtml }}
+          {{ formatsHtml }}
+        </div>
+        {%- endif %}
+      </article>
+      {%- endfor %}
+      <section class="start-next on-dark">
+        <div class="start-next__text">
+          <p class="eyebrow start-next__eyebrow">Next</p>
+          <h2 class="section-heading start-next__title">Choose what's keeping you up</h2>
+          <p class="start-next__body">{{ collections.problems | length }} sleep problems, grouped into {{ topicAreas | length | numberWord }} areas. Pick as many as sound like you.</p>
+        </div>
+        <a class="button button--light start-next__action" href="/problems/">See sleep problems</a>
+      </section>
+    </div>
+  </div>
+</main>

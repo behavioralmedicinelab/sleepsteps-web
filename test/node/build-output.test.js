@@ -13,8 +13,10 @@ const EXTERNAL_URL = /^\s*(?:[a-z][a-z0-9+.-]*:|\/\/|\\\\)/i;
 
 // Sites a page may link to (SPEC §16.1). Links load nothing, so the CSP
 // doesn't cover them; this list keeps them deliberate. YouTube: the "Watch on
-// YouTube" fallback (§9.1) and YouTube's Terms of Service on /privacy/ (§15.2). Google: its privacy policy, on /privacy/ (§15.2).
-const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com'];
+// YouTube" fallback (§9.1) and YouTube's Terms of Service on /privacy/ (§15.2).
+// Google: its privacy policy, on /privacy/ (§15.2). Creative Commons: the
+// content licence in the footer (§22).
+const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommons.org'];
 
 describe('build output', () => {
   it('builds every expected page', () => {

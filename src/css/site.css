@@ -3,16 +3,20 @@
  * (SPEC §7.5; docs/design/HANDOFF.md §4-§6, §10, §11).
  *
  * Values come from tokens.css. No colour literals here (a test enforces it).
+ * Components shared by several pages (video, formats, step chips, buttons)
+ * are in components.css; a page's own styles are in pages/<page>.css.
  * Mobile first: the base rules are for phones; `min-width: 37.5em` (600px)
  * switches to the desktop header and wider spacing. Two-column layouts stack
  * through flex-wrap alone, below about 900px (HANDOFF §11).
  *
  * Contents
- *   1. Base            6. Footer             11. Problem page (stub)
- *   2. Utilities       7. Title band, arc    12. Sleep problems list (stub)
- *   3. Desktop header  8. Page layouts       13. Start here (stub)
- *   4. Phone header    9. Information pages  14. Urgent help shell
- *   5. TopicNav       10. Shared blocks      15. Motion, forced colours, print
+ *   1. Base            5. TopicNav            9. Information pages
+ *   2. Utilities       6. Footer             10. Shared blocks
+ *   3. Desktop header  7. Title band, arc    11. Urgent help shell
+ *   4. Phone header    8. Page layouts       12. Motion, forced colours, print
+ *
+ * The problem page, Sleep problems, Start here and Home have their own
+ * stylesheets in pages/ (SPEC §7.5).
  */
 
 /* 1. Base ------------------------------------------------------------------ */
@@ -1076,12 +1080,14 @@ button.site-footer__feedback {
 /* Links inside a sentence still get a 44px-tall target (SPEC §7.5): the
    urgent notice, the search page's no-JavaScript route to Sleep problems,
    a link set on its own line (.link-standalone), links in an information
-   page's paragraphs, and links in the §15.1 notices (.notice-text). */
+   page's paragraphs, links in the §15.1 notices (.notice-text) and links in
+   a transcript (components.css). */
 .notice--urgent a,
 .search-fallback a,
 .link-standalone a,
 .info-body p a,
-.notice-text a {
+.notice-text a,
+.transcript__body a {
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
@@ -1096,161 +1102,7 @@ button.site-footer__feedback {
   color: var(--slate-grey);
 }
 
-/* 11. Problem page (M1a stub) ---------------------------------------------- */
-
-.problem {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.breadcrumb ol {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 0;
-  list-style: none;
-  color: var(--slate-grey);
-  font-size: var(--fs-helper);
-  line-height: var(--lh-helper);
-}
-
-.breadcrumb li {
-  display: flex;
-  align-items: center;
-}
-
-.breadcrumb a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--target-min);
-}
-
-.breadcrumb__sep {
-  margin-inline: var(--space-2);
-}
-
-.problem__title {
-  font-size: var(--fs-display-phone);
-  line-height: var(--lh-display-phone);
-  letter-spacing: var(--tracking-heading);
-  color: var(--night-teal);
-  overflow-wrap: break-word;
-}
-
-.problem__statement {
-  margin-top: var(--space-3);
-  font-family: var(--font-heading);
-  font-size: var(--fs-lede);
-  font-style: italic;
-  line-height: var(--lh-quote);
-}
-
-@media (min-width: 37.5em) {
-  .problem__title {
-    font-size: var(--fs-display-problem);
-    line-height: var(--lh-display);
-  }
-
-  .problem__statement {
-    font-size: var(--fs-quote-problem);
-  }
-}
-
-/* 12. Sleep problems list (M1a stub; no-JavaScript baseline) --------------- */
-
-.area-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.area-list__area {
-  padding: var(--space-6) var(--space-5);
-  border: var(--border-width) solid var(--keyline);
-  border-radius: var(--radius-md);
-  background: var(--white);
-  scroll-margin-top: var(--space-5);
-}
-
-.area-list__name {
-  font-size: var(--fs-title);
-  line-height: var(--lh-title);
-  color: var(--night-teal);
-}
-
-.area-list__description {
-  margin-top: var(--space-1);
-  color: var(--slate-grey);
-}
-
-.area-list__problems {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-5);
-  padding: 0;
-  list-style: none;
-}
-
-.area-list__link {
-  display: block;
-  height: 100%;
-  padding: var(--space-4) var(--space-5);
-  border: var(--border-width) solid var(--keyline);
-  border-radius: var(--radius-md);
-  background: var(--paper);
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.area-list__link:hover {
-  border-color: var(--deep-teal);
-  color: var(--ink);
-}
-
-.area-list__title {
-  display: block;
-  font-family: var(--font-heading);
-  font-size: var(--fs-card-title);
-  line-height: var(--lh-card-title);
-  color: var(--night-teal);
-}
-
-.area-list__statement {
-  display: block;
-  margin-top: var(--space-1);
-  color: var(--slate-grey);
-}
-
-@media (min-width: 37.5em) {
-  .area-list__area {
-    padding: var(--space-6) var(--space-7);
-  }
-}
-
-/* 13. Start here (M1a stub) ------------------------------------------------ */
-
-.chapter-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-9);
-}
-
-.chapter {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  scroll-margin-top: var(--space-5);
-}
-
-.chapter__title {
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
-  letter-spacing: var(--tracking-heading);
-}
-
-/* 14. Getting urgent help: minimal header and column ------------------- */
+/* 11. Getting urgent help: minimal header and column ------------------- */
 
 .minimal-header {
   background: var(--white);
@@ -1298,7 +1150,7 @@ button.site-footer__feedback {
   }
 }
 
-/* 15. Motion, forced colours, print ----------------------------------------- */
+/* 12. Motion, forced colours, print ----------------------------------------- */
 
 /* Motion is limited to short transitions, and only when the user hasn't
    asked for less (HANDOFF §10). */

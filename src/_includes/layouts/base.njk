@@ -8,6 +8,12 @@
     page_id     rendered as <body data-page-id> (SPEC §7, §13)
     page_width  "medium" (1280px) or "wide" (1360px); default 1200px
     styles      extra stylesheets under src/css/, e.g. ["pages/help.css"]
+    scripts     extra ES modules in src/js/, e.g. ["players.js"], loaded in
+                <head> with type="module" (deferred, so they never block
+                rendering)
+    track_page_view  true on the pages that send a page_view (SPEC §10.2):
+                problem pages, Start here and Getting urgent help. Data only
+                until M3; nothing reads it yet
     header      "minimal" for the logo-and-back-link header (urgent help)
     footer      false to drop the footer (urgent help)
 -#}
@@ -22,12 +28,16 @@
   {%- endif %}
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/site.css">
+  <link rel="stylesheet" href="/css/components.css">
   {%- for href in styles | stylesheets %}
   <link rel="stylesheet" href="{{ href }}">
   {%- endfor %}
   {%- if header != 'minimal' %}
   <script type="module" src="/js/menu.js"></script>
   {%- endif %}
+  {%- for src in scripts | moduleScripts %}
+  <script type="module" src="{{ src }}"></script>
+  {%- endfor %}
 </head>
 <body{% if page_width %} class="page--{{ page_width }}"{% endif %}{% if page_id %} data-page-id="{{ page_id }}"{% endif %}>
   <a class="skip-link" href="#main">Skip to content</a>

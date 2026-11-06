@@ -1,0 +1,661 @@
+/*
+ * Shared components used on more than one page (SPEC §7.5; HANDOFF §4, §5):
+ * VideoEmbed, FormatLinks and transcripts, step chips, buttons, section
+ * headings and topic cards. Loaded on every page, after site.css. Page
+ * layouts stay in site.css and src/css/pages/.
+ *
+ * Values come from tokens.css (no colour literals: a test enforces it).
+ * Mobile first: the base rules are for phones; `min-width: 37.5em` (600px)
+ * is the desktop step. The few phone-only rules use
+ * `not all and (min-width: 37.5em)` so nothing has to be reset.
+ *
+ * Contents
+ *   1. VideoEmbed (partials/video.njk)
+ *   2. FormatLinks and transcripts (partials/formats.njk)
+ *   3. Step chip (partials/step-chip.njk)
+ *   4. Buttons
+ *   5. Section heading, topic card
+ *   6. Motion, print
+ */
+
+/* 1. VideoEmbed -------------------------------------------------------------- */
+
+.video {
+  /* Inset of the title plate and duration badge from the frame's edge
+     (boards: 12px on phones and in cards, 14px -> 16px otherwise). */
+  --video-inset: var(--space-4);
+  --disc: var(--play-disc-phone);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.video--lg {
+  --disc: var(--play-disc-lg-phone);
+}
+
+.video--lg .video__frame {
+  --arc-height: 18%;
+}
+
+/* The 16:9 frame. A grid, so the error message (in the flow) fills it and
+   can make it taller rather than overflow; everything else is positioned. */
+.video__frame {
+  /* The settling arc, when shown (the boards' 960x120 video path), in
+     deep-teal over the night-teal frame: 27% of the frame's height (90 of
+     338px on Problem-A.dc.html), 18% on a large frame (.video--lg: 100 of
+     551px on Intro-B.dc.html). */
+  --arc-fill: var(--deep-teal);
+  --arc-height: 27%;
+  position: relative;
+  display: grid;
+  aspect-ratio: 16 / 9;
+  /* Transparent border: the frame keeps an edge in forced colours. */
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--night-teal);
+  color: var(--paper);
+}
+
+/* Thumbnail and arc. Clipped here, not on the frame, so the facade's focus
+   ring outside the frame isn't clipped. */
+.video__media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+/* The arc only from 600px (the phone board has none). */
+.video__media .arc {
+  display: none;
+}
+
+.video__thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The facade: a link without JavaScript, a button after players.js runs,
+   and a plain box for a placeholder video. All three look the same. */
+.video__facade {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+}
+
+a.video__facade,
+button.video__facade {
+  cursor: pointer;
+}
+
+.video__facade:hover {
+  color: var(--paper);
+}
+
+button.video__facade[aria-disabled="true"] {
+  cursor: progress;
+}
+
+/* Title plate (showTitle): ink with paper text, readable on any thumbnail. */
+.video__title:not(.visually-hidden) {
+  position: absolute;
+  top: var(--video-inset);
+  left: var(--video-inset);
+  max-width: calc(100% - 2 * var(--video-inset));
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-xs);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+/* The play button's disc. Its size comes from --disc (set by .video, or by
+   .play-disc--sm on a solution card's band). */
+.play-disc {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--disc, var(--play-disc));
+  height: var(--disc, var(--play-disc));
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--deep-teal);
+}
+
+.play-disc--sm {
+  --disc: var(--play-disc-sm);
+}
+
+.play-disc .icon {
+  width: 40%;
+  height: 40%;
+}
+
+.video__facade:hover .play-disc {
+  background: var(--teal-wash);
+}
+
+.duration-badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-xs);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+
+.video__duration {
+  position: absolute;
+  bottom: var(--video-inset);
+  left: var(--video-inset);
+}
+
+/* A placeholder video's "[Video coming soon]", where the play button goes. */
+.video__soon {
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--night-teal);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+/* "Loading video…" in place of the play button while the player loads. */
+.video__status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.video.is-loading .play-disc {
+  visibility: hidden;
+}
+
+/* "The video couldn't load here. Watch on YouTube" (SPEC §9.1 fallback):
+   paper text and a paper focus ring on the night-teal frame. */
+.video__error {
+  --focus-colour: var(--paper);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 var(--space-2);
+  padding: var(--space-5);
+  color: var(--paper);
+  text-align: center;
+}
+
+.video__error a,
+.video__error a:hover {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  color: var(--paper);
+  font-weight: var(--weight-semibold);
+}
+
+.video__error a:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* The YouTube player, once pressed. */
+.video__player {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.video__player iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Below 600px a 'page' frame runs to the screen edges and a 'card' frame
+   fills its card: square corners, and the focus ring drawn inside the frame
+   in paper (its sides would otherwise be off-screen or clipped). */
+@media not all and (min-width: 37.5em) {
+  .video--page .video__frame {
+    margin-inline: calc(-1 * var(--gutter));
+  }
+
+  .video--page .video__frame,
+  .video--card .video__frame {
+    border-inline-width: 0;
+    border-radius: 0;
+  }
+
+  .video--page .video__facade:focus-visible,
+  .video--card .video__facade:focus-visible {
+    --focus-colour: var(--paper);
+    outline-offset: calc(-1 * (var(--focus-width) + var(--space-1)));
+  }
+}
+
+@media (min-width: 37.5em) {
+  .video {
+    --video-inset: var(--space-5);
+    --disc: var(--play-disc);
+  }
+
+  .video--lg {
+    --disc: var(--play-disc-lg);
+  }
+
+  .video--card {
+    --video-inset: var(--space-4);
+  }
+
+  .video__media .arc {
+    display: block;
+  }
+}
+
+/* 2. FormatLinks and transcripts ------------------------------------------- */
+
+.formats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.formats__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* Phones: every format full width, one per line, 48px tall
+   (Problem-Phone.dc.html's buttons). */
+.formats__row > * {
+  flex: 1 1 100%;
+}
+
+/* An outlined button: the handout link, and the inside of each disclosure's
+   <summary> (the summary itself keeps its default display, so browsers keep
+   its button semantics, as with the phone Menu). */
+.format-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: var(--target-lg);
+  padding: var(--space-1) var(--space-5);
+  border: var(--border-width) solid var(--deep-teal);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--deep-teal);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  text-align: center;
+  text-decoration: none;
+}
+
+a.format-button:hover,
+.format-disclosure__toggle:hover > .format-button {
+  background: var(--teal-wash);
+  color: var(--deep-teal);
+}
+
+.format-button .icon {
+  flex: none;
+}
+
+.format-disclosure__toggle {
+  border-radius: var(--radius-sm);
+  list-style: none;
+  cursor: pointer;
+}
+
+.format-disclosure__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.format-disclosure[open] > .format-disclosure__toggle .format-disclosure__chevron {
+  transform: rotate(180deg);
+}
+
+.format-disclosure__panel {
+  margin-top: var(--space-3);
+}
+
+.format-audio {
+  display: block;
+  width: 100%;
+}
+
+.transcript__panel {
+  margin-top: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.transcript__print {
+  margin-bottom: var(--space-3);
+}
+
+.transcript__body > * + * {
+  margin-top: var(--space-4);
+}
+
+.transcript__body :is(ul, ol) {
+  padding-inline-start: var(--space-7);
+}
+
+.transcript__body li + li {
+  margin-top: var(--space-1);
+}
+
+/* ink on the panel ground: tokens.json lists ink and slate-grey there, not
+   deep-teal (SPEC §7.5), as for the Sleep problems nudge. Links in a
+   transcript also get the 44px in-sentence target (site.css §10). */
+.transcript__panel .link-button,
+.transcript__panel .link-button:hover,
+.transcript__body a,
+.transcript__body a:hover {
+  color: var(--ink);
+}
+
+/* A button that looks like a link (e.g. "Print transcript"), 44px tall. */
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--deep-teal);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--night-teal);
+  text-decoration-thickness: 2px;
+}
+
+@media (min-width: 37.5em) {
+  .formats__row > * {
+    flex: 0 1 auto;
+  }
+
+  .format-button {
+    display: inline-flex;
+    min-height: var(--target-min);
+  }
+
+  /* The ring hugs the button, and the summary never moves when its panel
+     opens below it. */
+  .format-disclosure__toggle {
+    width: fit-content;
+  }
+
+  .format-audio {
+    width: 320px; /* non-token: a comfortable width for the audio controls */
+    max-width: 100%;
+  }
+}
+
+/* 3. Step chip ---------------------------------------------------------------- */
+
+.step-chip {
+  --step-disc: 24px; /* non-token: the boards' disc (20px on solution cards) */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-1);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--teal-wash);
+  color: var(--night-teal);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+.step-chip__num {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--step-disc);
+  height: var(--step-disc);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--deep-teal);
+  color: var(--paper);
+  font-size: var(--fs-eyebrow);
+  line-height: 1;
+}
+
+.step-chip--sm {
+  --step-disc: 20px;
+  gap: var(--space-2);
+}
+
+/* On a coloured band (a solution card's thumbnail band). */
+.step-chip--paper {
+  background: var(--paper);
+}
+
+/* 4. Buttons ------------------------------------------------------------------ */
+
+/* Links styled as large buttons (home hero, Start here end card, the phone
+   "Back to all sleep problems"). Full width on phones; 52px tall. Variants
+   use two classes, which beat `.on-dark a` (0,1,1) and `.on-dark a:hover`
+   (0,2,1) in site.css. */
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--target-xl);
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--deep-teal);
+  color: var(--paper);
+  font: inherit;
+  line-height: var(--lh-snug);
+  font-weight: var(--weight-semibold);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button .icon {
+  flex: none;
+}
+
+/* Primary, on light grounds: deep-teal with paper text (5.9:1). */
+.button.button--primary,
+.button.button--primary:hover {
+  color: var(--paper);
+}
+
+.button.button--primary:hover {
+  background: var(--night-teal);
+}
+
+/* Light, on teal: paper with night-teal text (10.5:1) and a deep-teal icon. */
+.button.button--light {
+  background: var(--paper);
+  color: var(--night-teal);
+}
+
+.button.button--light:hover {
+  background: var(--teal-wash);
+  color: var(--night-teal);
+}
+
+.button--light .icon {
+  color: var(--deep-teal);
+}
+
+/* Ghost, on teal: a paper outline with paper text. */
+.button.button--ghost {
+  border-color: var(--paper);
+  background: transparent;
+  color: var(--paper);
+}
+
+.button.button--ghost:hover {
+  background: var(--night-teal);
+  color: var(--paper);
+}
+
+@media (min-width: 37.5em) {
+  .button {
+    display: inline-flex;
+    width: auto;
+    padding-inline: var(--space-7);
+  }
+}
+
+/* 5. Section heading, topic card ------------------------------------------- */
+
+/* A section's H2 (section-heading 32/1.2; the phone boards' 26px snaps to the
+   24px title size, SPEC §7.5). */
+.section-heading {
+  font-size: var(--fs-title);
+  line-height: var(--lh-section);
+  letter-spacing: var(--tracking-heading);
+  color: var(--ink);
+}
+
+@media (min-width: 37.5em) {
+  .section-heading {
+    font-size: var(--fs-section);
+  }
+}
+
+/* A link to a problem: its short title and first-person line (the Sleep
+   problems page, Related topics). Spans inside the link, with a space between
+   them, so the link reads as one name. */
+.topic-card {
+  display: block;
+  height: 100%;
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.topic-card:hover {
+  border-color: var(--deep-teal);
+  color: var(--ink);
+}
+
+/* night-teal: tokens.json's teal-voiced text on light grounds. */
+.topic-card__title {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  color: var(--night-teal);
+}
+
+.topic-card__statement {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--slate-grey);
+}
+
+/* 6. Motion, print ------------------------------------------------------------ */
+
+/* Colour fades and the chevron turn only, when motion is allowed
+   (HANDOFF §10). */
+@media (prefers-reduced-motion: no-preference) {
+  .format-disclosure__chevron {
+    transition: transform var(--duration);
+  }
+
+  .button,
+  .format-button,
+  .play-disc {
+    transition: background-color var(--duration);
+  }
+}
+
+/* "Print transcript" (players.js) copies one transcript into .print-sheet,
+   marks <html data-printing> and prints: only the sheet is printed. */
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  html[data-printing] body > :not(.print-sheet) {
+    display: none !important;
+  }
+
+  html[data-printing] .print-sheet {
+    display: block;
+  }
+
+  .print-sheet__title {
+    font-family: var(--font-heading);
+    font-size: var(--fs-title);
+    line-height: var(--lh-title);
+  }
+
+  .print-sheet__source {
+    margin-block: var(--space-3) var(--space-7);
+  }
+
+  /* A video can't play on paper. */
+  .video,
+  .transcript__print {
+    display: none;
+  }
+}

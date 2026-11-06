@@ -2,41 +2,26 @@
 layout: layouts/base.njk
 ---
 {#-
-  Two-column layout with TopicNav on the left (HANDOFF §5, §6.2, §6.4;
-  boards Problem-A.dc.html and Intro-B.dc.html). Below 600px the sidebar is
-  hidden and TopicNav is reached through the Menu panel instead.
+  Two-column layout with TopicNav on the left (HANDOFF §5, §6.4; board
+  Problem-A.dc.html), used by problem pages (layouts/problem.njk). Below
+  600px the sidebar is hidden and TopicNav is reached through the Menu panel
+  instead.
 
-  Without a band (problem pages), <main> is the right-hand column, so the
-  skip link jumps past TopicNav. With a band (Start here), <main> wraps the
-  band and both columns, so the H1 stays inside it.
+  <main> is the right-hand column, so the skip link jumps past TopicNav.
+  Start here has its own layout (layouts/start.njk): a title band with its
+  chapter pills above both columns, all inside <main>.
 
   Front matter (plus everything base.njk reads):
-    band      "standard" to show the title band above both columns
-    chapters  [{ title }] chapter links under "Introduction videos"
-              (Start here only), linked as #v1, #v2, ...
-    area      the current problem's area_id (problem pages): opens it
+    area      the current problem's area_id: opens it in TopicNav
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
-{%- if band and band != 'none' %}
-<main id="main">
-  {% include "partials/title-band.njk" %}
-  <div class="with-sidebar with-sidebar--roomy container">
-    <div class="with-sidebar__side">
-      {{ topicNav(topicAreas, page_id, area, chapters, 's-', page.url) }}
-    </div>
-    <div class="with-sidebar__main">
-      {{ content | safe }}
-    </div>
-  </div>
-</main>
-{%- else %}
+{%- set navChapters = chapters | introChapters(collections.videos) -%}
 <div class="with-sidebar container">
   <div class="with-sidebar__side">
-    {{ topicNav(topicAreas, page_id, area, chapters, 's-', page.url) }}
+    {{ topicNav(topicAreas, page_id, area, navChapters, 's-', page.url) }}
   </div>
   <main id="main" class="with-sidebar__main">
     {{ content | safe }}
   </main>
 </div>
-{%- endif %}

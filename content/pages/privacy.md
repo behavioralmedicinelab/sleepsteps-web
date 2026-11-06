@@ -8,7 +8,7 @@ collect:
   - "Star ratings you give a video"
   - "Written feedback, if you choose to send it, and the page you sent it from"
   - "Words you type into the site search. We store these without the code that groups your visit, and with the time rounded to the hour"
-  - "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), transcripts opened and handouts downloaded"
+  - "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), transcripts and handouts opened"
 collect_note: "Each of these is stored with the page it came from and the date and time."
 not_collect:
   - "Your name, email or other contact details, unless you email or phone us (see below)"
@@ -84,7 +84,7 @@ SleepSteps doesn't use cookies to track you or show you ads, and SleepSteps itse
 <tr><th scope="col">Name</th><th scope="col">Set by</th><th scope="col">What it's for</th><th scope="col">How long it lasts</th></tr>
 </thead>
 <tbody>
-<tr><th scope="row"><code>sleepsteps-visit</code></th><td>SleepSteps</td><td>A random code that lets us count visits. It groups the page views, plays and downloads from one visit. On its own it can't identify you. It isn't stored if you turn off usage statistics.</td><td>Deleted when you close the tab</td></tr>
+<tr><th scope="row"><code>sleepsteps-visit</code></th><td>SleepSteps</td><td>A random code that lets us count visits. It groups the usage information from one visit, such as page views and plays. On its own it can't identify you. It isn't stored if you turn off usage statistics.</td><td>Deleted when you close the tab</td></tr>
 <tr><th scope="row"><code>sleepsteps-stats-off</code></th><td>SleepSteps</td><td>Remembers that you turned off usage statistics. It is only stored if you do this.</td><td>Until you turn statistics back on or clear your browser data</td></tr>
 <tr><th scope="row"><code>cf_clearance</code></th><td>Cloudflare, our hosting provider</td><td>Only if Cloudflare asks your browser to do a quick check that you're a person, not an automated program. It remembers that you passed, so you aren't asked again straight away.</td><td>30 minutes</td></tr>
 <tr><th scope="row"><code>cf.turnstile.u</code></th><td>Cloudflare</td><td>Part of the check on the feedback form that stops automated spam. It is only stored if you open the form.</td><td>Cloudflare doesn't say. Clearing your browser data removes it.</td></tr>
@@ -97,7 +97,7 @@ Research staff who sign in to the site's admin area also get sign-in cookies fro
 
 ### Turning off usage statistics
 
-You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, transcripts opened, searches and handout downloads. Ratings and feedback you choose to send still reach us.
+You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, transcripts and handouts opened, and searches. Ratings and feedback you choose to send still reach us.
 
 <p class="placeholder">[The “Turn off usage statistics” switch arrives with usage statistics in milestone M3.]</p>
 

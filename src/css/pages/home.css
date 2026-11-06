@@ -1,0 +1,676 @@
+/*
+ * Home (/): SPEC §6, §7.5, §20 M1b; HANDOFF §4, §6.1, §10, §11; boards
+ * Main.dc.html (desktop) and Landing-Phone.dc.html (phone). Loaded through
+ * `styles` front matter in content/index.njk, whose layout
+ * (layouts/home.njk) gives <main class="home"> with no page container, so
+ * each section sets its own.
+ *
+ * Values come from tokens.css; board spacing off the token scale snaps up to
+ * the next step, and the boards' 14-16px running text is 17px body (SPEC
+ * §7.5). Shared pieces come from site.css (.on-dark, .container, .card,
+ * .panel, .eyebrow, .link-standalone, the arc) and components.css (.button,
+ * .step-chip, .section-heading).
+ *
+ * Mobile first: the base rules are for phones; 600px (37.5em) is the
+ * desktop step, and from 900px (56.25em) the hero has two columns.
+ *
+ * Contents
+ *   1. Hero            4. Watch, listen, read or print
+ *   2. How it works    5. Trial band and "Need more help?"
+ *   3. Area cards      6. Disclaimer
+ *                      7. Motion, print
+ */
+
+.home {
+  --home-step-rule: 4px; /* coloured top rule on the step cards (board) */
+}
+
+/* 1. Hero ----------------------------------------------------------------- */
+
+/* deep-teal with paper text (.on-dark); the settling arc is its last child. */
+.home-hero {
+  --arc-height: 40px; /* phone board; 90px from 900px */
+  position: relative;
+}
+
+.home-hero__inner {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--space-9) 0;
+}
+
+/* The eyebrow is paper on the hero, not .eyebrow's deep-teal. */
+.home-hero__eyebrow {
+  margin-bottom: var(--space-5);
+  color: inherit;
+}
+
+.home-hero__title {
+  max-width: 620px; /* board */
+  font-size: var(--fs-display-phone);
+  line-height: var(--lh-display-phone);
+  letter-spacing: var(--tracking-heading);
+  overflow-wrap: break-word;
+}
+
+.home-hero__lede {
+  max-width: 540px; /* board */
+  margin-top: var(--space-5);
+  font-weight: var(--weight-light);
+}
+
+/* Phones: the buttons stack full width (.button is full width below 600px). */
+.home-hero__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+}
+
+/* The arched photo frame (HANDOFF §4), a placeholder until there's a photo.
+   Below 900px it sits under the text as the phone board's smaller arch,
+   and the arc paints over its base. Positioned for the photo inside it;
+   the arc comes later in the page, so it still paints on top. */
+.home-hero__photo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(100% - 2 * var(--space-7));
+  max-width: 420px;   /* board */
+  min-height: 240px;  /* phone board */
+  margin: var(--space-8) auto 0;
+  padding: var(--space-7);
+  overflow: hidden;
+  /* Transparent border: the frame keeps an edge in forced colours. */
+  border: var(--border-width) solid transparent;
+  border-radius: 150px 150px 0 0; /* phone board */
+  background: var(--sand);
+  color: var(--ink);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+  text-align: center;
+}
+
+.home-hero__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (min-width: 37.5em) {
+  .home-hero__inner {
+    padding-top: var(--space-13);
+  }
+
+  .home-hero__eyebrow {
+    margin-bottom: var(--space-6);
+  }
+
+  .home-hero__title {
+    font-size: var(--fs-display);
+    line-height: var(--lh-display);
+  }
+
+  .home-hero__lede {
+    margin-top: var(--space-7);
+    font-size: var(--fs-lede);
+    line-height: var(--lh-lede);
+  }
+
+  .home-hero__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: var(--space-9);
+  }
+}
+
+/* Two columns, photo on the right (HANDOFF §11). No wrapping: the board's
+   flex bases would otherwise wrap the photo below the text up to ~1036px.
+   The photo sits above the arc and overlaps the paper below, as on the
+   board; the text's bottom padding keeps the buttons clear of the arc. */
+@media (min-width: 56.25em) {
+  .home-hero {
+    --arc-height: 90px;
+  }
+
+  .home-hero__inner {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: var(--space-10);
+    padding-bottom: var(--space-7);
+  }
+
+  .home-hero__text {
+    flex: 1 1 520px; /* board */
+    min-width: 0;
+    padding-bottom: var(--space-13);
+  }
+
+  .home-hero__photo {
+    z-index: 1;
+    flex: 0 1 420px;   /* board */
+    min-width: 280px;  /* board */
+    width: auto;
+    max-width: none;
+    min-height: 440px; /* board */
+    margin: 0;
+    padding: var(--space-9);
+    border-radius: 220px 220px var(--radius-md) var(--radius-md); /* HANDOFF §4 */
+  }
+}
+
+/* 2. How it works ----------------------------------------------------------- */
+
+.home-steps {
+  padding-block: var(--space-8) var(--space-3);
+}
+
+.home-section__eyebrow {
+  margin-bottom: var(--space-2);
+}
+
+.home-steps__heading {
+  margin-bottom: var(--space-6);
+}
+
+/* role="list" in the HTML keeps the list semantics Safari drops with
+   list-style: none. */
+.home-steps__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+/* On .card. No hover shadow: only the link inside is interactive.
+   Phones (Landing-Phone.dc.html): a row, the step's number disc beside its
+   title, line and link, with no coloured rule. The chip's "Step n" label
+   stays for screen readers (the disc is aria-hidden); the link is kept,
+   though the phone board drops it. From 600px: Main.dc.html's card. */
+.home-step {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-6); /* phone board 18px, snapped */
+}
+
+.home-step .step-chip {
+  flex: none;
+  align-self: flex-start;
+}
+
+.home-step__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.home-step__title {
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+}
+
+.home-step__text {
+  color: var(--slate-grey);
+}
+
+@media not all and (min-width: 37.5em) {
+  .home-step {
+    gap: var(--space-5); /* board 14px, snapped */
+  }
+
+  .home-step .step-chip {
+    --step-disc: 32px; /* non-token: the phone board's disc */
+    padding: 0;
+    background: none;
+  }
+
+  .home-step .step-chip__num {
+    font-size: var(--fs-label);
+  }
+
+  .home-step .step-chip__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: calc(-1 * var(--border-width));
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .home-step__body {
+    gap: var(--space-1);
+  }
+}
+
+/* Links line up at the foot of the cards. */
+.home-step__more {
+  margin-top: auto;
+}
+
+@media (min-width: 37.5em) {
+  .home-steps {
+    padding-block: var(--space-11) var(--space-7);
+  }
+
+  .home-section__eyebrow {
+    margin-bottom: var(--space-3);
+  }
+
+  .home-steps__heading {
+    margin-bottom: var(--space-8);
+  }
+
+  .home-steps__list {
+    gap: var(--space-6);
+  }
+
+  /* The board's card: chip, then title, text and link, under a coloured
+     top rule (decorative: teal-200 carries no text). */
+  .home-step {
+    flex-direction: column;
+    padding: var(--space-8) var(--space-7);
+    border-top: var(--home-step-rule) solid var(--deep-teal);
+  }
+
+  .home-step--2 {
+    border-top-color: var(--teal-500);
+  }
+
+  .home-step--3 {
+    border-top-color: var(--teal-200);
+  }
+}
+
+/* 3. Area cards --------------------------------------------------------------- */
+
+/* Phones: the phone board's compact list (name, count, chevron) in one
+   white box, plus each area's description under its name in slate-grey (the
+   phone board drops it; kept so nothing is lost at 320px or 400% zoom, as on
+   the Sleep problems page). From 600px: a grid of cards. Same markup. */
+.home-areas {
+  padding-block: var(--space-8);
+}
+
+.home-areas__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0 var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.home-areas__all a,
+.home-areas__all a:hover {
+  color: var(--clay-deep);
+}
+
+.home-areas__all a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.home-areas__list {
+  padding: 0;
+  list-style: none;
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.home-areas__list > li + li {
+  border-top: var(--border-width) solid var(--keyline);
+}
+
+/* Phones: name and description on the left, count and chevron beside them. */
+.home-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name count"
+    "desc count";
+  align-items: center;
+  column-gap: var(--space-4);
+  min-height: 56px; /* phone board */
+  padding: var(--space-4) var(--space-5);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.home-area:hover {
+  color: var(--ink);
+}
+
+.home-area__name {
+  grid-area: name;
+  line-height: var(--lh-snug);
+}
+
+.home-area__desc {
+  grid-area: desc;
+  color: var(--slate-grey);
+}
+
+.home-area__count {
+  grid-area: count;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--slate-grey);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+  white-space: nowrap;
+}
+
+.home-area__chevron {
+  color: var(--deep-teal);
+}
+
+@media not all and (min-width: 37.5em) {
+  .home-area:hover .home-area__name {
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+}
+
+@media (min-width: 37.5em) {
+  .home-areas {
+    padding-block: var(--space-10);
+  }
+
+  .home-areas__head {
+    gap: var(--space-4);
+    margin-bottom: var(--space-8);
+  }
+
+  .home-areas__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr)); /* board */
+    gap: var(--space-5);
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .home-areas__list > li + li {
+    border-top: 0;
+  }
+
+  /* A whole-card link, so it has the hover shadow (HANDOFF §4). */
+  .home-area {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    height: 100%;
+    min-height: 132px; /* board */
+    padding: var(--space-6);
+    border: var(--border-width) solid var(--keyline);
+    border-radius: var(--radius-md);
+    background: var(--white);
+  }
+
+  .home-area:hover {
+    box-shadow: var(--shadow-hover);
+  }
+
+  /* ink, not the board's night-teal: tokens.json lists ink for card titles
+     on white (SPEC §7.5). */
+  .home-area__name {
+    font-family: var(--font-heading);
+    font-size: var(--fs-card-title);
+    line-height: var(--lh-card-title);
+  }
+
+
+  .home-area__count {
+    margin-top: auto;
+    color: var(--deep-teal);
+    font-weight: var(--weight-semibold);
+  }
+
+  .home-area__chevron {
+    display: none;
+  }
+}
+
+/* 4. Watch, listen, read or print -------------------------------------------- */
+
+.home-formats {
+  padding-block: 0 var(--space-7);
+}
+
+/* On .panel.panel--wash. Transparent border: an edge in forced colours. */
+.home-formats__panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6) var(--space-8);
+  padding: var(--space-6);
+  border: var(--border-width) solid transparent;
+}
+
+.home-formats__intro {
+  flex: 1 1 300px; /* board */
+}
+
+/* balance: at 320px "Watch, listen, read or print" would leave "print" alone
+   on its second line. */
+.home-formats__heading {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-heading);
+  text-wrap: balance;
+}
+
+/* Up to four tiles (the board has three; Audio is added, SPEC §7.5): one per
+   row on phones, two per row from 600px, and all in one row once the list
+   is 636px wide (4 x the board's 150px tiles + 3 x its 12px gap, the
+   --space-4 gap here). Never three and one.
+   The list is a size container, so this follows its own width, which
+   depends on whether it sits beside the intro or under it. Flex rather than
+   grid because a container query can't restyle the container itself; each
+   tile's basis is a gap short of its share, so rounding never wraps a row,
+   and flex-grow shares the rest equally. */
+.home-formats__list {
+  container: home-formats / inline-size;
+  display: flex;
+  flex: 2 1 520px; /* board */
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+/* ink, not the board's night-teal, for the tile names (SPEC §7.5).
+   Phones: one compact tile per row, under the heading and line (the phone
+   board has only those two; the tiles are kept so nothing is lost). */
+.home-format {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.home-format__name {
+  display: block;
+  font-weight: var(--weight-semibold);
+}
+
+@media (min-width: 37.5em) {
+  .home-formats {
+    padding-block: var(--space-5) var(--space-10);
+  }
+
+  .home-formats__panel {
+    padding: var(--space-8);
+  }
+
+  .home-formats__heading {
+    margin-bottom: var(--space-3);
+  }
+
+  .home-formats__list {
+    gap: var(--space-4);
+  }
+
+  .home-format {
+    flex-basis: calc(50% - var(--space-4));
+    padding: var(--space-5);
+  }
+
+  .home-format__name {
+    margin-bottom: var(--space-1);
+  }
+}
+
+@container home-formats (min-width: 636px) {
+  .home-format {
+    flex-basis: 0;
+  }
+}
+
+/* 5. Trial band and "Need more help?" ------------------------------------------ */
+
+/* sand: ink and night-teal text only (slate-grey, and deep-teal at this
+   size, fail on sand). */
+.home-trial {
+  background: var(--sand);
+  color: var(--ink);
+}
+
+.home-trial__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-9);
+  padding-block: var(--space-8);
+}
+
+.home-trial__main {
+  flex: 1 1 460px; /* board */
+}
+
+.home-trial__eyebrow {
+  margin-bottom: var(--space-2);
+  color: var(--night-teal);
+}
+
+.home-trial__heading {
+  margin-bottom: var(--space-4);
+  color: var(--night-teal);
+}
+
+.home-trial__main a,
+.home-trial__main a:hover {
+  color: var(--night-teal);
+}
+
+.home-trial__main a:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* A 44px link box adds about 8px above the text: 4px more makes the
+   board's 12px gap. */
+.home-trial__link,
+.home-help__link {
+  margin-top: var(--space-1);
+}
+
+/* "Need more help?" is an H2: an H3 would sit under the unrelated "Part of a
+   research study". */
+.home-help {
+  flex: 1 1 360px; /* board */
+  padding: var(--space-7);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.home-help__heading {
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-medium);
+}
+
+@media (min-width: 37.5em) {
+  .home-trial__inner {
+    padding-block: var(--space-11);
+  }
+
+  .home-trial__eyebrow {
+    margin-bottom: var(--space-3);
+  }
+
+  .home-trial__heading {
+    margin-bottom: var(--space-5);
+  }
+
+  .home-help {
+    padding: var(--space-8);
+  }
+}
+
+/* 6. Disclaimer ----------------------------------------------------------------- */
+
+/* Kept on phones too (the phone board drops it): it is the page's route to
+   urgent help. */
+.home-disclaimer {
+  padding-block: var(--space-8);
+}
+
+.home-disclaimer__text {
+  padding: var(--space-6) var(--space-7);
+  border: var(--border-width) solid transparent;
+  color: var(--ink);
+}
+
+/* ink, not the board's clay-deep (not a pair tokens.json lists on panel),
+   with a 44px target inside the sentence (SPEC §7.5). */
+.home-disclaimer__text a,
+.home-disclaimer__text a:hover {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.home-disclaimer__text a:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* 7. Motion, print ---------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-area {
+    transition: box-shadow var(--duration);
+  }
+}
+
+/* Backgrounds don't print, so the hero's paper text would vanish. */
+@media print {
+  .home-hero {
+    background: none;
+    color: var(--ink);
+  }
+
+  .home-hero__photo,
+  .home-hero__actions,
+  .home-hero .arc {
+    display: none;
+  }
+}

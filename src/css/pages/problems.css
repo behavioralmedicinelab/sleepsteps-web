@@ -1,0 +1,643 @@
+/*
+ * Sleep problems (/problems/): SPEC §7.2, §7.5, §8.1; HANDOFF §6.3; boards
+ * Problems-A.dc.html and Problems-Phone.dc.html. Loaded through `styles`
+ * front matter in content/problems.njk.
+ *
+ * Values come from tokens.css; board spacing off the token scale snaps up to
+ * the next step, and the boards' 14-15px running text (descriptions,
+ * statements, the result line) is raised to 17px (SPEC §7.5). Colour pairs
+ * are those tokens.json lists as passing. Mobile first: the base rules
+ * follow the phone board; `min-width: 37.5em` (600px) follows the desktop
+ * board.
+ *
+ * Reused from elsewhere: the title band (.band, .on-dark: site.css §7),
+ * .container, .page-body, .panel, .link-standalone, .visually-hidden
+ * (site.css) and .topic-card (components.css §5), which this page extends
+ * with a row and a lane variant.
+ *
+ * Contents
+ *   1. Page values        4. Topic cards        7. Motion, forced colours,
+ *   2. Band toolbar       5. Lanes                 print
+ *   3. Area accordion     6. Nudge and spacing
+ */
+
+/* 1. Page values ------------------------------------------------------------- */
+
+/* Sizes from the boards that only this page uses. */
+.problems-page {
+  --problems-column: 1000px;        /* band, accordion and nudge column (board) */
+  --fs-topic-row: calc(19rem / 16); /* area-row card titles; phone area names (HANDOFF §6.3) */
+  --fs-topic-lane: calc(18rem / 16); /* lane card titles (board) */
+  --chevron-disc: 36px;             /* the area chevron's disc (board) */
+}
+
+/* The band's content sits in the 1000px column, inside the 1280px page. */
+.problems-band .band__inner {
+  --content-max: var(--problems-column);
+}
+
+/* 2. Band toolbar ------------------------------------------------------------ */
+
+.problems-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+}
+
+.problems-search {
+  min-width: 0;
+}
+
+.problems-search__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+/* Paper on deep-teal is 5.9:1, so the field's edge needs no border. The
+   transparent one keeps an edge in forced colours. */
+.problems-search__input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: var(--target-xl);
+  margin: 0;
+  padding: 0 var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* By area / When it happens: two radios styled as a segmented control
+   (exclusive by nature, arrow keys for free). No overflow: hidden, which
+   would clip the focus ring; the end segments follow the corners instead. */
+.view-toggle {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.view-toggle__options {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: var(--border-width) solid var(--paper);
+  border-radius: var(--radius-sm);
+}
+
+.view-toggle__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--target-xl) - 2 * var(--border-width));
+  padding: var(--space-2) var(--space-4);
+  color: var(--paper);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  text-align: center;
+  cursor: pointer;
+}
+
+.view-toggle__label:first-of-type {
+  border-radius: calc(var(--radius-sm) - var(--border-width)) 0 0 calc(var(--radius-sm) - var(--border-width));
+}
+
+.view-toggle__label:last-of-type {
+  border-radius: 0 calc(var(--radius-sm) - var(--border-width)) calc(var(--radius-sm) - var(--border-width)) 0;
+}
+
+.view-toggle__input:not(:checked) + .view-toggle__label:hover {
+  background: var(--night-teal);
+}
+
+/* Selected: night-teal on paper (10.5:1). */
+.view-toggle__input:checked + .view-toggle__label {
+  background: var(--paper);
+  color: var(--night-teal);
+}
+
+/* The radio is visually hidden, so its label carries the ring (paper, from
+   .on-dark). */
+.view-toggle__input:focus-visible + .view-toggle__label {
+  outline: var(--focus-width) solid var(--focus-colour);
+  outline-offset: var(--focus-offset);
+}
+
+.problems-tools__all {
+  width: 100%;
+  min-height: var(--target-xl);
+  margin: 0;
+  padding: var(--space-2) var(--space-6);
+  border: var(--border-width) solid var(--paper);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--paper);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.problems-tools__all:hover {
+  background: var(--night-teal);
+}
+
+/* The live result line: sentence text, so 17px (board 15). */
+.problems-status {
+  margin-top: var(--space-4);
+}
+
+@media (min-width: 37.5em) {
+  .problems-tools {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin-top: var(--space-8);
+  }
+
+  .problems-search {
+    flex: 1 1 420px;
+  }
+
+  .view-toggle__options {
+    display: inline-flex;
+  }
+
+  .view-toggle__label {
+    padding-inline: var(--space-6);
+  }
+
+  .problems-tools__all {
+    width: auto;
+  }
+}
+
+/* 3. Area accordion ------------------------------------------------------------ */
+
+.area-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: var(--problems-column);
+  margin-inline: auto;
+}
+
+.area-list__area {
+  padding: 0;
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  scroll-margin-top: var(--space-5);
+}
+
+.area-list__heading {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* A <span> without JavaScript, a <button> after problems.js: both look the
+   same. The header fills the card, so the whole row is the target. */
+.area-list__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: calc(var(--radius-md) - var(--border-width));
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+button.area-list__header {
+  cursor: pointer;
+}
+
+button.area-list__header:hover {
+  background: var(--teal-wash);
+}
+
+button.area-list__header[aria-expanded="true"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.area-list__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.area-list__name {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: var(--fs-topic-row);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-heading);
+  color: var(--night-teal);
+  overflow-wrap: break-word;
+}
+
+/* Kept on phones too (the phone board drops it): nothing is lost at 320px. */
+.area-list__description {
+  display: block;
+  margin-top: 0;
+  font-family: var(--font-body);
+  color: var(--slate-grey);
+}
+
+/* deep-teal: 6.2:1 on white, 5.4:1 on the teal-wash hover. */
+.area-list__count {
+  position: relative;
+  flex: none;
+  font-family: var(--font-body);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  color: var(--deep-teal);
+}
+
+.area-list__chevron {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--deep-teal);
+}
+
+.area-list__chevron .icon {
+  display: block;
+}
+
+[aria-expanded="true"] > .area-list__chevron .icon {
+  transform: rotate(180deg);
+}
+
+/* Without JavaScript the heading opens nothing, so the chevron is hidden.
+   It keeps its space, so the upgrade doesn't shift the layout. */
+.problems:not(.is-enhanced) .area-list__chevron {
+  visibility: hidden;
+}
+
+/* Phones: rows divided by keylines inside the card (board). */
+.area-list__problems {
+  display: block;
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  list-style: none;
+}
+
+.area-list__problems > li {
+  border-top: var(--border-width) solid var(--keyline);
+}
+
+/* Phones show the count's number only; the unit is still read out. */
+@media not all and (min-width: 37.5em) {
+  .area-list__count-unit {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: calc(-1 * var(--border-width));
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 37.5em) {
+  .area-list {
+    gap: var(--space-4);
+  }
+
+  .area-list__header {
+    gap: var(--space-6);
+    padding: var(--space-6) var(--space-7);
+  }
+
+  .area-list__name {
+    font-size: var(--fs-title);
+    line-height: var(--lh-title);
+  }
+
+  .area-list__chevron {
+    width: var(--chevron-disc);
+    height: var(--chevron-disc);
+    border-radius: var(--radius-pill);
+    background: var(--teal-wash);
+  }
+
+  /* The disc would vanish into the teal-wash hover. */
+  button.area-list__header:hover .area-list__chevron {
+    background: var(--white);
+  }
+
+  /* Two columns of cards once each can be 400px wide (about 910px). */
+  .area-list__problems {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr));
+    gap: var(--space-4);
+    padding: var(--space-1) var(--space-7) var(--space-7);
+  }
+
+  .area-list__problems > li {
+    border-top: 0;
+  }
+}
+
+/* 4. Topic cards (.topic-card in components.css) -------------------------------- */
+
+.topic-card__text {
+  display: block;
+  min-width: 0;
+}
+
+/* The title and the "New" pill share a line, wrapping when narrow. */
+.topic-card__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  overflow-wrap: break-word;
+}
+
+.topic-card__title > span {
+  min-width: 0;
+}
+
+/* clay-deep on clay-wash, 5.4:1. Not uppercase: only eyebrows are. */
+.topic-card__new {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--clay-wash);
+  color: var(--clay-deep);
+  font-family: var(--font-body);
+  font-size: var(--fs-eyebrow);
+  line-height: var(--lh-eyebrow);
+  font-weight: var(--weight-semibold);
+}
+
+.topic-card__arrow {
+  flex: none;
+  color: var(--deep-teal);
+}
+
+/* By area rows. Phones: a borderless row in the area card, with a teal-wash
+   hover (phone board). */
+.topic-card--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.topic-card--row:hover {
+  background: var(--teal-wash);
+}
+
+.topic-card--row .topic-card__text {
+  flex: 1;
+}
+
+.area-list__problems > li:last-child > .topic-card--row {
+  border-radius: 0 0 calc(var(--radius-md) - var(--border-width)) calc(var(--radius-md) - var(--border-width));
+}
+
+@media not all and (min-width: 37.5em) {
+  .topic-card--row .topic-card__title {
+    font-family: var(--font-body);
+    font-size: var(--fs-body);
+    line-height: var(--lh-snug);
+    font-weight: var(--weight-semibold);
+  }
+
+  .topic-card--row .topic-card__arrow {
+    width: var(--icon-sm);
+    height: var(--icon-sm);
+  }
+}
+
+/* Desktop: paper cards with a keyline, in the two-column grid. */
+@media (min-width: 37.5em) {
+  .topic-card--row {
+    padding: var(--space-5);
+    border: var(--border-width) solid var(--keyline);
+    border-radius: var(--radius-md);
+    background: var(--paper);
+  }
+
+  .area-list__problems > li:last-child > .topic-card--row {
+    border-radius: var(--radius-md);
+  }
+
+  .topic-card--row:hover {
+    border-color: var(--deep-teal);
+    background: var(--paper);
+    box-shadow: var(--shadow-hover);
+  }
+
+  .topic-card--row .topic-card__title {
+    font-size: var(--fs-topic-row);
+  }
+}
+
+/* When it happens: white cards under the lane headers. */
+.topic-card--lane {
+  padding: var(--space-4) var(--space-5);
+}
+
+.topic-card--lane:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.topic-card--lane .topic-card__title {
+  font-size: var(--fs-topic-lane);
+}
+
+/* 5. Lanes ------------------------------------------------------------------- */
+
+/* Six lanes on the full 1280px page: 5 + 1 at full width, then 4, 3, 2 and
+   one column as the page narrows. */
+.time-lanes__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Headers are not interactive. The transparent border keeps an edge in
+   forced colours. */
+.lane__header {
+  padding: var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-lane) var(--radius-lane) var(--radius-md) var(--radius-md);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-heading);
+  overflow-wrap: break-word;
+}
+
+.lane__count {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+}
+
+/* Evening to any time, as in HANDOFF §6.3. Every pair is listed as passing
+   in tokens.json. Keyed by the lane id, not its position. */
+.lane--evening .lane__header {
+  background: var(--deep-teal);
+  color: var(--paper);
+}
+
+.lane--bedtime .lane__header {
+  background: var(--night-teal);
+  color: var(--paper);
+}
+
+.lane--night .lane__header {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.lane--early-morning .lane__header {
+  background: var(--teal-wash);
+  color: var(--night-teal);
+}
+
+.lane--day .lane__header {
+  background: var(--sand);
+  color: var(--ink);
+}
+
+.lane--any .lane__header {
+  border-color: var(--keyline);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.lane__problems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 6. Nudge and spacing ---------------------------------------------------------- */
+
+.problems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+}
+
+.problems-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-8);
+  width: 100%;
+  max-width: var(--problems-column);
+  margin-inline: auto;
+  padding: var(--space-6);
+}
+
+.problems-nudge__text {
+  flex: 1 1 420px;
+}
+
+/* ink on panel: tokens.json lists ink, not deep-teal, on that ground. */
+.problems-nudge a,
+.problems-nudge a:hover {
+  color: var(--ink);
+}
+
+.problems-nudge a:hover {
+  text-decoration-thickness: 2px;
+}
+
+@media (min-width: 37.5em) {
+  .problems-nudge {
+    padding: var(--space-7) var(--space-8);
+  }
+}
+
+/* 7. Motion, forced colours, print ---------------------------------------------- */
+
+/* Colour fades and the chevron turn, when motion is allowed (HANDOFF §10).
+   Panels open and close at once: no height animation. */
+@media (prefers-reduced-motion: no-preference) {
+  .area-list__chevron .icon {
+    transition: transform var(--duration);
+  }
+
+  .area-list__header,
+  .area-list__chevron,
+  .view-toggle__label,
+  .problems-tools__all,
+  .topic-card {
+    transition:
+      background-color var(--duration),
+      border-color var(--duration),
+      box-shadow var(--duration);
+  }
+}
+
+/* Forced colours drop the selected segment's fill, so underline it. */
+@media (forced-colors: active) {
+  .view-toggle__input:checked + .view-toggle__label {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+}
+
+/* Print the view on screen with every area open, and no controls. */
+@media print {
+  .problems-tools,
+  .area-list__chevron {
+    display: none;
+  }
+
+  .area-list__problems[hidden] {
+    display: block !important;
+  }
+
+  .problems-nudge {
+    display: none;
+  }
+}

@@ -1,23 +1,29 @@
 ---
-layout: layouts/topics.njk
+# Start here (/start/): SPEC §7.3; HANDOFF §6.2. This file is data only:
+# layouts/start.njk builds the page from the fields below, and anything
+# written under the closing "---" is not shown.
+layout: layouts/start.njk
 page_id: start
 page_width: medium
 title: Start here
-band: standard
 eyebrow: Start here
 heading: The introduction
 summary: Three short videos everyone watches first. Watch them in order, in one sitting or over a few days.
+styles: ["pages/start.css"]
+scripts: ["players.js"]
+# Analytics (SPEC §10.2): this page sends a page_view from M3. Data only for now.
+track_page_view: true
+# Transcripts come from the video files, so they must be rendered first.
+eleventyImport:
+  collections: ["videos"]
+# The intro videos, in order (SPEC §7.3). Each `video` is a file name in
+# content/videos/ (without .md); its title, duration and formats come from
+# that file. The descriptions are placeholders (HANDOFF §12).
 chapters:
-  - title: How sleep works
-  - title: Why cancer can change sleep
-  - title: How to use SleepSteps
+  - video: how-sleep-works
+    description: "[What happens while we sleep, and what makes us feel sleepy at night.]"
+  - video: why-cancer-can-change-sleep
+    description: "[How diagnosis, treatment and recovery can affect your nights and days.]"
+  - video: how-to-use-sleepsteps
+    description: "[Finding the sleep problems that fit you, and trying one idea at a time.]"
 ---
-{#- M1a stub (SPEC §7.3; HANDOFF §6.2). The intro videos, ratings and formats arrive in M1b, when the chapters come from the video library. -#}
-<div class="chapter-list">
-{%- for chapter in chapters %}
-<section class="chapter" id="v{{ loop.index }}">
-  <h2 class="chapter__title">{{ loop.index }}. {{ chapter.title }}</h2>
-  <p class="placeholder">[Intro video, rating and formats arrive in milestone M1b]</p>
-</section>
-{%- endfor %}
-</div>

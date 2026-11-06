@@ -1,0 +1,22 @@
+{#-
+  Ratings slots (SPEC §12): placed now so the layouts don't move when the
+  widget arrives. Both macros render NOTHING until M4.
+
+    {% from "partials/rating.njk" import rating, ratingStatus %}
+    {% if site.features.ratings %}{{ rating(video, page_id, 'row') }}{% endif %}
+
+  rating(video, pageId, variant)  the widget, under a video and before its
+                                  FormatLinks. variant: 'row' (problem video,
+                                  Start here bar) or 'card' (open solution card)
+  ratingStatus(video, pageId)     the one-line status in a closed solution
+                                  card's meta row
+
+  M4: SPEC §12 widget renders here. Its wording follows SPEC §12, not the
+  boards: a <fieldset> with legend "Was this helpful?", five radio stars
+  ("1 star" to "5 stars", 44x44px targets), the status "Ratings are
+  anonymous." / "Thanks. You rated this 4 of 5.", then notices/ratings.njk.
+  No stored ID. Not the boards' "How helpful was this?", "Helpful?",
+  "Not rated yet" or aria-pressed toggle buttons.
+-#}
+{%- macro rating(video, pageId, variant='row') -%}{%- endmacro -%}
+{%- macro ratingStatus(video, pageId) -%}{%- endmacro -%}

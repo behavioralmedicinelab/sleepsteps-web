@@ -1,10 +1,49 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parseCsvRecords } from './scripts/lib/csv.js';
+import { formatIssue, validateContent } from './scripts/validate-content.js';
 
+const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const site = JSON.parse(readFileSync(new URL('./site.config.json', import.meta.url), 'utf8'));
+
+// A video as templates see it (SPEC §7.1): the front matter, whether it has
+// a transcript, and the transcript as HTML. `transcriptHtml` is read lazily,
+// because a page can only use a video's rendered body once the video has been
+// rendered (eleventyImport in content/videos/videos.11tydata.js). Test with
+// `hasTranscript`, not `transcriptHtml`.
+function toVideo(item) {
+  const d = item.data;
+  const video = {
+    video_id: item.page.fileSlug,
+    title: d.title,
+    youtube_id: d.youtube_id,
+    duration: d.duration,
+    audio: d.audio || '',
+    handout: d.handout || '',
+    thumbnail: d.thumbnail || '',
+    placeholder: d.placeholder === true,
+    hasTranscript: String(item.rawInput ?? '').trim() !== '',
+  };
+  Object.defineProperty(video, 'transcriptHtml', {
+    enumerable: true,
+    get: () => (video.hasTranscript ? item.templateContent : ''),
+  });
+  return video;
+}
+
+const NUMBER_WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
 
 export default function (eleventyConfig) {
   eleventyConfig.addGlobalData('site', site);
+
+  // Every build fails on invalid content, including `npm run dev` rebuilds
+  // and the tests' build, not only `npm run build` (SPEC §7, §18.1).
+  eleventyConfig.on('eleventy.before', () => {
+    const { errors } = validateContent(ROOT);
+    if (errors.length) {
+      throw new Error(`Content check failed:\n${errors.map(formatIssue).join('\n')}`);
+    }
+  });
 
   // Team-edited CSV files in data/ become global data, one array of row
   // objects per file: data/areas.csv -> `areas` (SPEC §7.2).
@@ -65,6 +104,101 @@ export default function (eleventyConfig) {
     return result;
   });
 
+  // The video library (SPEC §7.1), ordered by video_id. Templates read a
+  // video through `videoById`, which returns the shape documented on toVideo().
+  eleventyConfig.addCollection('videos', (collectionApi) =>
+    collectionApi
+      .getFilteredByGlob('./content/videos/*.md')
+      .sort((a, b) => a.page.fileSlug.localeCompare(b.page.fileSlug)),
+  );
+
+  const videoIndexes = new WeakMap();
+  const lookupVideo = (id, videos) => {
+    if (!Array.isArray(videos)) throw new Error('pass collections.videos, e.g. problem_video | videoById(collections.videos)');
+    let index = videoIndexes.get(videos);
+    if (!index) {
+      index = new Map(videos.map((item) => [item.page.fileSlug, toVideo(item)]));
+      videoIndexes.set(videos, index);
+    }
+    const video = index.get(id);
+    if (!video) throw new Error(`unknown video "${id}" (no content/videos/${id}.md)`);
+    return video;
+  };
+
+  // "wind-down-hour" | videoById(collections.videos) ->
+  // { video_id, title, youtube_id, duration, audio, handout, thumbnail,
+  //   placeholder, hasTranscript, transcriptHtml }. Unknown ids fail the build.
+  eleventyConfig.addFilter('videoById', lookupVideo);
+
+  // A problem's `solutions` split by tier, each with its video resolved:
+  // { main: [{ n, tier, blurb, video }], extra: [...] }; n counts from 1
+  // within each tier (the step chip number).
+  eleventyConfig.addFilter('solutionsByTier', (solutions, videos) => {
+    const tiers = { main: [], extra: [] };
+    for (const solution of solutions ?? []) {
+      const list = tiers[solution.tier];
+      if (!list) throw new Error(`solution tier must be "main" or "extra", not "${solution.tier}"`);
+      list.push({ n: list.length + 1, tier: solution.tier, blurb: solution.blurb, video: lookupVideo(solution.video, videos) });
+    }
+    return tiers;
+  });
+
+  // Start here chapters (SPEC §7.3) with their videos resolved:
+  // [{ n, id: 'v1', video_id, title, duration, description, video }].
+  // No chapters (any other page) gives [].
+  eleventyConfig.addFilter('introChapters', (chapters, videos) =>
+    (chapters ?? []).map((chapter, i) => {
+      const video = lookupVideo(chapter.video, videos);
+      return {
+        n: i + 1,
+        id: `v${i + 1}`,
+        video_id: video.video_id,
+        title: video.title,
+        duration: video.duration,
+        description: chapter.description,
+        video,
+      };
+    }),
+  );
+
+  // Which formats any video in the library has: { transcript, handout, audio }.
+  eleventyConfig.addFilter('videoFormats', (videos) => {
+    const all = (videos ?? []).map((item) => lookupVideo(item.page.fileSlug, videos));
+    return {
+      transcript: all.some((v) => v.hasTranscript),
+      handout: all.some((v) => Boolean(v.handout)),
+      audio: all.some((v) => Boolean(v.audio)),
+    };
+  });
+
+  // "cant-get-back-to-sleep" | problemBySlug(collections.problems) ->
+  // { slug, title, statement, url, area }. Unknown slugs fail the build.
+  eleventyConfig.addFilter('problemBySlug', (slug, problems) => {
+    const item = (problems ?? []).find((p) => p.data.page_id === slug);
+    if (!item) throw new Error(`unknown problem "${slug}" (no content/problems/${slug}.md)`);
+    return { slug, title: item.data.title, statement: item.data.statement, url: item.url, area: item.data.area };
+  });
+
+  // "6:40" -> "6 minutes 40 seconds", for screen readers next to a visible
+  // duration. Anything that isn't m:ss or h:mm:ss (a "[mm:ss]" placeholder)
+  // gives "".
+  eleventyConfig.addFilter('spokenDuration', (duration) => {
+    const m = String(duration ?? '').trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):([0-5]\d)$/);
+    if (!m) return '';
+    const parts = [
+      [Number(m[1] ?? 0), 'hour'],
+      [Number(m[2]), 'minute'],
+      [Number(m[3]), 'second'],
+    ]
+      .filter(([n]) => n > 0)
+      .map(([n, unit]) => `${n} ${unit}${n === 1 ? '' : 's'}`);
+    return parts.length ? parts.join(' ') : '0 seconds';
+  });
+
+  // 10 -> "ten" (0-20), for copy such as "grouped into ten areas"; larger
+  // numbers stay as digits.
+  eleventyConfig.addFilter('numberWord', (n) => NUMBER_WORDS[n] ?? String(n));
+
   eleventyConfig.addFilter('areaById', (areas, id) => areas.find((a) => a.area_id === id));
 
   // aria-current for navigation links, derived from the page URL so styling
@@ -102,6 +236,24 @@ export default function (eleventyConfig) {
       }
       return `/css/${entry}`;
     });
+  });
+
+  // Per-page scripts from front matter: `scripts: ["players.js"]` loads
+  // /js/players.js as a module in <head>. Only file names in src/js/ (the CSP
+  // allows script-src 'self', SPEC §16.1). Duplicates are dropped.
+  eleventyConfig.addFilter('moduleScripts', (scripts) => {
+    if (scripts === undefined || scripts === null) return [];
+    const list = Array.isArray(scripts) ? scripts : [scripts];
+    return [
+      ...new Set(
+        list.map((entry) => {
+          if (typeof entry !== 'string' || !/^[a-z0-9][a-z0-9-]*\.js$/.test(entry)) {
+            throw new Error(`scripts: "${entry}" must be a file name in src/js/, e.g. "players.js"`);
+          }
+          return `/js/${entry}`;
+        }),
+      ),
+    ];
   });
 }
 

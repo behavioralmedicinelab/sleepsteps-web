@@ -1,0 +1,236 @@
+/*
+ * Start here (/start/): SPEC §7.3, §7.5, §20 M1b; HANDOFF §6.2, §10, §11;
+ * board Intro-B.dc.html. Loaded through `styles` front matter in
+ * content/start.md; the markup is layouts/start.njk. There is no phone
+ * board, so phones follow the problem page's (Problem-Phone.dc.html).
+ *
+ * Values come from tokens.css; board spacing off the token scale snaps up to
+ * the next step (SPEC §7.5). Shared pieces come from site.css (title band,
+ * .on-dark, .with-sidebar, TopicNav, .eyebrow) and components.css (VideoEmbed,
+ * FormatLinks, .button, .section-heading).
+ *
+ * Contents
+ *   1. Title band and chapter pills
+ *   2. Layout
+ *   3. Chapters and the white bar
+ *   4. End card
+ *   5. Motion, print
+ */
+
+/* 1. Title band and chapter pills --------------------------------------- */
+
+.start-band__lede {
+  margin-top: var(--space-5); /* board 14 */
+}
+
+.chapter-pills {
+  margin-top: var(--space-7);
+}
+
+/* The pills wrap rather than scroll sideways (the phone board's jump chips
+   do), so none are off-screen at 320px or 200% zoom. role="list" in the
+   HTML keeps the list semantics Safari drops with list-style: none. */
+.chapter-pills__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4); /* board 10 */
+  padding: 0;
+  list-style: none;
+}
+
+/* Outlined pills: paper text and border on deep-teal (from .on-dark). */
+.chapter-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--target-min);
+  padding: var(--space-1) var(--space-5) var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--paper);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.chapter-pill:hover {
+  background: var(--night-teal);
+}
+
+.chapter-pill__num {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;  /* board */
+  height: 28px;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--night-teal);
+  font-size: var(--fs-eyebrow);
+  line-height: 1;
+}
+
+/* The first pill is filled: paper with night-teal text. Two classes beat
+   `.on-dark a` (0,1,1) and `.on-dark a:hover` (0,2,1) in site.css. */
+.on-dark .chapter-pill--lead,
+.on-dark .chapter-pill--lead:hover {
+  color: var(--night-teal);
+}
+
+.on-dark .chapter-pill--lead {
+  background: var(--paper);
+}
+
+.on-dark .chapter-pill--lead:hover {
+  background: var(--teal-wash);
+}
+
+.chapter-pill--lead .chapter-pill__num {
+  background: var(--deep-teal);
+  color: var(--paper);
+}
+
+/* 2. Layout ------------------------------------------------------------------- */
+
+/* Phones: more room under the band than the roomy layout's 12px. */
+@media not all and (min-width: 37.5em) {
+  .start-layout {
+    padding-top: var(--space-8);
+  }
+}
+
+/* 3. Chapters and the white bar ---------------------------------------------- */
+
+.start-flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8); /* phone board 28 */
+}
+
+.start-chapter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  scroll-margin-top: var(--space-5);
+}
+
+.start-chapter__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+/* Decorative (teal-200 carries no text): aria-hidden, and the eyebrow says
+   "Video n of N". */
+.start-chapter__num {
+  flex: none;
+  font-family: var(--font-heading);
+  font-size: var(--fs-display-phone);
+  line-height: 1;
+  color: var(--teal-200);
+}
+
+.start-chapter__heading {
+  min-width: 0;
+}
+
+.start-chapter__eyebrow {
+  margin-bottom: var(--space-1);
+}
+
+.start-chapter__title {
+  overflow-wrap: break-word;
+}
+
+.start-chapter__desc {
+  margin-top: var(--space-2);
+  color: var(--slate-grey);
+}
+
+/* The white bar under the video: the ratings widget from M4, then the
+   video's formats. Inside the gutters on phones, while the video runs
+   full-bleed. */
+.start-chapter__bar {
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+@media (min-width: 37.5em) {
+  .start-flow {
+    gap: var(--space-9);
+  }
+
+  .start-chapter__head {
+    gap: var(--space-5);
+  }
+
+  .start-chapter__num {
+    font-size: var(--fs-display);
+  }
+}
+
+/* 4. End card -------------------------------------------------------------------- */
+
+/* deep-teal with paper text and a paper focus ring (.on-dark). On phones
+   the text wraps above a full-width button. */
+.start-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-7);
+  /* Transparent border: the card keeps an edge in forced colours. */
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.start-next__text {
+  flex: 1 1 420px; /* board */
+}
+
+.start-next__eyebrow {
+  margin-bottom: var(--space-2);
+  color: inherit;
+}
+
+.start-next__title {
+  color: inherit;
+}
+
+.start-next__body {
+  margin-top: var(--space-3);
+}
+
+@media (min-width: 37.5em) {
+  .start-next {
+    padding: var(--space-8);
+  }
+}
+
+/* 5. Motion, print ----------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .chapter-pill {
+    transition: background-color var(--duration);
+  }
+}
+
+/* Backgrounds don't print, so paper text on the band would vanish. Videos
+   are hidden by components.css. */
+@media print {
+  .start-band {
+    background: none;
+    color: var(--ink);
+  }
+
+  .chapter-pills,
+  .start-next {
+    display: none;
+  }
+}

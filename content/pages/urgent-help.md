@@ -3,6 +3,8 @@ layout: layouts/urgent.njk
 title: Getting urgent help
 summary: Who to contact if you need help now, including emergency services and crisis support.
 styles: ["pages/urgent-help.css"]
+# Analytics (SPEC §10.2): this page sends a page_view from M3. Data only for now.
+track_page_view: true
 # The smaller cards under the crisis numbers: `heading`, `description` and
 # an optional phone number in `value`. A card whose `value` is set (and no
 # longer starts with "[") is a tel: link. "Your treating team" has no number:
