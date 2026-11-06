@@ -55,7 +55,8 @@ describe('the built search page', () => {
   });
 
   it('loads only menu.js, events.js (before search.js, which it sends for) and search.js, and points at files that are built', () => {
-    const scripts = tags(html, 'script').map((t) => attr(t, 'src'));
+    // feedback.js comes with the footer's dialog (feedback.test.js).
+    const scripts = tags(html, 'script').map((t) => attr(t, 'src')).filter((src) => src !== '/js/feedback.js');
     expect(scripts).toEqual(['/js/menu.js', '/js/events.js', '/js/search.js']);
     const root = tags(html, 'div').find((t) => attr(t, 'data-search') !== undefined);
     for (const url of [attr(root, 'data-minisearch'), attr(root, 'data-index')]) {

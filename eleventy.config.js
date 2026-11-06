@@ -290,7 +290,9 @@ export default function (eleventyConfig) {
   // - stats-switch.js (the privacy page's) is dropped while features.events
   //   is off;
   // - rating.js (problem pages and Start here) is dropped while
-  //   features.ratings is off, as the templates then render no widgets.
+  //   features.ratings is off, as the templates then render no widgets;
+  // - feedback.js is never listed in front matter either: base.njk loads it
+  //   with the feedback dialog (SPEC §13).
   // Without the options, events.js, stats-switch.js and rating.js are left
   // out.
   eleventyConfig.addFilter('moduleScripts', (scripts, { features, track } = {}) => {
@@ -301,6 +303,9 @@ export default function (eleventyConfig) {
       }
       if (entry === 'events.js') {
         throw new Error('scripts: leave out "events.js"; base.njk adds it where it is needed (SPEC §10.1)');
+      }
+      if (entry === 'feedback.js') {
+        throw new Error('scripts: leave out "feedback.js"; base.njk adds it with the feedback dialog (SPEC §13)');
       }
       return entry;
     });

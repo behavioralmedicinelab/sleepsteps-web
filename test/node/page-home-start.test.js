@@ -253,7 +253,8 @@ describe('Home (/)', () => {
   });
 
   it('loads no page JavaScript and embeds no video', () => {
-    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toEqual(['/js/menu.js']);
+    // feedback.js comes with the footer's dialog (feedback.test.js).
+    expect(tags(html, 'script').map((t) => attr(t, 'src')).filter((src) => src !== '/js/feedback.js')).toEqual(['/js/menu.js']);
     expect(html).not.toMatch(/class="video[ "]/);
   });
 });

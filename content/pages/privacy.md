@@ -7,9 +7,12 @@ styles: ["pages/privacy.css"]
 scripts: ["stats-switch.js"]
 # The two cards at the top of the page. Keep them in step with SPEC §15.2
 # and with what the site actually stores (SPEC §10, §12, §13, §15.3).
+# A `collect` item with a `feature` shows only while that switch in
+# site.config.json is exactly true; its wording is then in `text`.
 collect:
   - "Star ratings you give a video"
-  - "Written feedback, if you choose to send it, and the page you sent it from"
+  - feature: feedback
+    text: "Written feedback, if you choose to send it, and the page you sent it from. We store it with the time rounded to the hour"
   - "Words you type into the site search. We store these without the code that groups your visit, and with the time rounded to the hour"
   - "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts opened"
 collect_note: "Each of these is stored with the page it came from and the date and time."
@@ -33,7 +36,9 @@ not_collect_note: "To count visits, your browser tab holds a temporary random co
 <h2>What we collect</h2>
 <ul>
 {%- for item in collect %}
-<li>{{ item }}</li>
+{%- if not item.feature or site.features[item.feature] === true %}
+<li>{{ item.text or item }}</li>
+{%- endif %}
 {%- endfor %}
 </ul>
 <p>{{ collect_note }}</p>
@@ -68,7 +73,14 @@ This site uses YouTube API Services to play videos. Google says videos watched t
 
 ## Who handles this information
 
-Cloudflare hosts this website and the database that stores this information. It also protects the site from spam and automated attacks, including a check that runs in your browser when you open the feedback form. YouTube (part of Google) receives information from your browser only when you choose to play a video.
+Cloudflare hosts this website and the database that stores this information. It also protects the site from spam and automated attacks. YouTube (part of Google) receives information from your browser only when you choose to play a video.
+
+{# What Turnstile, the feedback form's spam check, receives (SPEC §13,
+   §15.2, decision A4): its script reads the page's address, which on the
+   search page holds the search. Only while the form exists. #}
+{% if site.features.feedback === true -%}
+When you open the feedback form, a Cloudflare check runs in your browser to stop automated spam. The check receives technical details such as your IP address and browser, and the address of the page you're on, which on the search page includes your search. Cloudflare uses them for the check, and to improve its spam protection. We don't store your IP address or details of your browser.
+{%- endif %}
 
 Some of this processing may happen outside Australia.
 
@@ -94,7 +106,9 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
 <tr><th scope="row"><code>sleepsteps-stats-off</code></th><td>This website</td><td>Remembers that you turned off usage statistics. It is only stored if you do this.</td><td>Until you turn statistics back on or clear your browser data. Safari can also delete it after 7 days without a visit to this website.</td></tr>
 {%- endif %}
 <tr><th scope="row"><code>cf_clearance</code></th><td>Cloudflare, our hosting provider</td><td>Only if Cloudflare asks your browser to do a quick check that you're a person, not an automated program. It remembers that you passed, so you aren't asked again straight away.</td><td>30 minutes</td></tr>
-<tr><th scope="row"><code>cf.turnstile.u</code></th><td>Cloudflare</td><td>Part of the check on the feedback form that stops automated spam. It is only stored if you open the form.</td><td>Cloudflare doesn't say. Clearing your browser data removes it.</td></tr>
+{%- if site.features.feedback === true %}
+<tr><th scope="row"><code>cf.turnstile.u</code></th><td>Cloudflare</td><td>Part of the check on the feedback form that stops automated spam. It is only stored if you open the form.</td><td>Cloudflare doesn't say. In our tests it stayed until browser data was cleared.</td></tr>
+{%- endif %}
 <tr><th scope="row">YouTube cookies and storage, such as <code>YSC</code> and <code>__Secure-YNID</code></th><td>YouTube (Google)</td><td>Only if you press play on a video. Google says it uses them to play videos, keep YouTube secure and measure use, and lists other purposes, including advertising, on its cookies page. We don't receive this information.</td><td>Some last until you close your browser. Google says others last up to 13 months.</td></tr>
 </tbody>
 </table>

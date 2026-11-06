@@ -1,0 +1,42 @@
+{#-
+  The feedback dialog (SPEC §13, §15.1). base.njk renders it, after the
+  footer and outside <main>, on every page with the footer and a page_id
+  while features.feedback is exactly true, and loads src/js/feedback.js with
+  it. Not inside the footer, whose ink ground sets paper text and a paper
+  focus ring.
+
+  It ships `hidden` and closed, so without JavaScript (or <dialog> support)
+  it has no visible or accessible presence and "Send feedback" stays a link
+  to the Contact page. feedback.js unhides it once its listeners are in
+  place, swaps that link for a button that opens it, makes the status line a
+  live region and chooses the Turnstile site key at run time: data-sitekey
+  holds site.config.json's turnstileSiteKey, which it uses only where it is
+  a real key and the host isn't a local or preview one. With no usable key
+  (decision A1) it hides the field, the widget's box and Send, so the dialog
+  holds the notice, Close and the line offering the Contact page.
+
+  The form never submits anywhere: method="dialog" (a native submit, if the
+  script's handler ever failed, only closes the dialog) and no `name` on the
+  textarea, so the message can't end up in an address. novalidate: the
+  script says what is wrong in the status line. Focus order: heading
+  (focused on open), textarea, the Turnstile widget, Send, Cancel, then a
+  link in the status line. The field's wrapper (data-feedback-field) is
+  there only to be hidden. Nothing inline (SPEC §16.1).
+-#}
+<dialog class="feedback-dialog" id="feedback-dialog" data-feedback-dialog aria-labelledby="feedback-title" aria-describedby="feedback-notice" data-sitekey="{{ site.turnstileSiteKey }}" hidden>
+  <form class="feedback" method="dialog" novalidate>
+    <h2 class="feedback__title" id="feedback-title" tabindex="-1">Send feedback</h2>
+    <div class="feedback__notice" id="feedback-notice">{% include "notices/feedback.njk" %}</div>
+    <div class="feedback__field" data-feedback-field>
+      <label class="feedback__label" for="feedback-message">Your message</label>
+      <textarea class="feedback__message" id="feedback-message" rows="6" maxlength="2000" autocomplete="off" aria-describedby="feedback-hint"></textarea>
+      <p class="feedback__hint" id="feedback-hint">Up to 2,000 characters.</p>
+    </div>
+    <div class="feedback__check" data-feedback-check></div>
+    <div class="feedback__actions">
+      <button class="button button--primary" type="submit" data-feedback-send>Send</button>
+      <button class="button button--outline" type="button" data-feedback-cancel>Cancel</button>
+    </div>
+    <div class="feedback__status" id="feedback-status" data-feedback-status></div>
+  </form>
+</dialog>

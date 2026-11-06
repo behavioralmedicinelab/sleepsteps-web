@@ -11,7 +11,7 @@
  *
  * Contents
  *   1. Base            5. TopicNav            9. Information pages
- *   2. Utilities       6. Footer             10. Shared blocks
+ *   2. Utilities       6. Footer, feedback   10. Shared blocks
  *   3. Desktop header  7. Title band, arc    11. Urgent help shell
  *   4. Phone header    8. Page layouts       12. Motion, forced colours, print
  *
@@ -665,7 +665,7 @@ details.mobile-menu[open] > summary .when-closed,
   font-weight: var(--weight-semibold);
 }
 
-/* 6. Footer (SiteFooter; board SiteFooter.dc.html) ------------------------- */
+/* 6. Footer (SiteFooter; board SiteFooter.dc.html) and feedback dialog ---- */
 
 .site-footer {
   --focus-colour: var(--paper);
@@ -750,6 +750,139 @@ button.site-footer__feedback {
   margin-top: var(--space-8);
   padding-top: var(--space-6);
   border-top: var(--border-width) solid var(--slate-grey);
+}
+
+/* The feedback dialog (SPEC §13; partials/feedback-dialog.njk). It sits
+   after the footer, not in it, so it keeps the light ground's ink text and
+   deep-teal focus ring. It opens with showModal() and never sets `display`
+   (closed, the browser hides it). It is anchored to the top and the status
+   line comes last, so a message only makes it longer downwards; taller than
+   the viewport (a phone, or zoom), it scrolls within itself. No animation
+   and no scroll lock. */
+.feedback-dialog {
+  --focus-colour: var(--deep-teal);
+  width: min(100% - 2 * var(--gutter), var(--measure) + 2 * var(--space-8));
+  max-width: calc(100% - 2 * var(--gutter));
+  max-height: calc(100% - 2 * var(--gutter));
+  margin: var(--gutter) auto auto;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.feedback-dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.feedback__title {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-heading);
+}
+
+.feedback__notice {
+  margin-top: var(--space-4);
+}
+
+.feedback__notice > * + * {
+  margin-top: var(--space-3);
+}
+
+.feedback__label {
+  display: block;
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+}
+
+/* 17px, so iOS doesn't zoom in on focus, and a slate-grey border like the
+   other inputs (keyline is decorative only). Six rows tall to start. */
+.feedback__message {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--slate-grey);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+.feedback__hint {
+  margin-top: var(--space-2);
+  color: var(--slate-grey);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+/* Turnstile's box, reserved at the widget's size before it renders, so
+   nothing moves when it does: normal is 300x65, compact 150x140
+   (feedback.js picks compact when the box is narrower than 300px). Its
+   iframe is inline: line-height 0 drops the space under the baseline that
+   would otherwise make the box 8px taller than the widget (headless
+   Chrome 157). */
+.feedback__check {
+  min-height: 65px;
+  margin-top: var(--space-5);
+  line-height: 0;
+}
+
+.feedback__check[data-size="compact"] {
+  min-height: 140px;
+}
+
+/* Full-width buttons on phones (.button), side by side from 600px. */
+.feedback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.feedback__actions .button[aria-disabled="true"] {
+  cursor: progress;
+}
+
+/* Empty until the script writes to it, but always rendered: a live region
+   that appears together with its first text may not be announced. */
+.feedback__status {
+  margin-top: var(--space-5);
+}
+
+.feedback__status:empty {
+  margin-top: 0;
+}
+
+.feedback__status > :first-child {
+  font-weight: var(--weight-semibold);
+}
+
+.feedback__status > * + * {
+  margin-top: var(--space-2);
+}
+
+/* The Contact link after a failure: a 44px-tall target in its sentence. */
+.feedback__status a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+@media (min-width: 37.5em) {
+  .feedback-dialog {
+    max-height: calc(100% - 2 * var(--space-9));
+    margin-top: var(--space-9);
+    padding: var(--space-8);
+  }
 }
 
 /* 7. Title band and settling arc ------------------------------------------ */

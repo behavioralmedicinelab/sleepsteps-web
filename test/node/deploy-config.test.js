@@ -1,4 +1,4 @@
-// Deployment configuration (SPEC §14.1, §16.1, §17, §18.1-§18.3):
+// Deployment configuration (SPEC §14.1, §14.3, §16.1, §17, §18.1-§18.3):
 // wrangler.jsonc and its previews block, the preview-migrations config, the
 // npm and Node pins, and the built dist/_headers. Wrangler doesn't check
 // _headers on deploy (a bad line is silently dropped), so it is checked here.
@@ -29,6 +29,17 @@ const config = readConfig('wrangler.jsonc');
 const migrations = readConfig('wrangler.preview-migrations.jsonc');
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const siteConfig = JSON.parse(readFileSync('site.config.json', 'utf8'));
+
+// Cloudflare's published Turnstile test secrets
+// (https://developers.cloudflare.com/turnstile/troubleshooting/testing/).
+// They go with the test site keys' dummy token XXXX.DUMMY.TOKEN.XXXX, which
+// production's secret refuses; the always-pass one also accepted a made-up
+// token in a local run, so it checks nothing (SPEC §14.3, §18.4).
+const TEST_SECRETS = Object.freeze({
+  pass: '1x0000000000000000000000000000000AA',
+  fail: '2x0000000000000000000000000000000AA',
+  spent: '3x0000000000000000000000000000000AA',
+});
 
 // The API's hosts (SPEC §14.1, §18.2): production's placeholder until launch,
 // and every preview URL. Version URLs look like preview URLs but run with
@@ -92,6 +103,16 @@ describe('wrangler.jsonc', () => {
     // Once siteUrl is real, the launch PR sets API_HOSTS to its host too (SPEC §18.3).
     if (siteHost) expect(entries).toContain(siteHost);
     for (const host of VERSION_HOSTS) expect(hostAllowed(host, hosts), host).toBe(false);
+  });
+
+  it('keeps TURNSTILE_SECRET out of the config: no var of that name, and no secrets list (SPEC §14.3, §18.2)', () => {
+    expect(config.vars).not.toHaveProperty('TURNSTILE_SECRET');
+    expect(config.previews.vars).not.toHaveProperty('TURNSTILE_SECRET');
+    // `secrets.required` would make every build and deploy fail until a
+    // person had set the secret.
+    expect(config.secrets).toBeUndefined();
+    expect(config.previews.secrets).toBeUndefined();
+    expect(readFileSync('wrangler.jsonc', 'utf8')).not.toMatch(/"secrets"\s*:/);
   });
 
   it('lets previews answer on every preview URL, and on nothing else', () => {
@@ -158,6 +179,25 @@ describe('package.json and .node-version (SPEC §18.1, §18.3)', () => {
     for (const file of ['.dev.vars', '.env', '.env.local', '.env.development', '.env.test']) {
       if (existsSync(file)) {
         expect(readFileSync(file, 'utf8'), file).not.toMatch(/^\s*(?:export\s+)?(DATA_COLLECTION|API_HOSTS)\s*[=:]/m);
+      }
+    }
+  });
+
+  it("gives Turnstile's check Cloudflare's always-pass test secret in dev:collect only (SPEC §14.3, §18.1)", () => {
+    expect(pkg.scripts['dev:collect'].match(/--var TURNSTILE_SECRET:[\w-]*/g)).toEqual([`--var TURNSTILE_SECRET:${TEST_SECRETS.pass}`]);
+    for (const [name, script] of Object.entries(pkg.scripts)) {
+      if (name !== 'dev:collect') expect(script, name).not.toContain('TURNSTILE_SECRET');
+    }
+  });
+
+  it("lets a local .dev.vars or .env file set TURNSTILE_SECRET only to one of Cloudflare's test secrets", () => {
+    // Allowed for local runs (wrangler dev reads these files), but a real
+    // secret belongs only in Cloudflare (`wrangler secret put`, SPEC §18.4).
+    for (const file of ['.dev.vars', '.env', '.env.local', '.env.development', '.env.test']) {
+      if (!existsSync(file)) continue;
+      const text = readFileSync(file, 'utf8');
+      for (const [, value] of text.matchAll(/^\s*(?:export\s+)?TURNSTILE_SECRET\s*[=:]\s*["']?([^"'\s#]*)/gm)) {
+        expect(Object.values(TEST_SECRETS), `${file}: TURNSTILE_SECRET`).toContain(value);
       }
     }
   });

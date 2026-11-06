@@ -2,9 +2,11 @@
   SiteFooter (HANDOFF §5, board SiteFooter.dc.html). Shown on every page
   except Getting urgent help (`footer: false`).
 
-  "Send feedback" (SPEC §13) appears when features.feedback is on. Until the
-  feedback dialog lands (M5) it links to the Contact page, which stays its
-  fallback when JavaScript is off or the dialog's script fails.
+  "Send feedback" (SPEC §13) appears while features.feedback is exactly true.
+  It is a link to the Contact page. On pages with the feedback dialog
+  (base.njk), src/js/feedback.js swaps it for a button of the same look that
+  opens the dialog; without JavaScript, if the script fails, and on pages
+  without the dialog (the 404 page), it stays the link.
 
   Secondary text is paper rather than the board's on-teal-muted: tokens.json
   lists on-teal-muted only on deep-teal and night-teal, not on ink.
@@ -35,7 +37,7 @@
           ] %}
           <li><a href="{{ item.href }}"{{ page.url | ariaCurrent(item.href) | safe }}>{{ item.label }}</a></li>
           {%- endfor %}
-          {%- if site.features.feedback %}
+          {%- if site.features.feedback === true %}
           <li><a class="site-footer__feedback" href="/contact/" data-feedback-trigger>Send feedback</a></li>
           {%- endif %}
         </ul>

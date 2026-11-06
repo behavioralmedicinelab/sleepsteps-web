@@ -9,20 +9,33 @@
 // - Node/Element: append, replaceWith, replaceChildren, remove, contains,
 //   cloneNode, closest, matches, querySelector(All), attributes, id,
 //   className, classList, dataset, hidden, textContent, value/checked
-//   (inputs), open (details, firing "toggle"), focus with
-//   document.activeElement, click()
-//   with the default actions of <summary> and radio inputs (a radio is
-//   checked before its click's listeners run, as in browsers), events that
-//   bubble to the document, and getClientRects() (via `isRendered`);
-// - a window with location (hash and search), timers (the global ones, so
-//   fake timers work), events and print(); and, for events.js and
+//   (inputs; a textarea's value starts as its text), readOnly, maxLength,
+//   open (details, firing "toggle"), focus with document.activeElement,
+//   click() with the default actions of <summary>, radio inputs (a radio is
+//   checked before its click's listeners run, as in browsers) and submit
+//   buttons (requestSubmit() on their form), events that bubble to the
+//   document, getClientRects() (via `isRendered`) and getBoundingClientRect()
+//   (its width is document.layoutWidth while the element is rendered);
+// - <dialog> (HTMLDialogElement, for feedback.js): open, showModal() (throws
+//   InvalidStateError when already open or not in the document; focuses the
+//   first control, as browsers do), close(returnValue) (puts focus back
+//   where it was if it was inside, and fires "close" in a later task, as
+//   browsers do) and returnValue. A closed dialog isn't rendered. A form with
+//   method="dialog" closes its dialog when submitted, unless the submit
+//   event is cancelled. pressEscape() stands in for the Escape key.
+//   installDom's `dialog: false` leaves <dialog> as a plain element, as in a
+//   browser without dialog support;
+// - a window with location (hash, search and hostname), timers (the global
+//   ones, so fake timers work), events and print(); and, for events.js and
 //   stats-switch.js, localStorage and sessionStorage (MemoryStorage, which
 //   can be blocked or full), navigator, fetch and crypto, each replaceable.
 //
-// installDom(html) puts document, window, location and HTMLDetailsElement on
-// globalThis, as a browser would, and returns { document, window, restore }.
-// The modules reach storage, navigator, fetch and crypto through window, so
-// Node's own globals of those names are never touched.
+// installDom(html) puts document, window, location, HTMLDetailsElement and
+// HTMLDialogElement on globalThis, as a browser would, and returns
+// { document, window, restore }. The modules reach storage, navigator, fetch
+// and crypto through window, so Node's own globals of those names are never
+// touched. Scripts a module appends to <head> are only elements: a test
+// dispatches their "load" or "error" event itself.
 
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -329,7 +342,8 @@ export class Element extends Node {
   }
 
   get value() {
-    return this._value ?? this.getAttribute('value') ?? '';
+    if (this._value !== undefined) return this._value;
+    return this.localName === 'textarea' ? this.textContent : this.getAttribute('value') ?? '';
   }
 
   set value(v) {
@@ -373,6 +387,35 @@ export class Element extends Node {
     if (this.ownerDocument.focused === this) this.ownerDocument.focused = null;
   }
 
+  get readOnly() {
+    return this.hasAttribute('readonly');
+  }
+
+  set readOnly(on) {
+    if (on) this.setAttribute('readonly', '');
+    else this.removeAttribute('readonly');
+  }
+
+  get maxLength() {
+    const n = Number.parseInt(this.getAttribute('maxlength') ?? '', 10);
+    return Number.isInteger(n) && n >= 0 ? n : -1;
+  }
+
+  /**
+   * Submit this form as a browser does after its checks: a cancelable,
+   * bubbling "submit" event carrying `submitter`; then, unless it was
+   * cancelled, method="dialog" closes the form's dialog. Nothing is ever
+   * navigated to.
+   */
+  requestSubmit(submitter = null) {
+    const event = new Event('submit', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'submitter', { value: submitter, configurable: true });
+    if (!this.dispatchEvent(event)) return;
+    if ((this.getAttribute('method') ?? '').toLowerCase() !== 'dialog') return;
+    const dialog = this.closest('dialog');
+    if (dialog instanceof HTMLDialogElement) dialog.close(submitter?.getAttribute('value') ?? undefined);
+  }
+
   click() {
     // As in browsers, a radio is checked before its click is dispatched, so
     // the click's listeners see it checked; cancelling the click puts back
@@ -394,15 +437,31 @@ export class Element extends Node {
       this.parentNode.open = !this.parentNode.open;
     } else if (radio && before !== this) {
       this.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (this.isSubmitButton) {
+      this.closest('form')?.requestSubmit(this);
     }
+  }
+
+  /** A <button> without type="button" or "reset", or an <input type="submit">. */
+  get isSubmitButton() {
+    const type = (this.getAttribute('type') ?? '').toLowerCase();
+    if (this.localName === 'button') return type !== 'button' && type !== 'reset';
+    return this.localName === 'input' && type === 'submit';
   }
 
   /** Empty when the element (or an ancestor) is hidden or not rendered. */
   getClientRects() {
     for (let el = this; el instanceof Element; el = el.parentNode) {
       if (el.hidden || !this.ownerDocument.isRendered(el)) return [];
+      if (el instanceof HTMLDialogElement && !el.open) return [];
     }
     return this.isConnected ? [{}] : [];
+  }
+
+  /** The page's width (document.layoutWidth) while rendered, else zero. */
+  getBoundingClientRect() {
+    const width = this.getClientRects().length ? this.ownerDocument.layoutWidth : 0;
+    return { x: 0, y: 0, top: 0, left: 0, width, height: 0, right: width, bottom: 0 };
   }
 
   scrollIntoView() {}
@@ -448,18 +507,89 @@ export class HTMLDetailsElement extends Element {
   }
 }
 
+// What showModal() focuses: the first of these in the dialog (browsers take
+// the first focusable element; our dialog's first control is enough here).
+const DIALOG_FOCUS = '[autofocus], button, textarea, input, select, a[href]';
+
+export class HTMLDialogElement extends Element {
+  constructor(doc, tagName) {
+    super(doc, tagName);
+    this.returnValue = '';
+    this.modal = false;
+    this.previouslyFocused = null;
+  }
+
+  get open() {
+    return this.hasAttribute('open');
+  }
+
+  set open(on) {
+    if (on) this.setAttribute('open', '');
+    else this.removeAttribute('open');
+  }
+
+  showModal() {
+    if (this.open && this.modal) return;
+    if (this.open) throw new DOMException('The dialog is already open as a non-modal dialog.', 'InvalidStateError');
+    if (!this.isConnected) throw new DOMException('The dialog is not in a document.', 'InvalidStateError');
+    this.setAttribute('open', '');
+    this.modal = true;
+    this.previouslyFocused = this.ownerDocument.activeElement;
+    this.querySelector(DIALOG_FOCUS)?.focus();
+  }
+
+  close(returnValue) {
+    if (!this.open) return;
+    this.removeAttribute('open');
+    this.modal = false;
+    if (returnValue !== undefined) this.returnValue = String(returnValue);
+    // Focus goes back to where it was before showModal(), if it was inside.
+    const previous = this.previouslyFocused;
+    this.previouslyFocused = null;
+    const active = this.ownerDocument.activeElement;
+    if (this.contains(active)) {
+      if (previous?.isConnected && previous !== this.ownerDocument.body) previous.focus();
+      else active.blur();
+    }
+    // "close" comes in a later task.
+    globalThis.setTimeout(() => this.dispatchEvent(new Event('close')), 0);
+  }
+}
+
+/**
+ * The Escape key: keydown on the focused element (bubbling, cancelable),
+ * then, unless that was cancelled, a cancelable "cancel" on the topmost
+ * modal dialog, which closes unless that is cancelled too. Returns whether a
+ * dialog closed.
+ */
+export function pressEscape(doc = globalThis.document) {
+  const keydown = Object.assign(new Event('keydown', { bubbles: true, cancelable: true }), { key: 'Escape' });
+  if (!doc.activeElement.dispatchEvent(keydown)) return false;
+  const dialog = doc.querySelectorAll('dialog').filter((d) => d instanceof HTMLDialogElement && d.open && d.modal).at(-1);
+  if (!dialog) return false;
+  if (!dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) return false;
+  dialog.close();
+  return true;
+}
+
 export class Document extends Node {
-  constructor() {
+  constructor({ dialog = true } = {}) {
     super(null);
     this.ownerDocument = this;
     this.focused = null;
     this.readyState = 'complete';
     /** Whether CSS shows an element; set it to stand in for a layout. */
     this.isRendered = () => true;
+    /** The width getBoundingClientRect() gives a rendered element. */
+    this.layoutWidth = 640;
+    this.dialogSupport = dialog;
   }
 
   createElement(tag) {
-    return tag.toLowerCase() === 'details' ? new HTMLDetailsElement(this, tag) : new Element(this, tag);
+    const name = tag.toLowerCase();
+    if (name === 'details') return new HTMLDetailsElement(this, tag);
+    if (name === 'dialog' && this.dialogSupport) return new HTMLDialogElement(this, tag);
+    return new Element(this, tag);
   }
 
   get documentElement() {
@@ -489,9 +619,12 @@ export class Document extends Node {
 const TOKEN = /<!--[\s\S]*?-->|<![^>]*>|<\/([a-z][\w-]*)\s*>|<([a-z][\w-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>|[^<]+|</gi;
 const ATTRIBUTE = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
-/** Parse our template HTML (a whole page or a fragment) into a Document. */
-export function parseHtml(html) {
-  const doc = new Document();
+/**
+ * Parse our template HTML (a whole page or a fragment) into a Document.
+ * `dialog: false` parses <dialog> as a plain element.
+ */
+export function parseHtml(html, { dialog = true } = {}) {
+  const doc = new Document({ dialog });
   const stack = [doc];
   const top = () => stack[stack.length - 1];
   for (const m of html.matchAll(TOKEN)) {
@@ -571,29 +704,35 @@ function storageProperty(value) {
 
 /**
  * Parse `html` and install it as the global document, with a window, as
- * the browser modules expect. `hash` and `search` set location.hash and
- * location.search ("?q="). `localStorage` and `sessionStorage` are
- * MemoryStorage stores (new, empty ones by default) or 'blocked';
- * `navigator`, `fetch` and `crypto` become window's (by default: a navigator
- * without sendBeacon, no fetch, and Node's crypto). Returns { document,
- * window, restore }; call restore() after the test.
+ * the browser modules expect. `hash`, `search` and `hostname` set
+ * location.hash, location.search ("?q=") and location.hostname.
+ * `localStorage` and `sessionStorage` are MemoryStorage stores (new, empty
+ * ones by default) or 'blocked'; `navigator`, `fetch` and `crypto` become
+ * window's (by default: a navigator without sendBeacon, no fetch, and Node's
+ * crypto). `dialog: false` stands in for a browser without <dialog>, and
+ * `layoutWidth` sets document.layoutWidth. Returns { document, window,
+ * restore }; call restore() after the test.
  */
 export function installDom(
   html,
   {
     hash = '',
     search = '',
+    hostname = 'sleepsteps.test',
     localStorage = new MemoryStorage(),
     sessionStorage = new MemoryStorage(),
     navigator = {},
     fetch,
     crypto = globalThis.crypto,
+    dialog = true,
+    layoutWidth = 640,
   } = {},
 ) {
-  const document = parseHtml(html);
+  const document = parseHtml(html, { dialog });
+  document.layoutWidth = layoutWidth;
   const events = new Node(document);
   const window = {
-    location: { hash, search, href: `https://sleepsteps.test/page/${search}${hash}` },
+    location: { hash, search, hostname, href: `https://${hostname}/page/${search}${hash}` },
     setTimeout: (...args) => globalThis.setTimeout(...args),
     clearTimeout: (...args) => globalThis.clearTimeout(...args),
     setInterval: (...args) => globalThis.setInterval(...args),
@@ -610,9 +749,11 @@ export function installDom(
   };
   Object.defineProperty(window, 'localStorage', storageProperty(localStorage));
   Object.defineProperty(window, 'sessionStorage', storageProperty(sessionStorage));
-  const names = ['document', 'window', 'location', 'HTMLDetailsElement'];
+  const names = ['document', 'window', 'location', 'HTMLDetailsElement', 'HTMLDialogElement'];
   const saved = names.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]);
   Object.assign(globalThis, { document, window, location: window.location, HTMLDetailsElement });
+  if (dialog) globalThis.HTMLDialogElement = HTMLDialogElement;
+  else delete globalThis.HTMLDialogElement;
   const restore = () => {
     for (const [name, descriptor] of saved) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor);

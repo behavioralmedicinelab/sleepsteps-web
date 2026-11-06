@@ -149,8 +149,9 @@ describe('the rating body (SPEC §12)', () => {
   });
 
   it('has its own error codes in the closed list: video and stars (SPEC §14.1)', () => {
+    // message and turnstile are /api/feedback's (M5, feedback.test.js).
     expect(ERROR_CODES).toEqual([
-      'body', 'type', 'page', 'session_id', 'detail', 'video', 'stars', 'origin', 'content_type', 'too_large', 'method', 'server',
+      'body', 'type', 'page', 'session_id', 'detail', 'video', 'stars', 'message', 'turnstile', 'origin', 'content_type', 'too_large', 'method', 'server',
     ]);
     expect(Object.isFrozen(ERROR_CODES)).toBe(true);
   });

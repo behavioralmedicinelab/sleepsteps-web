@@ -491,6 +491,19 @@ a.format-button:hover,
   color: var(--paper);
 }
 
+/* Outline, on light grounds (the feedback dialog's Cancel): paper with a
+   deep-teal border and text (5.9:1; 5.4:1 on the teal-wash hover). */
+.button.button--outline {
+  border-color: var(--deep-teal);
+  background: var(--paper);
+  color: var(--deep-teal);
+}
+
+.button.button--outline:hover {
+  background: var(--teal-wash);
+  color: var(--deep-teal);
+}
+
 @media (min-width: 37.5em) {
   .button {
     display: inline-flex;
