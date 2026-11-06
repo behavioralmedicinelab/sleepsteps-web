@@ -88,6 +88,15 @@ export default function (eleventyConfig) {
     );
   });
 
+  // A problem as a link in a list: the shape groupByArea and groupByTime give.
+  const problemLink = (item) => ({
+    slug: item.data.page_id,
+    title: item.data.title,
+    statement: item.data.statement,
+    url: item.url,
+    isNew: item.data.new === true,
+  });
+
   // Areas in display order, each with its problems: the shape TopicNav and
   // the Sleep problems page use. Fails the build on a problem whose `area` is
   // not in areas.csv. Cached per collection, since every page renders it.
@@ -109,17 +118,30 @@ export default function (eleventyConfig) {
       if (!area) {
         throw new Error(`${item.inputPath}: unknown area "${item.data.area}" (not in data/areas.csv)`);
       }
-      area.problems.push({
-        slug: item.data.page_id,
-        title: item.data.title,
-        statement: item.data.statement,
-        url: item.url,
-        isNew: item.data.new === true,
-      });
+      area.problems.push(problemLink(item));
     }
     const result = [...byId.values()];
     grouped.set(problems, { areas, result });
     return result;
+  });
+
+  // The Sleep problems page's "When it happens" groups (`time_groups` in
+  // content/problems.njk: [{ id, name }] in display order), each with its
+  // problems in collection order (SPEC §7.2). Fails the build on a problem
+  // whose `time_of_day` has no group. Only that page uses it.
+  eleventyConfig.addFilter('groupByTime', (problems, times) => {
+    if (!Array.isArray(problems) || !Array.isArray(times)) {
+      throw new Error('groupByTime expects the problems collection and the time_groups front matter');
+    }
+    const byId = new Map(times.map((t) => [t.id, { ...t, problems: [] }]));
+    for (const item of problems) {
+      const time = byId.get(item.data.time_of_day);
+      if (!time) {
+        throw new Error(`${item.inputPath}: time_of_day "${item.data.time_of_day}" has no group in content/problems.njk`);
+      }
+      time.problems.push(problemLink(item));
+    }
+    return [...byId.values()];
   });
 
   // The video library (SPEC §7.1), ordered by video_id. Templates read a

@@ -172,7 +172,7 @@ describe('problem pages and the Sleep problems page', () => {
 
   it('lists every problem under its area, in order, with area anchors', () => {
     const html = pageAt(site, '/problems/');
-    const sections = [...html.matchAll(/<section class="area-list__area" id="([a-z]+)">([\s\S]*?)<\/section>/g)];
+    const sections = [...html.matchAll(/<section class="group-list__group" id="([a-z]+)">([\s\S]*?)<\/section>/g)];
     expect(sections.map((m) => m[1])).toEqual(['core', 'day', 'clock', 'mind', 'med', 'env', 'social', 'hard', 'relapse', 'dis']);
     const listed = sections.flatMap(([, area, body]) =>
       tags(body, 'a').map((t) => [area, attr(t, 'href')]),
