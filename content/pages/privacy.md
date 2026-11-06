@@ -2,6 +2,9 @@
 title: Privacy and your data
 summary: You don't need an account to use this program. Here is what we collect, and what we don't.
 styles: ["pages/privacy.css"]
+# The "Turn off usage statistics" button (SPEC §10.1). base.njk drops it
+# while features.events is off, and the page then shows no switch.
+scripts: ["stats-switch.js"]
 # The two cards at the top of the page. Keep them in step with SPEC §15.2
 # and with what the site actually stores (SPEC §10, §12, §13, §15.3).
 collect:
@@ -15,7 +18,7 @@ not_collect:
   - "Accounts or passwords"
   - "Advertising or tracking cookies from us, or anything else we use to follow you from one visit to the next"
   - "A record of your IP address, or details of your device or browser"
-  - "[Anything that identifies you, unless you write it in feedback]"
+  - "[Anything that identifies you, unless you write it in feedback or a search]"
 not_collect_note: "To count visits, your browser tab holds a temporary random code. It is deleted when you close the tab, and on its own it can't identify you. You can turn it off (see “Cookies and browser storage”)."
 ---
 {#-
@@ -42,7 +45,9 @@ not_collect_note: "To count visits, your browser tab holds a temporary random co
 <li>{{ item }}</li>
 {%- endfor %}
 </ul>
+{%- if site.features.events === true %}
 <p>{{ not_collect_note }}</p>
+{%- endif %}
 </section>
 </div>
 
@@ -84,8 +89,10 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
 <tr><th scope="col">Name</th><th scope="col">Set by</th><th scope="col">What it's for</th><th scope="col">How long it lasts</th></tr>
 </thead>
 <tbody>
-<tr><th scope="row"><code>sleepsteps-visit</code></th><td>This website</td><td>A random code that lets us count visits. It groups the usage information from one visit, such as page views and plays. On its own it can't identify you. It isn't stored if you turn off usage statistics.</td><td>Deleted when you close the tab</td></tr>
-<tr><th scope="row"><code>sleepsteps-stats-off</code></th><td>This website</td><td>Remembers that you turned off usage statistics. It is only stored if you do this.</td><td>Until you turn statistics back on or clear your browser data</td></tr>
+{%- if site.features.events === true %}
+<tr><th scope="row"><code>sleepsteps-visit</code></th><td>This website</td><td>A random code that lets us count visits. It groups the usage information from one visit, such as page views and plays. On its own it can't identify you. It is stored when you open a sleep problem page, the introduction or Getting urgent help, unless you have turned off usage statistics.</td><td>Deleted when you close the tab. Reopening a closed tab, or your browser restoring its tabs, can bring it back, and duplicating a tab copies it.</td></tr>
+<tr><th scope="row"><code>sleepsteps-stats-off</code></th><td>This website</td><td>Remembers that you turned off usage statistics. It is only stored if you do this.</td><td>Until you turn statistics back on or clear your browser data. Safari can also delete it after 7 days without a visit to this website.</td></tr>
+{%- endif %}
 <tr><th scope="row"><code>cf_clearance</code></th><td>Cloudflare, our hosting provider</td><td>Only if Cloudflare asks your browser to do a quick check that you're a person, not an automated program. It remembers that you passed, so you aren't asked again straight away.</td><td>30 minutes</td></tr>
 <tr><th scope="row"><code>cf.turnstile.u</code></th><td>Cloudflare</td><td>Part of the check on the feedback form that stops automated spam. It is only stored if you open the form.</td><td>Cloudflare doesn't say. Clearing your browser data removes it.</td></tr>
 <tr><th scope="row">YouTube cookies and storage, such as <code>YSC</code> and <code>__Secure-YNID</code></th><td>YouTube (Google)</td><td>Only if you press play on a video. Google says it uses them to play videos, keep YouTube secure and measure use, and lists other purposes, including advertising, on its cookies page. We don't receive this information.</td><td>Some last until you close your browser. Google says others last up to 13 months.</td></tr>
@@ -97,9 +104,19 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
 
 You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, transcripts and handouts opened, and searches. Ratings and feedback you choose to send still reach us.
 
-<p class="placeholder">[The “Turn off usage statistics” switch arrives with usage statistics in milestone M3.]</p>
+{# The switch (src/js/stats-switch.js). Without JavaScript the status line
+    explains and the button stays hidden; the script shows the button and
+    the current state, or says that the browser won't let it save a choice. #}
+{% if site.features.events === true %}
+<div class="stats-switch" data-stats-switch>
+<p class="stats-switch__status" data-stats-status>Turning usage statistics off here needs JavaScript. Without JavaScript, your browser sends us no usage statistics.</p>
+<button type="button" class="button button--primary stats-switch__toggle" data-stats-toggle hidden>Turn off usage statistics</button>
+</div>
 
-Your choice is saved in this browser only. If you use another browser or device, or clear your browser data, you'll need to turn them off again. If your browser blocks storage, we can't remember your choice. If JavaScript is turned off, we don't receive any usage statistics.
+Your choice is saved in this browser only. If you use another browser or device, or clear your browser data, you'll need to turn them off again. If your browser blocks storage, we can't remember your choice.
+{% else %}
+This website isn't collecting usage statistics at the moment, so there is nothing to turn off.
+{% endif %}
 
 ### Blocking cookies
 

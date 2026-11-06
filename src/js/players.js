@@ -15,18 +15,21 @@
 //   each transcript's "Print transcript" button;
 // - keeps the furthest point reached per media item (0/25/50/75/100) and
 //   reports it, plus transcript opens and handout clicks, through report()
-//   (SPEC §9.4, §10.2). report() sends nothing: see below.
+//   (SPEC §9.4, §10.2), for events.js to send: see below.
 //
 // Exports, for page scripts (solutions.js): pauseWithin(root) and
 // revealTranscript(details). revealTranscript dispatches a bubbling
 // `sleepsteps:reveal` event first, so a closed card around the transcript
 // can open itself.
 //
-// Analytics (M3): report() only dispatches a `sleepsteps:event` CustomEvent
-// on document, with detail { type, detail } in the SPEC §10.2 shapes
-// (video_play / audio_play { media, furthest }, transcript_open { media },
-// handout_open { media }). Nothing listens yet, so nothing is sent; M3's
-// events.js listens and sends. No storage is used here.
+// Usage statistics: report() only dispatches a `sleepsteps:event`
+// CustomEvent on document, with detail { type, detail } in the SPEC §10.2
+// shapes, which worker/routes/event.js accepts: video_play / audio_play
+// { media, furthest } (furthest 0, 25, 50, 75 or 100), transcript_open
+// { media } and handout_open { media }, where media is always the video_id
+// (data-video, data-media, data-transcript, data-handout). events.js, loaded
+// before this module whenever features.events is on, listens and sends them
+// (SPEC §10.1). Nothing is sent or stored here.
 
 // SPEC §9.1. The player is only created after the visitor presses play, so
 // `autoplay: 1` starts the video they chose; it never plays before that.
@@ -46,7 +49,7 @@ const POLL_MS = 5000; // SPEC §9.4: poll while playing
 
 const players = new Map(); // .video wrapper -> { player, videoId, poll }
 
-// ---- M3 hook ---------------------------------------------------------------
+// ---- Reports, sent by events.js ---------------------------------------------
 
 function report(type, detail) {
   document.dispatchEvent(new CustomEvent('sleepsteps:event', { detail: { type, detail } }));
@@ -185,7 +188,7 @@ function onStateChange(wrapper, state) {
   const entry = players.get(wrapper);
   const states = window.YT?.PlayerState;
   if (!entry || !states) return;
-  // M3: video_play is reported from here and from the 5-second poll.
+  // video_play is reported from here and from the 5-second poll.
   if (state === states.PLAYING) {
     pauseOthers(wrapper);
     sample(entry);
@@ -282,7 +285,7 @@ function upgradeFacade(link) {
 function setUpAudio(audio) {
   const media = audio.dataset.media;
   const fraction = () => (audio.duration > 0 ? audio.currentTime / audio.duration : 0);
-  // M3: audio_play is reported from these listeners.
+  // audio_play is reported from these listeners.
   audio.addEventListener('play', () => {
     pauseOthers(audio);
     track('audio_play', media, fraction());
@@ -353,7 +356,7 @@ function setUpTranscript(details) {
     print.hidden = false;
     print.addEventListener('click', () => printTranscript(details));
   }
-  // M3: transcript_open, each time it is opened.
+  // transcript_open, each time it is opened.
   details.addEventListener('toggle', () => {
     if (details.open) report('transcript_open', { media: details.dataset.transcript });
   });
@@ -364,7 +367,7 @@ function setUpTranscript(details) {
 function onClick(event) {
   const link = event.target.closest?.('a[href]');
   if (!link) return;
-  // M3: handout_open { media: video_id } when a handout link is clicked
+  // handout_open { media: video_id } when a handout link is clicked
   // (whatever the format).
   if (link.dataset.handout) report('handout_open', { media: link.dataset.handout });
   const href = link.getAttribute('href');

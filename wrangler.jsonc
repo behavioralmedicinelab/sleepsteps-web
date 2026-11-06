@@ -8,8 +8,14 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    // The Worker answers every /api/* request, even one whose path matches a
+    // file. M6 adds "/admin" and "/admin/*" (SPEC §14.4, §18.2).
+    "run_worker_first": ["/api/*"]
   },
+  // Workers Logs off: invocation logs record request metadata, which the API
+  // must not store (SPEC §14.1). `wrangler tail` still shows live logs.
+  "observability": { "enabled": false },
   // Until launch, production answers on sleepsteps.<subdomain>.workers.dev,
   // with noindex from dist/_headers (SPEC §16.1, §18.3). The launch PR sets
   // workers_dev to false and keeps preview_urls on (SPEC §18.2).
@@ -30,7 +36,13 @@
     "ACCESS_AUD": "<AUD_TAG>",
     // The API stores nothing unless this is exactly "on" (SPEC §11). Off in
     // production until the privacy officer's go-ahead (SPEC §18.3).
-    "DATA_COLLECTION": "off"
+    "DATA_COLLECTION": "off",
+    // The hosts the API answers on, comma-separated; `*` matches within one
+    // DNS label (worker/lib/hosts.js). "<DOMAIN>" matches no host, so
+    // production's API answers nowhere, version URLs included, until the
+    // launch PR sets this to the domain together with siteUrl (SPEC §14.1,
+    // §18.2, §18.3).
+    "API_HOSTS": "<DOMAIN>"
   },
   // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET
   //
@@ -43,6 +55,8 @@
   // commands read only the top-level d1_databases (SPEC §17, §18.2).
   // https://developers.cloudflare.com/workers/previews/configuration/
   "previews": {
+    // Not inherited from the top level either.
+    "observability": { "enabled": false },
     "d1_databases": [
       {
         "binding": "DB",
@@ -56,7 +70,11 @@
       // Off too: preview URLs are public (and posted on pull requests), and
       // preview writes share the account's D1 limits with production. Turn
       // it on only once previews are behind Cloudflare Access (SPEC §21).
-      "DATA_COLLECTION": "off"
+      "DATA_COLLECTION": "off",
+      // Every preview URL, <branch>-sleepsteps.<subdomain>.workers.dev
+      // (SPEC §18.3). Only previews read this block, so production's version
+      // URLs, which look the same, still answer 404.
+      "API_HOSTS": "*-sleepsteps.*.workers.dev"
     }
   }
 }

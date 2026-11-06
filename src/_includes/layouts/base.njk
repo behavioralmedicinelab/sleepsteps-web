@@ -11,10 +11,16 @@
     styles      extra stylesheets under src/css/, e.g. ["pages/help.css"]
     scripts     extra ES modules in src/js/, e.g. ["players.js"], loaded in
                 <head> with type="module" (deferred, so they never block
-                rendering)
+                rendering). The moduleScripts filter (eleventy.config.js)
+                adds events.js first, when features.events is on, on pages
+                that track page views or load players.js or search.js, and
+                drops stats-switch.js while it is off (SPEC §10.1, §11)
     track_page_view  true on the pages that send a page_view (SPEC §10.2):
-                problem pages, Start here and Getting urgent help. Data only
-                until M3; nothing reads it yet
+                problem pages, Start here and Getting urgent help. Rendered
+                as <body data-page-view> whatever the feature switches say:
+                events.js sends a page_view where it finds it, and pages.json
+                (SPEC §8.3) reads it to tell the Worker which pages may send
+                one
     header      "minimal" for the logo-and-back-link header (urgent help)
     footer      false to drop the footer (urgent help)
     referrer    a referrer policy for this page alone, as a meta tag; the
@@ -42,11 +48,11 @@
   {%- if header != 'minimal' %}
   <script type="module" src="/js/menu.js"></script>
   {%- endif %}
-  {%- for src in scripts | moduleScripts %}
+  {%- for src in scripts | moduleScripts({ features: site.features, track: track_page_view }) %}
   <script type="module" src="{{ src }}"></script>
   {%- endfor %}
 </head>
-<body{% if page_width %} class="page--{{ page_width }}"{% endif %}{% if page_id %} data-page-id="{{ page_id }}"{% endif %}>
+<body{% if page_width %} class="page--{{ page_width }}"{% endif %}{% if page_id %} data-page-id="{{ page_id }}"{% endif %}{% if track_page_view %} data-page-view{% endif %}>
   <a class="skip-link" href="#main">Skip to content</a>
   {% if header == 'minimal' %}{% include "partials/minimal-header.njk" %}{% else %}{% include "partials/site-header.njk" %}{% endif %}
   {{ content | safe }}

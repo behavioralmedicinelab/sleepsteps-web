@@ -11,7 +11,8 @@ heading: The introduction
 summary: Three short videos everyone watches first. Watch them in order, in one sitting or over a few days.
 styles: ["pages/start.css"]
 scripts: ["players.js"]
-# Analytics (SPEC §10.2): this page sends a page_view from M3. Data only for now.
+# Analytics (SPEC §10.2): this page sends a page_view. base.njk renders it as
+# <body data-page-view>, which events.js and pages.json (SPEC §8.3) read.
 track_page_view: true
 # Transcripts come from the video files, so they must be rendered first.
 eleventyImport:

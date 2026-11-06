@@ -187,7 +187,8 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
 });
 
 // SPEC §10.2: only problem pages, Start here and Getting urgent help send a
-// page_view. Data only until M3.
+// page_view (base.njk renders <body data-page-view>; pages-json.test.js checks
+// the built pages).
 describe('track_page_view', () => {
   it('is set on problem pages, Start here and Getting urgent help only', () => {
     const files = listFiles('content', (f) => /\.(md|njk|js)$/.test(f)).filter((f) =>

@@ -148,8 +148,9 @@ describe('formatLinks (FormatLinks, SPEC §9.2, §9.3)', () => {
   it('plays audio from media/audio/ only on request, with a download link inside', () => {
     const html = render('{{ formatLinks(v) }}', { v: video('audio') });
     const audio = tags(html, 'audio')[0];
+    // data-media holds the video_id, not the file name (audio_play, SPEC §10.2).
     expect([attr(audio, 'src'), attr(audio, 'preload'), attr(audio, 'data-media'), attr(audio, 'aria-label')]).toEqual([
-      '/media/audio/a.mp3', 'none', 'a.mp3', 'Audio only: Audio only',
+      '/media/audio/a.mp3', 'none', 'audio', 'Audio only: Audio only',
     ]);
     expect(attr(audio, 'controls')).toBe('');
     expect(html).toContain('<a href="/media/audio/a.mp3">Download the audio (MP3)</a>');
@@ -201,7 +202,7 @@ describe('players.js', () => {
     expect(code).not.toMatch(/modestbranding|\bhl:|origin:|preconnect|dns-prefetch|ytimg/);
   });
 
-  it('stores nothing and sends nothing (analytics arrive in M3)', () => {
+  it('stores nothing and sends nothing: it reports to events.js through DOM events (SPEC §9.4, §10.1)', () => {
     expect(code).not.toMatch(/localStorage|sessionStorage|document\.cookie|indexedDB|sendBeacon|fetch\(|XMLHttpRequest/);
   });
 });

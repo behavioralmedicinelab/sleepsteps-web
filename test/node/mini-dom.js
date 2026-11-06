@@ -14,10 +14,14 @@
 //   with the default actions of <summary> and radio inputs, events that
 //   bubble to the document, and getClientRects() (via `isRendered`);
 // - a window with location (hash and search), timers (the global ones, so
-//   fake timers work), events and print().
+//   fake timers work), events and print(); and, for events.js and
+//   stats-switch.js, localStorage and sessionStorage (MemoryStorage, which
+//   can be blocked or full), navigator, fetch and crypto, each replaceable.
 //
 // installDom(html) puts document, window, location and HTMLDetailsElement on
 // globalThis, as a browser would, and returns { document, window, restore }.
+// The modules reach storage, navigator, fetch and crypto through window, so
+// Node's own globals of those names are never touched.
 
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -497,15 +501,82 @@ export function parseHtml(html) {
   return doc;
 }
 
+// ---- Storage -------------------------------------------------------------------
+
+/**
+ * A stand-in for localStorage or sessionStorage, holding strings in memory.
+ * `full` makes setItem throw, as a full or read-only store does; pass
+ * 'blocked' instead of a store to installDom to make reading the property
+ * itself throw, as browsers do when site data is blocked. Pass the same
+ * store to two installDom calls to keep it across page loads.
+ */
+export class MemoryStorage {
+  constructor(items = {}, { full = false } = {}) {
+    this.items = new Map(Object.entries(items));
+    this.full = full;
+  }
+
+  get length() {
+    return this.items.size;
+  }
+
+  key(i) {
+    return [...this.items.keys()][i] ?? null;
+  }
+
+  getItem(key) {
+    return this.items.has(String(key)) ? this.items.get(String(key)) : null;
+  }
+
+  setItem(key, value) {
+    if (this.full) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    this.items.set(String(key), String(value));
+  }
+
+  removeItem(key) {
+    this.items.delete(String(key));
+  }
+
+  clear() {
+    this.items.clear();
+  }
+}
+
+/** A window property that is `value`, or throws when it is 'blocked'. */
+function storageProperty(value) {
+  return {
+    configurable: true,
+    enumerable: true,
+    get() {
+      if (value === 'blocked') throw new DOMException('Access is denied for this document.', 'SecurityError');
+      return value;
+    },
+  };
+}
+
 // ---- Window and globals --------------------------------------------------------
 
 /**
  * Parse `html` and install it as the global document, with a window, as
  * the browser modules expect. `hash` and `search` set location.hash and
- * location.search ("?q=..."). Returns { document, window, restore }; call
- * restore() after the test.
+ * location.search ("?q="). `localStorage` and `sessionStorage` are
+ * MemoryStorage stores (new, empty ones by default) or 'blocked';
+ * `navigator`, `fetch` and `crypto` become window's (by default: a navigator
+ * without sendBeacon, no fetch, and Node's crypto). Returns { document,
+ * window, restore }; call restore() after the test.
  */
-export function installDom(html, { hash = '', search = '' } = {}) {
+export function installDom(
+  html,
+  {
+    hash = '',
+    search = '',
+    localStorage = new MemoryStorage(),
+    sessionStorage = new MemoryStorage(),
+    navigator = {},
+    fetch,
+    crypto = globalThis.crypto,
+  } = {},
+) {
   const document = parseHtml(html);
   const events = new Node(document);
   const window = {
@@ -520,7 +591,12 @@ export function installDom(html, { hash = '', search = '' } = {}) {
     print: () => {
       window.printed = (window.printed ?? 0) + 1;
     },
+    navigator,
+    fetch,
+    crypto,
   };
+  Object.defineProperty(window, 'localStorage', storageProperty(localStorage));
+  Object.defineProperty(window, 'sessionStorage', storageProperty(sessionStorage));
   const names = ['document', 'window', 'location', 'HTMLDetailsElement'];
   const saved = names.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]);
   Object.assign(globalThis, { document, window, location: window.location, HTMLDetailsElement });

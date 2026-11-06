@@ -14,6 +14,8 @@ worker/generated/
 
 # Secrets — never commit
 .dev.vars
+.env
+.env.*
 
 # Data exports — never commit (SPEC §6)
 exports/

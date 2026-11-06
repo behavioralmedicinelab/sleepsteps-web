@@ -17,10 +17,12 @@
 
   Without JavaScript all three work as they are. src/js/players.js opens a
   transcript a link points to, shows the print buttons, pauses other media
-  when audio plays, and has the M3 hooks (data-handout and data-transcript
-  hold the video_id, whatever the handout's format; data-media holds the
-  audio file name; SPEC §10.2). The page must declare
-  `eleventyImport: { collections: ['videos'] }` to show transcripts.
+  when audio plays, and has the event hooks (data-handout, data-transcript
+  and the audio's data-media all hold the video_id, whatever the handout's
+  format or the audio's file name; SPEC §9.4, §10.2). pages.json reads the
+  same attributes (SPEC §8.3), so the Worker accepts exactly these ids. The
+  page must declare `eleventyImport: { collections: ['videos'] }` to show
+  transcripts.
 
   ids: transcript-<video_id>, audio-<video_id>. The validator allows each
   video once per page, so they are unique.
@@ -38,7 +40,7 @@
     <details class="format-disclosure format-disclosure--audio" id="audio-{{ video.video_id }}">
       <summary class="format-disclosure__toggle"><span class="format-button">{{ icon('headphones', 18, 'format-button__icon') }}Audio only<span class="visually-hidden">: {{ video.title }}</span>{{ icon('chevron-down', 16, 'format-disclosure__chevron') }}</span></summary>
       <div class="format-disclosure__panel">
-        <audio class="format-audio" controls preload="none" src="/media/audio/{{ video.audio }}" data-media="{{ video.audio }}" aria-label="Audio only: {{ video.title }}"><a href="/media/audio/{{ video.audio }}">Download the audio (MP3)</a></audio>
+        <audio class="format-audio" controls preload="none" src="/media/audio/{{ video.audio }}" data-media="{{ video.video_id }}" aria-label="Audio only: {{ video.title }}"><a href="/media/audio/{{ video.audio }}">Download the audio (MP3)</a></audio>
       </div>
     </details>
     {%- endif %}

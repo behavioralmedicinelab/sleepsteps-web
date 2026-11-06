@@ -72,6 +72,49 @@ describe('eleventy.config.js', () => {
     }
   });
 
+  // SPEC §10.1, §11: base.njk passes { features: site.features, track: track_page_view }.
+  describe('moduleScripts and the usage statistics modules', () => {
+    const on = { events: true };
+    const off = { events: false };
+
+    it('adds events.js first where the page tracks page views or loads players.js or search.js, while features.events is on', () => {
+      expect(f.moduleScripts(undefined, { features: on, track: true })).toEqual(['/js/events.js']);
+      expect(f.moduleScripts(['solutions.js', 'players.js'], { features: on, track: true })).toEqual([
+        '/js/events.js', '/js/solutions.js', '/js/players.js',
+      ]);
+      expect(f.moduleScripts(['players.js'], { features: on })).toEqual(['/js/events.js', '/js/players.js']);
+      expect(f.moduleScripts('search.js', { features: on, track: undefined })).toEqual(['/js/events.js', '/js/search.js']);
+    });
+
+    it('leaves events.js out on pages with nothing to send', () => {
+      expect(f.moduleScripts(undefined, { features: on })).toEqual([]);
+      expect(f.moduleScripts(['problems.js'], { features: on, track: false })).toEqual(['/js/problems.js']);
+      expect(f.moduleScripts(['problems.js'], { features: on, track: 'yes' })).toEqual(['/js/problems.js']);
+    });
+
+    it('leaves events.js out everywhere while features.events is off or missing, and without the options', () => {
+      for (const options of [{ features: off, track: true }, { features: {}, track: true }, { track: true }, undefined]) {
+        expect(f.moduleScripts(['players.js'], options), JSON.stringify(options)).toEqual(['/js/players.js']);
+        expect(f.moduleScripts(undefined, options), JSON.stringify(options)).toEqual([]);
+      }
+      // Only exactly true turns it on.
+      expect(f.moduleScripts(['search.js'], { features: { events: 'true' } })).toEqual(['/js/search.js']);
+    });
+
+    it("keeps the privacy page's stats-switch.js only while features.events is on", () => {
+      expect(f.moduleScripts(['stats-switch.js'], { features: on })).toEqual(['/js/stats-switch.js']);
+      for (const options of [{ features: off }, { features: {} }, undefined]) {
+        expect(f.moduleScripts(['stats-switch.js'], options), JSON.stringify(options)).toEqual([]);
+      }
+    });
+
+    it('refuses events.js in front matter: the layout adds it', () => {
+      for (const options of [{ features: on, track: true }, { features: off }, undefined]) {
+        expect(() => f.moduleScripts(['players.js', 'events.js'], options)).toThrow(/leave out "events\.js"/);
+      }
+    });
+  });
+
   it('spokenDuration reads a duration out in words, and gives "" for anything else', () => {
     expect(f.spokenDuration('6:40')).toBe('6 minutes 40 seconds');
     expect(f.spokenDuration('1:05')).toBe('1 minute 5 seconds');

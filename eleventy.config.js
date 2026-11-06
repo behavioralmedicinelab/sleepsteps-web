@@ -1,9 +1,15 @@
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pagesIndex, writeIfChanged } from './scripts/build-data.js';
 import { parseCsvRecords } from './scripts/lib/csv.js';
 import { formatIssue, validateContent } from './scripts/validate-content.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
+// Read by the Worker (SPEC §8.3, §14.1). Always this repository's own copy,
+// whatever the output directory, so the tests' build (into a temporary
+// directory) leaves it ready for the Worker tests and `wrangler deploy`.
+const PAGES_JSON = path.join(ROOT, 'worker', 'generated', 'pages.json');
 const site = JSON.parse(readFileSync(new URL('./site.config.json', import.meta.url), 'utf8'));
 
 // A video as templates see it (SPEC §7.1): the front matter, whether it has
@@ -43,6 +49,16 @@ export default function (eleventyConfig) {
     if (errors.length) {
       throw new Error(`Content check failed:\n${errors.map(formatIssue).join('\n')}`);
     }
+  });
+
+  // worker/generated/pages.json, from the rendered pages of every full build
+  // (`npm run build`, `npm run dev` rebuilds and the tests' build). An
+  // incremental rebuild renders only some pages, and a dry run renders none,
+  // so both leave the file as it is.
+  eleventyConfig.on('eleventy.after', ({ results, incremental }) => {
+    const rendered = (results ?? []).filter((r) => typeof r?.outputPath === 'string');
+    if (incremental || rendered.length === 0) return;
+    writeIfChanged(PAGES_JSON, `${JSON.stringify(pagesIndex(rendered), null, 2)}\n`);
   });
 
   // Team-edited CSV files in data/ become global data, one array of row
@@ -251,19 +267,33 @@ export default function (eleventyConfig) {
   // Per-page scripts from front matter: `scripts: ["players.js"]` loads
   // /js/players.js as a module in <head>. Only file names in src/js/ (the CSP
   // allows script-src 'self', SPEC §16.1). Duplicates are dropped.
-  eleventyConfig.addFilter('moduleScripts', (scripts) => {
-    if (scripts === undefined || scripts === null) return [];
-    const list = Array.isArray(scripts) ? scripts : [scripts];
+  //
+  // base.njk passes { features: site.features, track: track_page_view }, and
+  // the usage statistics modules follow features.events (SPEC §10.1, §11):
+  // - events.js is added, first, when features.events is on and the page
+  //   sends a page view (track) or loads players.js or search.js, the modules
+  //   that report events. It is never listed in front matter;
+  // - stats-switch.js (the privacy page's) is dropped while it is off.
+  // Without the options, events.js is left out.
+  eleventyConfig.addFilter('moduleScripts', (scripts, { features, track } = {}) => {
+    const list = scripts === undefined || scripts === null ? [] : Array.isArray(scripts) ? scripts : [scripts];
+    const names = list.map((entry) => {
+      if (typeof entry !== 'string' || !/^[a-z0-9][a-z0-9-]*\.js$/.test(entry)) {
+        throw new Error(`scripts: "${entry}" must be a file name in src/js/, e.g. "players.js"`);
+      }
+      if (entry === 'events.js') {
+        throw new Error('scripts: leave out "events.js"; base.njk adds it where it is needed (SPEC §10.1)');
+      }
+      return entry;
+    });
+    const events = features?.events === true;
+    const reports = track === true || names.includes('players.js') || names.includes('search.js');
     return [
-      ...new Set(
-        list.map((entry) => {
-          if (typeof entry !== 'string' || !/^[a-z0-9][a-z0-9-]*\.js$/.test(entry)) {
-            throw new Error(`scripts: "${entry}" must be a file name in src/js/, e.g. "players.js"`);
-          }
-          return `/js/${entry}`;
-        }),
-      ),
-    ];
+      ...new Set([
+        ...(events && reports ? ['events.js'] : []),
+        ...names.filter((name) => events || name !== 'stats-switch.js'),
+      ]),
+    ].map((name) => `/js/${name}`);
   });
 }
 

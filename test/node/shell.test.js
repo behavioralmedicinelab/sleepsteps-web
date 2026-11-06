@@ -319,13 +319,15 @@ describe('footer', () => {
 describe('Getting urgent help', () => {
   const html = pageAt(site, '/urgent-help/');
 
-  it('has the minimal header and no footer, search, menu or script', () => {
+  it('has the minimal header and no footer, search or menu; its only script sends its page view', () => {
     const header = elementByClass(html, 'minimal-header', 'header');
     expect(tags(header, 'a').map((t) => attr(t, 'href'))).toEqual(['/', '/']);
     expect(linkTexts(header)).toEqual(['', 'Back to home']);
     expect(tags(header, 'img').map((t) => attr(t, 'alt'))).toEqual(['SleepSteps home']);
-    expect(html).not.toMatch(/<footer|<form|<nav|<details|<script/);
-    expect(html).toContain('data-page-id="urgent-help"');
+    expect(html).not.toMatch(/<footer|<form|<nav|<details/);
+    // events.js (SPEC §10.1, §10.2), while features.events is on; no menu.js.
+    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toEqual(config.features.events ? ['/js/events.js'] : []);
+    expect(html).toMatch(/<body[^>]* data-page-id="urgent-help" data-page-view>/);
   });
 
   it('shows each crisis contact from site.config.json as a tel: link', () => {

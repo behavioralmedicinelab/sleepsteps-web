@@ -100,3 +100,14 @@
 .storage-table th code {
   white-space: nowrap; /* keep cookie names whole; the wrapper scrolls */
 }
+
+/* "Turning off usage statistics": the status line, then its one button
+   (src/js/stats-switch.js; the button is hidden until the script runs). The
+   button is full width on phones and fits its label from 600px, as
+   everywhere (components.css). */
+.stats-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}

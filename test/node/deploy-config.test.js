@@ -1,11 +1,13 @@
-// Deployment configuration (SPEC §16.1, §17, §18.1-§18.3): wrangler.jsonc and
-// its previews block, the preview-migrations config, the npm and Node pins,
-// and the built dist/_headers. Wrangler doesn't check _headers on deploy (a bad
-// line is silently dropped), so it is checked here.
-import { existsSync, readFileSync } from 'node:fs';
+// Deployment configuration (SPEC §14.1, §16.1, §17, §18.1-§18.3):
+// wrangler.jsonc and its previews block, the preview-migrations config, the
+// npm and Node pins, and the built dist/_headers. Wrangler doesn't check
+// _headers on deploy (a bad line is silently dropped), so it is checked here.
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import { unstable_readConfig } from 'wrangler';
+import { hostAllowed } from '../../worker/lib/hosts.js';
 
 // The two D1 databases (SPEC §17). Pinned, so a swap can't send preview
 // writes or migrations to production, or the reverse.
@@ -26,6 +28,13 @@ afterEach(() => vi.restoreAllMocks());
 const config = readConfig('wrangler.jsonc');
 const migrations = readConfig('wrangler.preview-migrations.jsonc');
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+const siteConfig = JSON.parse(readFileSync('site.config.json', 'utf8'));
+
+// The API's hosts (SPEC §14.1, §18.2): production's placeholder until launch,
+// and every preview URL. Version URLs look like preview URLs but run with
+// production's vars, so production must never match them.
+const PREVIEW_HOSTS = '*-sleepsteps.*.workers.dev';
+const VERSION_HOSTS = ['abc12345-sleepsteps.team-sub.workers.dev', '0a1b2c3d-sleepsteps.example-sub.workers.dev'];
 
 describe('wrangler.jsonc', () => {
   it('names the Worker "sleepsteps", with no account_id (Workers Builds supplies it)', () => {
@@ -59,6 +68,63 @@ describe('wrangler.jsonc', () => {
     expect(config.vars.DATA_COLLECTION).toBe('off');
     expect(config.previews.vars.DATA_COLLECTION).toBe('off');
   });
+
+  it('runs the Worker first for /api/*, so the API answers even where a file matches (SPEC §18.2)', () => {
+    expect(config.assets.run_worker_first).toContain('/api/*');
+  });
+
+  it('turns Workers Logs off in production and in previews: invocation logs record request metadata (SPEC §14.1)', () => {
+    expect(config.observability?.enabled).toBe(false);
+    expect(config.previews.observability?.enabled).toBe(false);
+  });
+
+  it("lets production's API answer only on production's own host: never a wildcard or a version URL (SPEC §18.2, §20 M3)", () => {
+    const hosts = config.vars.API_HOSTS;
+    expect(typeof hosts).toBe('string');
+    expect(hosts).not.toContain('*');
+    expect(hosts).not.toContain('-sleepsteps');
+    const siteHost = siteConfig.siteUrl.includes('<') ? undefined : new URL(siteConfig.siteUrl).host;
+    const entries = hosts.split(',').map((h) => h.trim());
+    for (const entry of entries) {
+      const allowed = entry === '<DOMAIN>' || entry === siteHost || /^sleepsteps\.[a-z0-9-]+\.workers\.dev$/.test(entry);
+      expect(allowed, `API_HOSTS entry "${entry}"`).toBe(true);
+    }
+    // Once siteUrl is real, the launch PR sets API_HOSTS to its host too (SPEC §18.3).
+    if (siteHost) expect(entries).toContain(siteHost);
+    for (const host of VERSION_HOSTS) expect(hostAllowed(host, hosts), host).toBe(false);
+  });
+
+  it('lets previews answer on every preview URL, and on nothing else', () => {
+    const hosts = config.previews.vars.API_HOSTS;
+    expect(hosts).toBe(PREVIEW_HOSTS);
+    expect(hostAllowed('my-branch-sleepsteps.team-sub.workers.dev', hosts)).toBe(true);
+    for (const host of ['sleepsteps.team-sub.workers.dev', 'a.b-sleepsteps.team-sub.workers.dev', 'my-branch-sleepsteps.team-sub.workers.dev.example.org']) {
+      expect(hostAllowed(host, hosts), host).toBe(false);
+    }
+  });
+});
+
+describe('migrations/ (SPEC §17)', () => {
+  it('starts with 0001_init.sql, and holds only numbered SQL files', () => {
+    const files = readdirSync('migrations');
+    expect(files[0]).toBe('0001_init.sql');
+    for (const file of files) expect(file).toMatch(/^\d{4}_[a-z0-9_]+\.sql$/);
+  });
+});
+
+// D1 records only a migration's file name, so a migration edited after it
+// has been applied to a remote database never reaches it (SPEC §17). Each
+// migration is pinned here; a schema change is a new NNNN_name.sql file
+// (add its hash below once it is applied anywhere remote).
+const APPLIED_MIGRATIONS = {
+  '0001_init.sql': 'aa5201b2ccadc89219a58fce2d79c4992331c70e748b5e75b4f499f97e9e2ccb',
+};
+
+describe('migrations/', () => {
+  it.each(Object.entries(APPLIED_MIGRATIONS))('%s is unchanged (make a new migration instead)', (file, hash) => {
+    const actual = createHash('sha256').update(readFileSync(`migrations/${file}`)).digest('hex');
+    expect(actual, `migrations/${file} changed: never edit a migration; add migrations/NNNN_name.sql`).toBe(hash);
+  });
 });
 
 describe('wrangler.preview-migrations.jsonc', () => {
@@ -79,6 +145,21 @@ describe('package.json and .node-version (SPEC §18.1, §18.3)', () => {
     expect(pkg.scripts['db:migrate:preview']).toBe(
       `wrangler d1 migrations apply ${preview.database_name} --remote --config wrangler.preview-migrations.jsonc`,
     );
+  });
+
+  it('collects data locally only through --var on the command line, never through .dev.vars (SPEC §11)', () => {
+    const script = pkg.scripts['dev:collect'];
+    expect(script).toContain('--var DATA_COLLECTION:on');
+    expect(script).toContain('--var API_HOSTS:localhost:8787,127.0.0.1:8787');
+    expect(script).not.toMatch(/--remote|\bdeploy\b/);
+    expect(pkg.scripts.dev).not.toContain('DATA_COLLECTION');
+    // None of these is committed, but wrangler dev and the Worker tests read
+    // them if they exist (.env and .env.local when there is no .dev.vars).
+    for (const file of ['.dev.vars', '.env', '.env.local', '.env.development', '.env.test']) {
+      if (existsSync(file)) {
+        expect(readFileSync(file, 'utf8'), file).not.toMatch(/^\s*(?:export\s+)?(DATA_COLLECTION|API_HOSTS)\s*[=:]/m);
+      }
+    }
   });
 
   it('pins exact npm and Node versions: npm 11 or later (which reads allowScripts), Node within engines', () => {
