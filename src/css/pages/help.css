@@ -6,7 +6,9 @@
  * running text is 17px body.
  *
  * The layout, side menu, section headings, plain lists, cards and the urgent
- * notice come from site.css (§9 and §10).
+ * notice come from site.css (§9 and §10). The board's "Print a one-page
+ * summary for your GP" line is not built: there is no GP summary or sleep
+ * diary for now (SPEC §7.5, §21).
  */
 
 .info-body--help {
@@ -72,17 +74,6 @@
 
 .help-step__text {
   color: var(--slate-grey);
-}
-
-.info-body--help .help-print {
-  margin-top: var(--space-5);
-  font-weight: var(--weight-semibold);
-}
-
-/* As a link (once `gp_summary` is set) its 44px target adds about 8px above
-   the text, so the margin is smaller for the board's 16px gap. */
-.info-body--help .help-print.link-standalone {
-  margin-top: var(--space-3);
 }
 
 /* "Other support" */

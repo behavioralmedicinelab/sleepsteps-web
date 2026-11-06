@@ -1,13 +1,147 @@
 ---
-layout: layouts/page.njk
+# Home page (SPEC §6, §20 M1b; HANDOFF §6.1; boards Main.dc.html and
+# Landing-Phone.dc.html). The copy below can be edited here; keep values that
+# start with "[" in quotes. Home sends no page_view (SPEC §10.2) and loads no
+# page JavaScript.
+layout: layouts/home.njk
 page_id: home
-band: standard
-eyebrow: Free · Short videos · At your own pace
-heading: Sleep can be hard after cancer. It can also get better.
-summary: SleepSteps has short videos and practical ideas for the sleep problems people often have during and after cancer. Watch, read or print, whichever suits you.
+styles: ["pages/home.css"]
+# The hero subline under the H1; also the page's meta description.
+summary: SleepSteps has short videos and practical ideas for the sleep problems people often have during and after cancer. Watch, listen, read or print, whichever suits you.
+hero:
+  eyebrow: Free · Short videos · At your own pace
+  heading: Sleep can be hard after cancer. It can also get better.
+  # Until there is a photo, the arched frame shows this placeholder text.
+  photo_text: "[Photo: someone at home in warm evening light, not looking at the camera]"
+  # To show a photo, put it in src/img/ and give its file name here, e.g.
+  # photo: "home-hero.jpg". It is decorative (alt=""), so choose mood
+  # imagery: the H1 carries the message.
+  photo: ""
+# "Watch, listen, read or print": the line beside the format tiles. Each
+# tile shows only if some video has that format (SPEC §7.5). Every video is
+# to have an audio-only version, a transcript and a handout by launch
+# (SPEC §7.1, §9.2, §9.3).
+formats_intro: Video comes first, but every video also has an audio-only version, a transcript and a handout with the same ideas.
+trial_text: "SleepSteps is being tested in a research trial run by [research team and institution]. [One or two sentences on what the trial is testing and who can take part.]"
 ---
-<p class="placeholder">[The home page arrives in milestone M1b.]</p>
-<ul class="link-list" role="list">
-  <li><a href="/start/">Start with the introduction</a></li>
-  <li><a href="/problems/">Browse sleep problems</a></li>
-</ul>
+{%- from "partials/icons.njk" import icon -%}
+{%- from "partials/step-chip.njk" import stepChip -%}
+{%- set topicAreas = collections.problems | groupByArea(areas) -%}
+{%- set problemCount = collections.problems | length -%}
+{%- set areaWord = topicAreas | length | numberWord -%}
+{%- set formats = collections.videos | videoFormats -%}
+
+<section class="home-hero on-dark">
+  <div class="home-hero__inner container">
+    <div class="home-hero__text">
+      <p class="eyebrow home-hero__eyebrow">{{ hero.eyebrow }}</p>
+      <h1 class="home-hero__title">{{ hero.heading }}</h1>
+      <p class="home-hero__lede">{{ summary }}</p>
+      <div class="home-hero__actions">
+        <a class="button button--light" href="/start/">{{ icon('play', 16, 'button__icon') }}Start with the introduction</a>
+        <a class="button button--ghost" href="/problems/">Browse sleep problems</a>
+      </div>
+    </div>
+    <div class="home-hero__photo" aria-hidden="true">
+      {%- if hero.photo %}
+      <img class="home-hero__img" src="/img/{{ hero.photo }}" alt="">
+      {%- else %}
+      <span class="home-hero__photo-text">{{ hero.photo_text }}</span>
+      {%- endif %}
+    </div>
+  </div>
+  {% include "partials/arc.njk" %}
+</section>
+
+<section class="home-steps container">
+  <p class="eyebrow home-section__eyebrow">How it works</p>
+  <h2 class="section-heading home-steps__heading">Three small steps</h2>
+  <ol class="home-steps__list" role="list">
+    <li class="card home-step home-step--1">
+      {{ stepChip(1, 'Step 1', tag='p', hideNum=true) }}
+      <div class="home-step__body">
+        <h3 class="home-step__title">Watch the introduction</h3>
+        <p class="home-step__text">A few short videos on how sleep works and why cancer can change it. Everyone starts here.</p>
+        <p class="home-step__more link-standalone"><a href="/start/">Go to the introduction</a></p>
+      </div>
+    </li>
+    <li class="card home-step home-step--2">
+      {{ stepChip(2, 'Step 2', tag='p', hideNum=true) }}
+      <div class="home-step__body">
+        <h3 class="home-step__title">Choose what's keeping you up</h3>
+        <p class="home-step__text">Pick the sleep problems that sound like you. There are {{ problemCount }}, grouped into {{ areaWord }} areas.</p>
+        <p class="home-step__more link-standalone"><a href="/problems/">See sleep problems</a></p>
+      </div>
+    </li>
+    <li class="card home-step home-step--3">
+      {{ stepChip(3, 'Step 3', tag='p', hideNum=true) }}
+      <div class="home-step__body">
+        <h3 class="home-step__title">Try what fits you</h3>
+        <p class="home-step__text">Each problem has a few things to try. Watch a video, listen to it, read its transcript or print its handout.</p>
+        {#- M4 (SPEC §12): when the ratings widget ships, and only while site.features.ratings is on, add
+            <p class="home-step__note">Rate each video to help us improve</p> here. Nothing renders before M4. #}
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section class="home-areas container">
+  <div class="home-areas__head">
+    <div>
+      <p class="eyebrow home-section__eyebrow">Sleep problems</p>
+      <h2 class="section-heading">What's getting in the way of your sleep?</h2>
+    </div>
+    <p class="home-areas__all link-standalone"><a href="/problems/">See all {{ problemCount }} sleep problems</a></p>
+  </div>
+  {#- One link per area (data/areas.csv, in its order), to that area on the Sleep problems page. Spans, not headings, inside each link, with spaces between them, so it reads as one name. #}
+  <ul class="home-areas__list" role="list">
+    {%- for area in topicAreas %}
+    {%- set n = area.problems | length %}
+    <li><a class="home-area" href="/problems/#{{ area.area_id }}"><span class="home-area__name">{{ area.name }}</span> <span class="home-area__desc">{{ area.description }}</span> <span class="home-area__count">{{ n }} {{ 'topic' if n == 1 else 'topics' }}{{ icon('chevron-right', 16, 'home-area__chevron') }}</span></a></li>
+    {%- endfor %}
+  </ul>
+</section>
+
+{%- if formats.transcript or formats.handout or formats.audio %}
+<section class="home-formats container">
+  <div class="panel panel--wash home-formats__panel">
+    <div class="home-formats__intro">
+      <h2 class="home-formats__heading">Watch, listen, read or print</h2>
+      <p>{{ formats_intro }}</p>
+    </div>
+    <ul class="home-formats__list" role="list">
+      {#- In the heading's order: watch, listen, read, print. Audio is not on the board, which has three tiles (SPEC §7.5). #}
+      <li class="home-format"><strong class="home-format__name">Video</strong> Short, with captions</li>
+      {%- if formats.audio %}
+      <li class="home-format"><strong class="home-format__name">Audio</strong> Listen without watching</li>
+      {%- endif %}
+      {%- if formats.transcript %}
+      <li class="home-format"><strong class="home-format__name">Transcript</strong> Read at your own speed</li>
+      {%- endif %}
+      {%- if formats.handout %}
+      <li class="home-format"><strong class="home-format__name">Handout</strong> One page to print or keep</li>
+      {%- endif %}
+    </ul>
+  </div>
+</section>
+{%- endif %}
+
+<div class="home-trial">
+  <div class="home-trial__inner container">
+    <section class="home-trial__main">
+      <p class="eyebrow home-trial__eyebrow">About the trial</p>
+      <h2 class="section-heading home-trial__heading">Part of a research study</h2>
+      <p>{{ trial_text }}</p>
+      <p class="home-trial__link link-standalone"><a href="/about/">More about us and the trial</a></p>
+    </section>
+    <section class="home-help">
+      <h2 class="home-help__heading">Need more help?</h2>
+      <p>When to talk to your doctor, and how to see a sleep specialist.</p>
+      <p class="home-help__link link-standalone"><a href="/help/">Getting more help</a></p>
+    </section>
+  </div>
+</div>
+
+<div class="home-disclaimer container">
+  <p class="panel home-disclaimer__text">SleepSteps does not replace care from your treating team. If your sleep changes suddenly, or you feel unsafe, talk to your doctor or see <a href="/urgent-help/">Getting urgent help</a>.</p>
+</div>

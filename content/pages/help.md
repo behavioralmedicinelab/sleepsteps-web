@@ -5,17 +5,11 @@ styles: ["pages/help.css"]
 # "Seeing a sleep specialist": the numbered steps, in order.
 specialist_steps:
   - title: Book a GP appointment
-    text: "[What to bring, e.g. a sleep diary from SleepSteps.]"
+    text: "[What to bring to the appointment.]"
   - title: Ask about a referral
     text: "[Sleep physician, sleep psychologist, or CBT-I provider.]"
   - title: Find a provider
     text: "[Link to a directory of accredited providers.]"
-# "Print a one-page summary for your GP": the file name of the summary in
-# media/pdf/ (e.g. "gp-summary.pdf"). Leave it empty until the summary exists
-# (SPEC §21): the line then shows as [placeholder] text, not a link. Once it
-# is set, the line becomes the board's link, and the tests fail if the file
-# is missing.
-gp_summary: ""
 # "Other support": one card per service, in order.
 services:
   - name: "[Cancer support line]"
@@ -25,7 +19,7 @@ services:
   - name: "[Carer support]"
     details: "[Phone · hours]"
 ---
-{#- Getting more help (SPEC §7.4; HANDOFF §6.5; board Info-Help.dc.html). Styles: src/css/pages/help.css. Keep the HTML free of blank lines inside each section: a blank line ends Markdown's HTML block. -#}
+{#- Getting more help (SPEC §7.4; HANDOFF §6.5; board Info-Help.dc.html, without its GP summary line: there is no GP summary or sleep diary for now, SPEC §7.5, §21). Styles: src/css/pages/help.css. Keep the HTML free of blank lines inside each section: a blank line ends Markdown's HTML block. -#}
 <section>
 <h2>When to talk to your doctor</h2>
 <p>Talk to your GP or treating team if:</p>
@@ -46,12 +40,6 @@ services:
 <li class="card help-step"><span class="help-step__num" aria-hidden="true">{{ loop.index }}</span><div><h3 class="help-step__title">{{ step.title }}</h3><p class="help-step__text">{{ step.text }}</p></div></li>
 {%- endfor %}
 </ol>
-{#- The GP summary: a link once `gp_summary` names a file in media/pdf/, bracketed placeholder text until then (SPEC §21, §22). #}
-{%- if gp_summary %}
-<p class="help-print link-standalone"><a href="/media/pdf/{{ gp_summary }}">Print a one-page summary for your GP</a></p>
-{%- else %}
-<p class="help-print">[Print a one-page summary for your GP]</p>
-{%- endif %}
 </section>
 
 <section>

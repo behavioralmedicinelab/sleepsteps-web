@@ -4,6 +4,13 @@
 export default {
   layout: 'layouts/problem.njk',
   page_width: 'wide',
+  scripts: ['players.js'],
+  // Analytics (SPEC §10.2): problem pages send a page_view from M3. Data only
+  // for now; nothing reads it yet.
+  track_page_view: true,
+  // The page shows its videos' transcripts, so the video library must render
+  // first (content/videos/videos.11tydata.js).
+  eleventyImport: { collections: ['videos'] },
   eleventyComputed: {
     page_id: (data) => data.page.fileSlug,
     permalink: (data) => `/problems/${data.page.fileSlug}/`,

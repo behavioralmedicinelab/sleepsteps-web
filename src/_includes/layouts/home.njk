@@ -1,0 +1,14 @@
+---
+layout: layouts/base.njk
+---
+{#-
+  Home page layout (SPEC §6 content/index.njk, §20 M1b; HANDOFF §6.1).
+
+  Only content/index.njk uses it. It provides <main id="main"> with no page
+  container, so the hero, the trial band and the other sections can each run
+  full width and set their own container. No title band (the hero holds the
+  page's one H1), no sidebar, no page JavaScript.
+-#}
+<main id="main" class="home">
+  {{ content | safe }}
+</main>

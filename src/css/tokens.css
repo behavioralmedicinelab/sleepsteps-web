@@ -112,6 +112,7 @@
   --focus-width: 2px;
   --focus-offset: 2px;
   --border-width: 1px;
+  --border-width-strong: 2px; /* the open solution card's border */
   --current-bar: 3px;        /* left bar on the current menu item */
   --current-underline: 2px;  /* underline on the current header link */
   --logo-height: 68px;       /* HANDOFF §4: 68px desktop, 56px phones */
@@ -119,6 +120,12 @@
   --icon-sm: 16px;
   --icon-md: 18px;
   --header-search-width: 220px;
+  --target-xl: 52px;         /* large buttons: home hero, Start here end card */
+  --play-disc: 72px;         /* video play button (boards: 72-76px) */
+  --play-disc-phone: 56px;   /* below 600px */
+  --play-disc-lg: 80px;      /* Start here videos (Intro-B.dc.html) */
+  --play-disc-lg-phone: 64px;
+  --play-disc-sm: 52px;      /* a closed solution card's thumbnail band */
 
   --gutter: 16px;            /* page side gutter: 16px on phones, 24px from 600px */
   --content-max: 1200px;     /* page width: 1200 default, set per page */

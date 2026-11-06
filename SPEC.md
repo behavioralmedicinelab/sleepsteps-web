@@ -10,7 +10,7 @@ This document is the source of truth for what the site does and how it is built.
 
 ## 1. Purpose and context
 
-An informational and educational website supporting a clinical trial of a stepped-care sleep intervention. Participants can watch short videos, read transcripts or PDF handouts, or listen to audio-only versions. They can find content by describing their problem or by searching.
+An informational and educational website supporting a clinical trial of a stepped-care sleep intervention. Participants can watch short videos, listen to audio-only versions, print or keep a handout for each video, or read transcripts. They can find content by describing their problem or by searching.
 
 The site must stay online and freely available after the grant ends, with close to zero cost and maintenance. That requirement drives most of the design decisions below.
 
@@ -95,7 +95,7 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 ├── site.config.json           # Site settings + feature switches (§11)
 ├── content/
 │   ├── problems/              # One Markdown file per sleep problem (§7.2)
-│   ├── videos/                # Video library: one file per video, no page of its own (§7.1)
+│   ├── videos/                # Video library: one file per video, no page of its own (§7.1); videos.11tydata.js (no permalink, transcripts as plain Markdown)
 │   ├── pages/                 # Information pages: help, about, contact, privacy, urgent help (§7.4)
 │   ├── start.md               # "Start here" intro videos (§7.3)
 │   ├── problems.njk           # Sleep problems browser (§7.2)
@@ -104,14 +104,14 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   ├── areas.csv              # The 10 problem areas (§7.2)
 │   └── keywords.csv           # Search synonyms (§8.2)
 ├── media/
-│   ├── audio/                 # MP3, ≤ 25 MiB each
-│   ├── pdf/                   # Handouts
+│   ├── audio/                 # Audio-only versions: each video's soundtrack as MP3, ≤ 25 MiB each (§9.2; placeholder-audio.mp3: 2 s of silence, §7)
+│   ├── pdf/                   # Handouts, one per video; PDF until the format is decided (§9.3; placeholder-handout.pdf, §7)
 │   └── thumbs/                # Self-hosted video thumbnails (optional)
 ├── src/
-│   ├── _includes/             # layouts/, partials/ (components in §7.5), notices/ (§15)
+│   ├── _includes/             # layouts/, partials/ (components in §7.5), problem/ (solution cards), notices/ (§15)
 │   ├── img/                   # Logo and site images
-│   ├── css/                   # tokens.css, site.css, pages/<page>.css (§7.5)
-│   └── js/                    # menu.js, search.js, rating.js, feedback.js, events.js, players.js, api.js
+│   ├── css/                   # tokens.css, site.css, components.css, pages/<page>.css (§7.5)
+│   └── js/                    # menu.js, players.js, solutions.js (solution cards), problems.js (Sleep problems filter and accordion), search.js, rating.js, feedback.js, events.js, api.js
 ├── scripts/
 │   ├── build-data.js          # Builds search-index.json + pages.json, validates CSVs
 │   ├── validate-content.js    # Front matter + media file checks
@@ -126,7 +126,7 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   └── design/                # Claude Design handoff: HANDOFF.md, tokens, logo, mockups (§7.5)
 ├── test/
 │   ├── worker/                # Vitest project "worker": runs in workerd
-│   └── node/                  # Vitest project "node": build scripts and built-site checks
+│   └── node/                  # Vitest project "node": build scripts, built-site checks, browser modules in a small test DOM (mini-dom.js)
 └── dist/                      # Build output (git-ignored)
 ```
 
@@ -135,6 +135,8 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 ## 7. Content model
 
 The site is organised around **sleep problems** (design handoff, §22). People pick a problem; each problem page shows a video about the problem and the solution videos for it. Videos live in a shared library and can appear on more than one page.
+
+**Placeholder content.** Until the team supplies the real content, placeholders build and are easy to find. Placeholder text is in `[square brackets]`. A placeholder video has `placeholder: true` and `youtube_id: "PLACEHOLDER"`, and its duration may be `"[mm:ss]"`: its frame shows "[Video coming soon]" with no link or button, so it never contacts YouTube, and the §15.1 notice still shows under it so pages read as they will at launch. The build lists placeholder videos as a warning (without also warning that they have no handout, audio or transcript, §7.1); at launch there must be none (M8). A placeholder may keep a stand-in transcript in brackets, but a real video may not (the build fails, as it does for a bracketed duration). The sample content is one placeholder video per problem (`<slug>-about`), seven shared placeholder solution videos and the three intro videos. Every problem has bracketed "Is this you?" text and one main solution, except four samples that exercise the layouts: `tired-but-wired` (3 main, 3 extra), `cant-get-back-to-sleep` (2, 1), `pain` (1, 0) and `hot-flushes-and-night-sweats` (2, 2), which also have placeholder related topics. Small placeholder files in `media/` (a one-page PDF and two seconds of silent MP3) let the handout and audio controls be seen.
 
 **Identifiers.** Every page has a `page_id`: a problem's slug, a fixed ID for the main pages (`home`, `start`, `problems`, `search`), or an information page's file name. Every video has a `video_id` (its file name). Both are lowercase, hyphenated and stable. **Never rename a `page_id` or `video_id` without adding a redirect (for pages) and updating every reference and `keywords.csv`.** `validate-content.js` fails the build on any dangling reference.
 
@@ -147,14 +149,17 @@ Videos have no page of their own (`permalink: false`); problem pages and Start h
 title: "Setting up a wind-down hour"
 youtube_id: "AbCdEfGhIjK"
 duration: "6:40"
-audio: "wind-down-hour.mp3"          # optional, file in media/audio/
-handout: "wind-down-hour.pdf"        # optional, file in media/pdf/ (format still open, §21)
+audio: "wind-down-hour.mp3"          # file in media/audio/: the video's soundtrack (§9.2); every video, by launch
+handout: "wind-down-hour.pdf"        # file in media/pdf/; every video, by launch (format still open, §9.3)
 thumbnail: "wind-down-hour.jpg"      # optional, file in media/thumbs/
+placeholder: true                    # optional: not on YouTube yet (§7)
 ---
-Transcript in Markdown goes here (the body). Optional.
+Transcript in Markdown goes here (the body); every video, by launch (§9.3).
 ```
 
-Required fields: `title`, `youtube_id`, `duration`. The transcript, handout and audio are optional, and the page hides any format a video doesn't have. The build fails if a referenced media file does not exist.
+Required fields: `title`, `youtube_id` (the 11-character ID, in quotes) and `duration` (`"m:ss"` or `"h:mm:ss"`, in quotes). **Every video is to have a handout, an audio-only version and a transcript** (§9.2, §9.3). The page hides any format a video doesn't have, so placeholder videos, which may have none, still build. The build warns about a video that is not a placeholder and has no `handout`, no `audio` or no transcript (a body that is empty or only whitespace), and the launch check (`node scripts/validate-content.js --no-placeholders`, M8) fails on any video without all three. The transcript is plain Markdown: no headings, which would break the page's heading outline, no HTML (tags or comments; a comment-only body would show an empty transcript), no images, and no links except to pages on this site (paths starting with `/`): an image would load from elsewhere, and a link out would skip the §16.1 allowlist and `noreferrer`. Media fields are bare file names with the right extension (`.mp3`, `.pdf`, or `.jpg`, `.jpeg`, `.png`, `.webp`). The build fails if a referenced media file does not exist, if audio is over 25 MiB (§9.2), or on an unknown field (usually a typo). It warns about a video used on no page.
+
+Templates read a video through the `videoById` filter (`eleventy.config.js` documents the shape it returns). A page that shows transcripts declares `eleventyImport: { collections: ['videos'] }` so the video files render first.
 
 ### 7.2 Areas and problems
 
@@ -187,19 +192,19 @@ related: [not-sleepy-at-bedtime, stress-and-worries]   # 2–3 hand-picked probl
 ---
 ```
 
-The build fails on an unknown `area`, `time_of_day`, `video` or `related` slug, or on solution counts outside 1–3 main / 0–3 extra. It warns, without failing, when `related` has fewer than 2 entries or `is_this_you` is empty, so placeholder content can still build.
+The build fails on an unknown `area`, `time_of_day`, `video` or `related` slug, or on solution counts outside 1–3 main / 0–3 extra. It also fails on a missing `title`, `statement`, `order` or `problem_video`, a solution without a `blurb`, the same video twice on one page (the problem video and its solutions: their ids and ratings would clash), a problem listed in its own `related`, more than 3 `related` or more than 4 bullets. It warns, without failing, when `related` has fewer than 2 entries, `is_this_you` is empty or has fewer than 2 bullets, or a field isn't one the templates read, so placeholder content can still build.
 
-The **Sleep problems** page (`/problems/`) lists every problem in two views: by area (an accordion, the default) and "When it happens" (time-of-night lanes). Area anchors such as `/problems/#core` open that area. Without JavaScript, every area renders open.
+The **Sleep problems** page (`/problems/`) lists every problem in two views: by area (an accordion, the default) and "When it happens" (time-of-night lanes). Area anchors such as `/problems/#core` open that area. Without JavaScript, every area renders open under a plain heading, and the filter, the view toggle, "Open all areas" and the "When it happens" lanes are not shown (they need JavaScript; the areas already list every problem), nor is the band's sentence about them. `src/js/problems.js` turns each area heading into a `<button aria-expanded aria-controls>`, opens only the first area (or the one in the URL), and shows the toolbar and the lanes view.
 
 ### 7.3 Start here (`content/start.md`)
 
-Lists the intro videos in order, each with a `video` (video_id) and a one-line `description`. Rendered at `/start/`.
+Lists the intro videos in order, in `chapters`: each has a `video` (video_id) and a one-line `description`. The title, duration and formats come from the video file. Rendered at `/start/`, with chapters `#v1`, `#v2`, ... The build fails on an empty list, an unknown or repeated video, a missing description or an unknown field.
 
 ### 7.4 Information pages (`content/pages/*.md`)
 
 Standard Eleventy pages with `title` and `summary`. They are included in the search index unless `search: false` is set. A page's `page_id` is its file name and it renders at `/<file name>/` (`content/pages/pages.11tydata.js`).
 
-They use the information layout (`src/_includes/layouts/info.njk`, whose header comment is the full contract): a teal title band, the "Information pages" side menu and the content column. Front matter: `title` and `summary` (required; the summary is the lede under the H1 and the meta description), and optionally `eyebrow` (default "Information"), `heading` (H1 text when it differs from the title), `band: hero` (the About hero with the settling arc) and `styles` (extra stylesheets, e.g. `["pages/help.css"]`). Any page can list `styles`; only paths under `src/css/` are accepted.
+They use the information layout (`src/_includes/layouts/info.njk`, whose header comment is the full contract): a teal title band, the "Information pages" side menu and the content column. Front matter: `title` and `summary` (required; the summary is the lede under the H1 and the meta description), and optionally `eyebrow` (default "Information"), `heading` (H1 text when it differs from the title), `band: hero` (the About hero with the settling arc) and `styles` (extra stylesheets, e.g. `["pages/help.css"]`). Any page can list `styles`; only paths under `src/css/` are accepted. Likewise `scripts` (e.g. `["players.js"]`) loads extra ES modules from `src/js/` (file names only). A layout can list `styles` and `scripts` in its own front matter too (`layouts/problem.njk` does); Eleventy merges them with the page's. `track_page_view: true` marks the pages that send a `page_view` (§10.2): problem pages, Start here and Getting urgent help.
 
 Required pages: Getting more help (`/help/`), About (`/about/`), Contact (`/contact/`), Privacy and your data (`/privacy/`, §15), Getting urgent help (`/urgent-help/`, with the crisis contacts from `site.config.json`), and 404 (`content/404.njk`, output as `/404.html`, no `page_id`).
 
@@ -207,24 +212,31 @@ Required pages: Getting more help (`/help/`), About (`/about/`), Contact (`/cont
 
 ### 7.5 Visual design and components
 
-Layouts, copy and components follow the design handoff in `docs/design/` (start with `HANDOFF.md`; the boards in `reference/boards/` give exact spacing and copy, but their design-tool runtime is not copied). Its colour, type-scale, spacing and radius tokens are CSS custom properties defined once in `src/css/tokens.css`, the only stylesheet allowed to contain colour values (a test enforces this); components never hard-code values. `src/css/site.css` holds the base styles, the shell components and the page layouts; a page adds its own CSS through `styles` front matter (§7.4).
+Layouts, copy and components follow the design handoff in `docs/design/` (start with `HANDOFF.md`; the boards in `reference/boards/` give exact spacing and copy, but their design-tool runtime is not copied). Its colour, type-scale, spacing and radius tokens are CSS custom properties defined once in `src/css/tokens.css`, the only stylesheet allowed to contain colour values (a test enforces this); components never hard-code values. `src/css/site.css` holds the base styles, the shell components and the page layouts; `src/css/components.css` holds the components shared by several pages (the video facade, format buttons and transcripts, step chips, buttons, section headings and topic cards); a page adds its own CSS through `styles` front matter (§7.4).
 
 Token rules:
 
 - **Spacing:** the token scale (4–32px) plus layout steps `space-9` to `space-14` (40, 48, 56, 64, 72, 96px) for page padding and section gaps. Board values off the scale snap up to the next step (10→12, 14→16, 18→20, 22→24, 28→32, 36→40, 44→48).
-- **Type:** the tokens.json styles, plus values the handoff gives outside it: interior H1 48px, problem H1 44px, phone H1 34px, the 19/30 lede and the problem statement at 22px. All running text is at least 17px; the boards' 15–16px running text is raised to 17px.
-- **Colour pairs:** only pairs tokens.json lists as passing. So the footer's secondary text is `paper` (the board's `on-teal-muted` on `ink` is not listed) and the urgent-help notice text is `clay-deep` on `clay-wash`.
+- **Type:** the tokens.json styles, plus values the handoff gives outside it: interior H1 48px, problem H1 44px, phone H1 34px (Home's display line too, where Landing-Phone has 38px), the 19/30 lede and the problem statement at 22px. All running text is at least 17px; the boards' 15–16px running text is raised to 17px. Other off-scale headings snap to the nearest token style: the phone boards' 26px section headings use the 24px title size.
+- **Colour pairs:** only pairs tokens.json lists as passing. So the footer's secondary text is `paper` (the board's `on-teal-muted` on `ink` is not listed), the urgent-help notice text is `clay-deep` on `clay-wash`, and links on a `panel` ground (the Sleep problems nudge, a transcript's links and its "Print transcript" button) are `ink`.
 - **Focus ring:** 2px solid with a 2px offset, `deep-teal` on light grounds and `paper` on teal or ink (handoff §10), with two exceptions. On the urgent-help notice's `clay-wash` ground the ring is `clay-deep`, the only colour tokens.json lists on that ground. The header search input is joined to its `deep-teal` submit button, so its ring is drawn just inside the input's box (at the usual offset its right side would sit on the button and vanish).
-- **Page width:** 1200px by default, 1280px (`page_width: medium`: Start here, Sleep problems) or 1360px (`page_width: wide`: problem pages), as on the boards.
-- **Targets:** every link and control is at least 44×44px, so TopicNav's problem, chapter and info links are 44px tall (36–40px on the board). This includes links inside a sentence (stricter than WCAG 2.5.8): they are `inline-flex` with a 44px minimum height, as on the urgent-help notice, the search page's no-JavaScript link, `.link-standalone`, links in information-page paragraphs and links in the §15.1 notices (`.notice-text`).
+- **Page width:** 1200px by default, 1280px (`page_width: medium`: Start here, Sleep problems) or 1360px (`page_width: wide`: problem pages), as on the boards. On Sleep problems the band's contents, the accordion and the nudge sit in a 1000px column, as on Problems-A.
+- **Targets:** every link and control is at least 44×44px, so TopicNav's problem, chapter and info links are 44px tall (36–40px on the board). This includes links inside a sentence (stricter than WCAG 2.5.8): they are `inline-flex` with a 44px minimum height, as on the urgent-help notice, the search page's no-JavaScript link, `.link-standalone`, links in information-page paragraphs, links in the §15.1 notices (`.notice-text`) and links in transcripts.
 - **Logo:** the stacked logo only (there is no horizontal lockup). If a header ever can't fit it, it drops the logo for a "SleepSteps" text link to the home page rather than shrinking or altering it.
-- **Disclosures without JavaScript:** TopicNav areas and the phone Menu are native `<details>`/`<summary>`. `src/js/menu.js` upgrades the Menu to a `<button aria-expanded aria-controls>` with Escape-to-close; TopicNav ships no JavaScript.
+- **Disclosures without JavaScript:** TopicNav areas and the phone Menu are native `<details>`/`<summary>`. `src/js/menu.js` upgrades the Menu to a `<button aria-expanded aria-controls>` with Escape-to-close; TopicNav ships no JavaScript. A video's "Read transcript" and "Audio only" are native `<details>` too, and are not upgraded. Solution cards are native `<details name="solution">` (one open at a time where browsers support `name`); `src/js/solutions.js` turns each closed card into an `<h3>` holding a `<button aria-expanded aria-controls>`, its panel into a region labelled by the card's heading, and keeps one card open at a time across both sections, pausing the media of the one it closes. The Sleep problems areas are headings that `problems.js` upgrades (§7.2).
 
 Exceptions to the handoff, recorded in §22:
 
 - **System fonts** instead of Figtree and Source Sans 3: no web fonts are loaded.
 - **Ratings** follow §12, with no client ID.
 - **Feedback** is only the footer dialog (§13); the mockups' per-video feedback forms and links are not built.
+- **Solution cards start closed** (the boards open the first main one), so the first screen holds one video facade and notice, not two. Adding `open` to a card's `<details>` in `src/_includes/problem/solutions.njk` reverses this; `solutions.js` keeps a card that starts open. Opening a card moves focus to its heading (HANDOFF §6.4) except on phones, where the open card's header isn't shown and focus stays on the card's button, which stays on screen above the panel.
+- **Phones keep what the phone boards drop**, so nothing is lost at 320px or 400% zoom (WCAG 1.4.10): "Is this you?" in full, each Related topic's first-person line, and on Home each area's description, the step links and the format tiles (one per row). Home's steps are the board's rows (number disc beside the text, no coloured rule). The "On this page" chips wrap instead of scrolling sideways; the first is filled, as on the board.
+- **Formats one per line on phones** (Problem-Phone has a 3-button grid): "Audio only" and "Read transcript" are native `<details>`, whose panels need the full width to open under their button.
+- **The Sleep problems filter is labelled "Find a sleep problem on this page"**, not the board's "Search sleep problems", which is the header search's name; the two fields do different things (§8.1).
+- **Home has four format tiles**: the board's "Watch, read or print" panel becomes "Watch, listen, read or print" and adds "Audio" ("Listen without watching") between the board's Video and Transcript, so the tiles follow the heading (watch, listen, read, print), since every video has an audio-only version (§9.2). As on the board, a tile shows only if some video has that format. The tiles are one per row on phones, two per row from 600px, and all in one row once their list is 636px wide (four of the board's 150px tiles and three 12px gaps), so three never sit above one.
+- **Home's copy names listening** (every video has an audio-only version, a transcript and a handout, §7.1): the hero line (also the meta description) ends "Watch, listen, read or print, whichever suits you."; step 3 reads "Watch a video, listen to it, read its transcript or print its handout." (the board: "Watch the video, read the transcript or print a handout."); and the line beside the tiles reads "Video comes first, but every video also has an audio-only version, a transcript and a handout with the same ideas." (the board: "…every video also has a transcript and a printable handout…").
+- **No GP summary on Getting more help**: the Info-Help board's "Print a one-page summary for your GP" line is left out, and the "What to bring" step doesn't mention a SleepSteps sleep diary. There is no GP summary or sleep diary for now (§21).
 
 ## 8. Search
 
@@ -237,7 +249,7 @@ Exceptions to the handoff, recorded in §22:
 - The query is kept in the URL so results are shareable and the Back button works.
 - Log a `search` event with the query (truncated to 100 characters) and result count (§10).
 - With JavaScript disabled, the search box still submits to `/search/`, whose static HTML says that results need JavaScript and links to the Sleep problems page.
-- **Problems page filter** (separate from the site search): a live filter on `/problems/` matching each problem's short title, statement, area name and keywords. It filters both views as you type, hides areas with no matches and opens areas with matches, and announces the count ("4 topics match 'night'") in an `aria-live="polite"` region. It does not log events.
+- **Problems page filter** (separate from the site search, and labelled differently, §7.5): a live filter on `/problems/` matching each problem's short title, statement, area name and keywords. Words in the query must all match; commas or semicolons separate alternatives ("night sweats, 3am"). It filters both views as you type, hides areas with no matches and opens areas with matches, and announces the count ("4 topics match “night”") in an `aria-live="polite"` region once typing pauses. When nothing matches, both views show every topic and the result line says so. It does not log events, and the query is never stored, sent or put in the URL. It needs JavaScript and is not shown without it (§7.2).
 
 ### 8.2 Keywords (`data/keywords.csv`)
 
@@ -283,23 +295,33 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 
 ### 9.1 Video (YouTube)
 
-- Use a click-to-load facade: a 16:9 frame (the video's self-hosted thumbnail if it has one, otherwise a plain `night-teal` frame), the video title, a duration badge and a play button. Load the YouTube player only after the user clicks, so YouTube isn't contacted until someone chooses to play. Never autoplay before that click.
-- Then create the player via the IFrame Player API with `host: 'https://www.youtube-nocookie.com'` and `playerVars: { rel: 0, playsinline: 1 }` (plus `cc_load_policy: 1` if captions should be on by default, §21). The iframe's `title` names the video.
-- Captions are uploaded to YouTube from the transcripts (team task). Don't rely on auto-captions.
-- A link to watch on YouTube is shown as a fallback.
+- Use a click-to-load facade: a 16:9 frame (the video's self-hosted thumbnail if it has one, otherwise a plain `night-teal` frame), the video title, a duration badge and a play button. The title is a visible plate on the frame where no nearby heading names the video (a problem's own video); elsewhere it is the play control's accessible name. Load the YouTube player only after the user clicks, so YouTube isn't contacted until someone chooses to play. Never autoplay before that click.
+- Then create the player via the IFrame Player API with `host: 'https://www.youtube-nocookie.com'` and `playerVars: { rel: 0, playsinline: 1, autoplay: 1, cc_load_policy: 1, cc_lang_pref: 'en' }`. The player exists only after the click, so `autoplay` starts the video the visitor chose. The iframe's `title` names the video, and focus moves to it, unless the visitor has moved focus elsewhere while the player loaded. No `hl` (the player follows the viewer's language) and no `origin` (the API adds it). The `host` option works (the API builds the iframe from it) but isn't in the IFrame API reference (checked 2026-11-06).
+- **Captions are on by default** (§21). `cc_load_policy: 1` shows them when the player loads, even if the viewer has turned captions off on YouTube; they can still turn them off in the player (the CC button or the c key). `cc_lang_pref: 'en'` asks for the English track. The team uploads each video's captions as a plain "English" track, not a regional one such as "English (Australia)" that `en` may not match, made from the script or transcript (Studio's Auto-sync, or a timed `.vtt`/`.srt`), and a person checks them before the video goes public (§19.2). Don't rely on auto-captions: YouTube doesn't document whether `cc_load_policy` shows an auto-generated track when there is no uploaded one (third-party reports say it often doesn't), and their accuracy varies.
+- A link to watch on YouTube is shown as a fallback: without JavaScript the facade is that link, and if the player can't load (the API script fails or takes over 15 seconds, or the player reports an error) the frame says "The video couldn't load here." with the link. The link has no caption parameter: the watch page has no documented one, so there the viewer's own caption setting applies.
+- YouTube blocks embedded playback when the request has no `Referer` ("error 153"), so the `Referrer-Policy` in §16.1 must never be tightened to `no-referrer`.
+- A placeholder video (§7) shows "[Video coming soon]" instead of a play button, with no link.
 - Ratings and formats sit outside the player.
-- **Under each facade, before the click**, show the video notice (§15.1) naming YouTube/Google and what may happen, with a link to the privacy page. Loading the IFrame Player API sets YouTube cookies on `.youtube.com` once someone presses play, even with the youtube-nocookie host (observed November 2026). This is disclosed (§15.4), and the notice makes pressing play an informed choice. No YouTube request happens before the click.
+- **Under each facade, before the click**, show the video notice (§15.1) naming YouTube/Google and what may happen, with a link to the privacy page. The play control names the notice's sentences in `aria-describedby`, so screen readers hear it with "Play video" although it follows in the page. Loading the IFrame Player API sets YouTube cookies on `.youtube.com` once someone presses play, even with the youtube-nocookie host (observed November 2026). This is disclosed (§15.4), and the notice makes pressing play an informed choice. No YouTube request happens before the click.
 
 ### 9.2 Audio
 
-- Optional per video; the "Audio only" option is hidden when a video has none.
+- **Every video has an audio-only version: the video's own soundtrack**, exported from the final video file as an MP3 (§21). The "Audio only" option is hidden when a video has none (placeholders); the build warns about a real video without one, and the launch check fails (§7.1).
 - `<audio controls preload="none">` with an MP3 in `media/audio/`.
-- Each file must be ≤ 25 MiB (the static asset limit). Mono 64 kbps gives about 50 minutes per file. `validate-content.js` enforces the size limit.
+- **Encoding** (the commands are in `README.md`, "Exporting the audio-only version"): mono (a stereo master is downmixed), 44.1 kHz, 96 kbps constant bitrate. Loudness is normalised in two passes with ffmpeg's `loudnorm` as one linear gain, to an integrated −16 LUFS with `dual_mono` (a mono file at about −19 LUFS sounds as loud as −16 LUFS stereo, Apple's and Google's podcast targets). `loudnorm`'s true-peak ceiling is −1.5 dBTP, which leaves room for the MP3 encoder's overshoot so the finished file measures at or below −1 dBTP (Apple's podcast limit); a file that still measures higher is exported again with a −2 dBTP ceiling. The source file's metadata is removed, and ID3v2.3 tags give the title, "SleepSteps" as artist and album, the year, the language (`eng`) and the CC BY 4.0 notice. 96 kbps rather than 64 because the soundtrack may carry music, which 64 kbps handles less well; it costs about 1.2 MB more per 5 minutes (about 3.6 MB per 5-minute file).
+- Each file must be ≤ 25 MiB (the static asset limit). At 96 kbps that is about 36 minutes per file. `validate-content.js` enforces the size limit.
+- Because the audio is the video's soundtrack, the narration must say everything that matters on screen (on-screen text, numbers and demonstrations; no "as you can see"), so the audio stands on its own. That also gives the video its audio description (WCAG 2.2 SC 1.2.5, integrated description). The transcript is the audio's text alternative (SC 1.2.1, Level A), which is one reason every video has one (§9.3).
+- Workers static assets ignore `Range` requests and send the whole file with a 200 (Cloudflare documented this in November 2026). One report says Safari still plays and seeks MP3s served that way. Check play and seek in Safari on an iPhone and in Chrome once real audio is on a preview (M8). Only if that fails, add a Worker route for `/media/audio/*` that answers with 206 (a §9.2 and §18.2 change; each play then costs Worker requests).
 
 ### 9.3 Handout and transcript
 
-- The handout is optional per video; its format (PDF, web page or both) is still open (§21). For now it is a download link to a PDF in `media/pdf/`. The team supplies handouts; they are not generated.
-- The transcript is rendered as HTML under the video, in a `<details>` element labelled "Read transcript", with a "Print transcript" link. Opening it logs a `transcript_open` event.
+- **Every video has a handout.** Its format is still open (§21): PDF, Word or a web page. Until it is decided, `handout` names a PDF in `media/pdf/` and the page links to it as "Handout (PDF)". The team supplies handouts; they are not generated. What each format would change:
+  - **PDF** (today): no site work. Accessible only if exported from Word as a tagged PDF ("Best for electronic distribution and accessibility" on a Mac, document structure tags on Windows; never "Print to PDF"), checked with PAC or axesCheck, and cleaned with Word's Document Inspector. Prints as a fixed A4 page; poor on phones (no reflow) and the hardest to adapt under CC BY.
+  - **Word (`.docx`)**: the easiest to adapt. The validator would accept `.docx` and the folder and labels would become format-neutral. Layout shifts with fonts and paper size, many Android phones need an app to open it, and there are no W3C techniques for checking it; Document Inspector before publishing.
+  - **Web page**: the most accessible and the best on phones; readers can still print it or save it as PDF. The most site work: a `content/handouts/<video_id>.md` collection with its own URLs, print CSS for one A4 page, a "Print handout" button like "Print transcript", validator rules and tests. The team would supply text (Word is fine) rather than finished files.
+- Clicking a handout link logs `handout_open` with the video's `video_id` (§9.4, §10.2), so neither the event nor its detail depends on the format: a web-page handout would have no file name.
+- **Every video has a transcript** (§21): word for word, naming the speakers and noting sounds and pauses that matter. It is the text alternative for the audio-only version (WCAG 2.2 SC 1.2.1, Level A) and the source of the captions (§9.1). "Read transcript" is hidden when a video has none (placeholders); the build warns about a real video without one, and the launch check fails (§7.1).
+- The transcript is rendered as HTML under the video, in a `<details>` element labelled "Read transcript", with a "Print transcript" button that prints just that transcript. Printing needs JavaScript, so the button appears only with it. Opening the transcript logs a `transcript_open` event.
 
 ### 9.4 Media tracking (`src/js/players.js`)
 
@@ -308,7 +330,8 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
   - If the page is hidden and shown again and the item later reaches a higher point, send one more event with the new value. Analysis takes the highest value per session, page and item.
   - A play is lost if the tab is killed without being hidden first, which is rare.
 - Video: poll `getCurrentTime()` / `getDuration()` every 5 seconds while the state is PLAYING. Audio: use the `timeupdate` event.
-- Log `pdf_download` when a handout link is clicked (whether the browser opens or downloads it).
+- Log `handout_open` when a handout link (marked `data-handout`, holding the video's `video_id`) is clicked, whether the browser opens or downloads it.
+- Until M3 nothing is sent: `players.js` keeps these values and only dispatches a `sleepsteps:event` DOM event (`{ type, detail }` in the §10.2 shapes), which M3's `events.js` listens for and sends.
 
 ## 10. Analytics events
 
@@ -329,7 +352,7 @@ Add a test file `test/search-queries.test.js` with real example queries and thei
 | `search` | `search` | `{ "q": string ≤100, "results": int }`. Sent **without** `session_id` (§10.1) |
 | `video_play` | page_id | `{ "media": video_id, "furthest": 0\|25\|50\|75\|100 }` (§9.4) |
 | `audio_play` | page_id | `{ "media": filename, "furthest": 0\|25\|50\|75\|100 }` (§9.4) |
-| `pdf_download` | page_id | `{ "media": filename }` |
+| `handout_open` | page_id | `{ "media": video_id }`: which video's handout, whatever its format (§9.3) |
 | `transcript_open` | page_id | `{ "media": video_id }`: which video's transcript, since problem pages hold several videos |
 
 ## 11. Feature switches and failure handling
@@ -485,8 +508,8 @@ Names and lifetimes for YouTube and Turnstile come from vendor documentation and
   style-src 'self';
   base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   ```
-- **Links to other sites** load nothing, so the CSP doesn't cover them. They are kept deliberate instead: a build test allows `<a href>` only to hosts on its allowlist (`www.youtube.com` for "Watch on YouTube", §9.1, and YouTube's Terms of Service on /privacy/, §15.2; `policies.google.com` for Google's privacy policy, §15.2), over `https`, with `rel="noreferrer"` so the other site isn't told the visitor came from SleepSteps. Every other attribute that loads something (`src`, `srcset`, `poster`, `<link href>`, `action`, …) must be same-origin.
-- `Referrer-Policy: strict-origin-when-cross-origin`
+- **Links to other sites** load nothing, so the CSP doesn't cover them. They are kept deliberate instead: a build test allows `<a href>` only to hosts on its allowlist (`www.youtube.com` for "Watch on YouTube", §9.1, and YouTube's Terms of Service on /privacy/, §15.2; `policies.google.com` for Google's privacy policy, §15.2; `creativecommons.org` for the content licence in the footer, §22), over `https`, with `rel="noreferrer"` so the other site isn't told the visitor came from SleepSteps. Every other attribute that loads something (`src`, `srcset`, `poster`, `<link href>`, `action`, …) must be same-origin.
+- `Referrer-Policy: strict-origin-when-cross-origin` (YouTube's recommended value; embedded videos don't play without a `Referer`, §9.1)
 - `X-Content-Type-Options: nosniff`
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
@@ -556,9 +579,9 @@ If limits become a problem, upgrade to Workers Paid (US$5/month): no daily cut-o
 
 | Script | Does |
 |---|---|
-| `npm run build` | `validate-content` → `build-data` → Eleventy → `dist/` |
+| `npm run build` | `validate-content` → Eleventy → `dist/` (`build-data` joins between them in M2). Eleventy also runs the content check before every build, so `npm run dev` rebuilds and the tests' build fail on invalid content too. `node scripts/validate-content.js --no-placeholders` (the launch check) also fails on placeholder videos and on any video without a handout, audio or a transcript (§7.1, M8) |
 | `npm run dev` | Eleventy watch + `wrangler dev` (local D1) |
-| `npm test` | Vitest, two projects: `worker` (Worker routes and validation, in workerd via `@cloudflare/vitest-plugin`) and `node` (build scripts, CSV parsing, search queries, and checks on a fresh build of the site in a temporary directory) |
+| `npm test` | Vitest, two projects: `worker` (Worker routes and validation, in workerd via `@cloudflare/vitest-plugin`) and `node` (build scripts, CSV parsing, search queries, checks on a fresh build of the site in a temporary directory, and the browser modules run on that build in a small test DOM) |
 | `npm run db:migrate:local` / `db:migrate:remote` | Apply migrations |
 
 ### 18.2 `wrangler.jsonc` (skeleton)
@@ -626,19 +649,24 @@ Order matters: the D1 IDs must be on `main` before step 7; the domain must be ac
 
 ### 19.2 Adding a video
 
-1. Upload to YouTube (unlisted or public) with captions.
-2. Add any MP3, handout and thumbnail to `media/`.
-3. Create `content/videos/<video_id>.md` with the front matter and transcript.
+1. Upload to YouTube, on a channel that holds only SleepSteps videos (with `rel: 0` the suggestions at the end of a video come from its own channel). For each video, and in Studio's upload defaults where the setting exists:
+   - **Visibility: upload as Unlisted, then switch to Public** (Public is the working decision, to confirm, §21). An Unlisted video plays in the site's player (a Private one doesn't), so its captions can be checked on a preview link or the local dev server before anyone can find it. Switch it to Public once that check passes, or keep it Unlisted until launch (M8) if the team wants videos hidden until then.
+   - **Audience: "No, it's not made for kids".** YouTube's developer policies require embedders to turn off tracking on made-for-kids videos, which would stop the §9.4 play events. **No age restriction**: age-restricted videos don't play on other sites.
+   - **Allow embedding** on; **comments off**; no end screen or cards; category Education; video language English. Leave "Publish to subscriptions feed and notify subscribers" unticked until launch.
+   - **Licence: Standard YouTube License**, with the CC BY 4.0 statement and its exclusions in the description (the template is in `README.md`, "Uploading a video to YouTube"). `LICENSE-CONTENT.md` covers videos whose description states the licence; YouTube's own Creative Commons option covers the whole video and can't state the exclusions.
+   - **Captions:** a plain "English" track, uploaded and checked (§9.1). While the video is Unlisted, check that it has a published "English" track, not only "English (auto-generated)", and that captions show when it plays on the site.
+2. Export the audio-only MP3 from the final video (`README.md`, "Exporting the audio-only version"; §9.2) and add it, the handout and any thumbnail to `media/`.
+3. Create `content/videos/<video_id>.md` with the front matter and transcript (§7.1), or, to replace a placeholder, edit its file: put in the real `youtube_id` and `duration`, replace the bracketed stand-in transcript with the real one, and delete `placeholder: true`.
 4. Reference the `video_id` from a problem's `problem_video` or `solutions`, or from `content/start.md`.
 5. For a new problem, also create `content/problems/<slug>.md` and add a row to `keywords.csv`.
-6. Commit; the build validates everything and deploys.
+6. Commit; the build validates everything and deploys. It warns about a video that is no longer a placeholder but has no handout, audio or transcript. `node scripts/validate-content.js` runs the same check on its own.
 
 ### 19.3 End of grant
 
 1. Do a final export of all tables.
 2. Set all `features` to `false` in `site.config.json` and push.
 3. Delete or retain the D1 data per ethics approval, and update the privacy page accordingly.
-4. Archive the videos, audio, PDFs and transcripts in Zenodo or the institutional repository.
+4. Archive the videos, audio, handouts and transcripts in Zenodo or the institutional repository.
 5. Record account owners and the domain expiry date in `README.md`.
 
 ## 20. Implementation milestones
@@ -656,7 +684,7 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | M5 | Feedback | Dialog, Turnstile (using test keys locally), validation, notice text, failure handling |
 | M6 | Admin | Summary page and CSV export; requests without a valid Access JWT get 403 |
 | M7 | Hardening | Headers/CSP enforced without console errors; accessibility pass (axe, keyboard-only walkthrough); all features tested off and with API failure |
-| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved; urgent-help numbers, cancer support line and region confirmed (§21); stored items checked in browser devtools against §15.4 and no Cloudflare-injected script in the live HTML (§16.3) |
+| M8 | Launch | Human setup tasks done (§18.4); production smoke test; privacy page approved; urgent-help numbers, cancer support line and region confirmed (§21); stored items checked in browser devtools against §15.4 and no Cloudflare-injected script in the live HTML (§16.3); no placeholder videos, and a handout, audio-only version and transcript for every video (`node scripts/validate-content.js --no-placeholders` passes); every video has the visibility confirmed in §21 and a checked plain "English" caption track that shows when it plays on the site (§19.2); audio plays and seeks in Safari on an iPhone and in Chrome (§9.2); no `[bracketed]` placeholder text left on any page |
 
 ## 21. Open decisions
 
@@ -672,11 +700,14 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [ ] Copyright holder: `Behavioural Medicine Lab` is used in both licence files; confirm with the university's IP policy who owns staff-created materials
 - [ ] Whether to move to Workers Paid (US$5/month) at launch, for no daily cut-off and 30-day recovery (§17)
 - [x] Whether ratings appear on non-video pages: no, ratings are per video (§12)
-- [ ] Handout format: PDF, web page, or both
-- [ ] The one-page GP summary on Getting more help: format, content and who writes it (until then the line is `[placeholder]` text; `gp_summary` in `content/pages/help.md` turns it into a link, §22)
-- [ ] Whether audio-only versions are being made
+- [ ] Handout format: PDF, Word or web page (every video has one; what each would change is in §9.3)
+- [x] GP summary and sleep diary: none for now (2026-11-06); Getting more help has no GP summary line (§7.5)
+- [x] Audio-only versions: yes, for every video, made from the video's own soundtrack (§9.2)
+- [x] Transcripts: yes, for every video (2026-11-06), as the audio-only version's text alternative (WCAG 2.2 SC 1.2.1) and the captions' source (§9.3)
 - [ ] Urgent-help numbers and the region they apply to (the mockups assume Australia: 000, Lifeline 13 11 14) and the cancer support line
-- [ ] Whether captions are on by default (`cc_load_policy`)
+- [x] Captions on by default: yes (`cc_load_policy: 1`, §9.1)
+- [ ] YouTube videos public or unlisted: working decision Public (2026-11-06), to be confirmed before the first video is switched to Public; videos are uploaded as Unlisted until then (§19.2)
+- [ ] Ads on the videos: YouTube may show ads on any video, public or unlisted, with no opt-out unless the channel joins the YouTube Partner Program and turns ads off per video (in the privacy-enhanced player they are not personalised). The team will explore the Partner Program (2026-11-06), but joining needs 1,000 subscribers and 4,000 watch hours of public long-form videos in the last 12 months, so a new channel is unlikely to qualify by launch. Whether the team and the HREC accept ads until then, and whether the privacy page or the video notice should say so
 - [ ] Team review of each problem's area and time-of-day placement, related topics and keywords
 - [x] Horizontal logo lockup: none; where the stacked logo doesn't fit, the header drops it for a text home link (§7.5)
 
@@ -726,3 +757,28 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | 2026-11-05 | A "Turn off usage statistics" switch on the privacy page (§10.1) | Meets the objection condition in PECR Sch A1 para 5 for consent-free statistics (the "sole purpose" wording is pending the privacy officer, §21); lets anyone opt out |
 | 2026-11-05 | Search events are stored without `session_id`, with `ts` rounded down to the hour (§10.1, §10.2, §14.1, §14.2) | Search text is the data most likely to hold health details; storing it without the visit code, with its time rounded to the hour, makes it hard to link to the rest of a visit. No migration: the column is nullable |
 | 2026-11-05 | Keep the YouTube IFrame Player API, with a notice under each video before play (§9.1, §15.1) | Play depth needs the API, which sets YouTube cookies after play; the notice makes pressing play an informed choice (ICO "feature-led consent"; EU two-click practice) |
+| 2026-11-06 | Placeholder content builds and is flagged: `[bracketed]` text, and videos with `placeholder: true` and `youtube_id: "PLACEHOLDER"` that show "[Video coming soon]" with no link (the §15.1 notice still shows under them); the build warns about them and M8 requires none (§7, §9.1, §20) | The team can review real layouts before the videos exist; sample content never carries a real third-party video ID, and nothing contacts YouTube from a placeholder |
+| 2026-11-06 | More content checks: each video once per page, `youtube_id` and `duration` formats, plain-Markdown transcripts (no headings or HTML), bare media file names, unknown fields, at most 3 related topics and none the problem itself, at most 4 bullets; front matter read with Eleventy's own parser; the check also runs inside every Eleventy build (§7.1–§7.3, §18.1) | Each catches a mistake that would otherwise render wrongly or silently drop content: duplicate ids, a broken heading outline, CSP-breaking HTML, a misspelt field |
+| 2026-11-06 | `playerVars` gain `autoplay: 1`, which only takes effect because the player is created after the click; focus moves to the player; a failed load shows "The video couldn't load here." with the YouTube link (§9.1) | One press plays the chosen video; keyboard and screen-reader users land in the player; no dead button |
+| 2026-11-06 | A video's title is a visible plate on the facade only where no nearby heading names it (a problem's own video); elsewhere it is the play control's accessible name (§9.1) | §9.1 lists the title in the facade; repeating a heading on the frame adds clutter |
+| 2026-11-06 | "Read transcript" and "Audio only" are native `<details>` that JavaScript doesn't replace; "Read transcript" sits on its own line under the handout and audio buttons; "Print transcript" is a button that only JavaScript shows (§7.5, §9.3) | Works without JavaScript; a native summary can't share a row with other buttons and open its panel below the whole row; printing one transcript needs `window.print()` |
+| 2026-11-06 | `scripts` front matter loads page modules, as `styles` does for stylesheets; shared component styles are in `src/css/components.css` (§7.4, §7.5) | Video JavaScript loads only on pages with videos (§11); pages built in parallel don't edit one stylesheet |
+| 2026-11-06 | The footer's bottom row states the content licence, linking to CC BY 4.0; `creativecommons.org` joins the outbound-link allowlist (§16.1) | CC BY needs a licence notice where the content is published |
+| 2026-11-06 | Phone section headings use the 24px title size, not the boards' 26px (§7.5) | No new type token for one board value |
+| 2026-11-06 | Solution cards are native `<details name="solution">` that `solutions.js` upgrades to `<h3><button aria-expanded>` with a labelled region, one open at a time across both sections; they start closed (the boards open the first); on phones focus stays on the card's button instead of moving to the heading (HANDOFF §6.4) (§7.5) | Works without JavaScript; one video facade and notice on the first screen instead of two; the heading the handoff focuses isn't shown on phones |
+| 2026-11-06 | Sleep problems: areas are headings that `problems.js` upgrades to buttons; the filter, view toggle, "Open all areas" and the lanes appear only with JavaScript; commas or semicolons separate alternatives; when nothing matches every topic stays in view; the filter is labelled "Find a sleep problem on this page" (§7.2, §7.5, §8.1) | No dead or unexplained controls and no link listed twice without JavaScript; the header's site search is already "Search sleep problems" and leaves the page |
+| 2026-11-06 | The play control is described by the video notice (`aria-describedby`); focus moves to the player only if it hasn't moved elsewhere while loading (§9.1) | Keyboard and screen-reader users meet the notice before pressing play, which keeps pressing play an informed choice; no focus pulled back after a slow load |
+| 2026-11-06 | Phone layouts keep content the phone boards drop ("Is this you?" in full, Related topics' lines, Home's area descriptions, step links and format tiles), stack the formats one per line, and use the 34px phone H1 on Home; the first "On this page" chip is filled and the chips wrap (§7.5) | Nothing lost at 320px or 400% zoom (WCAG 1.4.10); native disclosures need the full width to open; one phone H1 size; no sideways scrolling |
+| 2026-11-06 | Transcripts may not contain images or links to other sites; links on a `panel` ground are `ink`; layouts can declare `styles` and `scripts` in their own front matter (§7.1, §7.4, §7.5) | An image or outside link would break the CSP or skip the outbound-link allowlist and `noreferrer`; `deep-teal` on `panel` is not a listed pair; page assets stay with the layout that needs them |
+| 2026-11-06 | The browser modules are tested in a small DOM written for the tests (`test/node/mini-dom.js`), not a DOM package (§5, §18.1) | The privacy-critical player behaviour (nothing loads before the click; the nocookie host and player settings) and the accordion and filter behaviour need running, not text matching; no new dependency |
+| 2026-11-06 | Every video has a handout; its format (PDF, Word or web page) is still open, and until it is decided handouts are PDFs in `media/pdf/` (§7.1, §9.3, §21) | Project lead's decision, 2026-11-06. Supersedes the handout part of the 2026-11-05 "optional per video" row |
+| 2026-11-06 | Every video has an audio-only version: its own soundtrack exported as a mono 44.1 kHz 96 kbps MP3, loudness-normalised to −16 LUFS (`dual_mono`) with a −1.5 dBTP true-peak ceiling before encoding so the MP3 measures at or below −1 dBTP, metadata stripped and ID3 tags added; the export commands are in `README.md`; the per-file limit is now about 36 minutes (§9.2, §19.2) | Project lead's decision, 2026-11-06 (supersedes the audio part of the 2026-11-05 "optional per video" row). 96 kbps instead of 64 because the soundtrack may carry music, at about 1.2 MB more per 5 minutes; −16 LUFS matches podcast apps, so the audio plays at a familiar level |
+| 2026-11-06 | Captions on by default: `playerVars` gain `cc_load_policy: 1` and `cc_lang_pref: 'en'`; captions are uploaded as a plain "English" track and checked by a person; the "Watch on YouTube" link stays without a caption parameter (§9.1) | Project lead's decision, 2026-11-06. YouTube doesn't document whether auto-generated captions show with `cc_load_policy`, and the watch page has no documented caption parameter |
+| 2026-11-06 | YouTube videos are public (working decision, to be confirmed), on a SleepSteps-only channel: uploaded as Unlisted and switched to Public once their captions are checked on the site (M8 checks every video), not made for kids, no age restriction, embedding allowed, comments off, Standard YouTube License with the CC BY 4.0 statement in the description (§19.2, §20, §21) | Project lead's working decision, 2026-11-06. A video uploaded straight to Public can't have its captions checked on the site before anyone can find it, and a Private one doesn't play there. Made-for-kids videos would require turning off play tracking; age-restricted videos don't embed; YouTube's Creative Commons option can't express `LICENSE-CONTENT.md`'s exclusions; with `rel: 0` end suggestions come from the same channel |
+| 2026-11-06 | No GP summary or sleep diary for now: the Info-Help board's GP summary line and the `gp_summary` front matter are removed, and the "What to bring" placeholder no longer mentions a SleepSteps diary (§7.5, §21). Supersedes the 2026-11-05 GP summary row | Project lead's decision, 2026-11-06; git history keeps the `gp_summary` code if the summary returns |
+| 2026-11-06 | The `pdf_download` event is renamed `handout_open` and its detail becomes `{ media: video_id }` instead of the file name; the handout link's `data-pdf` hook becomes `data-handout`, holding the `video_id` (§9.3, §9.4, §10.2) | Neither the name nor the detail depends on the handout format (a web-page handout has no file name), and the Worker can check the `video_id` against `pages.json` as it does for `transcript_open`. No events have been collected and the Worker's closed list (M3) isn't built, so nothing else changes |
+| 2026-11-06 | Launch check: the build warns (`missing-handout`, `missing-audio`) about a video that is not a placeholder and has no handout or audio, and `--no-placeholders` fails on any video without them; placeholders are not warned about twice; transcripts stay optional (§7.1, §18.1, §20 M8) | Every video is to have both by launch; keeping placeholders out of the warnings keeps the normal build output readable |
+| 2026-11-06 | Home names the audio-only version and promises no transcript for every video: the board's "Watch, read or print" panel becomes "Watch, listen, read or print" (the hero line too) and gains an "Audio" tile after Video, in the heading's order; the panel's line and step 3 no longer mention transcripts; the tiles go one, two or four to a row, by the width of their list (four from 636px, the board's 150px tiles and 12px gaps) (§7.5) | Every video has an audio-only version; transcripts are optional; four tiles in a 150px-minimum grid would otherwise leave one tile alone on a row |
+| 2026-11-06 | Audio play and seek are checked on a real iPhone and in Chrome before launch, and a range-serving Worker route is added only if that fails (§9.2, §20 M8) | Workers static assets answer `Range` requests with the whole file (documented November 2026); a single report says Safari still plays MP3s that way, and a Worker route would cost Worker requests on every play |
+| 2026-11-06 | Every video has a transcript by launch, superseding the "transcripts stay optional" parts of the 2026-11-05 optional-formats row and the 2026-11-06 launch-check and Home rows: the build warns (`missing-transcript`) about a real video whose body is empty or only whitespace, and `--no-placeholders` fails on it; a real video whose transcript is still a placeholder's [bracketed] stand-in, or any transcript with an HTML comment, fails the build; Home's formats line and step 3 name the transcript again (§7, §7.1, §7.5, §9.2, §9.3, §18.1, §19.2, §20 M8, §21) | Project lead, 2026-11-06. WCAG 2.2 SC 1.2.1 (Level A) asks for a text alternative to the audio-only versions, and the captions are made from the transcript anyway |
+| 2026-11-06 | The YouTube channel holds only SleepSteps videos (confirmed); the team will explore the YouTube Partner Program to turn ads off, which stays an open item (§19.2, §21) | Project lead, 2026-11-06. With `rel: 0` end suggestions come from the same channel. Only Partner Program members can turn ads off per video, and joining needs 1,000 subscribers and 4,000 public watch hours in 12 months |

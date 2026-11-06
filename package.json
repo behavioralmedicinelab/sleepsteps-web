@@ -9,8 +9,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "eleventy",
-    "predev": "eleventy",
+    "build": "node scripts/validate-content.js && eleventy",
+    "predev": "npm run build",
     "dev": "eleventy --watch --quiet & wrangler dev",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,5 +22,10 @@
     "@cloudflare/vitest-plugin": "1.4.8",
     "vitest": "4.1.12",
     "wrangler": "4.153.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261023.1": true,
+    "fsevents@2.3.3": true
   }
 }

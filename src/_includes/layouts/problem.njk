@@ -1,26 +1,118 @@
 ---
 layout: layouts/topics.njk
+# Page assets. Eleventy merges these lists with the directory data
+# (content/problems/problems.11tydata.js, which loads players.js).
+styles:
+  - pages/problem.css
+scripts:
+  - solutions.js
 ---
 {#-
-  Problem page (M1a stub; HANDOFF §6.4, board Problem-A.dc.html):
-  breadcrumb, H1 short title and the first-person statement. The problem
-  video, solutions and related topics arrive in M1b.
+  Problem page (HANDOFF §6.4, design A; boards Problem-A.dc.html and
+  Problem-Phone.dc.html; SPEC §7.2, §9, §12, §15.1). One DOM for every
+  width: below 600px CSS shows the back link and the "On this page" chips
+  instead of the breadcrumb, runs the problem video full-bleed and shows the
+  solution cards as an accordion (src/css/pages/problem.css).
 
-  Front matter: see SPEC §7.2 (title, statement, area, ...).
+  Order: breadcrumb, H1, the first-person line; the problem block (the
+  problem video with its notice and formats, and "Is this you?"); Main
+  solutions; "Other things that can help" (only when there are extras);
+  Related topics (only when there are some); "Back to all sleep problems".
+  Heading outline: h1, then h2 for "Is this you?", each solutions section and
+  Related topics, then h3 per solution.
+
+  Front matter: SPEC §7.2 (title, statement, area, problem_video,
+  is_this_you, solutions, related). The problem file's body isn't shown.
+
+  Ratings (M4, SPEC §12) have slots under each video and in each closed card;
+  they render nothing until then. There is no per-video feedback (SPEC §13):
+  the footer's "Send feedback" is the only route.
 -#}
+{%- from "partials/icons.njk" import icon -%}
+{%- from "partials/video.njk" import videoEmbed -%}
+{%- from "partials/formats.njk" import formatLinks -%}
+{%- from "partials/rating.njk" import rating -%}
+{%- from "problem/solutions.njk" import solutionsSection -%}
 {%- set problemArea = areas | areaById(area) -%}
+{%- set problemVideo = problem_video | videoById(collections.videos) -%}
+{%- set tiers = solutions | solutionsByTier(collections.videos) -%}
+{%- set ratingsOn = site.features.ratings -%}
+{%- set mainCount = tiers.main.length -%}
+{%- set extraCount = tiers.extra.length -%}
+{%- set thisIsYou = is_this_you or {} -%}
+{%- set bullets = thisIsYou.bullets or [] -%}
 <div class="problem">
-  <nav class="breadcrumb" aria-label="Breadcrumb">
-    <ol role="list">
-      <li><a href="/problems/">Sleep problems</a></li>
-      <li><span class="breadcrumb__sep" aria-hidden="true">›</span><a href="/problems/#{{ area }}">{{ problemArea.name }}</a></li>
-      <li><span class="breadcrumb__sep" aria-hidden="true">›</span><span aria-current="page">{{ title }}</span></li>
-    </ol>
-  </nav>
-  <div class="problem__head">
-    <h1 class="problem__title">{{ title }}</h1>
-    <p class="problem__statement">“{{ statement | sentence }}”</p>
+  <div class="problem__top">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol role="list">
+        <li><a href="/problems/">Sleep problems</a></li>
+        <li><span class="breadcrumb__sep" aria-hidden="true">›</span><a href="/problems/#{{ area }}">{{ problemArea.name }}</a></li>
+        <li><span class="breadcrumb__sep" aria-hidden="true">›</span><span aria-current="page">{{ title }}</span></li>
+      </ol>
+    </nav>
+    <a class="problem__back" href="/problems/#{{ area }}">{{ icon('chevron-left', 16) }}<span class="visually-hidden">Back to </span>{{ problemArea.name }}</a>
+    <div class="problem__head">
+      <h1 class="problem__title">{{ title }}</h1>
+      <p class="problem__statement">“{{ statement | sentence }}”</p>
+    </div>
+    <nav class="on-this-page" aria-label="On this page">
+      <ul role="list">
+        <li><a class="on-this-page__lead" href="#about-this">About this</a></li>
+        <li><a href="#main-solutions">{{ mainCount }} main solution{{ 's' if mainCount != 1 }}</a></li>
+        {%- if extraCount %}
+        <li><a href="#more-solutions">{{ extraCount }} more<span class="visually-hidden"> solution{{ 's' if extraCount != 1 }}</span></a></li>
+        {%- endif %}
+      </ul>
+    </nav>
+    <div class="problem-block" id="about-this">
+      <div class="problem-block__video">
+        {{ videoEmbed(problemVideo, showTitle=true, bleed='page', arc=true) }}
+        {#- M4: the SPEC §12 ratings widget renders here (nothing until then). #}
+        {%- if ratingsOn %}{{ rating(problemVideo, page_id, 'row') }}{% endif %}
+        {{ formatLinks(problemVideo) }}
+      </div>
+      {%- if thisIsYou.summary or bullets.length %}
+      <div class="is-this-you panel panel--wash">
+        <h2 class="is-this-you__title" id="is-this-you-title">Is this you?</h2>
+        {%- if thisIsYou.summary %}
+        <p class="is-this-you__summary">{{ thisIsYou.summary }}</p>
+        {%- endif %}
+        {%- if bullets.length %}
+        <p class="is-this-you__lead">This topic may help if you:</p>
+        <ul class="is-this-you__list">
+          {%- for bullet in bullets %}
+          <li>{{ bullet }}</li>
+          {%- endfor %}
+        </ul>
+        {%- endif %}
+        {%- if related and related.length %}
+        {%- set nextTopic = related[0] | problemBySlug(collections.problems) %}
+        <p class="is-this-you__next">Not quite? Try <a href="{{ nextTopic.url }}">{{ nextTopic.title }}</a>.</p>
+        {%- endif %}
+      </div>
+      {%- endif %}
+    </div>
   </div>
-  <p class="placeholder">[Problem video, solutions and related topics arrive in milestone M1b]</p>
-  {{ content | safe }}
+
+  {{ solutionsSection('main', tiers.main, page_id, ratingsOn) }}
+
+  {%- if extraCount %}
+
+  {{ solutionsSection('extra', tiers.extra, page_id, ratingsOn) }}
+  {%- endif %}
+
+  <div class="problem__end">
+    {%- if related and related.length %}
+    <section class="related" aria-labelledby="related-title">
+      <h2 class="related__title" id="related-title">Related topics</h2>
+      <ul class="related__list" role="list">
+        {%- for slug in related %}
+        {%- set topic = slug | problemBySlug(collections.problems) %}
+        <li><a class="topic-card" href="{{ topic.url }}"><span class="topic-card__title">{{ topic.title }}</span> <span class="topic-card__statement">{{ topic.statement }}</span></a></li>
+        {%- endfor %}
+      </ul>
+    </section>
+    {%- endif %}
+    <p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>
+  </div>
 </div>
