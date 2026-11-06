@@ -9,14 +9,21 @@
   Secondary text is paper rather than the board's on-teal-muted: tokens.json
   lists on-teal-muted only on deep-teal and night-teal, not on ink.
 
-  The bottom row states the content licence (SPEC §22; LICENSE-CONTENT.md).
+  The wording is in `footer` in site.config.json (SPEC §11): the tagline, the
+  Acknowledgement of Country, the trial registration and ethics approval
+  numbers, and what the content licence excludes. An empty acknowledgement,
+  registration or ethics value is left out. The bottom row states the content licence
+  (SPEC §22; LICENSE-CONTENT.md): "Content is licensed under CC BY 4.0" and
+  its link stay here, with rel="noreferrer" (SPEC §16.1), and the
+  exclusions follow after a comma; the template adds the full stop.
 -#}
+{%- set f = site.footer -%}
 <footer class="site-footer">
   <div class="site-footer__inner container">
     <div class="site-footer__top">
       <div class="site-footer__about">
         <p class="site-footer__name">{{ site.siteName }}</p>
-        <p class="site-footer__tagline">Short videos and practical ideas for sleep during and after cancer. This program does not replace care from your treating team.</p>
+        <p class="site-footer__tagline">{{ f.tagline }}</p>
       </div>
       <nav class="site-footer__col" aria-label="Footer">
         <ul role="list">
@@ -42,9 +49,13 @@
       </nav>
     </div>
     <div class="site-footer__meta">
-      <p>[Acknowledgement of Country]</p>
-      <p>[Trial registration number] <span aria-hidden="true">·</span> [Ethics approval number]</p>
-      <p class="site-footer__licence">Content is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer">CC BY 4.0</a>, except our name and logo and third-party material.</p>
+      {%- if f.acknowledgement %}
+      <p>{{ f.acknowledgement }}</p>
+      {%- endif %}
+      {%- if f.trialRegistration or f.ethicsApproval %}
+      <p>{{ f.trialRegistration }}{% if f.trialRegistration and f.ethicsApproval %} <span aria-hidden="true">·</span> {% endif %}{{ f.ethicsApproval }}</p>
+      {%- endif %}
+      <p class="site-footer__licence">Content is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer">CC BY 4.0</a>{% if f.licenceExceptions %}, {{ f.licenceExceptions }}{% endif %}.</p>
     </div>
   </div>
 </footer>
