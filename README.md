@@ -6,7 +6,7 @@ Website for a clinical trial of a stepped-care sleep intervention. It is a stati
 
 ## Quick start
 
-Requires Node 22.12 or later (current LTS recommended).
+Requires Node 22.12 or later. Cloudflare builds with the Node version in `.node-version` (24.22.1) and the npm version in `package.json`'s `packageManager`.
 
 ```sh
 npm install
@@ -138,6 +138,15 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 ## Tests
 
 `npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them.
+
+## Deployment
+
+Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
+
+- **Merging to `main`** runs `npm test && npm run build` and deploys production. Until launch, production is at `sleepsteps.behavioural-medicine-lab.workers.dev`, marked `noindex` so search engines leave it out.
+- **Other branches** each get a preview at `<branch>-sleepsteps.behavioural-medicine-lab.workers.dev`. All previews share one database, `sleepsteps-preview`, separate from production's, for test data only.
+- **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21).
+- **Database changes** are new files in `migrations/`. `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`).
 
 ## Licence
 

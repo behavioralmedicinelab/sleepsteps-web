@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Only for applying D1 migrations to the preview database:
+  //   npm run db:migrate:preview   (remote: a human-only task, SPEC §18.4)
+  // `wrangler d1` commands read only top-level d1_databases, never the
+  // `previews` block in wrangler.jsonc, so the preview database is declared
+  // here with the same name and ID as there (SPEC §17, §18.2).
+  // https://developers.cloudflare.com/workers/previews/resources/
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sleepsteps-preview",
+      "database_id": "38b5ff0a-4518-4aa0-b884-c93546b9ee56",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

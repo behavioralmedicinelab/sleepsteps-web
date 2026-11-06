@@ -27,6 +27,29 @@ describe('Worker router (M0 scaffold)', () => {
     expect(seen).toEqual(['/apix', '/administrator/', '/videos/api/']);
   });
 
+  // Keep this test when the API routes arrive (M3-M5): with collection off,
+  // no API route may answer, whatever the request (SPEC §11).
+  it.each([
+    ['off', { DATA_COLLECTION: 'off' }],
+    ['missing', {}],
+    ['"On"', { DATA_COLLECTION: 'On' }],
+    ['"true"', { DATA_COLLECTION: 'true' }],
+  ])('answers no API route while DATA_COLLECTION is %s', async (_, vars) => {
+    const env = { ...vars, ASSETS: { fetch: () => new Response('asset') } };
+    for (const path of ['/api/event', '/api/rate', '/api/feedback', '/api/']) {
+      const res = await worker.fetch(
+        new Request(`https://example.com${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: 'https://example.com' },
+          body: '{}',
+        }),
+        env,
+        createExecutionContext(),
+      );
+      expect(res.status, path).toBe(404);
+    }
+  });
+
   it('passes non-API requests through to static assets', async () => {
     const env = { ASSETS: { fetch: () => new Response('from assets', { status: 200 }) } };
     const res = await worker.fetch(

@@ -379,6 +379,7 @@ The Getting urgent help page renders one card per `crisisContacts` entry, in ord
 
 - **Build time:** templates render a widget only if its feature is on. Its JS is loaded only if needed.
 - **Worker:** imports the same file. A disabled feature's route returns `404`. Turning features off is therefore one config edit plus a push.
+- **Environment:** the API also stores nothing unless the environment allows data collection: the Worker var `DATA_COLLECTION` in `wrangler.jsonc` must be exactly `"on"`; missing or any other value means off. While it is off, every `/api/*` route returns `404`, as for a disabled feature (a Worker test guards this and must be kept when the routes arrive). It is `"off"` in production until the privacy officer's go-ahead (§18.3), and `"off"` in previews until they are behind Cloudflare Access (§21): preview URLs are public, Workers Builds posts them on pull requests in this public repo, and preview writes count against the account's D1 limits that production shares (§17). The build has no reliable way to know whether it is building production or a preview: Workers Builds documents only the branch name (`WORKERS_CI_BRANCH`), and its API keeps separate production and preview build variables (whether the dashboard does is unverified). So production pages still show any widget whose feature is on, and M3 decides whether production builds should leave them out before the go-ahead. Locally, `wrangler dev` and the tests read the top level of `wrangler.jsonc`, so collection is off there too; turn it on for a local run with `npm run dev -- --var DATA_COLLECTION:on`. Never put `DATA_COLLECTION` in `.dev.vars`, which the Worker tests also read.
 - **Runtime failure:** `src/js/api.js` wraps `fetch` with a 5-second timeout and no automatic retries. On failure, the widget shows a short inline message ("Couldn't send right now — please try again later") and the rest of the page is unaffected. Event logging fails silently.
 - No widget may cause layout shift or block rendering while waiting for the API.
 
@@ -407,7 +408,7 @@ The Getting urgent help page renders one card per `crisisContacts` entry, in ord
 
 - Only `POST` with `Content-Type: application/json` or `text/plain` (the latter for sendBeacon).
 - Reject a body larger than 4 KB with `413`.
-- Require the `Origin` header to match `siteUrl` or a configured preview origin; otherwise return `403`. No CORS headers are needed (same origin).
+- Require the `Origin` header to match `siteUrl` or a configured preview origin; otherwise return `403`. No CORS headers are needed (same origin). The preview origin is configured only in `previews.vars`, never for production: production's version URLs (§18.2) have the same host shape as preview URLs but run on the production database.
 - Timestamps are generated server-side as ISO 8601 UTC. Client timestamps are never trusted. For `search` events the Worker rounds `ts` down to the hour (§10.1).
 - Validate `page_id` against `worker/generated/pages.json` (plus the fixed IDs `home` and `search`). Store titles from `pages.json`, never from the client.
 - **Never store or log** IP addresses, user agents, `CF-Connecting-IP`, or feedback/search text in `console.log` (Workers Logs).
@@ -498,6 +499,7 @@ Names and lifetimes for YouTube and Turnstile come from vendor documentation and
 
 ### 16.1 HTTP headers (`_headers` file for static assets; the Worker sets them on its own responses)
 
+- **The `_headers` file** is `src/_headers`, copied to `dist/_headers` by the build. Wrangler reads it as configuration and never serves it, but doesn't parse it on deploy, so a bad line may be dropped without warning. `test/node/deploy-config.test.js` therefore parses it as Cloudflare does (a port of the parser Wrangler bundles) and fails on any line that would be dropped: more than 100 rules, lines over 2,000 characters, URLs that aren't relative or `https`, ports, more than one `*`, malformed headers. Its rules apply to static-asset responses, including the 404 page (seen in local `wrangler dev`; the docs don't say), but not to responses the Worker builds itself. Until M7 adds the headers below, it holds only `X-Robots-Tag: noindex`, for `https://:version.:subdomain.workers.dev/*` (production on `workers.dev` before launch, and always the preview and version URLs there, so it stays after launch; it can't match the custom domain, §18.3) and for `/404` (the 404 page is also served at that path, with a 200). The test also fails on any other rule that would mark pages noindex on every host.
 - `Content-Security-Policy`: start from the policy below. Deploy as `Content-Security-Policy-Report-Only` first, fix any violations shown in the browser console, then enforce.
   ```
   default-src 'self';
@@ -533,7 +535,7 @@ These apply to the custom domain only, never to `workers.dev` or preview URLs.
 
 ## 17. Database
 
-Created with `wrangler d1 create sleep-site --location=oc`. The location hint affects placement only and is not a data-residency guarantee.
+Production uses `sleepsteps` (`7da77651-1695-4331-8708-114382f04757`) and Worker Previews use `sleepsteps-preview` (`38b5ff0a-4518-4aa0-b884-c93546b9ee56`) (§18.2), both created on 2026-11-06 with `wrangler d1 create <name> --location=oc`. A test pins both IDs, so they can't be swapped. The location hint affects placement only and is not a data-residency guarantee. All previews share `sleepsteps-preview`, which holds test data only: it is never exported or analysed, and is emptied when no longer needed. Its writes count against the same account limits as production's (below).
 
 `migrations/0001_init.sql`:
 
@@ -567,7 +569,7 @@ CREATE INDEX idx_events_type_ts ON events(type, ts);
 
 One secondary index per table: every insert writes 2 rows (the row plus one index entry). Admin queries filter events by `type IN (...)` and a `ts` window so they use `idx_events_type_ts`, and ratings and feedback by a `ts` window (§14.4).
 
-Schema changes go through new migration files only (`wrangler d1 migrations create`, then `apply --local` before `apply --remote`). Never edit an applied migration.
+Schema changes go through new migration files only (`wrangler d1 migrations create`, then `apply --local` before `apply --remote`). Never edit an applied migration. Each migration is applied to both remote databases, both human-only tasks (§18.4): `npm run db:migrate:preview` before a preview needs it, and `npm run db:migrate:remote` just before the merge to `main`. The Worker tests start from an empty D1 of their own and apply the migrations in their setup (M3). Workers Builds doesn't apply migrations (its API token has no D1 permission). `wrangler d1` commands read only the top-level `d1_databases`, so the preview database is reached through `wrangler.preview-migrations.jsonc`, which declares just that database. D1's `--preview` flag belongs to an older feature (`preview_database_id`) and is not used.
 
 Free plan limits (Nov 2026): 100,000 rows written/day and 5 million rows read/day **per account**, and a 500 MB database. Each secondary index adds a written row, so one insert costs 2 rows (§17 schema): the real ceiling is about 50,000 events a day. Once either daily limit is hit, **every** D1 query fails until 00:00 UTC (10:00 AEST): saving, the admin page and the export. Pages and media keep working, and there is never a bill. The 500 MB cap does not reset. The free plan's point-in-time recovery covers only 7 days, so monthly CSV exports are the real backup.
 
@@ -582,41 +584,52 @@ If limits become a problem, upgrade to Workers Paid (US$5/month): no daily cut-o
 | `npm run build` | `validate-content` → Eleventy → `dist/` (`build-data` joins between them in M2). Eleventy also runs the content check before every build, so `npm run dev` rebuilds and the tests' build fail on invalid content too. `node scripts/validate-content.js --no-placeholders` (the launch check) also fails on placeholder videos and on any video without a handout, audio or a transcript (§7.1, M8) |
 | `npm run dev` | Eleventy watch + `wrangler dev` (local D1) |
 | `npm test` | Vitest, two projects: `worker` (Worker routes and validation, in workerd via `@cloudflare/vitest-plugin`) and `node` (build scripts, CSV parsing, search queries, checks on a fresh build of the site in a temporary directory, and the browser modules run on that build in a small test DOM) |
-| `npm run db:migrate:local` / `db:migrate:remote` | Apply migrations |
+| `npm run db:migrate:local` | Apply migrations to the local database that `wrangler dev` uses (the tests apply them to their own, §17) |
+| `npm run db:migrate:remote` / `db:migrate:preview` | Apply migrations to the production database / the preview database, through `wrangler.preview-migrations.jsonc` (§17). Human-only (§18.4) |
 
 ### 18.2 `wrangler.jsonc` (skeleton)
 
 ```jsonc
 {
-  "name": "sleep-site",
+  "name": "sleepsteps",
   "main": "worker/index.js",
   "compatibility_date": "<DATE OF SETUP>",
   "assets": {
     "directory": "./dist", "binding": "ASSETS", "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*", "/admin", "/admin/*"]
+    "run_worker_first": ["/api/*", "/admin", "/admin/*"]   // added in M6
   },
+  "workers_dev": true,      // false from launch
+  "preview_urls": true,
   "d1_databases": [
-    { "binding": "DB", "database_name": "sleep-site", "database_id": "<ID>", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "sleepsteps", "database_id": "<ID>", "migrations_dir": "migrations" }
   ],
-  "vars": { "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com", "ACCESS_AUD": "<AUD_TAG>" }
+  "vars": { "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com", "ACCESS_AUD": "<AUD_TAG>", "DATA_COLLECTION": "off" },
   // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET
+  "previews": {
+    "d1_databases": [ { "binding": "DB", "database_name": "sleepsteps-preview", "database_id": "<PREVIEW ID>" } ],
+    "vars": { "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com", "ACCESS_AUD": "<AUD_TAG>", "DATA_COLLECTION": "on" }
+  }
 }
 ```
 
 - `compatibility_date` must be no later than the newest date the pinned Wrangler's bundled workerd supports; otherwise `wrangler dev` refuses to start. Raise it when upgrading Wrangler.
 - **Routing.** With this compatibility date, a browser *navigation* to a path with no matching file gets the 404 page straight from static assets, without the Worker running. Other unmatched requests (fetch, beacons, crawlers' `robots.txt`) reach the Worker, and the `ASSETS` binding lets it hand non-`/api/`, non-`/admin/` ones back to static assets. `run_worker_first` sends `/api/*` and `/admin*` to the Worker first; `/admin/` page loads need it (M6).
-- **Previews.** Worker Previews do not inherit bindings or vars. A `previews` block gives them their own `d1_databases` binding (the `sleep-site-preview` database) and vars. Preview migrations use a separate config file, and preview secrets are set with `wrangler preview base-config secret put`. The setup PR adds these before Workers Builds is connected (§18.3).
-- **At launch**, `"workers_dev": false` stops production answering on `workers.dev` (switching it off in the dashboard is undone by the next deploy), and `preview_urls` stays on.
+- **Previews.** Worker Previews (every branch but `main`, §18.3) inherit no vars or bindings from the top level, so the `previews` block repeats them: its own `DB` binding to `sleepsteps-preview` and every var (`DATA_COLLECTION` is off there too until previews are behind Access, §11). `assets`, `main` and `compatibility_date` come from the top level. `wrangler preview` refuses to run without a `previews` block. Preview secrets are set with `wrangler preview base-config secret put` and reach only previews created afterwards. Preview migrations use `wrangler.preview-migrations.jsonc` (§17). A test checks that the previews block has every production var and its own database.
+- **Locally**, `wrangler dev` and the tests use only the top level, never the `previews` block, so they act like production: `wrangler dev` uses a local copy of the `sleepsteps` database, and the tests an empty one of their own. No binding may be marked `"remote": true`, which would point them at the real database.
+- **No `account_id`.** Workers Builds supplies the account, and a mismatched `account_id` fails the build. Run Wrangler's remote commands logged in to the SleepSteps account.
+- **At launch**, `"workers_dev": false` stops production answering on `workers.dev` (switching it off in the dashboard is undone by the next deploy), and `preview_urls` stays on. It is already set explicitly, because when it is missing a new Worker copies `workers_dev`. It also turns on version URLs (`<version>-sleepsteps.<subdomain>.workers.dev`), one for every production deploy, which stay public after launch and run that version's code on production's database, outside the custom domain's rate limit (§16.3). The `_headers` noindex rule covers them (§16.1), and the API must not accept writes through them: M3 makes the production API answer only on production's own host (§20 M3). Wrangler has a single setting for preview and version URLs, so they can't be turned off separately.
 
 ### 18.3 Deployment
 
-Workers Builds is connected to the GitHub repo. Pushes to `main` build and deploy to production; other branches get preview URLs. **Previews use a separate `sleep-site-preview` database** (§18.2).
+Workers Builds is connected to the GitHub repo. Pushes to `main` build and deploy to production (`npx wrangler deploy`). Other branches build **Worker Previews** with `npx wrangler preview`, the default Preview command for a new Worker, each at `<branch>-sleepsteps.<subdomain>.workers.dev`. **Previews use the separate `sleepsteps-preview` database** and their own vars from the `previews` block (§18.2). (`npx wrangler versions upload`, the older preview model, would run branches on production's database; don't use it.)
 
-- **Build command:** `npm test && npm run build`, so a failing test stops the deploy. Deploy command `npx wrangler deploy`. Builds ignores `engines`, so the Node version is pinned in `.node-version` (Builds defaults to an older Node).
+- **The Worker must be named exactly `sleepsteps`**, the `name` in `wrangler.jsonc`. Otherwise the build fails (Cloudflare's docs), or with Wrangler 4.153.0 deploys under the dashboard's name while Builds tries to open a pull request renaming the config.
+- **Build command:** `npm test && npm run build`, so a failing test stops the deploy. It runs for preview builds too (Free plan: 3,000 build minutes a month, one build at a time, 20-minute timeout). Deploy command `npx wrangler deploy`; Preview command `npx wrangler preview`.
+- **Pinned versions.** Builds ignores `engines`, so Node is pinned exactly in `.node-version` (24.22.1, the Builds image's default and preinstalled version in November 2026) and npm in package.json's `packageManager` (`npm@11.18.0`; Builds otherwise uses npm 10.9.2, which ignores `allowScripts`). Local development may use a newer Node within `engines`. Raise the pins deliberately, after `npm ci && npm test && npm run build` passes on the new versions.
 - **The setup PR merges first.** The real D1 IDs and the `previews` block must be on `main` before Builds is connected, or the first deploy fails.
-- **Before launch the site is unlisted.** Production is public at `<worker>.<subdomain>.workers.dev` as soon as Builds deploys, and zone settings (§16.3) don't apply there. Until launch:
-  - production on `workers.dev` sends `X-Robots-Tag: noindex` (preview URLs already do);
-  - data collection (`features`) stays off in production until the privacy officer's go-ahead (§15).
+- **Before launch the site is unlisted.** Production is public at `sleepsteps.<subdomain>.workers.dev` as soon as Builds deploys, and zone settings (§16.3) don't apply there. Until launch:
+  - every `workers.dev` address sends `X-Robots-Tag: noindex`, from `_headers` (§16.1). Cloudflare's docs describe the automatic header only for preview URLs, so production on `workers.dev` relies on this rule; §18.4 step 7 checks it after the first deploy;
+  - data collection stays off in production until the privacy officer's go-ahead, and in previews until they are behind Access: `DATA_COLLECTION` is `"off"` in both (§11). Turning it on is a reviewed one-line change to `wrangler.jsonc`.
 - **At launch** the custom domain is added and `workers_dev` is turned off (§18.2).
 
 ### 18.4 Manual setup tasks (human only; Claude Code must not attempt dashboard changes)
@@ -624,15 +637,17 @@ Workers Builds is connected to the GitHub repo. Pushes to `main` build and deplo
 1. Create a Cloudflare account dedicated to this project (institutional role mailbox, app-based 2FA) and add a second Super Administrator.
 2. ~~Create a GitHub organisation and transfer the repo to it.~~ Done (`behavioralmedicinelab/sleepsteps-web`). Also: require 2FA, have two owners, and add a ruleset on `main` (pull request required, only named people can merge, since every merge deploys).
 3. Register the domain. **Interim plan: a `.org` through Cloudflare Registrar** (multi-year term, auto-renew on an institutional card); a university domain is under discussion (§21). A `.au` licence runs at most 5 years and Cloudflare Registrar doesn't sell `.au`.
-4. Run `wrangler login`, then create the production and preview D1 databases (`--location=oc`, without `--update-config`) and send Claude both IDs for the setup PR.
+4. ~~Run `wrangler login`, then create the production and preview D1 databases (`--location=oc`, without `--update-config`) and send Claude both IDs for the setup PR.~~ Done 2026-11-06: `sleepsteps` and `sleepsteps-preview`.
 5. Create a Turnstile widget (Managed mode, **Pre-clearance off**, since it sets a cookie): hostnames are the `workers.dev` address until the domain exists, then the domain. Put the site key in `site.config.json`; set the secret with `wrangler secret put TURNSTILE_SECRET`, and the preview secret to Turnstile's always-pass test value with `wrangler preview base-config secret put TURNSTILE_SECRET`.
 6. Create a Zero Trust team (Free plan), add the One-time PIN login method, and create an Access application for `<DOMAIN>/admin` **and** `<DOMAIN>/admin/*` with a policy listing named emails and a session duration of 24 hours or less; send Claude the AUD tag.
-7. Merge the setup PR, then connect Workers Builds (§18.3 settings) and turn on preview builds.
+7. Merge the setup PR, then connect Workers Builds: create the Worker from the GitHub repo with the name `sleepsteps`, production branch `main`, and the §18.3 commands. Then turn on preview builds (Settings → Build → Branch control → Enable Preview Builds). After the first deploy, check that `curl -sI https://sleepsteps.<subdomain>.workers.dev/` shows `x-robots-tag: noindex`.
 8. Apply the security settings in §16.3 once the domain is active on Cloudflare, including Web Analytics and Email Address Obfuscation **off** and Challenge Passage at 30 minutes.
 9. Add the custom domain to the Worker (Claude's launch PR sets `workers_dev: false`).
 10. Verify the domain in Google Search Console (DNS TXT record).
 
 Order matters: the D1 IDs must be on `main` before step 7; the domain must be active on Cloudflare before steps 8–9; the Access application and the Turnstile hostname must exist before step 9.
+
+Also human-only, for every migration from M3 on (§17): `npm run db:migrate:preview` when its pull request opens, and `npm run db:migrate:remote` just before it merges. Both need `wrangler login` to the SleepSteps account.
 
 ## 19. Operations
 
@@ -664,8 +679,8 @@ Order matters: the D1 IDs must be on `main` before step 7; the domain must be ac
 ### 19.3 End of grant
 
 1. Do a final export of all tables.
-2. Set all `features` to `false` in `site.config.json` and push.
-3. Delete or retain the D1 data per ethics approval, and update the privacy page accordingly.
+2. Set all `features` to `false` in `site.config.json` and `DATA_COLLECTION` to `"off"` in production and previews (`wrangler.jsonc`), and push. Turn off preview builds, and delete every remaining preview (`npx wrangler preview delete --name <preview>`): each keeps the build and vars it was made with.
+3. Delete or retain the D1 data per ethics approval, and update the privacy page accordingly. Delete the `sleepsteps-preview` database.
 4. Archive the videos, audio, handouts and transcripts in Zenodo or the institutional repository.
 5. Record account owners and the domain expiry date in `README.md`.
 
@@ -679,7 +694,7 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | M1a | Design system + site shell | Tokens as CSS custom properties; system fonts; logo; header, mobile header and menu, footer and topic menu match the handoff and work without JS; the information pages and 404 render; keyboard and 320px-width checks pass |
 | M1b | Content model + page templates | Areas, the 36 problems (placeholder text) and sample videos load; build fails on missing fields, unknown references, bad solution counts or missing media; Sleep problems page (both views, live filter, no-JS fallback); problem page with expanding solution cards for 1–3 main and 0–3 extras; video facade with the YouTube notice under it (§15.1); Start here; Home; footer licence line (§22) |
 | M2 | Search | Index built from content + keywords; search page works with fuzzy matching; query tests pass; no-JS fallback |
-| M3 | Database + events | Migration applied locally; `/api/event` validates and inserts; page views and media plays (with the furthest point reached) logged; origin check; feature switch off → 404 and no client calls; the usage-statistics switch works (§10.1); search events stored without `session_id` |
+| M3 | Database + events | Migration applied locally; `/api/event` validates and inserts; page views and media plays (with the furthest point reached) logged; origin check; feature switch off → 404 and no client calls; `DATA_COLLECTION` off → 404 (§11), and whether production builds also leave the widgets out; the production API answers only on production's own host, never on version URLs (§18.2); first migration applied to both remote databases (§17); the usage-statistics switch works (§10.1); search events stored without `session_id` |
 | M4 | Ratings | Widget accessible by keyboard and screen reader; inserts rows; failure message shown when the API is stopped |
 | M5 | Feedback | Dialog, Turnstile (using test keys locally), validation, notice text, failure handling |
 | M6 | Admin | Summary page and CSV export; requests without a valid Access JWT get 403 |
@@ -699,6 +714,7 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 - [x] Code licence: stays MIT (Creative Commons advises against CC licences for software)
 - [ ] Copyright holder: `Behavioural Medicine Lab` is used in both licence files; confirm with the university's IP policy who owns staff-created materials
 - [ ] Whether to move to Workers Paid (US$5/month) at launch, for no daily cut-off and 30-day recovery (§17)
+- [ ] Data collection in previews: to test ratings, feedback and events on previews (M3–M5), previews first go behind Cloudflare Access ("Previews only", named emails; §18.4 step 6), because preview URLs are public and appear on pull requests in the public repo. Until then `DATA_COLLECTION` stays off in previews and M3–M5 are tested locally. Access sets a `CF_Authorization` cookie for the reviewers who sign in, which §15.4 and the privacy page would need to cover
 - [x] Whether ratings appear on non-video pages: no, ratings are per video (§12)
 - [ ] Handout format: PDF, Word or web page (every video has one; what each would change is in §9.3)
 - [x] GP summary and sleep diary: none for now (2026-11-06); Getting more help has no GP summary line (§7.5)
@@ -782,3 +798,8 @@ Each milestone is a separate PR with tests passing and acceptance criteria met.
 | 2026-11-06 | Audio play and seek are checked on a real iPhone and in Chrome before launch, and a range-serving Worker route is added only if that fails (§9.2, §20 M8) | Workers static assets answer `Range` requests with the whole file (documented November 2026); a single report says Safari still plays MP3s that way, and a Worker route would cost Worker requests on every play |
 | 2026-11-06 | Every video has a transcript by launch, superseding the "transcripts stay optional" parts of the 2026-11-05 optional-formats row and the 2026-11-06 launch-check and Home rows: the build warns (`missing-transcript`) about a real video whose body is empty or only whitespace, and `--no-placeholders` fails on it; a real video whose transcript is still a placeholder's [bracketed] stand-in, or any transcript with an HTML comment, fails the build; Home's formats line and step 3 name the transcript again (§7, §7.1, §7.5, §9.2, §9.3, §18.1, §19.2, §20 M8, §21) | Project lead, 2026-11-06. WCAG 2.2 SC 1.2.1 (Level A) asks for a text alternative to the audio-only versions, and the captions are made from the transcript anyway |
 | 2026-11-06 | The YouTube channel holds only SleepSteps videos (confirmed); the team will explore the YouTube Partner Program to turn ads off, which stays an open item (§19.2, §21) | Project lead, 2026-11-06. With `rel: 0` end suggestions come from the same channel. Only Partner Program members can turn ads off per video, and joining needs 1,000 subscribers and 4,000 public watch hours in 12 months |
+| 2026-11-06 | The Worker is `sleepsteps`, with D1 databases `sleepsteps` (production) and `sleepsteps-preview` (Worker Previews), created with location hint `oc`; their IDs are in `wrangler.jsonc`, which has no `account_id` (§17, §18.2) | The owner's choice of name. Workers Builds supplies the account, and a mismatched `account_id` fails the build |
+| 2026-11-06 | Previews are Worker Previews built with `npx wrangler preview`: a `previews` block repeats the `DB` binding (to `sleepsteps-preview`) and every var; `wrangler.preview-migrations.jsonc` declares the preview database for `npm run db:migrate:preview`; `workers_dev` and `preview_urls` are set explicitly (§17, §18.1–§18.3) | Previews inherit no vars or bindings, and `wrangler preview` refuses to run without the block. `wrangler d1` commands read only the top-level databases (Cloudflare's documented pattern). Without `preview_urls`, a new Worker copies `workers_dev`, which the launch PR turns off. `versions upload` previews would run on production's database |
+| 2026-11-06 | Data collection is switched per environment by the Worker var `DATA_COLLECTION`, which must be exactly `"on"`: `"off"` in production until the privacy officer's go-ahead, and `"off"` in previews until they are behind Access (§21). While it is off every `/api/*` route returns 404, which a Worker test guards. Whether production builds also leave the widgets out is decided in M3 (§11, §18.3, §20 M3) | Production and previews have their own vars but run the same build command, and the build has no reliable production-or-preview signal (only the branch name, or build variables whose dashboard support is unverified). A runtime switch fails safe. Preview URLs are public, appear on pull requests in the public repo, and share the account's D1 limits with production, so previews collect nothing either |
+| 2026-11-06 | `noindex` before launch comes from `_headers` (`src/_headers`, copied to `dist/`): `https://:version.:subdomain.workers.dev/*` and `/404`; a test parses the file as Cloudflare does and checks that no rule could hide the custom domain; the rule stays after launch for preview and version URLs (§16.1, §18.2, §18.3) | Cloudflare's docs describe automatic noindex only for preview URLs. Setting it in the Worker would need `run_worker_first: true`, making every asset request a Worker request. The placeholder rule can't match a custom domain and survives a rename. The 404 page is also served at `/404` with a 200 |
+| 2026-11-06 | Node is pinned to 24.22.1 in `.node-version` and npm to 11.18.0 in `packageManager`, superseding the reason given in §18.3 ("Builds defaults to an older Node") (§18.3) | Builds now defaults to Node 24.22.1 (preinstalled) and npm 10.9.2; Node 26 isn't documented for Builds. Exact pins keep builds reproducible, and npm 10 ignores `allowScripts`. A clean `npm ci`, `npm test` and `npm run build` passed on Node 24.22.1 with npm 11.18.0 |
