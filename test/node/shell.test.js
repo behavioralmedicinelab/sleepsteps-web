@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, inject, it } from 'vitest';
 import { parseCsvRecords } from '../../scripts/lib/csv.js';
-import { attr, currentLinks, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
+import { attr, currentLinks, elementByClass, listFiles, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
 const site = inject('builtSite');
 const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
@@ -213,9 +213,9 @@ describe('information pages', () => {
     expect(text(pageAt(site, '/contact/'))).toContain("Emails and phone calls aren't anonymous");
   });
 
-  it('links Privacy to the YouTube privacy policy', () => {
+  it("links Privacy to Google's privacy policy", () => {
     expect(pageAt(site, '/privacy/')).toContain(
-      '<p class="link-standalone"><a href="https://policies.google.com/privacy" rel="noreferrer">YouTube privacy policy</a></p>',
+      '<p class="link-standalone"><a href="https://policies.google.com/privacy" rel="noreferrer">Google privacy policy</a></p>',
     );
   });
 
@@ -316,5 +316,60 @@ describe('other pages', () => {
   it('gives the search page a no-JavaScript route to the Sleep problems page', () => {
     const fallback = elementByClass(pageAt(site, '/search/'), 'search-fallback', 'div');
     expect(fallback).toMatch(/<a href="\/problems\/">Sleep problems<\/a>/);
+  });
+});
+
+// Device storage must be disclosed (SPEC §2, §15.4): every item in the §15.4
+// inventory appears in the privacy page's table, and any sessionStorage or
+// localStorage key used in src/js/ is named on the privacy page.
+describe('Privacy: cookies and browser storage', () => {
+  const privacyHtml = pageAt(site, '/privacy/');
+  const table = elementByClass(privacyHtml, 'storage-table', 'table');
+  const spec = readFileSync('SPEC.md', 'utf8');
+  const inventory = spec.slice(spec.indexOf('### 15.4'), spec.indexOf('## 16.'));
+
+  it('has a storage table with a caption and header cells', () => {
+    expect(table).toMatch(/<caption[^>]*>What may be stored in your browser<\/caption>/);
+    expect(tags(table, 'th').filter((t) => attr(t, 'scope') === 'col')).toHaveLength(4);
+  });
+
+  it.each(['sleepsteps-visit', 'sleepsteps-stats-off', 'cf_clearance', 'cf.turnstile.u', 'YSC', '__Secure-YNID'])(
+    'lists %s in the table and in SPEC §15.4',
+    (name) => {
+      expect(table).toContain(`<code>${name}</code>`);
+      expect(inventory).toContain(`\`${name}\``);
+    },
+  );
+
+  it('does not list the reserve-only __cf_bm cookie while Bot Fight Mode is off', () => {
+    expect(inventory).toMatch(/`__cf_bm` \*\(reserve only\)\*/);
+    expect(privacyHtml).not.toContain('__cf_bm');
+  });
+
+  it('names every storage key used in src/js/ on the privacy page', () => {
+    // Keys passed straight to a storage call, plus any quoted `sleepsteps-…`
+    // string (SleepSteps' own keys use that prefix, §15.4), which also
+    // catches keys held in constants or passed through helpers.
+    const keyPatterns = [
+      /(?:local|session)Storage\s*(?:\.\s*(?:getItem|setItem|removeItem)\(\s*|\[\s*)['"`]([^'"`]+)['"`]/g,
+      /['"`](sleepsteps-[a-z0-9-]+)['"`]/g,
+    ];
+    for (const rel of listFiles('src/js', (f) => f.endsWith('.js'))) {
+      const file = `src/js/${rel}`;
+      const source = readFileSync(file, 'utf8');
+      for (const [, key] of keyPatterns.flatMap((p) => [...source.matchAll(p)])) {
+        expect(text(privacyHtml), `${file} uses storage key "${key}"`).toContain(key);
+      }
+    }
+  });
+
+  it('no longer claims the site sets no cookies at all', () => {
+    expect(text(privacyHtml)).not.toMatch(/\bCookies, or anything else that tracks you\b/);
+    expect(text(privacyHtml)).toContain('SleepSteps itself doesn\'t set any cookies');
+  });
+
+  it('carries the YouTube API Services statement and links', () => {
+    expect(text(privacyHtml)).toContain('This site uses YouTube API Services to play videos.');
+    expect(privacyHtml).toContain('href="https://www.youtube.com/t/terms" rel="noreferrer"');
   });
 });

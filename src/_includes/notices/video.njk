@@ -1,0 +1,8 @@
+{#-
+  Notice under each video facade, shown before the visitor presses play
+  (SPEC §9.1, §15.1). It makes pressing play an informed choice about
+  YouTube's storage. Draft wording until HREC approval.
+  Optional: set `transcript_href` (e.g. "#transcript-<video_id>") before
+  including this partial to offer the transcript instead.
+-#}
+<p class="notice-text">Pressing play loads this video from YouTube (Google). YouTube may then store cookies in your browser and collect information about what you watch. <a href="/privacy/#cookies-and-browser-storage">More about this</a>{% if transcript_href %} <span aria-hidden="true">·</span> <a href="{{ transcript_href }}">Read the transcript instead</a>{% endif %}</p>
