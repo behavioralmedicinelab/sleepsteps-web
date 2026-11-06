@@ -16,9 +16,6 @@ scripts: ["players.js", "rating.js"]
 # Analytics (SPEC §10.2): this page sends a page_view. base.njk renders it as
 # <body data-page-view>, which events.js and pages.json (SPEC §8.3) read.
 track_page_view: true
-# Transcripts come from the video files, so they must be rendered first.
-eleventyImport:
-  collections: ["videos"]
 # The intro videos, in order (SPEC §7.3). Each `video` is a file name in
 # content/videos/ (without .md); its title, duration and formats come from
 # that file. The descriptions are placeholders (HANDOFF §12).

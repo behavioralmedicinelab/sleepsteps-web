@@ -37,7 +37,6 @@ const valid = {
   video_play: () => ({ type: 'video_play', page: 'pain', session_id: SESSION, detail: { media: 'settling-your-body', furthest: 50 } }),
   audio_play: () => ({ type: 'audio_play', page: 'pain', session_id: SESSION, detail: { media: 'pain-about', furthest: 100 } }),
   handout_open: () => ({ type: 'handout_open', page: 'pain', session_id: SESSION, detail: { media: 'pain-about' } }),
-  transcript_open: () => ({ type: 'transcript_open', page: 'pain', session_id: SESSION, detail: { media: 'settling-your-body' } }),
 };
 
 // What a test sent that must never reach a log line (SPEC §14.1): every
@@ -125,14 +124,13 @@ async function expectNotFound(res) {
 }
 
 describe('the closed list of events (SPEC §10.2)', () => {
-  it('has exactly the six types, each with its detail keys', () => {
+  it('has exactly the five types, each with its detail keys (no transcript_open: the site shows no transcripts, SPEC §9.3)', () => {
     expect([...SHAPES]).toEqual([
       ['page_view', []],
       ['search', ['q', 'results']],
       ['video_play', ['media', 'furthest']],
       ['audio_play', ['media', 'furthest']],
       ['handout_open', ['media']],
-      ['transcript_open', ['media']],
     ]);
     expect(Object.keys(valid)).toEqual([...SHAPES.keys()]);
   });
@@ -144,7 +142,6 @@ describe('storing each type', () => {
     ['video_play', valid.video_play(), { media: 'settling-your-body', furthest: 50 }],
     ['audio_play', valid.audio_play(), { media: 'pain-about', furthest: 100 }],
     ['handout_open', valid.handout_open(), { media: 'pain-about' }],
-    ['transcript_open', valid.transcript_open(), { media: 'settling-your-body' }],
   ])('%s: 204, and one row with the server time, the visit code and the detail', async (type, body, detail) => {
     const before = Date.now();
     const res = await send(body);
@@ -255,7 +252,9 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
   const vp = valid.video_play();
   const ap = valid.audio_play();
   const ho = valid.handout_open();
-  const to = valid.transcript_open();
+  // A transcript_open as events.js sent it before transcripts were removed (2026-11-06), with
+  // a detail that was valid then.
+  const to = { type: 'transcript_open', page: 'pain', session_id: SESSION, detail: { media: 'settling-your-body' } };
   const set = (body, key, value) => ({ ...structuredClone(body), [key]: value });
   const drop = (body, key) => {
     const copy = structuredClone(body);
@@ -283,6 +282,7 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
     ['an unknown type', set(pv, 'type', 'click'), 'type'],
     ['an uppercase type', set(pv, 'type', 'PAGE_VIEW'), 'type'],
     ['the old pdf_download type', set(ho, 'type', 'pdf_download'), 'type'],
+    ['the removed transcript_open type', to, 'type'],
     ['a type in an array', set(pv, 'type', ['page_view']), 'type'],
     ['a null type', set(pv, 'type', null), 'type'],
     ['type "constructor"', set(pv, 'type', 'constructor'), 'type'],
@@ -325,7 +325,6 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
     ['an audio file name as media', detail(ap, { media: 'placeholder-audio.mp3', furthest: 0 }), 'detail'],
     ['a number as media', detail(ho, { media: 1 }), 'detail'],
     ['a handout from another page', detail(ho, { media: 'how-sleep-works' }), 'detail'],
-    ['a transcript with furthest', detail(to, { media: 'settling-your-body', furthest: 0 }), 'detail'],
     ['furthest 30', furthest(30), 'detail'],
     ['furthest "25"', furthest('25'), 'detail'],
     ['furthest null', furthest(null), 'detail'],

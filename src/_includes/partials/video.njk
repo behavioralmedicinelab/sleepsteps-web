@@ -64,6 +64,6 @@
     </a>
     {%- endif %}
   </div>
-  {{ videoNotice('#transcript-' + video.video_id if video.hasTranscript else '', noticeId) }}
+  {{ videoNotice(noticeId) }}
 </div>
 {%- endmacro -%}

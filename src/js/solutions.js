@@ -8,16 +8,12 @@
 //   closed card has a heading. The button is named by the solution's title;
 //   the blurb and length are its description;
 // - the panel becomes a region labelled by the open card's heading;
-// - the open card's header (step chip, Close, heading, blurb) and the quick
-//   "Transcript" link are shown;
+// - the open card's header (step chip, Close, heading, blurb) is shown;
 // - one card is open at a time across both sections. Opening one closes the
 //   other and pauses its media (players.js), and moves focus to the opened
 //   card's heading, or keeps it on the card's button on phones, where that
 //   button stays on screen above the panel and the header is hidden;
-// - Close returns focus to the card's button;
-// - a transcript revealed inside a closed card (the quick "Transcript" link,
-//   or a #transcript-<video_id> URL, both handled by players.js) opens the
-//   card first, through players.js's `sleepsteps:reveal` event.
+// - Close returns focus to the card's button.
 //
 // Escape doesn't close a card: that isn't a disclosure convention, and the
 // YouTube player keeps keystrokes anyway. A card that was open before this
@@ -44,12 +40,11 @@ function closeCard(card, { focus = false } = {}) {
   if (focus) card.face.focus();
 }
 
-function openCard(card, { focus = true } = {}) {
+function openCard(card) {
   for (const other of cards) {
     if (other !== card) closeCard(other);
   }
   setOpen(card, true);
-  if (!focus) return;
   // The heading shows from 600px; below that the face stays visible.
   const target = card.heading.getClientRects().length ? card.heading : card.face;
   target.focus({ preventScroll: true });
@@ -89,7 +84,6 @@ function enhance(li) {
   panel.setAttribute('role', 'region');
   panel.setAttribute('aria-labelledby', heading.id);
   header.hidden = false;
-  for (const item of li.querySelectorAll('.solution__quick-transcript')) item.hidden = false;
 
   const card = { li, face, panel, heading };
   setOpen(card, false);
@@ -101,10 +95,6 @@ function enhance(li) {
     else openCard(card);
   });
   close.addEventListener('click', () => closeCard(card, { focus: true }));
-  // players.js is about to open a transcript in this card and focus it.
-  li.addEventListener('sleepsteps:reveal', () => {
-    if (!isOpen(card)) openCard(card, { focus: false });
-  });
 
   // Moving a focused element drops focus, so put it back.
   if (active === summary) face.focus();

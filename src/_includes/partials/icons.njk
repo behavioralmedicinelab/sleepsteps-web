@@ -8,7 +8,7 @@
     {{ icon('search') }}  {{ icon('chevron-right', 16, 'topic-nav__chevron') }}
 
   Names: search, menu, close, chevron-right, chevron-left, chevron-down,
-  arrow-right, play, star, download, transcript, headphones.
+  arrow-right, play, star, download, headphones.
 -#}
 {%- macro icon(name, size=18, class='') -%}
 {%- set paths = {
@@ -22,7 +22,6 @@
   'play': '<path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/>',
   'star': '<path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/>',
   'download': '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
-  'transcript': '<path d="M5 6h14M5 10h14M5 14h10M5 18h8"/>',
   'headphones': '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><path d="M4 15h3v5H5a1 1 0 0 1-1-1zM20 15h-3v5h2a1 1 0 0 0 1-1z"/>'
 } -%}
 {%- set strokeWidth = '2.2' if name.startsWith('chevron') else '2' -%}

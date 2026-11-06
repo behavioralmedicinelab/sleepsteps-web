@@ -3,13 +3,13 @@ layout: layouts/base.njk
 ---
 {#-
   Information-page layout (SPEC §7.4; HANDOFF §6.5; boards Info-*.dc.html):
-  teal title band, the "Information pages" side menu, then the content.
+  teal title band, then the content in one column. There is no side menu
+  (SPEC §7.5, §22): the header and footer link to every information page.
   Pages in content/pages/ use it by default (pages.11tydata.js), which also
   sets page_id to the file name and the URL to /<file name>/.
 
   Front-matter contract:
-    title     required. <title>, the side-menu match, and the H1 unless
-              `heading` is set
+    title     required. <title>, and the H1 unless `heading` is set
     summary   required. Lede under the H1, and the meta description
               (and the search summary in M2)
     eyebrow   optional. Label above the H1. Default "Information";
@@ -23,7 +23,10 @@ layout: layouts/base.njk
 
   The content column has the classes `info-body info-body--<page_id>`, so a
   page's stylesheet can target it (e.g. `.info-body--help`). The column is a
-  flex column with a section gap; each top-level child is one section.
+  flex column with a section gap; each top-level child is one section. It is
+  as wide as the container, so card grids and tables can use the width,
+  while headings, paragraphs and plain lists keep the reading measure, and a
+  panel of text ends with its text (site.css §9).
 
   Example (content/pages/help.md):
     ---
@@ -35,7 +38,6 @@ layout: layouts/base.njk
 <main id="main" class="info-page{% if band == 'hero' %} info-page--hero{% endif %}">
   {% include "partials/title-band.njk" %}
   <div class="info-layout container">
-    {% include "partials/info-nav.njk" %}
     <div class="info-body info-body--{{ page_id }}">
       {{ content | safe }}
     </div>

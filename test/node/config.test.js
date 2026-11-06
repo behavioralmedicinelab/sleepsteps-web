@@ -191,14 +191,15 @@ describe('eleventy.config.js', () => {
       item('cognitive-arousal', { title: 'Cognitive arousal', youtube_id: 'AbCdEfGhIj0', duration: '3:05', thumbnail: 'w.jpg' }, '\n  \n'),
     ];
 
-    it('videoById returns the template shape, with the transcript read lazily', () => {
+    it('videoById returns the template shape, without the transcript (no page shows it, SPEC §9.3)', () => {
       const intro = f.videoById('intro', videos);
       expect(intro).toEqual({
         video_id: 'intro', title: 'Intro', youtube_id: 'AbCdEfGhIjK', duration: '6:40', audio: 'intro.mp3',
-        handout: 'intro.pdf', thumbnail: '', placeholder: false, hasTranscript: true, transcriptHtml: '<p>Words.</p>\n',
+        handout: 'intro.pdf', thumbnail: '', placeholder: false,
       });
+      // Building the shape never renders a body (the stand-in throws if it is read).
       const arousal = f.videoById('cognitive-arousal', videos);
-      expect([arousal.hasTranscript, arousal.transcriptHtml, arousal.thumbnail]).toEqual([false, '', 'w.jpg']);
+      expect([arousal.thumbnail, 'hasTranscript' in arousal, 'transcriptHtml' in arousal]).toEqual(['w.jpg', false, false]);
       expect(f.videoById('sleep-drive', videos).placeholder).toBe(true);
       expect(f.videoById('intro', videos)).toBe(intro); // cached per collection
       expect(() => f.videoById('nope', videos)).toThrow(/unknown video "nope"/);
@@ -232,8 +233,8 @@ describe('eleventy.config.js', () => {
     });
 
     it('videoFormats says which formats any video has', () => {
-      expect(f.videoFormats(videos)).toEqual({ transcript: true, handout: true, audio: true });
-      expect(f.videoFormats(videos.slice(1))).toEqual({ transcript: false, handout: false, audio: false });
+      expect(f.videoFormats(videos)).toEqual({ handout: true, audio: true });
+      expect(f.videoFormats(videos.slice(1))).toEqual({ handout: false, audio: false });
     });
   });
 
