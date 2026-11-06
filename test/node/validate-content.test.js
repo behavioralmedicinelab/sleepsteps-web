@@ -289,6 +289,24 @@ describe('stand-in transcripts and HTML comments (SPEC §7, §7.1)', () => {
   });
 });
 
+describe('data/team.csv (SPEC §7.4)', () => {
+  const TEAM = 'data/team.csv';
+
+  it('passes with name, role and an optional organisation', () => {
+    expect(messages(run({ [TEAM]: 'name,role,organisation\nA Person,Researcher,Uni\nB Person,Lived experience expert,\n' }))).toEqual([]);
+  });
+
+  it('fails on other columns, or a row without a name or role', () => {
+    expect(messages(run({ [TEAM]: 'name,title,organisation\nA,B,C\n' }))).toEqual([
+      'data/team.csv: the columns must be name,role,organisation (found name,title,organisation)',
+    ]);
+    expect(messages(run({ [TEAM]: 'name,role,organisation\n,Researcher,Uni\nB Person,,Uni\n' }))).toEqual([
+      'data/team.csv: row 2: name is empty',
+      'data/team.csv: row 3: role is empty',
+    ]);
+  });
+});
+
 describe('data/keywords.csv (SPEC §8.2)', () => {
   const KEYWORDS = 'data/keywords.csv';
   const csv = (...rows) => ['page_id,keywords', ...rows].join('\n') + '\n';

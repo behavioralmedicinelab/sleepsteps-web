@@ -8,59 +8,6 @@ band: hero
 # July 2026) for the team to confirm (SPEC §22).
 summary: Sleep problems are common during and after cancer, but help that fits can be hard to find. This program brings that help to people at home.
 styles: ["pages/about.css"]
-# "Who we are": one row per person, in order (the coordinating principal
-# investigator and trial coordinator first, then by surname). `organisation`
-# is optional.
-team:
-  - name: Joshua Wiley
-    role: Coordinating principal investigator
-    organisation: Monash University
-  - name: Alix Mellor
-    role: Trial coordinator
-    organisation: Monash University
-  - name: Lisa Beatty
-    role: Researcher
-    organisation: Flinders University
-  - name: Bei Bei
-    role: Researcher and sleep psychologist
-    organisation: Monash University
-  - name: Fran Boyle
-    role: Medical oncologist
-    organisation: Mater Health
-  - name: Daphne Day
-    role: Medical oncologist
-    organisation: Monash Health
-  - name: Prue Francis
-    role: Medical oncologist
-    organisation: Peter MacCallum Cancer Centre
-  - name: Maria Ftanou
-    role: Psychologist
-    organisation: Peter MacCallum Cancer Centre
-  - name: Sheila Garland
-    role: Researcher and sleep psychologist
-    organisation: Memorial University (Canada)
-  - name: Yun Hu
-    role: Researcher
-    organisation: Shanghai Jiao Tong University (China)
-  - name: Michael Jefford
-    role: Medical oncologist
-    organisation: Peter MacCallum Cancer Centre
-  - name: Daniel Johnstone
-    role: Lived experience expert
-  - name: Alysia Kepert
-    role: Lived experience expert
-  - name: Oxana Palesh
-    role: Researcher
-    organisation: Virginia Commonwealth University (USA)
-  - name: Catriona Parker
-    role: Researcher
-    organisation: Monash University
-  - name: Anna Singleton
-    role: Researcher
-    organisation: University of Sydney
-  - name: Rebecca Wallace
-    role: Psychologist
-    organisation: Peter MacCallum Cancer Centre
 # "About the trial": one row per fact, in order.
 trial_facts:
   - term: What it tests
@@ -94,6 +41,7 @@ trial_facts:
 <section>
 <h2>Who we are</h2>
 <p class="about-intro">Researchers, clinicians and people with lived experience of cancer, working together.</p>
+{#- One row per person in data/team.csv (name, role, organisation), in the file's order. Edit it in Excel and save as CSV UTF-8. #}
 <ul class="about-team" role="list">
 {%- for person in team %}
 <li class="about-person"><span class="about-person__name">{{ person.name }}</span> <span class="about-person__role">{{ person.role }}{% if person.organisation %}, {{ person.organisation }}{% endif %}</span></li>
