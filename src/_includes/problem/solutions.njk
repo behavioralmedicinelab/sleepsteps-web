@@ -4,14 +4,16 @@
 
     {% from "problem/solutions.njk" import solutionsSection %}
     {% set tiers = solutions | solutionsByTier(collections.videos) %}
-    {{ solutionsSection('main', tiers.main, page_id, site.features.ratings) }}
+    {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, page_id, site.features.ratings) }}{% endif %}
     {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, page_id, site.features.ratings) }}{% endif %}
 
   solutionsSection(tier, items, pageId, ratings)
     tier     'main' ("Main solutions", #main-solutions) or 'extra' ("Other
-             things that can help", #more-solutions). The page omits the
-             extra section when there are none.
-    items    tiers.main or tiers.extra from `solutionsByTier`
+             things that can help", #more-solutions). The page omits a
+             section with no items: the extra one when there are no extras,
+             and both on a stand-alone problem (SPEC §7.2).
+    items    tiers.main or tiers.extra from `solutionsByTier`; with none,
+             the macro renders nothing (no heading without cards)
     pageId   the page's page_id (for the M4 ratings slots)
     ratings  site.features.ratings: renders the M4 ratings slots
 
@@ -108,6 +110,7 @@
 {%- endmacro -%}
 
 {%- macro solutionsSection(tier, items, pageId, ratings=false) -%}
+{%- if items and items.length -%}
 {%- if tier == 'main' -%}
   {%- set sectionId = 'main-solutions' -%}
   {%- set eyebrow = 'Things to try' -%}
@@ -133,4 +136,5 @@
     {%- endfor %}
   </ol>
 </section>
+{%- endif -%}
 {%- endmacro -%}

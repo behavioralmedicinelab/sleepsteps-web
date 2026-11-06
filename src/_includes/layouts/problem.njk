@@ -1,7 +1,8 @@
 ---
 layout: layouts/topics.njk
 # Page assets. Eleventy merges these lists with the directory data
-# (content/problems/problems.11tydata.js, which loads players.js).
+# (content/problems/problems.11tydata.js, which loads players.js and leaves
+# solutions.js out for a stand-alone problem).
 styles:
   - pages/problem.css
 scripts:
@@ -21,7 +22,16 @@ scripts:
   Heading outline: h1, then h2 for "Is this you?", each solutions section and
   Related topics, then h3 per solution.
 
-  Front matter: SPEC §7.2 (title, statement, area, problem_video,
+  A stand-alone problem (`standalone: true`, SPEC §7.2, §7.5) has no
+  solutions: its own video, made for it, is the page's main content. The
+  "On this page" chips and both solutions sections are left out (each needs
+  solutions to link to or list), so the page is the problem block, then
+  Related topics and "Back to all sleep problems", and
+  content/problems/problems.11tydata.js leaves solutions.js out. Each section
+  renders from its own count, so no empty section or orphaned heading can
+  appear.
+
+  Front matter: SPEC §7.2 (title, statement, area, problem_video, standalone,
   is_this_you, solutions, related). The problem file's body isn't shown.
 
   Ratings (M4, SPEC §12) have slots under each video and in each closed card;
@@ -55,6 +65,7 @@ scripts:
       <h1 class="problem__title">{{ title }}</h1>
       <p class="problem__statement">“{{ statement | sentence }}”</p>
     </div>
+    {%- if mainCount %}
     <nav class="on-this-page" aria-label="On this page">
       <ul role="list">
         <li><a class="on-this-page__lead" href="#about-this">About this</a></li>
@@ -64,6 +75,7 @@ scripts:
         {%- endif %}
       </ul>
     </nav>
+    {%- endif %}
     <div class="problem-block" id="about-this">
       <div class="problem-block__video">
         {{ videoEmbed(problemVideo, showTitle=true, bleed='page', arc=true) }}
@@ -94,7 +106,10 @@ scripts:
     </div>
   </div>
 
+  {%- if mainCount %}
+
   {{ solutionsSection('main', tiers.main, page_id, ratingsOn) }}
+  {%- endif %}
 
   {%- if extraCount %}
 

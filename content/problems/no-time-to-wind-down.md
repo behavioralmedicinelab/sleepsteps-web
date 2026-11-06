@@ -13,11 +13,21 @@ is_this_you:
   bullets:
     - "[a sign this topic fits]"
     - "[another sign this topic fits]"
-# 1-3 main and 0-3 extra solutions, in display order. Placeholder blurbs.
+# Solutions from the team's planning sheet (SPEC §7.2): main (1) and extra (2),
+# in display order, the suggested start first. Placeholder blurbs.
 solutions:
   - tier: main
-    video: first-thing-to-try
-    blurb: "[One or two sentences: who this suits and what it involves.]"
+    video: physiological-arousal
+    blurb: "[Try this if you go straight from busy to bed and your body is still revved up.]"
+  - tier: main
+    video: daytime-rhythms-and-sleep
+    blurb: "[Try this if your days are full right up to bedtime, with no space to slow down.]"
+  - tier: extra
+    video: conditioning
+    blurb: "[Try this if bed has become another place to catch up on things.]"
+  - tier: extra
+    video: cognitive-arousal
+    blurb: "[Try this if your mind is still running through the day's jobs at bedtime.]"
 # 2-3 hand-picked related problem slugs, still to choose (SPEC §21).
 related: []
 ---

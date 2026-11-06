@@ -117,6 +117,14 @@
   margin-top: var(--space-4);
 }
 
+/* A stand-alone problem has no chips (SPEC §7.2, layouts/problem.njk): its
+   video keeps the chips' 16px gap under the statement. */
+@media not all and (min-width: 37.5em) {
+  .problem__head + .problem-block {
+    margin-top: var(--space-5);
+  }
+}
+
 /* "On this page" chips: outlined pills that wrap (no sideways scrolling at
    320px), 44px tall (the board's 40px raised). The first is filled, as on
    the board and like Start here's lead chapter pill: static emphasis on

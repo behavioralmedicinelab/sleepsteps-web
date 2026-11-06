@@ -13,11 +13,18 @@ is_this_you:
   bullets:
     - "[a sign this topic fits]"
     - "[another sign this topic fits]"
-# 1-3 main and 0-3 extra solutions, in display order. Placeholder blurbs.
+# Solutions from the team's planning sheet (SPEC §7.2): main (1) and extra (2),
+# in display order, the suggested start first. Placeholder blurbs.
 solutions:
   - tier: main
-    video: first-thing-to-try
-    blurb: "[One or two sentences: who this suits and what it involves.]"
+    video: circadian-rhythm
+    blurb: "[Try this if you go to sleep and wake at very different times from day to day.]"
+  - tier: main
+    video: sleep-drive
+    blurb: "[Try this if naps or sleeping at odd times leave you not sleepy at bedtime.]"
+  - tier: main
+    video: daytime-rhythms-and-sleep
+    blurb: "[Try this if your daily routine has lost its regular shape.]"
 # 2-3 hand-picked related problem slugs, still to choose (SPEC §21).
 related: []
 ---

@@ -1,11 +1,11 @@
 // Content validation (SPEC §7.1-§7.3, §9.2, §9.3, §18.1). Fails the build,
 // with the file and field, on anything a template would otherwise render
 // wrongly or silently drop: missing or misspelt fields, unknown references,
-// solution counts outside 1-3 main / 0-3 extra, a video used twice on one
-// page, and media files that are missing or too large. Warns, without
-// failing, about placeholder content that can still build, and about a real
-// (non-placeholder) video without its handout, audio-only version or
-// transcript, which every video is to have by launch.
+// solution counts outside 1-3 main / 0-3 extra (a stand-alone problem has
+// none), a video used twice on one page, and media files that are missing or
+// too large. Warns, without failing, about placeholder content that can
+// still build, and about a real (non-placeholder) video without its handout,
+// audio-only version or transcript, which every video is to have by launch.
 //
 // CLI:    node scripts/validate-content.js [--no-placeholders]
 //         (exit code 1 on errors; --no-placeholders is the launch check,
@@ -48,7 +48,7 @@ const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const VIDEO_KEYS = ['title', 'youtube_id', 'duration', 'audio', 'handout', 'thumbnail', 'placeholder'];
 const PROBLEM_KEYS = [
   'title', 'statement', 'source_title', 'area', 'time_of_day', 'order', 'new',
-  'problem_video', 'is_this_you', 'solutions', 'related',
+  'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
 ];
 const MEDIA = {
   audio: { dir: 'media/audio', extensions: ['.mp3'] },
@@ -352,8 +352,22 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       }
     }
 
-    if (!Array.isArray(data.solutions)) {
-      error(file, 'solutions', 'required: a list of 1-3 main and 0-3 extra solutions');
+    // A stand-alone problem has one video made for it (its problem_video)
+    // and no solutions; every other problem has 1-3 main and 0-3 extra.
+    if (data.standalone !== undefined && typeof data.standalone !== 'boolean') {
+      error(file, 'standalone', 'must be true or false');
+    }
+    const standalone = data.standalone === true;
+    const noSolutions = data.solutions === undefined || data.solutions === null
+      || (Array.isArray(data.solutions) && data.solutions.length === 0);
+    if (standalone) {
+      if (!noSolutions) {
+        error(file, 'solutions', 'a stand-alone problem (standalone: true) has no solutions: delete `solutions`, or delete `standalone: true` to list them');
+      }
+    } else if (noSolutions) {
+      error(file, 'solutions', 'required: 1-3 main and 0-3 extra solutions; or, for a problem whose own video is its only video, add `standalone: true`');
+    } else if (!Array.isArray(data.solutions)) {
+      error(file, 'solutions', 'must be a list of 1-3 main and 0-3 extra solutions');
     } else {
       const counts = { main: 0, extra: 0 };
       data.solutions.forEach((solution, i) => {

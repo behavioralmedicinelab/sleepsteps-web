@@ -31,12 +31,12 @@ One file per video in `content/videos/<video_id>.md`. The file name is the `vide
 
 ```yaml
 ---
-title: "Setting up a wind-down hour"
+title: "Sleep drive"
 youtube_id: "AbCdEfGhIjK"           # the 11 characters after watch?v= in the YouTube link
 duration: "6:40"                    # minutes:seconds, in quotes
-audio: "wind-down-hour.mp3"         # the audio-only version: a file in media/audio/ (25 MiB at most)
-handout: "wind-down-hour.pdf"       # the handout: a file in media/pdf/
-thumbnail: "wind-down-hour.jpg"     # optional: a file in media/thumbs/
+audio: "sleep-drive.mp3"            # the audio-only version: a file in media/audio/ (25 MiB at most)
+handout: "sleep-drive.pdf"          # the handout: a file in media/pdf/
+thumbnail: "sleep-drive.jpg"        # optional: a file in media/thumbs/
 ---
 The transcript goes here, as plain paragraphs: word for word, naming the speakers.
 Leave a blank line between paragraphs. No headings (#), no HTML, no images,
@@ -103,6 +103,8 @@ Comments are turned off. You can send feedback on our website.
 
 ### Adding a video to a problem
 
+There are three kinds of video (`SPEC.md` §7.1): each problem's own video (`<slug>-about`), the eight mechanism videos that problems share as solutions (`sleep-drive`, `circadian-rhythm`, `conditioning`, `cognitive-arousal`, `physiological-arousal`, `sleep-effort-and-control`, `treatment-symptoms-and-sleep` and `daytime-rhythms-and-sleep`), and the intro videos on Start here.
+
 In `content/problems/<slug>.md`, refer to videos by `video_id`:
 
 ```yaml
@@ -114,14 +116,23 @@ is_this_you:
     - "take a long time to fall asleep"
 solutions:                              # 1-3 main, then 0-3 extra, in display order
   - tier: main
-    video: wind-down-hour
-    blurb: "Try this if you go straight from busy to bed."
+    video: conditioning
+    blurb: "Try this if bed has become a place where you lie awake."
   - tier: extra
-    video: worry-time
-    blurb: "Try this if worries keep you up."
+    video: sleep-effort-and-control
+    blurb: "Try this if trying hard to fall asleep keeps you awake."
 related:                                # 2-3 other problems, by file name
   - not-sleepy-at-bedtime
   - stress-and-worries
+```
+
+The solutions follow the team's planning sheet (`SPEC.md` §7.2): its 1s are the main solutions, with the suggested start first, and its 2s are the extras.
+
+A **stand-alone problem** has one video made for it instead of mechanism videos. Its file has `standalone: true` and no `solutions`; its `problem_video` is that video, and the page shows it with "Is this you?" and no solution cards. The build stops if a stand-alone problem lists solutions, or if any other problem has none.
+
+```yaml
+problem_video: sharing-a-bed-about      # the video made for this problem
+standalone: true
 ```
 
 A video can appear on several pages, but only once on each page. Leave the lines above `problem_video` (title, statement, area and so on) as they are unless the wording changes.

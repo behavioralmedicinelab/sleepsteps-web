@@ -13,17 +13,27 @@ is_this_you:
   bullets:
     - "[wake in the night and can’t drift off again]"
     - "[find your mind starts racing once you’re awake]"
-# 1-3 main and 0-3 extra solutions, in display order. Placeholder blurbs.
+# Solutions from the team's planning sheet (SPEC §7.2): main (1) and extra (2),
+# in display order, the suggested start first. Placeholder blurbs.
 solutions:
   - tier: main
-    video: get-up-if-awake
-    blurb: "[Try this if you lie awake for more than about 20 minutes.]"
+    video: sleep-effort-and-control
+    blurb: "[Try this if you lie awake trying hard to get back to sleep.]"
   - tier: main
-    video: settling-your-body
-    blurb: "[Try this if your body feels tense when you wake.]"
+    video: conditioning
+    blurb: "[Try this if lying awake in bed for a long time has become a habit.]"
+  - tier: main
+    video: cognitive-arousal
+    blurb: "[Try this if your mind starts racing, or you watch the clock, once you're awake.]"
   - tier: extra
-    video: worry-time
-    blurb: "[Try this if worries crowd in during the night.]"
+    video: sleep-drive
+    blurb: "[Try this if you spend a lot of time in bed, so there is less sleepiness to carry you through the night.]"
+  - tier: extra
+    video: physiological-arousal
+    blurb: "[Try this if your body feels alert or tense after you wake.]"
+  - tier: extra
+    video: treatment-symptoms-and-sleep
+    blurb: "[Try this if symptoms or treatment side effects wake you, or keep you awake.]"
 # Placeholder picks: the team should replace these with 2-3 hand-picked topics (SPEC §21).
 related:
   - broken-or-restless-sleep

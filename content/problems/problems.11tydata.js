@@ -12,6 +12,9 @@ export default {
   // first (content/videos/videos.11tydata.js).
   eleventyImport: { collections: ['videos'] },
   eleventyComputed: {
+    // layouts/problem.njk adds solutions.js, which upgrades the solution
+    // cards; a stand-alone problem has none (SPEC §7.2), so it isn't loaded.
+    scripts: (data) => (data.standalone ? (data.scripts ?? []).filter((src) => src !== 'solutions.js') : data.scripts),
     page_id: (data) => data.page.fileSlug,
     permalink: (data) => `/problems/${data.page.fileSlug}/`,
     // The statement doubles as the meta description (and, in M2, the search

@@ -13,11 +13,24 @@ is_this_you:
   bullets:
     - "[a sign this topic fits]"
     - "[another sign this topic fits]"
-# 1-3 main and 0-3 extra solutions, in display order. Placeholder blurbs.
+# Solutions from the team's planning sheet (SPEC §7.2): main (1) and extra (2),
+# in display order, the suggested start first. Placeholder blurbs.
 solutions:
   - tier: main
-    video: first-thing-to-try
-    blurb: "[One or two sentences: who this suits and what it involves.]"
+    video: treatment-symptoms-and-sleep
+    blurb: "[Try this if treatment or medicines leave you drowsy in the day.]"
+  - tier: main
+    video: sleep-drive
+    blurb: "[Try this if short nights or long naps leave you sleepy at the wrong times.]"
+  - tier: main
+    video: circadian-rhythm
+    blurb: "[Try this if you feel sleepiest at odd times of day.]"
+  - tier: extra
+    video: cognitive-arousal
+    blurb: "[Try this if you worry about being sleepy, or find it hard to concentrate.]"
+  - tier: extra
+    video: daytime-rhythms-and-sleep
+    blurb: "[Try this if a quiet day with little activity keeps you feeling sleepy.]"
 # 2-3 hand-picked related problem slugs, still to choose (SPEC §21).
 related: []
 ---
