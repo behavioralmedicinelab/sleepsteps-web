@@ -40,6 +40,7 @@ const videos = [
   item('words', { title: 'Words only', youtube_id: 'AbCdEfGhIjK', duration: '2:00' }, 'Just words.'),
 ];
 const video = (id) => filters.videoById(id, videos);
+const siteConfig = JSON.parse(readFileSync('site.config.json', 'utf8'));
 
 const render = (call, context = {}) =>
   env
@@ -205,6 +206,43 @@ describe('players.js', () => {
   });
 });
 
+describe('SiteFooter text (site.config.json `footer`, SPEC §11)', () => {
+  const footer = {
+    tagline: 'Tagline <b>here</b>.',
+    acknowledgement: 'We acknowledge the land.',
+    trialRegistration: 'REG-1',
+    ethicsApproval: 'ETH-2',
+    licenceExceptions: 'except the moon',
+  };
+  const renderFooter = (changes = {}) =>
+    env.render('partials/site-footer.njk', {
+      site: { siteName: 'Name', features: { feedback: true }, footer: { ...footer, ...changes } },
+      page: { url: '/x/' },
+    });
+  const meta = (html) => elementByClass(html, 'site-footer__meta', 'div').match(/^<div[^>]*>([\s\S]*)<\/div>$/)[1].trim().split(/\s*\n\s*/);
+  const licence = '<p class="site-footer__licence">Content is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer">CC BY 4.0</a>';
+
+  it('renders each field, escaped, with the licence link kept in the template', () => {
+    const html = renderFooter();
+    expect(elementByClass(html, 'site-footer__tagline', 'p')).toBe('<p class="site-footer__tagline">Tagline &lt;b&gt;here&lt;/b&gt;.</p>');
+    expect(meta(html)).toEqual([
+      '<p>We acknowledge the land.</p>',
+      '<p>REG-1 <span aria-hidden="true">·</span> ETH-2</p>',
+      `${licence}, except the moon.</p>`,
+    ]);
+  });
+
+  it.each([
+    ['acknowledgement', { acknowledgement: '' }, ['<p>REG-1 <span aria-hidden="true">·</span> ETH-2</p>', `${licence}, except the moon.</p>`]],
+    ['trial registration', { trialRegistration: '' }, ['<p>We acknowledge the land.</p>', '<p>ETH-2</p>', `${licence}, except the moon.</p>`]],
+    ['ethics approval', { ethicsApproval: '' }, ['<p>We acknowledge the land.</p>', '<p>REG-1</p>', `${licence}, except the moon.</p>`]],
+    ['registration and ethics', { trialRegistration: '', ethicsApproval: '' }, ['<p>We acknowledge the land.</p>', `${licence}, except the moon.</p>`]],
+    ['licence exclusions', { licenceExceptions: '' }, ['<p>We acknowledge the land.</p>', '<p>REG-1 <span aria-hidden="true">·</span> ETH-2</p>', `${licence}.</p>`]],
+  ])('leaves out an empty %s', (name, changes, expected) => {
+    expect(meta(renderFooter(changes))).toEqual(expected);
+  });
+});
+
 describe('built site', () => {
   const site = inject('builtSite');
   const pages = readHtmlPages(site);
@@ -220,7 +258,7 @@ describe('built site', () => {
     '%s states the content licence in the footer (SPEC §22)',
     (file, html) => {
       const line = elementByClass(elementByClass(html, 'site-footer', 'footer'), 'site-footer__licence', 'p');
-      expect(text(line).replace(/ ([,.])/g, '$1')).toBe('Content is licensed under CC BY 4.0, except our name and logo and third-party material.');
+      expect(text(line).replace(/ ([,.])/g, '$1')).toBe(`Content is licensed under CC BY 4.0, ${siteConfig.footer.licenceExceptions}.`);
       expect(tags(line, 'a')).toEqual(['<a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer">']);
     },
   );

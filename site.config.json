@@ -3,6 +3,13 @@
   "siteUrl": "https://<DOMAIN>",
   "features": { "ratings": true, "feedback": true, "events": true },
   "turnstileSiteKey": "<PUBLIC_SITE_KEY>",
+  "footer": {
+    "tagline": "Short videos and practical ideas for sleep during and after cancer. This program does not replace care from your treating team.",
+    "acknowledgement": "We acknowledge and pay respects to the Elders and Traditional Owners of the land on which we work.",
+    "trialRegistration": "[Trial registration number]",
+    "ethicsApproval": "[Ethics approval number]",
+    "licenceExceptions": "except our name and logo and third-party material"
+  },
   "crisisRegion": "[Australia]",
   "crisisContacts": [
     {
