@@ -5,19 +5,41 @@
  * token scale snaps up to the next step (SPEC §7.5), and the board's 15px
  * running text is 17px body.
  *
- * The hero band and settling arc, the layout, the side menu, section
- * headings and cards come from site.css (§7, §9 and §10).
+ * The hero band and settling arc, the layout, section headings, the reading
+ * measure and cards come from site.css (§7, §9 and §10). With no side menu
+ * (SPEC §7.5, §22), the team list and the trial card use the container
+ * width, and from 1024px the quote sits beside "Why we made this program"
+ * instead of under it, in the space the text's measure leaves.
  */
 
 .info-body--about {
   gap: var(--space-10); /* board 48 */
 }
 
-/* "Why we made this program" */
-.about-why {
-  max-width: 720px; /* reading measure (board) */
+@media (min-width: 64em) {
+  .info-body--about {
+    display: grid;
+    /* The text gives up some of its measure before the quote gets narrower
+       than 22rem (the quote is 24px italic). */
+    grid-template-columns: minmax(0, var(--measure)) minmax(22rem, 1fr);
+    column-gap: var(--space-11);
+  }
+
+  .info-body--about > * {
+    grid-column: 1 / -1;
+  }
+
+  .info-body--about > .about-why {
+    grid-column: 1;
+  }
+
+  .info-body--about > .about-quote {
+    grid-column: 2;
+    align-self: center;
+  }
 }
 
+/* "Why we made this program" */
 .info-body--about .about-why p + p {
   margin-top: var(--space-5); /* board 14 */
 }
@@ -52,7 +74,6 @@
 
 /* "Who we are" */
 .info-body--about .about-intro {
-  max-width: var(--measure);
   margin-top: var(--space-2); /* board 6 */
   color: var(--slate-grey);
 }
@@ -141,10 +162,11 @@
   }
 
   /* Term beside its description once there is room (at 320px the
-     description column would be about 24px wide). */
+     description column would be about 24px wide). The card is the
+     container's width; the descriptions keep the measure. */
   .about-facts {
     display: grid;
-    grid-template-columns: minmax(160px, 220px) 1fr;
+    grid-template-columns: minmax(160px, 220px) minmax(0, var(--measure));
     gap: var(--space-4) var(--space-7);
   }
 
