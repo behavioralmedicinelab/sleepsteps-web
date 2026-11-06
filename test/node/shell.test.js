@@ -263,15 +263,46 @@ describe('information pages', () => {
 
 describe('footer', () => {
   const pages = readHtmlPages(site).filter((p) => p.file !== 'urgent-help/index.html');
+  // The footer's wording is `footer` in site.config.json (SPEC §11).
+  // components.test.js renders the partial with stand-in values to show that
+  // each field comes from there.
+  const copy = config.footer;
+  const paragraphs = (html) =>
+    [...html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)].map((m) => text(m[1]).replace(/ ([,.])/g, '$1'));
 
-  it.each(pages.map((p) => [p.file, p.html]))('%s has the footer with "Send feedback"', (file, html) => {
+  it.each(pages.map((p) => [p.file, p.html]))('%s has the footer with "Send feedback" and the text from site.config.json', (file, html) => {
     const footer = elementByClass(html, 'site-footer', 'footer');
     expect(footer).toBeTruthy();
     expect(tags(footer, 'nav').map((t) => attr(t, 'aria-label'))).toEqual(['Footer', 'Help and policies']);
     const feedback = tags(footer, 'a').filter((t) => attr(t, 'class') === 'site-footer__feedback');
     expect(feedback.map((t) => attr(t, 'href'))).toEqual(config.features.feedback ? ['/contact/'] : []);
-    expect(text(footer)).toContain('[Acknowledgement of Country]');
-    expect(text(footer)).toContain('[Trial registration number] · [Ethics approval number]');
+    expect(text(elementByClass(footer, 'site-footer__tagline', 'p'))).toBe(copy.tagline);
+    // An empty acknowledgement, registration or ethics value is left out.
+    expect(paragraphs(elementByClass(footer, 'site-footer__meta', 'div'))).toEqual(
+      [
+        copy.acknowledgement,
+        [copy.trialRegistration, copy.ethicsApproval].filter(Boolean).join(' · '),
+        `Content is licensed under CC BY 4.0, ${copy.licenceExceptions}.`,
+      ].filter(Boolean),
+    );
+  });
+
+  it('has its wording in site.config.json, as text, and none of it in the template', () => {
+    expect(Object.keys(copy).sort()).toEqual(['acknowledgement', 'ethicsApproval', 'licenceExceptions', 'tagline', 'trialRegistration']);
+    const partial = readFileSync('src/_includes/partials/site-footer.njk', 'utf8');
+    for (const [key, value] of Object.entries(copy)) {
+      expect(typeof value, key).toBe('string');
+      if (value) expect(partial, key).not.toContain(value);
+    }
+  });
+
+  it('has an Acknowledgement of Country, not a placeholder', () => {
+    expect(copy.acknowledgement).toMatch(/\backnowledge\b.*\bTraditional Owners\b/i);
+    expect(copy.acknowledgement).not.toContain('[');
+  });
+
+  it('names what LICENSE-CONTENT.md leaves out, with no full stop of its own (the template adds it)', () => {
+    expect(copy.licenceExceptions).toMatch(/^except .*name and logo.*third-party material$/);
   });
 });
 

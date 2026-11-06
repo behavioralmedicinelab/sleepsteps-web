@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, inject, it } from 'vitest';
 import { parseCsvRecords } from '../../scripts/lib/csv.js';
-import { validateContent } from '../../scripts/validate-content.js';
+import { parseFrontMatter, validateContent } from '../../scripts/validate-content.js';
 import { attr, elementByClass, pageAt, tags, text } from './helpers.js';
 
 const site = inject('builtSite');
@@ -149,7 +149,8 @@ describe('Home (/)', () => {
       ['/about/', 'More about us and the trial'],
       ['/help/', 'Getting more help'],
     ]);
-    expect(text(trial)).toContain('[research team and institution]');
+    const { trial_text } = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
+    expect(text(elementByClass(trial, 'home-trial__main', 'section'))).toBe(`About the trial Part of a research study ${trial_text} More about us and the trial`);
   });
 
   it('ends with the disclaimer, linking to Getting urgent help', () => {
