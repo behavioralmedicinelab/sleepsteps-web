@@ -5,13 +5,16 @@
  * the token scale snaps up to the next step, and the board's 22px card and
  * panel headings use the `title` style (SPEC §7.5).
  *
- * The layout, side menu, section headings, cards, panel, urgent notice and
- * the standalone policy link come from site.css (§9 and §10).
+ * The layout, section headings, the reading measure, cards, panel, urgent
+ * notice and the standalone policy link come from site.css (§9 and §10).
+ * With no side menu (SPEC §7.5, §22), the two cards and the storage table
+ * use the container width; the "Questions or concerns" panel and the urgent
+ * notice in "How we use this information" are as wide as their text's
+ * measure plus their padding.
  */
 
 .info-body--privacy {
   --privacy-card-rule: 4px; /* coloured top rule on the two cards (board) */
-  max-width: 780px;         /* content measure (board) */
   gap: var(--space-8);
   overflow-wrap: break-word;
 }

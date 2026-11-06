@@ -932,11 +932,15 @@ button.site-footer__feedback {
 
 /* 9. Information pages ----------------------------------------------------- */
 
+/* One column under the band, with no side menu (SPEC §7.4, §7.5, §22). The
+   column is as wide as the container: headings, paragraphs and plain lists
+   keep the reading measure, as the band's lede does, and boxed blocks (cards
+   and card grids, an urgent notice between blocks, the storage table) use
+   the full width. A panel of text, and an urgent notice inside a section of
+   text (Privacy), end with their text: the measure plus their padding.
+   :where() keeps the measure rule at one class's weight, so a page's own
+   rules override it. */
 .info-layout {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-9);
   padding-block: var(--space-8) var(--space-12);
 }
 
@@ -944,56 +948,28 @@ button.site-footer__feedback {
   padding-top: var(--space-7);
 }
 
-.info-nav {
-  flex: 1 1 240px;
-  padding-block: var(--space-3);
-  border: var(--border-width) solid var(--keyline);
-  border-radius: var(--radius-md);
-  background: var(--white);
-  line-height: var(--lh-snug);
-}
-
-.info-nav ul {
-  padding: 0;
-  list-style: none;
-}
-
-.info-nav a {
-  display: block;
-  padding: var(--space-4) var(--space-6);
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.info-nav a:hover {
-  background: var(--teal-wash);
-  color: var(--ink);
-}
-
-.info-nav a[aria-current="page"] {
-  padding-inline-start: calc(var(--space-6) - var(--current-bar));
-  border-inline-start: var(--current-bar) solid var(--deep-teal);
-  background: var(--teal-wash);
-  color: var(--night-teal);
-  font-weight: var(--weight-semibold);
-}
-
-.info-nav .info-nav__urgent,
-.info-nav .info-nav__urgent:hover {
-  color: var(--clay-deep);
-  font-weight: var(--weight-semibold);
-}
-
-.info-nav .info-nav__urgent:hover {
-  background: var(--clay-wash);
-}
-
 .info-body {
   display: flex;
-  flex: 999 1 560px;
   flex-direction: column;
   gap: var(--space-9);
-  min-width: 0;
+}
+
+.info-body :where(h2, h3, p, ul:not([role="list"]), ol:not([role="list"])) {
+  max-width: var(--measure);
+}
+
+.info-body .notice--urgent {
+  max-width: none;
+}
+
+/* Measure plus the inline padding of .panel and .notice--urgent (§10
+   below), and the notice's border. */
+.info-body .panel {
+  max-width: calc(var(--measure) + 2 * var(--space-8));
+}
+
+.info-body section > .notice--urgent {
+  max-width: calc(var(--measure) + 2 * (var(--space-7) + var(--border-width)));
 }
 
 /* Default content styles. Pages refine them in their own stylesheet. */
@@ -1029,10 +1005,6 @@ button.site-footer__feedback {
 @media (min-width: 37.5em) {
   .info-layout {
     padding-top: var(--space-9);
-  }
-
-  .info-nav {
-    max-width: 280px;
   }
 }
 
@@ -1172,8 +1144,7 @@ button.site-footer__feedback {
   .site-header,
   .minimal-header,
   .site-footer,
-  .with-sidebar__side,
-  .info-nav {
+  .with-sidebar__side {
     display: none;
   }
 }
