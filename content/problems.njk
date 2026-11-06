@@ -5,54 +5,62 @@ page_width: medium
 title: Sleep problems
 eyebrow: Step 2
 heading: What's keeping you up?
-# The lede under the H1. `lede_tools` describes the filter and the area
+# The lede under the H1. `lede_tools` describes the filter and the group
 # buttons, which need JavaScript, so it shows only once problems.js has shown
-# them; `lede` is true either way. Together they are the meta description.
-lede_tools: Open an area to see its topics, or search in your own words.
+# them. It stays the same in both views, so it names both kinds of group
+# (Problems-A: "Open an area to see its topics, ..."). `lede` is true either
+# way. Together they are the meta description.
+lede_tools: Open an area or a time of day to see its topics, or search in your own words.
 lede: Choose as many as sound like you.
 eleventyComputed:
   summary: "{{ lede_tools }} {{ lede }}"
 styles: ["pages/problems.css"]
 scripts: ["problems.js"]
-# The "When it happens" lanes, in display order. The ids are the
+# The "When it happens" groups, in display order. The ids are the
 # time_of_day values in scripts/validate-content.js (TIMES_OF_DAY; a test
-# keeps the two lists in step). Each lane's header colours are in
-# src/css/pages/problems.css, keyed by id.
-time_lanes:
-  - { id: evening, label: "In the evening" }
-  - { id: bedtime, label: "At bedtime" }
-  - { id: night, label: "During the night" }
-  - { id: early-morning, label: "Early morning" }
-  - { id: day, label: "During the day" }
-  - { id: any, label: "Any time" }
+# keeps the two lists in step), and the build fails on a problem whose
+# time_of_day isn't here (groupByTime in eleventy.config.js).
+time_groups:
+  - { id: evening, name: "In the evening" }
+  - { id: bedtime, name: "At bedtime" }
+  - { id: night, name: "During the night" }
+  - { id: early-morning, name: "Early morning" }
+  - { id: day, name: "During the day" }
+  - { id: any, name: "Any time" }
 ---
 {#-
   Sleep problems (/problems/): SPEC §7.2, §8.1; HANDOFF §6.3; boards
-  Problems-A.dc.html and Problems-Phone.dc.html.
+  Problems-A.dc.html and Problems-Phone.dc.html, with the changes in SPEC
+  §7.5 (the slider toggle, no "Open all areas", "When it happens" grouped
+  like the areas).
 
   This page renders its own <main> and title band (on layouts/base.njk, not
   page.njk) because the filter, view toggle and result line sit inside the
   band. The band reuses the title-band classes from site.css.
 
+  Two views of the same problems, built the same way (topicGroup below): By
+  area, one group per area (the default), and "When it happens", one group
+  per time of day. Each group is a plain <h2> with its name, the area's
+  description and a count, over the list of its problems.
+
   Without JavaScript (SPEC §2, §11):
-    - every area is open, as a plain <h2> with its name, description and
-      count; the problem links are always reachable;
-    - the toolbar (filter, view toggle, Open/Close all), the lede's
-      sentence about it and the "When it happens" lanes carry `hidden`, so
-      no dead control is ever shown or described and no link is listed
-      twice; the result line ("36 topics in 10 areas") stays, because it is
-      true either way.
-  src/js/problems.js turns each area heading's <span> into a
-  <button aria-expanded aria-controls>, shows the toolbar, and runs the
-  filter and the view switch. Hooks for it are data-* attributes; classes
-  are for styling only.
+    - every area is open; the problem links are always reachable;
+    - the toolbar (filter and view toggle), the lede's sentence about it and
+      the "When it happens" view carry `hidden`, so no dead control is ever
+      shown or described and no link is listed twice; the result line
+      ("36 topics in 10 areas") stays, because it is true either way.
+  src/js/problems.js turns each group heading's <span> into a
+  <button aria-expanded aria-controls>, in both views, shows the toolbar,
+  and runs the filter and the view switch. Hooks for it are data-*
+  attributes; classes are for styling only.
 
   Analytics: this page sends no page_view (SPEC §10.2) and the filter sends
   nothing (§8.1), so there is no track_page_view here.
 
   Keywords: data/keywords.csv (SPEC §8.2, M2) becomes the global `keywords`.
   A problem's row, when there is one, is written to its list item's
-  data-keywords for the filter; until the file exists nothing is written.
+  data-keywords in the By area view, where problems.js reads it for the
+  filter; until the file exists nothing is written.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 
@@ -62,23 +70,50 @@ time_lanes:
 {%- endmacro -%}
 
 {#- A link to a problem: short title (with the "New" pill), first-person
-    line and, in the area rows, an arrow. Built on .topic-card
-    (components.css); `variant` is "row" (By area) or "lane" (When it
-    happens). The spaces between the spans keep the link's accessible name
-    readable ("Tired but wired I'm tired, ..."). -#}
-{%- macro topicCard(p, variant) -%}
-<a class="topic-card topic-card--{{ variant }}" href="{{ p.url }}">
+    line and an arrow. Built on .topic-card (components.css). The spaces
+    between the spans keep the link's accessible name readable ("Tired but
+    wired I'm tired, ..."). -#}
+{%- macro topicCard(p) -%}
+<a class="topic-card topic-card--row" href="{{ p.url }}">
   <span class="topic-card__text">
     <span class="topic-card__title"><span data-topic-title>{{ p.title }}</span>{% if p.isNew %} <span class="topic-card__new">New</span>{% endif %}</span>
     <span class="topic-card__statement" data-topic-statement>{{ p.statement }}</span>
   </span>
-  {%- if variant == 'row' %}
   {{ icon('arrow-right', 20, 'topic-card__arrow') }}
-  {%- endif %}
 </a>
 {%- endmacro -%}
 
+{#- One group of problems, in either view: a plain <h2> (name, optional
+    description, count and chevron) over its list, open. `sectionId` is set
+    only for areas, so /problems/#core links to an area (SPEC §7.2); times
+    of day have none, since "day" is both an area and a time of day.
+    `withKeywords` writes data-keywords (By area only: problems.js reads
+    each problem's words once). -#}
+{%- macro topicGroup(sectionId, listId, name, description, problems, withKeywords) -%}
+{%- set n = problems.length %}
+<section class="group-list__group"{% if sectionId %} id="{{ sectionId }}"{% endif %}>
+  <h2 class="group-list__heading">
+    <span class="group-list__header" data-group-header>
+      <span class="group-list__text">
+        <span class="group-list__name" data-group-name>{{ name }}</span>
+        {%- if description %}
+        <span class="group-list__description">{{ description }}</span>
+        {%- endif %}
+      </span>
+      <span class="group-list__count"><span data-group-count data-total="{{ n }}">{{ n }}</span><span class="group-list__count-unit"> {{ 'topic' if n == 1 else 'topics' }}</span></span>
+      <span class="group-list__chevron" aria-hidden="true">{{ icon('chevron-down', 18) }}</span>
+    </span>
+  </h2>
+  <ul class="group-list__problems" id="{{ listId }}" role="list" data-group-list>
+    {%- for p in problems %}{% set kw = (keywordsFor(p.slug) | trim) if withKeywords else '' %}
+    <li data-slug="{{ p.slug }}"{% if kw | length %} data-keywords="{{ kw }}"{% endif %}>{{ topicCard(p) }}</li>
+    {%- endfor %}
+  </ul>
+</section>
+{%- endmacro -%}
+
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
+{%- set topicTimes = collections.problems | groupByTime(time_groups) -%}
 {%- set total = collections.problems.length -%}
 <main id="main" class="problems-page">
   <div class="band on-dark problems-band">
@@ -97,6 +132,12 @@ time_lanes:
           <label class="problems-search__label" for="problem-filter">Find a sleep problem on this page</label>
           <input class="problems-search__input" id="problem-filter" type="search" placeholder="Try: night sweats, 3am, partner" autocomplete="off" spellcheck="false" aria-describedby="problem-filter-status" data-problem-filter>
         </div>
+        {#- Two native radios (one or the other, arrow keys, the legend read
+            out), drawn as a slider: a pill-shaped track and a thumb that
+            sits under the checked one's label. The track and thumb are
+            empty, decorative spans after the radios, so the CSS can follow
+            the radios' :checked and :focus-visible with sibling selectors;
+            keep this order. #}
         <fieldset class="view-toggle">
           <legend class="visually-hidden">Group topics by</legend>
           <div class="view-toggle__options">
@@ -104,9 +145,10 @@ time_lanes:
             <label class="view-toggle__label" for="view-area">By area</label>
             <input class="view-toggle__input visually-hidden" type="radio" name="problems-view" id="view-time" value="time" autocomplete="off" data-view-choice>
             <label class="view-toggle__label" for="view-time">When it happens</label>
+            <span class="view-toggle__track"></span>
+            <span class="view-toggle__thumb"></span>
           </div>
         </fieldset>
-        <button class="problems-tools__all" type="button" data-toggle-all>Open all areas</button>
       </div>
       <p class="problems-status" id="problem-filter-status" aria-live="polite" data-filter-status>{{ total }} topics in {{ topicAreas.length }} areas</p>
     </div>
@@ -114,50 +156,22 @@ time_lanes:
 
   <div class="page-body container">
     <div class="problems" data-problems>
-      {#- By area (the default view). Section ids are the area ids, so
-          /problems/#core links to an area (SPEC §7.2). #}
-      <div class="area-list" data-view-panel="area">
-        {%- for area in topicAreas %}{% set n = area.problems.length %}
-        <section class="area-list__area" id="{{ area.area_id }}">
-          <h2 class="area-list__heading">
-            <span class="area-list__header" data-area-header="{{ area.area_id }}">
-              <span class="area-list__text">
-                <span class="area-list__name" data-area-name>{{ area.name }}</span>
-                <span class="area-list__description">{{ area.description }}</span>
-              </span>
-              <span class="area-list__count"><span data-area-count data-total="{{ n }}">{{ n }}</span><span class="area-list__count-unit"> {{ 'topic' if n == 1 else 'topics' }}</span></span>
-              <span class="area-list__chevron" aria-hidden="true">{{ icon('chevron-down', 18) }}</span>
-            </span>
-          </h2>
-          <ul class="area-list__problems" id="area-{{ area.area_id }}-problems" role="list" data-area-list>
-            {%- for p in area.problems %}{% set kw = keywordsFor(p.slug) | trim %}
-            <li data-slug="{{ p.slug }}"{% if kw | length %} data-keywords="{{ kw }}"{% endif %}>{{ topicCard(p, 'row') }}</li>
-            {%- endfor %}
-          </ul>
-        </section>
+      {#- By area (the default view). #}
+      <div class="group-list" data-view-panel="area">
+        {%- for area in topicAreas %}
+        {{ topicGroup(area.area_id, 'area-' + area.area_id + '-problems', area.name, area.description, area.problems, true) }}
         {%- endfor %}
       </div>
 
-      {#- When it happens. Shown only by problems.js (the control that
-          chooses it needs JavaScript); without it the areas above already
-          list every problem once. Lane cards follow the collection order
-          (area, then order within the area). #}
-      <div class="time-lanes" data-view-panel="time" hidden>
-        <ol class="time-lanes__list" role="list">
-          {%- for lane in time_lanes %}
-          {%- set laneProblems = [] %}
-          {%- for item in collections.problems %}{% if item.data.time_of_day == lane.id and laneProblems.push(item) %}{% endif %}{% endfor %}
-          {%- set n = laneProblems.length %}
-          <li class="lane lane--{{ lane.id }}" data-lane>
-            <h2 class="lane__header">{{ lane.label }} <span class="lane__count" data-lane-count>{{ n }} {{ 'topic' if n == 1 else 'topics' }}</span></h2>
-            <ul class="lane__problems" role="list" data-lane-list{% if n == 0 %} hidden{% endif %}>
-              {%- for item in laneProblems %}
-              <li data-slug="{{ item.data.page_id }}">{{ topicCard({ title: item.data.title, statement: item.data.statement, url: item.url, isNew: item.data.new === true }, 'lane') }}</li>
-              {%- endfor %}
-            </ul>
-          </li>
-          {%- endfor %}
-        </ol>
+      {#- When it happens: the same groups, one per time of day, with the
+          problems in collection order (area, then order within the area).
+          Shown only by problems.js (the control that chooses it needs
+          JavaScript); without it the areas above already list every
+          problem once. #}
+      <div class="group-list" data-view-panel="time" hidden>
+        {%- for time in topicTimes %}
+        {{ topicGroup(null, 'time-' + time.id + '-problems', time.name, null, time.problems, false) }}
+        {%- endfor %}
       </div>
 
       <div class="panel problems-nudge">

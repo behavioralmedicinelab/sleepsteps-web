@@ -10,15 +10,18 @@
  * follow the phone board; `min-width: 37.5em` (600px) follows the desktop
  * board.
  *
+ * Both views, By area and "When it happens", are the same accordion
+ * (.group-list): one group per area or per time of day (SPEC §7.2, §7.5).
+ *
  * Reused from elsewhere: the title band (.band, .on-dark: site.css §7),
  * .container, .page-body, .panel, .link-standalone, .visually-hidden
  * (site.css) and .topic-card (components.css §5), which this page extends
- * with a row and a lane variant.
+ * with a row variant.
  *
  * Contents
- *   1. Page values        4. Topic cards        7. Motion, forced colours,
- *   2. Band toolbar       5. Lanes                 print
- *   3. Area accordion     6. Nudge and spacing
+ *   1. Page values        3. Group accordion    5. Nudge and spacing
+ *   2. Band toolbar       4. Topic cards        6. Motion, forced colours,
+ *                                                  print
  */
 
 /* 1. Page values ------------------------------------------------------------- */
@@ -26,9 +29,8 @@
 /* Sizes from the boards that only this page uses. */
 .problems-page {
   --problems-column: 1000px;        /* band, accordion and nudge column (board) */
-  --fs-topic-row: calc(19rem / 16); /* area-row card titles; phone area names (HANDOFF §6.3) */
-  --fs-topic-lane: calc(18rem / 16); /* lane card titles (board) */
-  --chevron-disc: 36px;             /* the area chevron's disc (board) */
+  --fs-topic-row: calc(19rem / 16); /* topic card titles; phone group names (HANDOFF §6.3) */
+  --chevron-disc: 36px;             /* a group's chevron disc (board) */
 }
 
 /* The band's content sits in the 1000px column, inside the 1280px page. */
@@ -73,9 +75,12 @@
   color: var(--ink);
 }
 
-/* By area / When it happens: two radios styled as a segmented control
-   (exclusive by nature, arrow keys for free). No overflow: hidden, which
-   would clip the focus ring; the end segments follow the corners instead. */
+/* By area / When it happens: two radios drawn as a slider, so it reads as
+   one or the other (SPEC §7.5). A pill-shaped track holds both labels; a
+   paper thumb slides under the checked one. The track and thumb are the
+   empty spans after the radios (content/problems.njk), so they follow the
+   radios through sibling selectors. The radios keep the semantics: one
+   group, arrow keys, the legend read out. */
 .view-toggle {
   min-width: 0;
   margin: 0;
@@ -87,16 +92,49 @@
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border: var(--border-width) solid var(--paper);
-  border-radius: var(--radius-sm);
 }
 
+/* The track: night-teal inside a paper edge (5.9:1 on the deep-teal band,
+   so the control's outline is clear). */
+.view-toggle__track {
+  position: absolute;
+  inset: 0;
+  border: var(--border-width) solid var(--paper);
+  border-radius: var(--radius-pill);
+  background: var(--night-teal);
+}
+
+/* The thumb: paper on night-teal (10.5:1), inset by --space-1. It fills the
+   first half; when the second radio is checked it moves one half across.
+   Its transparent border keeps an edge in forced colours. */
+.view-toggle__thumb {
+  position: absolute;
+  top: var(--space-1);
+  bottom: var(--space-1);
+  left: var(--space-1);
+  width: calc(50% - 2 * var(--space-1));
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+}
+
+/* The second radio is the only one whose label is followed by the track. */
+.view-toggle__input:checked + .view-toggle__label + .view-toggle__track + .view-toggle__thumb {
+  transform: translateX(calc(100% + 2 * var(--space-1)));
+}
+
+/* Each label is half the track and the whole of its height: a 52px target,
+   above the track and thumb. Narrow side padding on phones keeps "When it
+   happens" on one line on most of them; on the narrowest it wraps, and the
+   thumb grows with it. */
 .view-toggle__label {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(var(--target-xl) - 2 * var(--border-width));
-  padding: var(--space-2) var(--space-4);
+  min-height: var(--target-xl);
+  padding: var(--space-2) var(--space-3);
   color: var(--paper);
   font-size: var(--fs-label);
   line-height: var(--lh-label);
@@ -105,48 +143,22 @@
   cursor: pointer;
 }
 
-.view-toggle__label:first-of-type {
-  border-radius: calc(var(--radius-sm) - var(--border-width)) 0 0 calc(var(--radius-sm) - var(--border-width));
-}
-
-.view-toggle__label:last-of-type {
-  border-radius: 0 calc(var(--radius-sm) - var(--border-width)) calc(var(--radius-sm) - var(--border-width)) 0;
-}
-
 .view-toggle__input:not(:checked) + .view-toggle__label:hover {
-  background: var(--night-teal);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
-/* Selected: night-teal on paper (10.5:1). */
+/* Selected: night-teal on the paper thumb (10.5:1). */
 .view-toggle__input:checked + .view-toggle__label {
-  background: var(--paper);
   color: var(--night-teal);
+  cursor: default;
 }
 
-/* The radio is visually hidden, so its label carries the ring (paper, from
-   .on-dark). */
-.view-toggle__input:focus-visible + .view-toggle__label {
+/* The radios are visually hidden, so the ring goes round the whole track
+   (paper, from .on-dark): arrow keys move the choice inside it. */
+.view-toggle__input:focus-visible ~ .view-toggle__track {
   outline: var(--focus-width) solid var(--focus-colour);
   outline-offset: var(--focus-offset);
-}
-
-.problems-tools__all {
-  width: 100%;
-  min-height: var(--target-xl);
-  margin: 0;
-  padding: var(--space-2) var(--space-6);
-  border: var(--border-width) solid var(--paper);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--paper);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-}
-
-.problems-tools__all:hover {
-  background: var(--night-teal);
 }
 
 /* The live result line: sentence text, so 17px (board 15). */
@@ -167,21 +179,17 @@
   }
 
   .view-toggle__options {
-    display: inline-flex;
+    display: inline-grid;
   }
 
   .view-toggle__label {
-    padding-inline: var(--space-6);
-  }
-
-  .problems-tools__all {
-    width: auto;
+    padding-inline: var(--space-7);
   }
 }
 
-/* 3. Area accordion ------------------------------------------------------------ */
+/* 3. Group accordion (both views) ---------------------------------------------- */
 
-.area-list {
+.group-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -190,7 +198,7 @@
   margin-inline: auto;
 }
 
-.area-list__area {
+.group-list__group {
   padding: 0;
   border: var(--border-width) solid var(--keyline);
   border-radius: var(--radius-md);
@@ -198,14 +206,14 @@
   scroll-margin-top: var(--space-5);
 }
 
-.area-list__heading {
+.group-list__heading {
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
 
 /* A <span> without JavaScript, a <button> after problems.js: both look the
    same. The header fills the card, so the whole row is the target. */
-.area-list__header {
+.group-list__header {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -220,25 +228,25 @@
   text-align: left;
 }
 
-button.area-list__header {
+button.group-list__header {
   cursor: pointer;
 }
 
-button.area-list__header:hover {
+button.group-list__header:hover {
   background: var(--teal-wash);
 }
 
-button.area-list__header[aria-expanded="true"] {
+button.group-list__header[aria-expanded="true"] {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }
 
-.area-list__text {
+.group-list__text {
   flex: 1;
   min-width: 0;
 }
 
-.area-list__name {
+.group-list__name {
   display: block;
   font-family: var(--font-heading);
   font-size: var(--fs-topic-row);
@@ -249,8 +257,9 @@ button.area-list__header[aria-expanded="true"] {
   overflow-wrap: break-word;
 }
 
-/* Kept on phones too (the phone board drops it): nothing is lost at 320px. */
-.area-list__description {
+/* Areas only. Kept on phones too (the phone board drops it): nothing is
+   lost at 320px. */
+.group-list__description {
   display: block;
   margin-top: 0;
   font-family: var(--font-body);
@@ -258,7 +267,7 @@ button.area-list__header[aria-expanded="true"] {
 }
 
 /* deep-teal: 6.2:1 on white, 5.4:1 on the teal-wash hover. */
-.area-list__count {
+.group-list__count {
   position: relative;
   flex: none;
   font-family: var(--font-body);
@@ -269,7 +278,7 @@ button.area-list__header[aria-expanded="true"] {
   color: var(--deep-teal);
 }
 
-.area-list__chevron {
+.group-list__chevron {
   display: flex;
   flex: none;
   align-items: center;
@@ -277,35 +286,35 @@ button.area-list__header[aria-expanded="true"] {
   color: var(--deep-teal);
 }
 
-.area-list__chevron .icon {
+.group-list__chevron .icon {
   display: block;
 }
 
-[aria-expanded="true"] > .area-list__chevron .icon {
+[aria-expanded="true"] > .group-list__chevron .icon {
   transform: rotate(180deg);
 }
 
 /* Without JavaScript the heading opens nothing, so the chevron is hidden.
    It keeps its space, so the upgrade doesn't shift the layout. */
-.problems:not(.is-enhanced) .area-list__chevron {
+.problems:not(.is-enhanced) .group-list__chevron {
   visibility: hidden;
 }
 
 /* Phones: rows divided by keylines inside the card (board). */
-.area-list__problems {
+.group-list__problems {
   display: block;
   margin: 0;
   padding: 0 0 var(--space-2);
   list-style: none;
 }
 
-.area-list__problems > li {
+.group-list__problems > li {
   border-top: var(--border-width) solid var(--keyline);
 }
 
 /* Phones show the count's number only; the unit is still read out. */
 @media not all and (min-width: 37.5em) {
-  .area-list__count-unit {
+  .group-list__count-unit {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -317,21 +326,21 @@ button.area-list__header[aria-expanded="true"] {
 }
 
 @media (min-width: 37.5em) {
-  .area-list {
+  .group-list {
     gap: var(--space-4);
   }
 
-  .area-list__header {
+  .group-list__header {
     gap: var(--space-6);
     padding: var(--space-6) var(--space-7);
   }
 
-  .area-list__name {
+  .group-list__name {
     font-size: var(--fs-title);
     line-height: var(--lh-title);
   }
 
-  .area-list__chevron {
+  .group-list__chevron {
     width: var(--chevron-disc);
     height: var(--chevron-disc);
     border-radius: var(--radius-pill);
@@ -339,19 +348,19 @@ button.area-list__header[aria-expanded="true"] {
   }
 
   /* The disc would vanish into the teal-wash hover. */
-  button.area-list__header:hover .area-list__chevron {
+  button.group-list__header:hover .group-list__chevron {
     background: var(--white);
   }
 
   /* Two columns of cards once each can be 400px wide (about 910px). */
-  .area-list__problems {
+  .group-list__problems {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr));
     gap: var(--space-4);
     padding: var(--space-1) var(--space-7) var(--space-7);
   }
 
-  .area-list__problems > li {
+  .group-list__problems > li {
     border-top: 0;
   }
 }
@@ -395,8 +404,8 @@ button.area-list__header[aria-expanded="true"] {
   color: var(--deep-teal);
 }
 
-/* By area rows. Phones: a borderless row in the area card, with a teal-wash
-   hover (phone board). */
+/* Rows in a group, in both views. Phones: a borderless row in the group's
+   card, with a teal-wash hover (phone board). */
 .topic-card--row {
   display: flex;
   align-items: center;
@@ -416,7 +425,7 @@ button.area-list__header[aria-expanded="true"] {
   flex: 1;
 }
 
-.area-list__problems > li:last-child > .topic-card--row {
+.group-list__problems > li:last-child > .topic-card--row {
   border-radius: 0 0 calc(var(--radius-md) - var(--border-width)) calc(var(--radius-md) - var(--border-width));
 }
 
@@ -443,7 +452,7 @@ button.area-list__header[aria-expanded="true"] {
     background: var(--paper);
   }
 
-  .area-list__problems > li:last-child > .topic-card--row {
+  .group-list__problems > li:last-child > .topic-card--row {
     border-radius: var(--radius-md);
   }
 
@@ -458,105 +467,7 @@ button.area-list__header[aria-expanded="true"] {
   }
 }
 
-/* When it happens: white cards under the lane headers. */
-.topic-card--lane {
-  padding: var(--space-4) var(--space-5);
-}
-
-.topic-card--lane:hover {
-  box-shadow: var(--shadow-hover);
-}
-
-.topic-card--lane .topic-card__title {
-  font-size: var(--fs-topic-lane);
-}
-
-/* 5. Lanes ------------------------------------------------------------------- */
-
-/* Six lanes on the full 1280px page: 5 + 1 at full width, then 4, 3, 2 and
-   one column as the page narrows. */
-.time-lanes__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-  gap: var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.lane {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-/* Headers are not interactive. The transparent border keeps an edge in
-   forced colours. */
-.lane__header {
-  padding: var(--space-5);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-lane) var(--radius-lane) var(--radius-md) var(--radius-md);
-  font-size: var(--fs-card-title);
-  line-height: var(--lh-card-title);
-  font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-heading);
-  overflow-wrap: break-word;
-}
-
-.lane__count {
-  display: block;
-  margin-top: var(--space-1);
-  font-family: var(--font-body);
-  font-size: var(--fs-helper);
-  line-height: var(--lh-helper);
-  font-weight: var(--weight-regular);
-  letter-spacing: normal;
-}
-
-/* Evening to any time, as in HANDOFF §6.3. Every pair is listed as passing
-   in tokens.json. Keyed by the lane id, not its position. */
-.lane--evening .lane__header {
-  background: var(--deep-teal);
-  color: var(--paper);
-}
-
-.lane--bedtime .lane__header {
-  background: var(--night-teal);
-  color: var(--paper);
-}
-
-.lane--night .lane__header {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.lane--early-morning .lane__header {
-  background: var(--teal-wash);
-  color: var(--night-teal);
-}
-
-.lane--day .lane__header {
-  background: var(--sand);
-  color: var(--ink);
-}
-
-.lane--any .lane__header {
-  border-color: var(--keyline);
-  background: var(--panel);
-  color: var(--ink);
-}
-
-.lane__problems {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* 6. Nudge and spacing ---------------------------------------------------------- */
+/* 5. Nudge and spacing ---------------------------------------------------------- */
 
 .problems {
   display: flex;
@@ -596,19 +507,23 @@ button.area-list__header[aria-expanded="true"] {
   }
 }
 
-/* 7. Motion, forced colours, print ---------------------------------------------- */
+/* 6. Motion, forced colours, print ---------------------------------------------- */
 
-/* Colour fades and the chevron turn, when motion is allowed (HANDOFF §10).
-   Panels open and close at once: no height animation. */
+/* Colour fades, the chevron turn and the toggle's slide, when motion is
+   allowed (HANDOFF §10). Panels open and close at once: no height
+   animation. With reduced motion the thumb jumps to its side. */
 @media (prefers-reduced-motion: no-preference) {
-  .area-list__chevron .icon {
+  .group-list__chevron .icon,
+  .view-toggle__thumb {
     transition: transform var(--duration);
   }
 
-  .area-list__header,
-  .area-list__chevron,
-  .view-toggle__label,
-  .problems-tools__all,
+  .view-toggle__label {
+    transition: color var(--duration);
+  }
+
+  .group-list__header,
+  .group-list__chevron,
   .topic-card {
     transition:
       background-color var(--duration),
@@ -617,7 +532,9 @@ button.area-list__header[aria-expanded="true"] {
   }
 }
 
-/* Forced colours drop the selected segment's fill, so underline it. */
+/* Forced colours drop the thumb's fill, leaving its border round the
+   chosen label; the label is underlined too, so the choice doesn't rest on
+   that outline alone. */
 @media (forced-colors: active) {
   .view-toggle__input:checked + .view-toggle__label {
     text-decoration: underline;
@@ -626,14 +543,14 @@ button.area-list__header[aria-expanded="true"] {
   }
 }
 
-/* Print the view on screen with every area open, and no controls. */
+/* Print the view on screen with every group open, and no controls. */
 @media print {
   .problems-tools,
-  .area-list__chevron {
+  .group-list__chevron {
     display: none;
   }
 
-  .area-list__problems[hidden] {
+  .group-list__problems[hidden] {
     display: block !important;
   }
 
