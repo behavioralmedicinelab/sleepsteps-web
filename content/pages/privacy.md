@@ -136,7 +136,7 @@ This website isn't collecting usage statistics at the moment, so there is nothin
 
 Research staff who sign in to the site's admin area also get sign-in cookies from Cloudflare Access. Visitors never see that area.
 
-You can block or delete cookies and browser storage in your browser's settings. Our own pages don't need them. YouTube videos and the spam check on the feedback form come from other services and may not work if you block their storage. If Cloudflare asks your browser to do a check while cookies are blocked, the check may not work.
+You can block or delete cookies and browser storage in your browser's settings. Our own pages don't need them. {% if site.features.feedback === true %}YouTube videos and the spam check on the feedback form come from other services and may not work if you block their storage.{% else %}YouTube videos come from another service and may not work if you block its storage.{% endif %} If Cloudflare asks your browser to do a check while cookies are blocked, the check may not work.
 
 </section>
 
