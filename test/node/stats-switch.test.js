@@ -9,9 +9,11 @@ import { afterEach, beforeEach, describe, expect, inject, it, vi } from 'vitest'
 import { attr, elementByClass, pageAt, tags, text } from './helpers.js';
 import { MemoryStorage, installDom } from './mini-dom.js';
 
-const site = inject('builtSite');
+// The site built with every feature on, whatever site.config.json says, so
+// none of these checks is skipped while features.events is off (SPEC §11).
+// The page built with the switch off is checked in features-off.test.js.
+const site = inject('builtSiteOn');
 const html = pageAt(site, '/privacy/');
-const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
 
 const VISIT_KEY = 'sleepsteps-visit';
 const OFF_KEY = 'sleepsteps-stats-off';
@@ -36,7 +38,7 @@ afterEach(() => {
   dom = undefined;
 });
 
-describe.runIf(config.features.events)('the built privacy page', () => {
+describe('the built privacy page', () => {
   const block = elementByClass(html, 'stats-switch', 'div');
 
   it('puts the switch under "Turning off usage statistics", with no placeholder left', () => {
@@ -72,7 +74,7 @@ async function open({ local = new MemoryStorage(), session = new MemoryStorage()
   return { status: $('[data-stats-status]'), button: $('[data-stats-toggle]'), local, session };
 }
 
-describe.runIf(config.features.events)('src/js/stats-switch.js', () => {
+describe('src/js/stats-switch.js', () => {
   it('shows the state and the button, and makes the status line a live region', async () => {
     const { status, button } = await open();
     expect(status.textContent).toBe(ON);
@@ -164,8 +166,8 @@ describe.runIf(config.features.events)('src/js/stats-switch.js', () => {
   });
 });
 
-// With features.events off, the page has no switch, and says why (the built
-// site can't show this: site.config.json is fixed for the test build).
+// With features.events off, the page has no switch, and says why (and
+// features-off.test.js checks the pages built with it off).
 describe('the privacy page with features.events off', () => {
   const require = createRequire(import.meta.url);
   const nunjucks = createRequire(require.resolve('@11ty/eleventy'))('nunjucks');

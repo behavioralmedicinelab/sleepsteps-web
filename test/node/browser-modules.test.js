@@ -87,7 +87,9 @@ describe('players.js', () => {
           return -1;
         }
 
-        destroy() {}
+        destroy() {
+          this.destroyed = true;
+        }
       },
     };
   };
@@ -173,6 +175,122 @@ describe('players.js', () => {
     const link = message.querySelector('a');
     expect([link.getAttribute('href'), link.getAttribute('rel')]).toEqual(['https://www.youtube.com/watch?v=AbCdEfGhIjK', 'noreferrer']);
     expect(document.activeElement).toBe(link);
+  });
+
+  // SPEC §9.1, §11: the player fails over to the YouTube link when the API
+  // takes over 15 seconds, the player reports an error, or it is never ready.
+  const LOAD_TIMEOUT_MS = 15000;
+  const errorShown = () => {
+    const message = dom.document.querySelector('.video__error');
+    if (!message) return null;
+    const link = message.querySelector('a');
+    return {
+      role: message.getAttribute('role'),
+      text: message.textContent,
+      href: link.getAttribute('href'),
+      focused: dom.document.activeElement === link,
+    };
+  };
+  const SHOWN = {
+    role: 'alert',
+    text: "The video couldn't load here. Watch on YouTube",
+    href: 'https://www.youtube.com/watch?v=AbCdEfGhIjK',
+    focused: true,
+  };
+
+  it('says the video couldn\'t load, and focuses the link, when the IFrame API neither loads nor fails within 15 seconds', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await load(videoPage, ['players']);
+    const button = dom.document.querySelector('button.video__facade');
+    button.focus();
+    button.click();
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS - 1);
+    expect(errorShown()).toBeNull();
+    expect(dom.document.querySelector('.video__status').textContent).toBe('Loading video…');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(errorShown()).toEqual(SHOWN);
+    expect(dom.document.querySelector('.video__status, .video__facade')).toBeNull();
+    expect(dom.document.querySelector('.video').classList.contains('is-loading')).toBe(false);
+    // The API arriving afterwards changes nothing.
+    dom.window.YT = fakeYouTube(dom.document);
+    dom.window.onYouTubeIframeAPIReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(created).toEqual([]);
+    expect(errorShown()).toEqual(SHOWN);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('says the video couldn\'t load, and destroys the player, when the player reports an error', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await load(videoPage, ['players']);
+    const button = dom.document.querySelector('button.video__facade');
+    button.focus();
+    button.click();
+    dom.window.YT = fakeYouTube(dom.document);
+    dom.window.onYouTubeIframeAPIReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(created).toHaveLength(1);
+    created[0].options.events.onError({ data: 150 }); // e.g. embedding not allowed
+    expect(errorShown()).toEqual(SHOWN);
+    expect(created[0].destroyed).toBe(true);
+    expect(dom.document.querySelector('iframe')).toBeNull();
+    // Its readiness timer is cleared with it.
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('gives up on a player that is never ready after 15 seconds, and destroys it', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await load(videoPage, ['players']);
+    const button = dom.document.querySelector('button.video__facade');
+    button.focus();
+    button.click();
+    dom.window.YT = fakeYouTube(dom.document);
+    dom.window.onYouTubeIframeAPIReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(created).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS - 1);
+    expect(errorShown()).toBeNull();
+    expect(created[0].destroyed).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(errorShown()).toEqual(SHOWN);
+    expect(created[0].destroyed).toBe(true);
+    expect(dom.document.querySelector('iframe')).toBeNull();
+  });
+
+  it('leaves focus where the visitor moved it when a video fails', async () => {
+    await load(videoPage, ['players']);
+    const button = dom.document.querySelector('button.video__facade');
+    button.focus();
+    button.click();
+    const elsewhere = dom.document.getElementById('elsewhere');
+    elsewhere.focus();
+    scripts()[0].dispatchEvent(new Event('error'));
+    await settle();
+    expect(errorShown()).toEqual({ ...SHOWN, focused: false });
+    expect(dom.document.activeElement).toBe(elsewhere);
+  });
+
+  it('loads the IFrame API again when another video\'s play is pressed after a failure', async () => {
+    const two = videoPage.replace(
+      '<a id="elsewhere"',
+      env.renderString('{% from "partials/video.njk" import videoEmbed %}{{ videoEmbed(v) }}', {
+        v: { ...filters.videoById('full', videos), video_id: 'second', youtube_id: 'ZyXwVuTsRqP', title: 'Second' },
+      }) + '<a id="elsewhere"',
+    );
+    await load(two, ['players']);
+    const [first, second] = dom.document.querySelectorAll('button.video__facade');
+    first.click();
+    expect(scripts()).toHaveLength(1);
+    scripts()[0].dispatchEvent(new Event('error'));
+    await settle();
+    expect(dom.document.querySelectorAll('.video__error')).toHaveLength(1);
+    second.click();
+    // A fresh script element: the failed load isn't reused.
+    expect(scripts().map((s) => s.getAttribute('src'))).toEqual(['https://www.youtube.com/iframe_api', 'https://www.youtube.com/iframe_api']);
+    dom.window.YT = fakeYouTube(dom.document);
+    dom.window.onYouTubeIframeAPIReady();
+    await settle();
+    expect(created.map((p) => p.options.videoId)).toEqual(['ZyXwVuTsRqP']);
   });
 
   it('reports clicks on the row\'s handout only as DOM events (events.js sends them), and lets the link open', async () => {

@@ -92,12 +92,14 @@ a:hover {
 }
 
 /* One focus style everywhere: a 2px ring with a 2px offset, deep-teal on
-   light grounds and paper on teal or ink (set --focus-colour). The two
-   exceptions, the urgent notice and the header search input, are in
-   SPEC §7.5. */
+   light grounds and paper on teal or ink (set --focus-colour). The three
+   exceptions, the urgent notice, the header search input and the feedback
+   dialog's own ring, are in SPEC §7.5. The scroll margin keeps the ring
+   clear of the viewport's edge when focus scrolls the page. */
 :focus-visible {
   outline: var(--focus-width) solid var(--focus-colour);
   outline-offset: var(--focus-offset);
+  scroll-margin-block: var(--space-3);
 }
 
 [hidden] {
@@ -795,6 +797,14 @@ button.site-footer__feedback {
   color: var(--ink);
 }
 
+/* Chrome and Firefox make the scrolling dialog a Tab stop as focus wraps
+   (SPEC §13). Its ring goes just inside its border, deep-teal on paper,
+   since outside it would fall on the backdrop (SPEC §7.5's third
+   exception). */
+.feedback-dialog:focus-visible {
+  outline-offset: calc(-1 * (var(--focus-width) + var(--border-width) + var(--space-1)));
+}
+
 .feedback-dialog::backdrop {
   background: var(--backdrop);
 }
@@ -1224,7 +1234,9 @@ button.site-footer__feedback {
 /* Links inside a sentence still get a 44px-tall target (SPEC §7.5): the
    urgent notice, the search page's no-JavaScript route to Sleep problems,
    a link set on its own line (.link-standalone), links in an information
-   page's paragraphs and links in the §15.1 notices (.notice-text). */
+   page's paragraphs and links in the §15.1 notices (.notice-text). Long
+   addresses break anywhere, so wider letter and word spacing never
+   scrolls the page sideways (WCAG 1.4.12). */
 .notice--urgent a,
 .search-fallback a,
 .link-standalone a,
@@ -1233,6 +1245,7 @@ button.site-footer__feedback {
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
+  overflow-wrap: anywhere;
 }
 
 .link-standalone a {

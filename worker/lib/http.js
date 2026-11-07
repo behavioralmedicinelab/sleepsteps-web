@@ -1,8 +1,11 @@
 // Responses, request reading and body-shape checks for the API (SPEC §14.1).
 // Imports no JSON, so Node can load this module too.
 //
-// Every API response carries `Cache-Control: no-store` and
-// `X-Content-Type-Options: nosniff`. Success is 204 with no body. Errors are
+// Every API response carries `Cache-Control: no-store`,
+// `X-Content-Type-Options: nosniff` and `Content-Security-Policy:
+// default-src 'none'; frame-ancestors 'none'` (SPEC §14.1, §16.1): the
+// bodies are JSON or empty, so nothing may load from them and no page may
+// frame them. Success is 204 with no body. Errors are
 // `{"error":"<code>"}`, from the closed list in ERROR_CODES; the 404s keep
 // the plain "Not found" of every other 404, so a disabled feature, collection
 // switched off and a host that isn't allowed all look the same (SPEC §11).
@@ -22,7 +25,12 @@ export const ERROR_CODES = Object.freeze([
   'body', 'type', 'page', 'session_id', 'detail', 'video', 'stars', 'message', 'turnstile', 'origin', 'content_type', 'too_large', 'method', 'server',
 ]);
 
-const API_HEADERS = Object.freeze({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+/** On every API response, 404s included (SPEC §14.1, §16.1). Read by the tests. */
+export const API_HEADERS = Object.freeze({
+  'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+});
 
 export function apiNotFound() {
   return new Response('Not found', { status: 404, headers: API_HEADERS });

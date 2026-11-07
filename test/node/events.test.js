@@ -22,10 +22,13 @@ import {
 import { attr, listFiles, pageAt, readHtmlPages, tags } from './helpers.js';
 import { MemoryStorage, installDom } from './mini-dom.js';
 
-const site = inject('builtSite');
+// The site built with every feature on, whatever site.config.json says, so
+// none of these checks changes or is skipped while features.events is off
+// (SPEC §11). The pages with the switch off are checked in
+// features-off.test.js.
+const site = inject('builtSiteOn');
 const pagesJson = JSON.parse(readFileSync('worker/generated/pages.json', 'utf8'));
 const index = pageIndex(pagesJson);
-const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
 
 const VISIT_KEY = 'sleepsteps-visit';
 const OFF_KEY = 'sleepsteps-stats-off';
@@ -467,9 +470,7 @@ describe('built pages and the usage statistics modules (SPEC §10.1, §11)', () 
     '%s loads events.js only if it sends a page view or loads players.js or search.js, first after menu.js',
     (file, html) => {
       const scripts = scriptsOf(html);
-      const expected =
-        config.features.events &&
-        (tracked.includes(pageIdOf(html)) || scripts.includes('/js/players.js') || scripts.includes('/js/search.js'));
+      const expected = tracked.includes(pageIdOf(html)) || scripts.includes('/js/players.js') || scripts.includes('/js/search.js');
       expect(scripts.includes('/js/events.js'), file).toBe(Boolean(expected));
       if (expected) {
         expect(scripts.indexOf('/js/events.js'), file).toBe(scripts[0] === '/js/menu.js' ? 1 : 0);
@@ -480,12 +481,12 @@ describe('built pages and the usage statistics modules (SPEC §10.1, §11)', () 
 
   it('loads events.js on exactly the problem pages, Start here, Getting urgent help and Search', () => {
     const loading = pages.filter((p) => scriptsOf(p.html).includes('/js/events.js')).map((p) => pageIdOf(p.html));
-    expect(loading.sort()).toEqual(config.features.events ? [...tracked, 'search'].sort() : []);
+    expect(loading.sort()).toEqual([...tracked, 'search'].sort());
   });
 
   it('loads stats-switch.js only on the privacy page', () => {
     const loading = pages.filter((p) => scriptsOf(p.html).includes('/js/stats-switch.js')).map((p) => p.file);
-    expect(loading).toEqual(config.features.events ? ['privacy/index.html'] : []);
+    expect(loading).toEqual(['privacy/index.html']);
     expect(existsSync(path.join(site, 'js/usage-prefs.js'))).toBe(true);
   });
 
@@ -511,9 +512,9 @@ describe('built pages and the usage statistics modules (SPEC §10.1, §11)', () 
   });
 });
 
-// The same layout with the switch off, as the built site can't show it
-// (site.config.json is fixed for the test build): base.njk passes the
-// features and the page's track_page_view to the moduleScripts filter.
+// The same layout with the switch's other values (features-off.test.js
+// checks the pages built with it off): base.njk passes the features and the
+// page's track_page_view to the moduleScripts filter.
 describe('base.njk and features.events', () => {
   const require = createRequire(import.meta.url);
   const nunjucks = createRequire(require.resolve('@11ty/eleventy'))('nunjucks');

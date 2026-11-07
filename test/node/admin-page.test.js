@@ -191,10 +191,14 @@ describe.each(Object.entries(STATES))('the %s page', (name, page) => {
     for (const script of all(doc, 'script')) expect(script.getAttribute('src')).toBeTruthy();
   });
 
-  it('loads tokens.css and admin.css only, and a script only on the download page', () => {
-    expect(all(doc, 'link').map((l) => [l.getAttribute('rel'), l.getAttribute('href')])).toEqual([
-      ['stylesheet', '/css/tokens.css'],
-      ['stylesheet', '/css/admin.css'],
+  it('links the site icons, tokens.css and admin.css only, and a script only on the download page', () => {
+    // The icons are the public pages' (SPEC §7.5); the admin CSP's img-src 'self' allows them.
+    expect(all(doc, 'link').map((l) => [l.getAttribute('rel'), l.getAttribute('href'), l.getAttribute('type') ?? l.getAttribute('sizes')])).toEqual([
+      ['icon', '/favicon.svg', 'image/svg+xml'],
+      ['icon', '/favicon.ico', '32x32'],
+      ['apple-touch-icon', '/apple-touch-icon.png', null],
+      ['stylesheet', '/css/tokens.css', null],
+      ['stylesheet', '/css/admin.css', null],
     ]);
     const scripts = all(doc, 'script').map((s) => [s.getAttribute('type'), s.getAttribute('src')]);
     expect(scripts).toEqual(name === 'download' ? [['module', '/js/admin-export.js']] : []);
