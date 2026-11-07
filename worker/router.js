@@ -23,8 +23,13 @@
 // `remoteip` and never stores or logs it; the other routes' handlers are
 // called with no context, so they can't see it.
 //
-// /admin and /admin/* answer 404 until M6. Everything else goes to static
-// assets, so unknown paths get the site's 404 page.
+// /admin and /admin/* go to routes/admin.js (SPEC §14.4), which checks, in
+// this order: the host is in API_HOSTS and the request carries a valid
+// Access token (403 for either, whatever the path or method, before any D1
+// read); then the method (GET or HEAD, else 405); then the exact path (308
+// from /admin to /admin/, 404 for any other). Admin doesn't depend on
+// DATA_COLLECTION or `features`. Everything else goes to static assets, so
+// unknown paths get the site's 404 page.
 
 import {
   apiError,
@@ -38,6 +43,7 @@ import {
 } from './lib/http.js';
 import { hostAllowed } from './lib/hosts.js';
 import { pageIndex } from './lib/pages.js';
+import { createAdmin } from './routes/admin.js';
 import { handleEvent } from './routes/event.js';
 import { handleFeedback } from './routes/feedback.js';
 import { handleRate } from './routes/rate.js';
@@ -64,15 +70,19 @@ const ROUTES = new Map([
 
 const BODY_TYPES = new Set(['application/json', 'text/plain']);
 
-const notFound = () => new Response('Not found', { status: 404 });
-
 /**
- * @param {{ pages: object, site: object }} config  pages.json and site.config.json
+ * @param {object} config
+ * @param {object} config.pages  pages.json
+ * @param {object} config.site   site.config.json
+ * @param {object} [config.admin]  options for createAdmin (routes/admin.js):
+ *   `access`, `now`, `pageRows`, `maxExportRows`. Only tests pass these;
+ *   index.js passes none, so the real Access check always runs.
  * @returns {{ fetch(request: Request, env: object, ctx?: ExecutionContext): Promise<Response> }}
  */
-export function createRouter({ pages, site }) {
+export function createRouter({ pages, site, admin: adminOptions = {} }) {
   const index = pageIndex(pages);
   const features = site?.features ?? {};
+  const admin = createAdmin({ ...adminOptions, index });
 
   async function api(request, env, url) {
     if (env?.DATA_COLLECTION !== 'on') return apiNotFound();
@@ -104,7 +114,7 @@ export function createRouter({ pages, site }) {
     async fetch(request, env) {
       const url = new URL(request.url);
       if (url.pathname.startsWith('/api/')) return api(request, env, url);
-      if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return notFound();
+      if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return admin.handle(request, env, url);
       return env.ASSETS.fetch(request);
     },
   };

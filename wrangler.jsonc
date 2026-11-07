@@ -9,9 +9,10 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    // The Worker answers every /api/* request, even one whose path matches a
-    // file. M6 adds "/admin" and "/admin/*" (SPEC §14.4, §18.2).
-    "run_worker_first": ["/api/*"]
+    // The Worker answers every /api/*, /admin and /admin/* request, even one
+    // whose path matches a file (SPEC §14.4, §18.2). Both admin entries are
+    // needed: "/admin/*" doesn't match "/admin".
+    "run_worker_first": ["/api/*", "/admin", "/admin/*"]
   },
   // Workers Logs off: invocation logs record request metadata, which the API
   // must not store (SPEC §14.1). `wrangler tail` still shows live logs.
@@ -32,16 +33,22 @@
     }
   ],
   "vars": {
+    // Cloudflare Access, for the Worker's own check of the admin pages' token
+    // (worker/lib/access-jwt.js, SPEC §14.4): the team's domain with no
+    // scheme, and the /admin application's AUD tag (64 hex characters). The
+    // placeholders refuse every admin request and fetch nothing, until a
+    // person sets up Access and a PR puts in the real values (SPEC §18.4).
     "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com",
     "ACCESS_AUD": "<AUD_TAG>",
     // The API stores nothing unless this is exactly "on" (SPEC §11). Off in
     // production until the privacy officer's go-ahead (SPEC §18.3).
     "DATA_COLLECTION": "off",
-    // The hosts the API answers on, comma-separated; `*` matches within one
-    // DNS label (worker/lib/hosts.js). "<DOMAIN>" matches no host, so
-    // production's API answers nowhere, version URLs included, until the
-    // launch PR sets this to the domain together with siteUrl (SPEC §14.1,
-    // §18.2, §18.3).
+    // The hosts the API and the admin pages answer on, comma-separated; `*`
+    // matches within one DNS label (worker/lib/hosts.js). "<DOMAIN>" matches
+    // no host, so production's API and admin answer nowhere, version URLs
+    // included, until the launch PR sets this to the domain together with
+    // siteUrl (SPEC §14.1, §14.4, §18.2, §18.3). Every host listed here must
+    // be behind an Access application covering /admin and /admin/*.
     "API_HOSTS": "<DOMAIN>"
   },
   // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET,
@@ -70,6 +77,9 @@
       }
     ],
     "vars": {
+      // The same team; the AUD is the Worker-level Access application's
+      // ("Previews only", or "All traffic" before launch), not the /admin
+      // application's: on preview hosts the Worker-level one applies.
       "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com",
       "ACCESS_AUD": "<AUD_TAG>",
       // Off too: preview URLs are public (and posted on pull requests), and
@@ -77,8 +87,9 @@
       // it on only once previews are behind Cloudflare Access (SPEC §21).
       "DATA_COLLECTION": "off",
       // Every preview URL, <branch>-sleepsteps.<subdomain>.workers.dev
-      // (SPEC §18.3). Only previews read this block, so production's version
-      // URLs, which look the same, still answer 404.
+      // (SPEC §18.3), for the API and the admin pages. Only previews read
+      // this block, so production's version URLs, which look the same, still
+      // answer 404 (API) and 403 (admin).
       "API_HOSTS": "*-sleepsteps.*.workers.dev"
     }
   }

@@ -194,7 +194,7 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 
 ## Tests
 
-`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages and their videos the Worker checks events, ratings and feedback against (`SPEC.md` §8.3). The tests never contact Cloudflare: the Worker tests stand in for Turnstile's Siteverify, and the browser-module tests for its script.
+`npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages and their videos the Worker checks events, ratings and feedback against (`SPEC.md` §8.3). The tests never contact Cloudflare: the Worker tests stand in for Turnstile's Siteverify, and the browser-module tests for its script. The admin tests sign their own Access tokens with throwaway keys and stand in for Access's key list.
 
 ## Deployment
 
@@ -203,7 +203,53 @@ Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 - **Merging to `main`** runs `npm test && npm run build` and deploys production. Until launch, production is at `sleepsteps.behavioural-medicine-lab.workers.dev`, marked `noindex` so search engines leave it out.
 - **Other branches** each get a preview at `<branch>-sleepsteps.behavioural-medicine-lab.workers.dev`. All previews share one database, `sleepsteps-preview`, separate from production's, for test data only.
 - **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing; the stars under each video show, and say "Couldn't send right now — please try again later" when used. The feedback dialog shows too. In production, until a person has created the Turnstile widget and its site key is in `site.config.json`, it has no box to write in: it says the spam check isn't working, points to the Contact page and offers Close; after that it says "Couldn't send right now…" until the go-ahead. Previews always use Cloudflare's test key (`SPEC.md` §11, §13). The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
-- **Database changes** are new files in `migrations/`, never edits to an applied one; the first, `0001_init.sql`, creates the `ratings`, `feedback` and `events` tables (`SPEC.md` §17). `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`). This is needed only before data collection is turned on there; after that, each new migration is applied to production just before its pull request merges (`SPEC.md` §17, §18.4).
+- **The admin page** (`/admin/`, below) answers only after Cloudflare Access is set up (`SPEC.md` §18.4 step 6): until then it says "Forbidden" everywhere. Once previews are behind Access, everyone who opens a preview link signs in with a PIN, and `/admin/` there shows the preview database's test data, after `npm run db:migrate:preview`.
+- **Database changes** are new files in `migrations/`, never edits to an applied one; the first, `0001_init.sql`, creates the `ratings`, `feedback` and `events` tables (`SPEC.md` §17). `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`). This is needed only before data collection is turned on there, or the admin page is used there; after that, each new migration is applied to production just before its pull request merges (`SPEC.md` §17, §18.4).
+
+## Admin page and data exports
+
+The research team sees what the site has stored (ratings, feedback, searches and usage statistics) at `/admin/` on the live site, and on preview links once those are behind Cloudflare Access (`SPEC.md` §14.4). Access asks for your university email and sends you a one-time PIN. Only people on the "data access" list get into production's page; previews use a separate "preview reviewers" list, and their database holds test data only. Sign out with the link at the top of the page, which also shows which address you are on.
+
+Until a person has set up Access (`SPEC.md` §18.4 step 6), every `/admin` address answers "Forbidden", everywhere. The admin pages also answer only on the addresses the site's API answers on (`API_HOSTS`), never on production's version URLs. There is no way to open them locally with `npm run dev`: they need an Access sign-in, and there is deliberately no way to skip it.
+
+**What the page shows,** for a date range (the last 30 days unless you choose; up to 92 days):
+
+- page views and visits for each tracked page (the sleep problem pages, Start here and Getting urgent help), including pages nobody viewed;
+- ratings per video, per page, and per page and video, with the mean (a changed rating counts as a new rating);
+- how many searches found nothing, and the 20 most frequent of them, to help update `data/keywords.csv`;
+- the 20 most recent feedback messages, and how many there were in the range;
+- plays of each video and audio-only version, and how far people got;
+- handout clicks;
+- how many database rows the page read.
+
+It shows exact counts, never row numbers or visit codes. Videos are shown by their `video_id`.
+
+**Dates are UTC.** Every date on the page and in the files is a UTC calendar day, and both ends of a range are included. A UTC day runs from 10:00 on that date to 10:00 the next morning, Melbourne time (11:00 to 11:00 during daylight saving). Its figures include that evening and the early hours of the next day, but not the date's own early morning, which counts in the day before. Likewise, a month's file runs from 10 or 11 am on the 1st to the same time on the 1st of the next month, Melbourne time. Times are UTC too.
+
+**The monthly export** (`SPEC.md` §19.1). Under "Download the data", use the four "Last month" links: ratings, feedback, usage events and searches. Each file covers one calendar month (UTC), so every row is in exactly one file. A month's files are ready from 00:00 UTC on the 1st of the next month (10:00 in Melbourne, 11:00 during daylight saving). Before then the "Last month" links still show the month before, and a range ending on the month's last day is refused as incomplete, so do this after 11:00 on the 1st or on any later day.
+
+- A small file downloads at once. A larger one opens a page that fetches it in parts and saves one file: it needs JavaScript, and you keep the page open until it says the file is being saved.
+- Start downloads from the admin page. A download link opened from another website (webmail included), or straight after signing in again, answers "Start the download from the admin page": open `/admin/` and choose it there. (A typed address or a bookmark works.) This stops another website from running downloads in your signed-in browser and using up the day's database reads.
+- Save each file straight into the team's restricted folder, then delete it from Downloads. Never put exports in this repository or an email (the files are git-ignored as `sleepsteps-*.csv`, but don't rely on that). Feedback and searches come from anyone and can hold health or identifying details. The usage events file holds no free text, but it is still research data.
+- One download covers at most 31 days and 100,000 rows, and complete days only, so it ends yesterday at the latest. If last month's usage events pass 100,000 rows (above about 3,200 a day), the link says so: choose half a month at a time with the date form, and use the "This range" links instead. A range longer than 31 days gets one set of links per month.
+
+These limits protect the free plan's 5 million database rows read a day, which the whole Cloudflare account shares: once they run out, every database query fails until 00:00 UTC (10 or 11 am in Melbourne), visitors' ratings and feedback included. If the page's footer says it read more than a tenth of a day's allowance, choose shorter ranges and tell the developer.
+
+**Reading the files:**
+
+- Each file has one header row, then one row per stored row. Times are ISO 8601 UTC (`2026-10-31T13:00:00.000Z`); searches and feedback are rounded down to the hour.
+- Every text cell is in double quotes, the header row's too; numbers are bare; an empty field means no value.
+- A text cell that started with `=`, `+`, `-`, `@`, `'`, a tab or a line break (or a full-width `＝`, `＋`, `－` or `＠`) has an extra `'` in front, so spreadsheets show it as text instead of running it as a formula. Remove one leading `'` to get the stored text. Excel may drop this protection if you save the file from Excel and open it again, so keep the downloaded file as it is and work on a copy.
+- The files start with a byte-order mark, so Excel opens them as UTF-8 by double-click. In R use `readr::read_csv()`, or `read.csv(…, fileEncoding = "UTF-8-BOM")`; in Python, `pandas.read_csv(…, encoding="utf-8-sig")`.
+- The columns:
+  - ratings: `id, ts, page, video, stars`;
+  - feedback: `id, ts, page, page_title, message`;
+  - usage events: `ts, session_id, page, type, media, furthest` (`media` is a `video_id`; `furthest` is 0, 25, 50, 75 or 100 for plays, and empty otherwise);
+  - searches: `ts, q, results`.
+- A ratings or feedback `id` is unique within its table, so it finds duplicates across files and a row to delete (a deleted row's id can be reused). Usage events and searches have no id, on purpose: ids run in order, so a search's id would link it to the visit it came from. Rows are in a fixed order (usage events by type, then time), never in the order they were stored.
+- A `session_id` is one browser tab's random visit code, not a person.
+
+**If the page says** "The database isn't set up here yet", the database migrations haven't been applied at that address (a team member with Cloudflare access runs them, `SPEC.md` §17). "Couldn't read the database" usually passes: try again in a few minutes; if it doesn't, the account may have reached the free plan's daily limit, which resets at 00:00 UTC.
 
 ## Licence
 

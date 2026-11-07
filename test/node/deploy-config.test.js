@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import { unstable_readConfig } from 'wrangler';
+import { AUD_RE, TEAM_DOMAIN_RE } from '../../worker/lib/access-jwt.js';
 import { hostAllowed } from '../../worker/lib/hosts.js';
 
 // The two D1 databases (SPEC §17). Pinned, so a swap can't send preview
@@ -80,8 +81,30 @@ describe('wrangler.jsonc', () => {
     expect(config.previews.vars.DATA_COLLECTION).toBe('off');
   });
 
-  it('runs the Worker first for /api/*, so the API answers even where a file matches (SPEC §18.2)', () => {
-    expect(config.assets.run_worker_first).toContain('/api/*');
+  it('runs the Worker first for /api/*, /admin and /admin/*, so they answer even where a file matches (SPEC §14.4, §18.2)', () => {
+    // Both admin entries: "/admin/*" doesn't match "/admin".
+    expect(config.assets.run_worker_first).toEqual(['/api/*', '/admin', '/admin/*']);
+  });
+
+  it('sets ACCESS_TEAM_DOMAIN and ACCESS_AUD to the placeholders or well-formed values (SPEC §14.4, §18.2)', () => {
+    const blocks = { production: config.vars, previews: config.previews.vars };
+    for (const [name, vars] of Object.entries(blocks)) {
+      const team = vars.ACCESS_TEAM_DOMAIN;
+      const aud = vars.ACCESS_AUD;
+      expect(team === '<TEAM>.cloudflareaccess.com' || TEAM_DOMAIN_RE.test(team), `${name} ACCESS_TEAM_DOMAIN`).toBe(true);
+      expect(aud === '<AUD_TAG>' || AUD_RE.test(aud), `${name} ACCESS_AUD`).toBe(true);
+    }
+    // One team; and previews use the Worker-level application's AUD, never the /admin one's.
+    const teams = [config.vars.ACCESS_TEAM_DOMAIN, config.previews.vars.ACCESS_TEAM_DOMAIN].filter((t) => TEAM_DOMAIN_RE.test(t));
+    if (teams.length === 2) expect(teams[0]).toBe(teams[1]);
+    const auds = [config.vars.ACCESS_AUD, config.previews.vars.ACCESS_AUD].filter((a) => AUD_RE.test(a));
+    if (auds.length === 2) expect(auds[0]).not.toBe(auds[1]);
+  });
+
+  it('has no "access" key: access.dev only simulates ctx.access, which a Worker with static assets never gets (SPEC §14.4)', () => {
+    expect(config.access).toBeUndefined();
+    expect(config.previews.access).toBeUndefined();
+    expect(readFileSync('wrangler.jsonc', 'utf8')).not.toMatch(/"access"\s*:/);
   });
 
   it('turns Workers Logs off in production and in previews: invocation logs record request metadata (SPEC §14.1)', () => {

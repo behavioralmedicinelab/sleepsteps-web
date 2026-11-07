@@ -10,7 +10,7 @@ Website for a clinical trial of a stepped-care sleep intervention: static educat
 - Before writing code for a task, state which spec sections it implements.
 - If you change a decision, update `SPEC.md` (the relevant section plus the decision log, §22) in the same change.
 - Keep dependencies to those in SPEC §5. Ask before adding any package.
-- Browser JS: plain ES modules, no framework, no bundler. Every dynamic feature must fail gracefully (SPEC §11). The page must work with the API down or JavaScript disabled.
+- Browser JS: plain ES modules, no framework, no bundler. Every dynamic feature must fail gracefully (SPEC §11). The page must work with the API down or JavaScript disabled (one exception: the staff-only admin download page needs JavaScript for exports too large for one request, SPEC §11, §14.4).
 - Never add cookies or persistent identifiers set by SleepSteps, third-party scripts beyond SPEC §16.2, or storage of IP addresses or user agents (SPEC §2, §14.1, §16.2). Any storage on a visitor's device, ours or a provider's, needs a SPEC §15.4 row, a mention in the privacy page's "Cookies and browser storage" section and a §22 entry.
 - Don't over-use the name "SleepSteps" (one word) in user-facing copy: another organisation has trademarked a "Sleep Steps" program. Prefer "this program", "we", "us", "our" or "this website" (SPEC §7.5). The name is in the header logo and the footer heading, and may appear in a few places the team chooses, such as About. Technical names (repo, Worker, databases, storage keys, events, files) keep `sleepsteps`.
 - Never log feedback text or search queries to the console or Workers Logs.

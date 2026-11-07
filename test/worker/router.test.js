@@ -16,11 +16,20 @@ const post = (url, headers = {}) =>
   });
 
 describe('Worker router', () => {
-  it.each(['/api/event', '/api/rate', '/admin/', '/admin'])(
-    'returns 404 for %s with the settings in wrangler.jsonc (collection off)',
+  it.each(['/api/event', '/api/rate'])('returns 404 for %s with the settings in wrangler.jsonc (collection off)', async (path) => {
+    const res = await exports.default.fetch(`https://example.com${path}`, { method: 'POST' });
+    expect(res.status).toBe(404);
+  });
+
+  // The admin pages answer 403 before anything else, on every host the
+  // placeholder API_HOSTS doesn't list (SPEC §14.4); admin.test.js has the rest.
+  it.each(['/admin/', '/admin', '/admin/export', '/admin/x'])(
+    'returns 403 for %s with the settings in wrangler.jsonc, whatever the method',
     async (path) => {
-      const res = await exports.default.fetch(`https://example.com${path}`, { method: 'POST' });
-      expect(res.status).toBe(404);
+      for (const method of ['GET', 'HEAD', 'POST']) {
+        const res = await exports.default.fetch(`https://example.com${path}`, { method });
+        expect(res.status, method).toBe(403);
+      }
     },
   );
 
@@ -36,10 +45,11 @@ describe('Worker router', () => {
         },
       },
     };
-    for (const path of ['/apix', '/api', '/administrator/', '/videos/api/']) {
+    const paths = ['/apix', '/api', '/administrator/', '/videos/api/', '/Admin/', '/adminx', '/%61dmin/', '//admin/', '/admin%2Fexport', '/x/admin/'];
+    for (const path of paths) {
       await worker.fetch(new Request(`https://example.com${path}`), env, createExecutionContext());
     }
-    expect(seen).toEqual(['/apix', '/api', '/administrator/', '/videos/api/']);
+    expect(seen).toEqual(paths);
   });
 
   // Keep this test while the API exists: with collection off, no API route
