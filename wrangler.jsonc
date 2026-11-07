@@ -36,9 +36,10 @@
     // Cloudflare Access, for the Worker's own check of the admin pages' token
     // (worker/lib/access-jwt.js, SPEC §14.4): the team's domain with no
     // scheme, and the /admin application's AUD tag (64 hex characters). The
-    // placeholders refuse every admin request and fetch nothing, until a
-    // person sets up Access and a PR puts in the real values (SPEC §18.4).
-    "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com",
+    // AUD stays the placeholder, which refuses every admin request and
+    // fetches nothing, until the /admin application is created at launch and
+    // a PR puts its AUD here (SPEC §18.4 step 6c).
+    "ACCESS_TEAM_DOMAIN": "hidden-bird-3278.cloudflareaccess.com",
     "ACCESS_AUD": "<AUD_TAG>",
     // The API stores nothing unless this is exactly "on" (SPEC §11). Off in
     // production until the privacy officer's go-ahead (SPEC §18.3).
@@ -79,9 +80,10 @@
     "vars": {
       // The same team; the AUD is the Worker-level Access application's
       // ("Previews only", or "All traffic" before launch), not the /admin
-      // application's: on preview hosts the Worker-level one applies.
-      "ACCESS_TEAM_DOMAIN": "<TEAM>.cloudflareaccess.com",
-      "ACCESS_AUD": "<AUD_TAG>",
+      // application's: on preview hosts the Worker-level one applies (set up
+      // 2026-11-07, "Previews only" with the "preview reviewers" policy).
+      "ACCESS_TEAM_DOMAIN": "hidden-bird-3278.cloudflareaccess.com",
+      "ACCESS_AUD": "d8932384b2963f4439782139eff4a0222999d5abf671e52600139308bd9991ea",
       // Off too: preview URLs are public (and posted on pull requests), and
       // preview writes share the account's D1 limits with production. Turn
       // it on only once previews are behind Cloudflare Access (SPEC §21).
