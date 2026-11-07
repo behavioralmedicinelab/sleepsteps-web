@@ -40,6 +40,22 @@ describe('build output', () => {
   });
 });
 
+// The staff pages (SPEC §14.4) are rendered by the Worker, never built: the
+// build only copies their stylesheet and the download page's script, which
+// no public page loads.
+describe('the admin assets', () => {
+  it('builds nothing under admin/, and copies admin.css and admin-export.js', () => {
+    expect(existsSync(path.join(site, 'admin'))).toBe(false);
+    expect(pages.filter((p) => p.file.startsWith('admin'))).toEqual([]);
+    expect(statSync(path.join(site, 'css/admin.css')).isFile()).toBe(true);
+    expect(statSync(path.join(site, 'js/admin-export.js')).isFile()).toBe(true);
+  });
+
+  it('loads neither on any public page', () => {
+    for (const { file, html } of pages) expect(html, file).not.toMatch(/admin\.css|admin-export\.js/);
+  });
+});
+
 // Browser tab titles are the page title alone, with no site name after it
 // (SPEC §7.5, §22, 2026-11-06); Home's is "Sleep during and after cancer".
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };

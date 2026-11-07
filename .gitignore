@@ -17,6 +17,8 @@ worker/generated/
 .env
 .env.*
 
-# Data exports — never commit (SPEC §6)
+# Data exports — never commit (SPEC §6). Admin downloads are named
+# sleepsteps-<table>-<from>-to-<to>.csv; a bare *.csv would ignore data/*.csv.
 exports/
 *.csv.export
+sleepsteps-*.csv

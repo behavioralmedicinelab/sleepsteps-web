@@ -558,8 +558,11 @@ describe('Privacy: cookies and browser storage', () => {
     expect(text(privacyHtml)).toContain("We don't use cookies to track you or show you ads, and we don't set any cookies ourselves.");
   });
 
-  it('mentions the Cloudflare Access sign-in cookies research staff get (SPEC §15.2, §15.4)', () => {
-    expect(text(privacyHtml)).toContain("Research staff who sign in to the site's admin area also get sign-in cookies from Cloudflare Access. Visitors never see that area.");
+  it('mentions the Cloudflare Access sign-in cookies research staff and preview reviewers get (SPEC §15.2, §15.4)', () => {
+    expect(text(privacyHtml)).toContain("Research staff who sign in to the site's admin area, and people we invite to sign in to review a test copy of the site, also get sign-in cookies from Cloudflare Access. Visitors to this website don't get them.");
+    // It says who gets the cookies, never who can reach the test copies: previews
+    // stay public until SPEC §18.4 step 6b, and Deployment URLs are UNVERIFIED (§21).
+    expect(text(privacyHtml)).not.toMatch(/never see the admin area|test copies? (is|are) (private|behind)/i);
   });
 
   it('carries the YouTube API Services statement and links', () => {

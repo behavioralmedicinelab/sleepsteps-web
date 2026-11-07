@@ -155,3 +155,46 @@ describe('the row of controls under each video (components.css)', () => {
     expect(sheet).not.toMatch(/transcript|print-sheet|data-printing|solution__rating|rating--(row|card)|start-chapter__bar|\.formats\b/);
   });
 });
+
+// The staff pages' stylesheet (SPEC §14.4): loaded after tokens.css alone,
+// and printable as a report: no controls, downloads or contents list on
+// paper, and table headers repeated on each page.
+describe('admin.css', () => {
+  const css = sheets.find((s) => s.file === 'admin.css').css;
+  const print = (css.match(/@media print \{([\s\S]*?)\n\}/)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('hides the controls, the contents list and the downloads when printed', () => {
+    const hidden = print.match(/\n {2}([^{}]+) \{\s*display: none;\s*\}/)?.[1].split(/,\s*/).map((s) => s.trim()) ?? [];
+    expect(hidden).toEqual(
+      // Scoped under .admin, so they outrank the 44px links' display: inline-flex.
+      ['.skip-link', '.admin-header__signout', '.range', '.range-current__reset', '.admin-toc', '.admin-section--downloads', '.export'].map((s) => `.admin ${s}`),
+    );
+  });
+
+  it('repeats table headers on each printed page and keeps rows and messages whole', () => {
+    expect(print).toMatch(/thead \{\s*display: table-header-group;\s*\}/);
+    expect(print).toMatch(/tr,\s*\.feedback-item \{\s*break-inside: avoid;\s*\}/);
+    expect(print).toMatch(/\.table-scroll \{\s*overflow: visible;\s*\}/);
+    // The night-teal header band doesn't print, so its text turns ink.
+    expect(print).toMatch(/\.admin-header \{[^}]*background: none;[^}]*color: var\(--ink\);/);
+  });
+
+  it('scrolls a wide table inside its region, never the page, and keeps messages as stored', () => {
+    expect(css).toMatch(/\.table-scroll \{\s*max-width: 100%;\s*overflow-x: auto;\s*\}/);
+    expect(css).toMatch(/\.feedback-item__message \{[^}]*white-space: pre-wrap;[^}]*overflow-wrap: anywhere;/);
+  });
+
+  it('keeps every control and link at least 44px tall', () => {
+    expect(css).toMatch(/\.admin-main a,\s*\.admin-header a \{\s*display: inline-flex;\s*align-items: center;\s*min-height: var\(--target-min\);/);
+    expect(css).toMatch(/\.field input \{[^}]*min-height: var\(--target-lg\);/);
+    expect(css).toMatch(/\.range__submit,\s*\.admin-button \{[^}]*min-height: var\(--target-lg\);/);
+  });
+
+  it('is the only stylesheet that styles the admin pages, and styles nothing on the public site', () => {
+    for (const { file, css: sheet } of sheets) {
+      if (file !== 'admin.css') expect(sheet, file).not.toMatch(/\.admin\b|admin-/);
+    }
+    // Every rule is scoped to the admin pages' own classes or elements inside body.admin.
+    expect(css).not.toMatch(/\n(?:body|main|header|footer|a|p|h[1-4]|table|th|td) \{/);
+  });
+});

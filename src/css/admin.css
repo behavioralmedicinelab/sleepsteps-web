@@ -1,0 +1,585 @@
+/*
+ * The staff pages at /admin/ (SPEC §14.4): the summary page and the
+ * "download in parts" page, which the Worker renders itself.
+ *
+ * Loaded after tokens.css alone, never site.css or components.css, so the
+ * public site's styles can't change these pages and these can't change the
+ * site. There is no design board for them: they use the tokens, the passing
+ * colour pairs (tokens.json), 17px running text and 44px targets (SPEC §7.5).
+ * No colour literals (a test enforces it), no inline styles (the pages' CSP
+ * is style-src 'self').
+ *
+ * Contents
+ *   1. Base          4. Boxes          7. Feedback
+ *   2. Layout        5. The date form  8. The download page
+ *   3. Type, links   6. Tables         9. Print
+ */
+
+/* 1. Base ------------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body.admin {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.admin h1,
+.admin h2,
+.admin h3,
+.admin h4,
+.admin p,
+.admin ul,
+.admin ol,
+.admin blockquote,
+.admin fieldset {
+  margin: 0;
+}
+
+.admin h1,
+.admin h2,
+.admin h3,
+.admin h4 {
+  font-family: var(--font-heading);
+}
+
+.admin button,
+.admin input {
+  font: inherit;
+}
+
+/* One focus style: a 2px ring with a 2px offset, deep-teal on light grounds
+   and paper on the night-teal header. */
+.admin :focus-visible {
+  outline: var(--focus-width) solid var(--focus-colour);
+  outline-offset: var(--focus-offset);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: calc(-1 * var(--border-width));
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid var(--deep-teal);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--deep-teal);
+  font-weight: var(--weight-semibold);
+}
+
+.skip-link:not(:focus) {
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 2. Layout ---------------------------------------------------------------- */
+
+.admin-container {
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.admin-header {
+  --focus-colour: var(--paper);
+  background: var(--night-teal);
+  color: var(--paper);
+}
+
+.admin-header__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-5);
+  padding-block: var(--space-3);
+}
+
+.admin-header__title {
+  min-width: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.admin-header__host {
+  font-weight: var(--weight-regular);
+  overflow-wrap: anywhere;
+}
+
+/* Scoped under .admin to outrank the link colours in section 3. */
+.admin .admin-header a,
+.admin .admin-header a:hover {
+  color: var(--paper);
+}
+
+.admin .admin-header a:hover {
+  text-decoration-thickness: var(--border-width-strong);
+}
+
+.admin-main {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-block: var(--space-8) var(--space-12);
+}
+
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-8);
+  border-top: var(--border-width) solid var(--keyline);
+}
+
+.admin-footer {
+  padding-block: var(--space-7);
+  border-top: var(--border-width) solid var(--keyline);
+  background: var(--panel);
+}
+
+.admin-footer .admin-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 3. Type and links -------------------------------------------------------- */
+
+.admin h1 {
+  color: var(--night-teal);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-heading);
+}
+
+.admin h2 {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--weight-medium);
+}
+
+.admin h3,
+.admin h4 {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--weight-semibold);
+}
+
+.admin-main p,
+.admin-footer p,
+.admin legend {
+  max-width: var(--measure);
+}
+
+.hint {
+  color: var(--slate-grey);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--slate-grey);
+  font-style: italic;
+}
+
+.admin a {
+  color: var(--deep-teal);
+  text-underline-offset: 0.15em;
+}
+
+.admin a:hover {
+  color: var(--night-teal);
+}
+
+/* Every link is a 44px target, links in a sentence too (SPEC §7.5). */
+.admin-main a,
+.admin-header a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.admin-links,
+.admin-toc ul,
+.error-summary ul {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-toc ul {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0 var(--space-6);
+}
+
+/* 4. Boxes ----------------------------------------------------------------- */
+
+/* A transparent border shows as a frame in forced colours. */
+.admin-notice {
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.admin-alert,
+.error-summary {
+  --focus-colour: var(--clay-deep);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width) solid transparent;
+  border-left: var(--space-1) solid var(--clay-deep);
+  border-radius: var(--radius-sm);
+  background: var(--clay-wash);
+  color: var(--clay-deep);
+}
+
+.admin-alert h2,
+.error-summary h2 {
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  font-weight: var(--weight-semibold);
+}
+
+.admin .error-summary a,
+.admin .error-summary a:hover {
+  color: var(--clay-deep);
+  font-weight: var(--weight-semibold);
+}
+
+/* 5. The date form --------------------------------------------------------- */
+
+.range {
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.range fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.range legend {
+  padding: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.range__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-5) var(--space-6);
+}
+
+.field {
+  display: flex;
+  flex: 1 1 11rem;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 16rem;
+}
+
+.field label {
+  font-weight: var(--weight-semibold);
+}
+
+.field-error {
+  color: var(--clay-deep);
+  font-weight: var(--weight-semibold);
+}
+
+.field input {
+  width: 100%;
+  min-height: var(--target-lg);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--slate-grey);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font-size: var(--fs-body);
+}
+
+.field input[aria-invalid="true"] {
+  border: var(--border-width-strong) solid var(--clay-deep);
+}
+
+.range__submit,
+.admin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-lg);
+  padding: var(--space-3) var(--space-7);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--deep-teal);
+  color: var(--paper);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.range__submit:hover,
+.admin-button:hover {
+  background: var(--night-teal);
+}
+
+.admin-button[aria-disabled="true"] {
+  cursor: progress;
+}
+
+/* 6. Tables ---------------------------------------------------------------- */
+
+/* A wide table scrolls inside its region, never the page (WCAG 1.4.10). */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table-scroll table {
+  min-width: min(100%, 36rem);
+  border-collapse: collapse;
+  border: var(--border-width) solid var(--keyline);
+  background: var(--white);
+}
+
+.admin caption {
+  padding-bottom: var(--space-3);
+  caption-side: top;
+  text-align: start;
+  font-weight: var(--weight-semibold);
+}
+
+.admin th,
+.admin td {
+  padding: var(--space-3) var(--space-5);
+  border-top: var(--border-width) solid var(--keyline);
+  text-align: start;
+  vertical-align: top;
+}
+
+.admin thead th {
+  border-top: 0;
+  border-bottom: var(--border-width-strong) solid var(--slate-grey);
+  font-weight: var(--weight-semibold);
+  vertical-align: bottom;
+}
+
+.admin tbody th {
+  font-weight: var(--weight-regular);
+}
+
+.admin tfoot th,
+.admin tfoot td {
+  border-top: var(--border-width-strong) solid var(--slate-grey);
+  font-weight: var(--weight-semibold);
+}
+
+.admin .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin td.num {
+  white-space: nowrap;
+}
+
+.page-name {
+  display: block;
+}
+
+.page-id {
+  display: block;
+  color: var(--slate-grey);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+}
+
+/* Ids break at their hyphens, as text does, never between letters: a
+   table too wide for the screen scrolls in its region instead of growing
+   rows a letter wide. break-word only splits a word longer than the line. */
+.page-name,
+.page-id,
+.video-id,
+.search-text {
+  overflow-wrap: break-word;
+}
+
+/* 7. Feedback -------------------------------------------------------------- */
+
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.feedback-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--measure);
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width) solid var(--keyline);
+  border-radius: var(--radius-md);
+  background: var(--white);
+}
+
+.feedback-item__heading {
+  overflow-wrap: anywhere;
+}
+
+/* The message exactly as stored: its line breaks and tabs show. */
+.feedback-item__message {
+  margin-inline: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 8. The download page ----------------------------------------------------- */
+
+.export {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.export__progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: var(--measure);
+}
+
+.export__progress progress {
+  width: 100%;
+  accent-color: var(--deep-teal);
+}
+
+/* 9. Print ------------------------------------------------------------------ */
+
+@media print {
+  @page {
+    margin: 15mm;
+  }
+
+  body.admin {
+    display: block;
+    background: none;
+  }
+
+  /* Controls and links that do nothing on paper. */
+  .admin .skip-link,
+  .admin .admin-header__signout,
+  .admin .range,
+  .admin .range-current__reset,
+  .admin .admin-toc,
+  .admin .admin-section--downloads,
+  .admin .export {
+    display: none;
+  }
+
+  .admin-header {
+    background: none;
+    color: var(--ink);
+    border-bottom: var(--border-width) solid var(--ink);
+  }
+
+  .admin-main {
+    gap: var(--space-6);
+    padding-block: var(--space-6);
+  }
+
+  .admin a {
+    color: var(--ink);
+  }
+
+  .table-scroll {
+    overflow: visible;
+  }
+
+  .table-scroll table {
+    width: 100%;
+  }
+
+  /* Paper doesn't scroll: a long id or search text breaks anywhere to fit. */
+  .page-name,
+  .page-id,
+  .video-id,
+  .search-text {
+    overflow-wrap: anywhere;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  .feedback-item {
+    break-inside: avoid;
+  }
+
+  .admin-section h2 {
+    break-after: avoid;
+  }
+}
