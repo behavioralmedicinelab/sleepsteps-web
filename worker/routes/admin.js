@@ -77,6 +77,9 @@ export const ADMIN_HEADERS = Object.freeze({
   'X-Frame-Options': 'DENY',
   'Cross-Origin-Resource-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  // As on every static response (src/_headers, SPEC §16.1): no
+  // includeSubDomains, no preload. Browsers ignore it over http.
+  'Strict-Transport-Security': 'max-age=31536000',
 });
 
 /**

@@ -9,7 +9,11 @@ import { attr, pageAt, tags } from './helpers.js';
 import { installDom } from './mini-dom.js';
 import { MAX_RESULTS, TYPE_LABELS } from '../../src/js/search-config.js';
 
-const site = inject('builtSite');
+// The site built with every feature on, whatever site.config.json says, so
+// the page loads events.js as it does while features.events is on (SPEC
+// §11). The page built with each switch off is checked in
+// features-off.test.js.
+const site = inject('builtSiteOn');
 const html = pageAt(site, '/search/');
 const indexJson = readFileSync(path.join(site, 'search-index.json'), 'utf8');
 const index = JSON.parse(indexJson);
@@ -174,6 +178,47 @@ describe('src/js/search.js', () => {
       expect(page.events).toEqual([]);
       dom.restore();
     }
+  });
+
+  it.each([
+    ['a 500', async () => new Response('', { status: 500 })],
+    ['a 302 with no Location, which fetch returns as it is', async () => new Response('', { status: 302 })],
+    // Cloudflare Access redirects to its sign-in, on another site, once a
+    // preview's session ends; the browser refuses to follow (connect-src
+    // 'self', and CORS without the CSP) and the fetch rejects (Chrome 157, M7).
+    ['a redirect to the Access sign-in on another site', async () => Promise.reject(new TypeError('Failed to fetch'))],
+    ['a 200 that is a web page, not JSON', async () => new Response('<!doctype html><title>Sign in</title>', { status: 200, headers: { 'Content-Type': 'text/html' } })],
+    ['a 200 with JSON that is no index', async () => new Response('{"error":"not found"}', { status: 200, headers: { 'Content-Type': 'application/json' } })],
+  ])('if the index answer is %s, says search isn\'t working, links to Sleep problems, and sends no event', async (name, fetchImpl) => {
+    const page = await search('pain', { fetchImpl });
+    expect(page.status).toBe("Search isn't working right now.");
+    expect(page.$('[data-search-error]').hidden).toBe(false);
+    expect(page.$('[data-search-error] a').getAttribute('href')).toBe('/problems/');
+    expect(page.results).toEqual([]);
+    expect(page.events).toEqual([]);
+  });
+
+  it('says search isn\'t working, and sends no event, when the index never arrives within 15 seconds', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const page = html.replace(
+      /data-minisearch="[^"]*"/,
+      `data-minisearch="${pathToFileURL(path.join(site, 'js/vendor/minisearch/index.js')).href}"`,
+    );
+    const fetched = [];
+    vi.stubGlobal('fetch', (url) => (fetched.push(url), new Promise(() => {})));
+    dom = installDom(page, { search: '?q=pain' });
+    const events = [];
+    dom.document.addEventListener('sleepsteps:event', (e) => events.push(e.detail));
+    vi.resetModules();
+    await import('../../src/js/search.js');
+    const $ = (selector) => dom.document.querySelector(selector);
+    await vi.advanceTimersByTimeAsync(15000 - 1);
+    expect([$('[data-search-status]').textContent, $('[data-search-error]').hidden]).toEqual(['Searching…', true]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect([$('[data-search-status]').textContent, $('[data-search-error]').hidden]).toEqual(["Search isn't working right now.", false]);
+    expect($('[data-search-results]').hidden).toBe(true);
+    expect([fetched, events]).toEqual([['/search-index.json'], []]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('if MiniSearch fails to load, says so', async () => {

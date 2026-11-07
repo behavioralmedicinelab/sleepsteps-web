@@ -11,10 +11,12 @@ import { parseFrontMatter, validateContent } from '../../scripts/validate-conten
 import { attr, readHtmlPages, tags } from './helpers.js';
 
 const site = inject('builtSite');
-const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
 const { model } = validateContent(process.cwd());
 const pages = JSON.parse(readFileSync('worker/generated/pages.json', 'utf8'));
 const built = readHtmlPages(site);
+// With every feature on, whatever site.config.json says, so the ratings
+// widget's data-rating is always there to check (SPEC §11).
+const builtOn = readHtmlPages(inject('builtSiteOn'));
 const problemIds = [...model.problems.keys()];
 const TRACKED = [...problemIds, 'start', 'urgent-help'].sort();
 const UNTRACKED = ['about', 'contact', 'help', 'home', 'privacy', 'problems', 'search'];
@@ -157,14 +159,14 @@ describe('the HTML pages.json is read from', () => {
 
   it('names videos only by video_id: data-video, data-handout, the audio’s data-media and the ratings widget’s data-rating', () => {
     const seen = new Set();
-    for (const { file, html } of built) {
+    for (const { file, html } of builtOn) {
       for (const [, name, value] of html.matchAll(/\sdata-(video|handout|media|rating)="([^"]*)"/g)) {
         expect(model.videos.has(value), `${file}: data-${name}="${value}"`).toBe(true);
         seen.add(name);
       }
       expect(html, file).not.toMatch(/\sdata-transcript=/);
     }
-    expect([...seen].sort()).toEqual(['handout', 'media', ...(config.features.ratings === true ? ['rating'] : []), 'video']);
+    expect([...seen].sort()).toEqual(['handout', 'media', 'rating', 'video']);
   });
 
   it('gives each audio player the video_id of its own "Audio only" disclosure (audio_play, SPEC §10.2)', () => {

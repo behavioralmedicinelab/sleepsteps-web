@@ -77,6 +77,15 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ media: 'media' });
   // Response headers for static assets, read by Workers (SPEC §16.1).
   eleventyConfig.addPassthroughCopy({ 'src/_headers': '_headers' });
+  // The site icons (the steps motif, from the project lead's files), served
+  // from the site root (SPEC §7.5). src/ holds the only copy. base.njk and the
+  // admin pages link all three; /favicon.ico is also where a browser looks
+  // when nothing names an icon (the PDF viewer's tab).
+  eleventyConfig.addPassthroughCopy({
+    'src/favicon.svg': 'favicon.svg',
+    'src/favicon.ico': 'favicon.ico',
+    'src/apple-touch-icon.png': 'apple-touch-icon.png',
+  });
   // MiniSearch for the search page (SPEC §5, §8), copied from node_modules as
   // published: its browser ES module, the source map it names, and its MIT
   // licence. Loaded by src/js/search.js and nowhere else.

@@ -1,7 +1,8 @@
 // Deployment configuration (SPEC §14.1, §14.3, §16.1, §17, §18.1-§18.3):
 // wrangler.jsonc and its previews block, the preview-migrations config, the
-// npm and Node pins, and the built dist/_headers. Wrangler doesn't check
-// _headers on deploy (a bad line is silently dropped), so it is checked here.
+// npm and Node pins, and the built dist/_headers with its security headers.
+// Wrangler doesn't check _headers on deploy (a bad line is silently
+// dropped), so it is checked here.
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -9,6 +10,8 @@ import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import { unstable_readConfig } from 'wrangler';
 import { AUD_RE, TEAM_DOMAIN_RE } from '../../worker/lib/access-jwt.js';
 import { hostAllowed } from '../../worker/lib/hosts.js';
+import { ADMIN_HEADERS } from '../../worker/routes/admin.js';
+import { listFiles } from './helpers.js';
 
 // The two D1 databases (SPEC §17). Pinned, so a swap can't send preview
 // writes or migrations to production, or the reverse.
@@ -341,6 +344,148 @@ describe('dist/_headers (SPEC §16.1, §18.3)', () => {
 
   it('marks the 404 page noindex where it is served with a 200 (/404)', () => {
     expect(rules.find((r) => r.url === '/404')?.headers['x-robots-tag']).toBe('noindex');
+  });
+});
+
+// The security headers on every static response (SPEC §16.1), all from the
+// /* rule. The API's and the admin pages' own are the Worker's
+// (test/worker/router.test.js, admin.test.js).
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://www.youtube.com https://challenges.cloudflare.com",
+  'frame-src https://www.youtube-nocookie.com https://challenges.cloudflare.com',
+  "img-src 'self'",
+  "connect-src 'self'",
+  "style-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+const SECURITY_HEADERS = Object.freeze({
+  'content-security-policy': CSP,
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'x-content-type-options': 'nosniff',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  'x-frame-options': 'DENY',
+  'cross-origin-opener-policy': 'same-origin',
+  'strict-transport-security': 'max-age=31536000',
+});
+
+// What YouTube's player iframe asks for in its `allow` attribute (seen in
+// Chrome 157, 2026-11-07): a Permissions-Policy that named any of these would
+// take it away from the player.
+const PLAYER_FEATURES = ['autoplay', 'encrypted-media', 'fullscreen', 'picture-in-picture', 'accelerometer', 'gyroscope', 'clipboard-write', 'web-share'];
+
+/** A policy as { directive: [sources] }, directives lowercased. */
+function directives(policy) {
+  const out = {};
+  for (const part of policy.split(';')) {
+    const [name, ...sources] = part.trim().split(/\s+/);
+    if (name) out[name.toLowerCase()] = sources;
+  }
+  return out;
+}
+
+/** The browser code without its comments, as worker-source.test.js reads the Worker's. */
+const jsCode = (file) => readFileSync(file, 'utf8').replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+describe('dist/_headers security headers (SPEC §16.1)', () => {
+  const file = path.join(inject('builtSite'), '_headers');
+  const { rules } = parseHeaders(existsSync(file) ? readFileSync(file, 'utf8') : '');
+  const all = rules.find((r) => r.url === '/*');
+  const csp = directives(all?.headers['content-security-policy'] ?? '');
+
+  it('sets each security header in the /* rule, and pins its value', () => {
+    expect(all, 'a /* rule').toBeDefined();
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(all.headers[name], name).toBe(value);
+  });
+
+  it('sets each one in no other rule, unless that rule comes later and detaches it first (Cloudflare joins two values with a comma: two policies, both enforced)', () => {
+    const at = rules.indexOf(all);
+    for (const [i, rule] of rules.entries()) {
+      if (rule === all) continue;
+      const unset = rule.unset.map((name) => name.toLowerCase());
+      for (const name of Object.keys(SECURITY_HEADERS)) {
+        if (!Object.hasOwn(rule.headers, name)) continue;
+        expect(i > at && unset.includes(name), `line ${rule.line} (${rule.url}) sets ${name}`).toBe(true);
+      }
+    }
+  });
+
+  it('enforces the policy, with no Report-Only copy, no report-uri or report-to, and no reporting or NEL header of ours (SPEC §15.4)', () => {
+    for (const { line, headers } of rules) {
+      for (const name of ['content-security-policy-report-only', 'report-to', 'reporting-endpoints', 'nel']) {
+        expect(headers, `line ${line}`).not.toHaveProperty(name);
+      }
+    }
+    expect(csp).not.toHaveProperty('report-uri');
+    expect(csp).not.toHaveProperty('report-to');
+  });
+
+  it('allows nothing unsafe or wide: no unsafe-*, wildcard, scheme source, nonce, hash or strict-dynamic, and hosts without paths', () => {
+    for (const [name, sources] of Object.entries(csp)) {
+      for (const source of sources) {
+        const keyword = /^'[a-z-]+'$/.test(source);
+        const origin = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(source);
+        expect(keyword || origin, `${name} ${source}`).toBe(true);
+        if (keyword) expect(["'self'", "'none'"], `${name} ${source}`).toContain(source);
+      }
+    }
+  });
+
+  it('gives scripts only this site, YouTube and Turnstile, and frames only youtube-nocookie and Turnstile', () => {
+    expect(csp['script-src']).toEqual(["'self'", 'https://www.youtube.com', 'https://challenges.cloudflare.com']);
+    expect(csp['frame-src']).toEqual(['https://www.youtube-nocookie.com', 'https://challenges.cloudflare.com']);
+  });
+
+  it('loads images, styles and connections from this site only (no data:, so the icons are files, SPEC §7.5)', () => {
+    for (const name of ['default-src', 'img-src', 'style-src', 'connect-src']) expect(csp[name], name).toEqual(["'self'"]);
+  });
+
+  it('refuses plugins and framing, keeps <base> and forms here, and sets no sandbox (which blanks the PDF viewer)', () => {
+    expect(csp['object-src']).toEqual(["'none'"]);
+    expect(csp['frame-ancestors']).toEqual(["'none'"]);
+    expect(csp['base-uri']).toEqual(["'self'"]);
+    expect(csp['form-action']).toEqual(["'self'"]);
+    expect(csp).not.toHaveProperty('sandbox');
+    expect(all.headers['x-frame-options']).toBe('DENY');
+  });
+
+  it('allows every third-party host the browser code loads, and names every https address in it (src/js/)', () => {
+    const literal = (source, name) => jsCode(source).match(new RegExp(`\\b${name} = '([^']+)'`))?.[1];
+    const api = literal('src/js/players.js', 'API_URL');
+    const player = literal('src/js/players.js', 'PLAYER_HOST');
+    const turnstile = literal('src/js/feedback.js', 'TURNSTILE_URL');
+    for (const url of [api, player, turnstile]) expect(url).toMatch(/^https:\/\//);
+    const origin = (url) => new URL(url).origin;
+    // YouTube's IFrame API script and its player frame; Turnstile's script and its frames.
+    expect(csp['script-src']).toEqual(expect.arrayContaining([origin(api), origin(turnstile)]));
+    expect(csp['frame-src']).toEqual(expect.arrayContaining([origin(player), origin(turnstile)]));
+    // A new address in the browser code (outside comments) needs its host in
+    // the policy and in SPEC §16.2; "Watch on YouTube" links to www.youtube.com.
+    const allowed = new Set([...csp['script-src'], ...csp['frame-src']]);
+    for (const source of listFiles('src/js', (f) => f.endsWith('.js'))) {
+      for (const [url] of jsCode(path.join('src/js', source)).matchAll(/https?:\/\/[^'"`\s)]+/g)) {
+        expect(allowed.has(origin(url)), `src/js/${source}: ${url}`).toBe(true);
+      }
+    }
+  });
+
+  it("never denies a feature YouTube's player asks for", () => {
+    const named = all.headers['permissions-policy'].split(',').map((item) => item.trim().split('=')[0]);
+    for (const feature of PLAYER_FEATURES) expect(named, feature).not.toContain(feature);
+  });
+
+  it('sends the same Permissions-Policy, nosniff, X-Frame-Options and HSTS as the admin pages (SPEC §14.4)', () => {
+    for (const name of ['Permissions-Policy', 'X-Content-Type-Options', 'X-Frame-Options', 'Strict-Transport-Security']) {
+      expect(all.headers[name.toLowerCase()], name).toBe(ADMIN_HEADERS[name]);
+    }
+  });
+
+  it('sends HSTS without includeSubDomains or preload', () => {
+    expect(all.headers['strict-transport-security']).toBe('max-age=31536000');
+    expect(all.headers['strict-transport-security']).not.toMatch(/includesubdomains|preload/i);
   });
 });
 

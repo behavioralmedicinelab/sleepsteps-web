@@ -294,7 +294,7 @@ describe('routing after the gates', () => {
 describe('headers on every admin answer', () => {
   const CSP = (team) => `default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'${team}; base-uri 'none'; frame-ancestors 'none'`;
 
-  it('carries the admin headers and the script-free CSP on 200, 308, 400, 403, 404, 405 and 500', async () => {
+  it('carries the admin headers, HSTS included, and the script-free CSP on 200, 308, 400, 403, 404, 405 and 500', async () => {
     const failing = { ...ENV(), DB: undefined };
     const refuse = makeRouter({ access: { verify: async () => ({ ok: false, code: 'no-token' }) } });
     const answers = [
@@ -313,6 +313,8 @@ describe('headers on every admin answer', () => {
     for (const [status, res] of answers) {
       expect(res.status).toBe(status);
       for (const [name, value] of Object.entries(ADMIN_HEADERS)) expect(res.headers.get(name), `${status} ${name}`).toBe(value);
+      // As on the static pages (src/_headers, SPEC §16.1): no includeSubDomains, no preload.
+      expect(res.headers.get('Strict-Transport-Security'), `${status} HSTS`).toBe('max-age=31536000');
       expect(res.headers.get('Content-Security-Policy')).toBe(CSP(` https://${TEAM}`));
       expect(res.headers.get('Set-Cookie')).toBeNull();
     }

@@ -65,10 +65,12 @@ body.admin {
 }
 
 /* One focus style: a 2px ring with a 2px offset, deep-teal on light grounds
-   and paper on the night-teal header. */
+   and paper on the night-teal header. The scroll margin keeps the ring clear
+   of the viewport's edge when focus scrolls the page. */
 .admin :focus-visible {
   outline: var(--focus-width) solid var(--focus-colour);
   outline-offset: var(--focus-offset);
+  scroll-margin-block: var(--space-3);
 }
 
 [hidden] {
