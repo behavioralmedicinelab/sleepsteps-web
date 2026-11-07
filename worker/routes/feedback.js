@@ -23,12 +23,12 @@
 // then it is trimmed.
 //
 // A message is one `feedback` row: `ts` the server's time rounded down to the
-// hour, so it is hard to match to the same visit's events (lib/time.js, as
-// for a search); `page` the checked page_id; `page_title` from pages.json,
-// never from the client (NULL if empty); `message` the cleaned text. No
-// events row and no session_id. Nothing from the request is ever logged: not
-// the message, the token, the IP address passed to Siteverify or the secret.
-// The log lines are fixed texts plus a code from a closed list.
+// hour (lib/time.js, as for every row the API writes); `page` the checked
+// page_id, and no title (the admin page shows the page's current title from
+// pages.json, SPEC §14.4); `message` the cleaned text. No events row and no
+// session_id. Nothing from the request is ever logged: not the message, the
+// token, the IP address passed to Siteverify or the secret. The log lines
+// are fixed texts plus a code from a closed list.
 
 import { insertRow } from '../lib/d1.js';
 import { apiError, hasExactKeys, isPlainObject } from '../lib/http.js';
@@ -64,15 +64,14 @@ export function cleanMessage(message) {
  * Check a parsed body against the rules above, up to Siteverify. Pure.
  * @param {unknown} body  the parsed JSON
  * @param {Map} index     pageIndex(pages.json)
- * @returns {{ row: { page: string, title: string | null, message: string }, token: string }
+ * @returns {{ row: { page: string, message: string }, token: string }
  *   | { status: 400 | 403, error: string }}
  */
 export function validateFeedback(body, index) {
   if (!isPlainObject(body) || !hasExactKeys(body, FEEDBACK_KEYS)) return { status: 400, error: 'body' };
   const { page_id: page, message, turnstile_token: token } = body;
 
-  const entry = typeof page === 'string' ? index.get(page) : undefined;
-  if (!entry) return { status: 400, error: 'page' };
+  if (typeof page !== 'string' || !index.has(page)) return { status: 400, error: 'page' };
 
   if (typeof message !== 'string') return { status: 400, error: 'message' };
   const cleaned = cleanMessage(message);
@@ -82,7 +81,7 @@ export function validateFeedback(body, index) {
     return { status: 403, error: 'turnstile' };
   }
 
-  return { row: { page, title: entry.title || null, message: cleaned }, token };
+  return { row: { page, message: cleaned }, token };
 }
 
 /**
@@ -114,11 +113,6 @@ export async function handleFeedback(body, env, index, { remoteIp = null, now = 
     return apiError(500, 'server');
   }
 
-  const { page, title, message } = result.row;
-  return insertRow(env, LOG, 'INSERT INTO feedback (ts, page, page_title, message) VALUES (?, ?, ?, ?)', [
-    hourTimestamp(now),
-    page,
-    title,
-    message,
-  ]);
+  const { page, message } = result.row;
+  return insertRow(env, LOG, 'INSERT INTO feedback (ts, page, message) VALUES (?, ?, ?)', [hourTimestamp(now), page, message]);
 }

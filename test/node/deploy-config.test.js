@@ -159,9 +159,15 @@ describe('migrations/ (SPEC §17)', () => {
 // D1 records only a migration's file name, so a migration edited after it
 // has been applied to a remote database never reaches it (SPEC §17). Each
 // migration is pinned here; a schema change is a new NNNN_name.sql file
-// (add its hash below once it is applied anywhere remote).
+// (add its hash below, at the latest once it is applied anywhere remote).
 const APPLIED_MIGRATIONS = {
+  // Applied to the local and preview databases (2026-11-06, 2026-11-07).
   '0001_init.sql': 'aa5201b2ccadc89219a58fce2d79c4992331c70e748b5e75b4f499f97e9e2ccb',
+  // Feedback without page_title (project lead, 2026-11-07). Pinned before
+  // its first remote apply: a person runs `npm run db:migrate:preview` after
+  // this merges (SPEC §17), and production gets it with 0001 at its first
+  // `npm run db:migrate:remote`. It must not change once applied anywhere.
+  '0002_feedback_drop_page_title.sql': 'ab705000414d47bf26598b4d4133243cd3adb8f59ea944ae7c34eaf319baeeb0',
 };
 
 describe('migrations/', () => {

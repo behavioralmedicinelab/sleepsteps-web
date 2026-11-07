@@ -27,10 +27,10 @@ npm run db:migrate:local   # once, and again after each new file in migrations/
 npm run dev:collect        # like npm run dev, with collection on for this run
 ```
 
-Open http://localhost:8787 (the API answers only on port 8787, at `localhost` or `127.0.0.1`). Open a sleep problem page, play an audio-only version, open a handout, rate a video or search, then look at what was stored:
+Open http://localhost:8787 (the API answers only on port 8787, at `localhost` or `127.0.0.1`). Open a sleep problem page, play an audio-only version, open a handout, rate a video or search, then look at what was stored (every time is rounded down to the hour, so rows from the same hour share a `ts`; these queries list the newest first by id):
 
 ```sh
-npx wrangler d1 execute sleepsteps --local --command "SELECT ts, session_id, page, type, detail FROM events ORDER BY ts DESC LIMIT 20"
+npx wrangler d1 execute sleepsteps --local --command "SELECT ts, session_id, page, type, detail FROM events ORDER BY id DESC LIMIT 20"
 npx wrangler d1 execute sleepsteps --local --command "SELECT ts, page, video, stars FROM ratings ORDER BY id DESC LIMIT 20"
 ```
 
@@ -39,10 +39,10 @@ A star clicked or tapped is sent at once; a star reached with the arrow keys is 
 **Feedback and its spam check.** The feedback dialog uses Cloudflare Turnstile, which needs no Cloudflare account locally: on `localhost` and `127.0.0.1` the dialog uses Cloudflare's published always-pass test site key, `1x00000000000000000000AA`, and `dev:collect` gives the Worker the matching test secret, `1x0000000000000000000000000000000AA`, with `--var` (`SPEC.md` §13, §14.3). The widget then says "For testing only. If seen, report to site owner"; that is expected. The dialog still loads Turnstile's script from `challenges.cloudflare.com` the first time it opens, so you need to be online. Send a message, then check what was stored, without printing the message itself:
 
 ```sh
-npx wrangler d1 execute sleepsteps --local --command "SELECT ts, page, page_title, length(message) FROM feedback ORDER BY id DESC LIMIT 20"
+npx wrangler d1 execute sleepsteps --local --command "SELECT ts, page, length(message) FROM feedback ORDER BY id DESC LIMIT 20"
 ```
 
-The time is rounded down to the hour. To see a check that fails, run the Worker with one of Cloudflare's other test secrets instead (`npm run build` first): `2x0000000000000000000000000000000AA` always fails, and `3x0000000000000000000000000000000AA` answers as if the token had already been used. Either way the dialog says "Couldn't send right now — please try again later" and keeps the text.
+Only the page id is stored with the message (the admin page shows the page's current title), and the time is rounded down to the hour, as it is for every row. To see a check that fails, run the Worker with one of Cloudflare's other test secrets instead (`npm run build` first): `2x0000000000000000000000000000000AA` always fails, and `3x0000000000000000000000000000000AA` answers as if the token had already been used. Either way the dialog says "Couldn't send right now — please try again later" and keeps the text.
 
 ```sh
 npx wrangler dev --var DATA_COLLECTION:on --var API_HOSTS:localhost:8787,127.0.0.1:8787 --var TURNSTILE_SECRET:2x0000000000000000000000000000000AA
@@ -204,7 +204,7 @@ Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 - **Other branches** each get a preview at `<branch>-sleepsteps.behavioural-medicine-lab.workers.dev`. All previews share one database, `sleepsteps-preview`, separate from production's, for test data only.
 - **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing; the stars under each video show, and say "Couldn't send right now — please try again later" when used. The feedback dialog shows too. In production, until a person has created the Turnstile widget and its site key is in `site.config.json`, it has no box to write in: it says the spam check isn't working, points to the Contact page and offers Close; after that it says "Couldn't send right now…" until the go-ahead. Previews always use Cloudflare's test key (`SPEC.md` §11, §13). The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
 - **The admin page** (`/admin/`, below) answers only after Cloudflare Access is set up (`SPEC.md` §18.4 step 6): until then it says "Forbidden" everywhere. Once previews are behind Access, everyone who opens a preview link signs in with a PIN, and `/admin/` there shows the preview database's test data, after `npm run db:migrate:preview`.
-- **Database changes** are new files in `migrations/`, never edits to an applied one; the first, `0001_init.sql`, creates the `ratings`, `feedback` and `events` tables (`SPEC.md` §17). `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`). This is needed only before data collection is turned on there, or the admin page is used there; after that, each new migration is applied to production just before its pull request merges (`SPEC.md` §17, §18.4).
+- **Database changes** are new files in `migrations/`, never edits to an applied one; the first, `0001_init.sql`, creates the `ratings`, `feedback` and `events` tables, and `0002_feedback_drop_page_title.sql` removes feedback's `page_title` column (`SPEC.md` §17). `npm run db:migrate:local` applies them locally. A team member with Cloudflare access applies them to the preview and production databases (`npm run db:migrate:preview`, `npm run db:migrate:remote`). This is needed only before data collection is turned on there, or the admin page is used there; after that, each new migration is applied to production just before its pull request merges (`SPEC.md` §17, §18.4).
 
 ## Admin page and data exports
 
@@ -237,16 +237,16 @@ These limits protect the free plan's 5 million database rows read a day, which t
 
 **Reading the files:**
 
-- Each file has one header row, then one row per stored row. Times are ISO 8601 UTC (`2026-10-31T13:00:00.000Z`); searches and feedback are rounded down to the hour.
+- Each file has one header row, then one row per stored row. Times are ISO 8601 UTC, rounded down to the hour (`2026-10-31T13:00:00.000Z` means between 13:00 and 14:00 UTC): the site stores no exact times, so the files don't show when within the hour anything happened, or the order of usage events and searches within an hour. Ratings and feedback ids do run in the order the rows were stored, so within one table they show which came first (see below).
 - Every text cell is in double quotes, the header row's too; numbers are bare; an empty field means no value.
 - A text cell that started with `=`, `+`, `-`, `@`, `'`, a tab or a line break (or a full-width `＝`, `＋`, `－` or `＠`) has an extra `'` in front, so spreadsheets show it as text instead of running it as a formula. Remove one leading `'` to get the stored text. Excel may drop this protection if you save the file from Excel and open it again, so keep the downloaded file as it is and work on a copy.
 - The files start with a byte-order mark, so Excel opens them as UTF-8 by double-click. In R use `readr::read_csv()`, or `read.csv(…, fileEncoding = "UTF-8-BOM")`; in Python, `pandas.read_csv(…, encoding="utf-8-sig")`.
 - The columns:
   - ratings: `id, ts, page, video, stars`;
-  - feedback: `id, ts, page, page_title, message`;
+  - feedback: `id, ts, page, message` (`page` is a page id; the summary page shows each page's current title);
   - usage events: `ts, session_id, page, type, media, furthest` (`media` is a `video_id`; `furthest` is 0, 25, 50, 75 or 100 for plays, and empty otherwise);
   - searches: `ts, q, results`.
-- A ratings or feedback `id` is unique within its table, so it finds duplicates across files and a row to delete (a deleted row's id can be reused). Usage events and searches have no id, on purpose: ids run in order, so a search's id would link it to the visit it came from. Rows are in a fixed order (usage events by type, then time), never in the order they were stored.
+- A ratings or feedback `id` is unique within its table, so it finds duplicates across files and a row to delete (a deleted row's id can be reused). Usage events and searches have no id, on purpose: ids run in order, so a search's id would link it to the visit it came from. Rows are in a fixed order: usage events by type, then hour, page and visit code; searches by hour, then by their stored content (a fixed order, but not alphabetical: sort the `q` column for that); ratings and feedback by hour, then id. Usage events and searches never come in the order they were stored.
 - A `session_id` is one browser tab's random visit code, not a person.
 
 **If the page says** "The database isn't set up here yet", the database migrations haven't been applied at that address (a team member with Cloudflare access runs them, `SPEC.md` §17). "Couldn't read the database" usually passes: try again in a few minutes; if it doesn't, the account may have reached the free plan's daily limit, which resets at 00:00 UTC.

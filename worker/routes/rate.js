@@ -11,17 +11,16 @@
 //   stars  not a JSON number that is an integer from 1 to 5 (4.0 and 1e0
 //          are; "4", 4.5 and true are not)
 //
-// A rating is one row in `ratings`, with `ts` the server's exact time
-// (toISOString(), not rounded). There is no session_id and no events row.
-// The exact `ts` could still be matched to a visit's events by time (page
-// views and media plays keep exact times and a session_id), which SPEC §14.1
-// and §22 accept because a rating holds no free text: the match reveals only
-// a star count. Changing a rating is a new row (§12). The D1 insert is awaited, so a failed
-// write answers 500. Nothing from the request is ever logged: a failed write
-// logs a fixed message and the error's D1_ code only (lib/d1.js).
+// A rating is one row in `ratings`, with `ts` the server's time rounded down
+// to the hour (lib/time.js), like every row the API writes (SPEC §14.1).
+// There is no session_id and no events row. Changing a rating is a new row
+// (§12). The D1 insert is awaited, so a failed write answers 500. Nothing
+// from the request is ever logged: a failed write logs a fixed message and
+// the error's D1_ code only (lib/d1.js).
 
 import { insertRow } from '../lib/d1.js';
 import { apiError, hasExactKeys, isPlainObject } from '../lib/http.js';
+import { hourTimestamp } from '../lib/time.js';
 
 /** The body's exact keys (SPEC §12). rating.js sends the same. */
 export const RATE_KEYS = Object.freeze(['page_id', 'video_id', 'stars']);
@@ -62,7 +61,7 @@ export async function handleRate(body, env, index, now = new Date()) {
   if (result.error) return apiError(400, result.error);
   const { page, video, stars } = result.row;
   return insertRow(env, '/api/rate', 'INSERT INTO ratings (ts, page, video, stars) VALUES (?, ?, ?, ?)', [
-    now.toISOString(),
+    hourTimestamp(now),
     page,
     video,
     stars,

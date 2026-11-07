@@ -42,7 +42,7 @@ const ENV = (extra = {}) => ({
   DATA_COLLECTION: 'off',
   ...extra,
 });
-const makeRouter = (admin = {}, site = SITE) => createRouter({ pages: PAGES, site, admin: { access: PASS, now: () => NOW, ...admin } });
+const makeRouter = (admin = {}, site = SITE, pages = PAGES) => createRouter({ pages, site, admin: { access: PASS, now: () => NOW, ...admin } });
 const router = makeRouter();
 
 function get(path, { method = 'GET', env = ENV(), on = router, headers = {}, host = ORIGIN } = {}) {
@@ -381,9 +381,9 @@ describe('the summary data (SPEC §14.4)', () => {
       { ts: END, page: 'pain', video: 'pain-about', stars: 1 },
     ]);
     await insert('feedback', [
-      { ts: '2026-10-07T23:00:00.000Z', page: 'pain', page_title: 'Pain', message: 'before' },
-      { ts: START, page: 'pain', page_title: 'Pain', message: 'first' },
-      { ts: END, page: 'pain', page_title: 'Pain', message: 'after' },
+      { ts: '2026-10-07T23:00:00.000Z', page: 'pain', message: 'before' },
+      { ts: START, page: 'pain', message: 'first' },
+      { ts: END, page: 'pain', message: 'after' },
     ]);
     const m = await model();
     expect([m.views.views, m.views.visits]).toEqual([2, 2]);
@@ -453,21 +453,32 @@ describe('the summary data (SPEC §14.4)', () => {
       id: 500 + i,
       ts: new Date(Date.UTC(2026, 9, 10 + i, 8)).toISOString(),
       page: 'pain',
-      page_title: 'Pain',
       message: `message ${i}`,
     }));
     // Two in one hour: the higher id is newer.
-    rows.push({ id: 900, ts: '2026-11-05T08:00:00.000Z', page: 'start', page_title: null, message: 'same hour, lower id' });
-    rows.push({ id: 901, ts: '2026-11-05T08:00:00.000Z', page: 'gone', page_title: 'Gone page', message: 'same hour, higher id' });
+    rows.push({ id: 900, ts: '2026-11-05T08:00:00.000Z', page: 'start', message: 'same hour, lower id' });
+    rows.push({ id: 901, ts: '2026-11-05T08:00:00.000Z', page: 'gone', message: 'same hour, higher id' });
     await insert('feedback', rows);
     const { feedback } = await model();
     expect(feedback.total).toBe(25);
     expect(feedback.recent).toHaveLength(20);
     expect(feedback.recent.slice(0, 3).map((r) => r.message)).toEqual(['same hour, higher id', 'same hour, lower id', 'message 22']);
-    expect(feedback.recent[0]).toEqual({ ts: '2026-11-05T08:00:00.000Z', page: 'gone', title: 'Gone page', known: false, message: 'same hour, higher id' });
-    // A NULL page_title falls back to the page id.
-    expect(feedback.recent[1].title).toBe('start');
-    expect(feedback.recent.at(-1).message).toBe('message 5');
+    // Feedback stores no title (migration 0002): a page shows by its current
+    // title in pages.json, and one no longer there by its id.
+    expect(feedback.recent[0]).toEqual({ ts: '2026-11-05T08:00:00.000Z', page: 'gone', title: 'gone', known: false, message: 'same hour, higher id' });
+    expect(feedback.recent[1]).toEqual({ ts: '2026-11-05T08:00:00.000Z', page: 'start', title: 'Start here', known: true, message: 'same hour, lower id' });
+    expect(feedback.recent.at(-1)).toEqual({ ts: '2026-10-15T08:00:00.000Z', page: 'pain', title: 'Pain', known: true, message: 'message 5' });
+  });
+
+  it('shows a message\'s page by the title pages.json has now, with its id', async () => {
+    await insert('feedback', [
+      { ts: '2026-11-01T10:00:00.000Z', page: 'pain', message: 'renamed' },
+      { ts: '2026-11-02T10:00:00.000Z', page: 'gone', message: 'removed' },
+    ]);
+    const renamed = makeRouter({}, SITE, { ...PAGES, pain: { ...PAGES.pain, title: 'Pain and sleep' } });
+    const body = await (await get('/admin/', { on: renamed })).text();
+    expect(body).toContain('<span class="feedback-item__page">Pain and sleep</span> <span class="feedback-item__page-id">(pain)</span>, ');
+    expect(body).toContain('<span class="feedback-item__page">gone</span> (no longer on the site), ');
   });
 
   it('counts a play once per visit, page and item at its furthest point, video and audio apart', async () => {
@@ -543,7 +554,7 @@ describe('the summary page', () => {
       ev('handout_open', '2026-11-01T10:02:00.000Z', 'pain', B, { media: 'pain-about' }, 987_654_324),
     ]);
     await insert('ratings', [{ id: 987_654_331, ts: '2026-11-01T10:00:00.000Z', page: 'pain', video: 'pain-about', stars: 4 }]);
-    await insert('feedback', [{ id: 987_654_341, ts: '2026-11-01T10:00:00.000Z', page: 'pain', page_title: 'Pain', message: 'hello' }]);
+    await insert('feedback', [{ id: 987_654_341, ts: '2026-11-01T10:00:00.000Z', page: 'pain', message: 'hello' }]);
     const body = await (await get('/admin/')).text();
     expect(body).toContain('hello');
     expect(body).toContain('nothing here');
@@ -566,11 +577,12 @@ describe('the summary page', () => {
     expect(on).not.toContain('Data collection is off');
   });
 
-  it('escapes feedback, page titles and search text: they render as text, never as markup', async () => {
+  it('escapes feedback, page ids and search text: they render as text, never as markup', async () => {
     const payloads = ['<script>alert(1)</script>', '"><img src=x onerror=alert(1)>', "' onfocus='x", '</blockquote><b>x', '&lt;b&gt;'];
     const seed = async (texts) => {
       await testEnv.DB.batch(['events', 'feedback'].map((t) => testEnv.DB.prepare(`DELETE FROM ${t}`)));
-      await insert('feedback', texts.map((text, i) => ({ ts: `2026-11-0${i + 1}T10:00:00.000Z`, page: 'pain', page_title: text, message: text })));
+      // A page no longer on the site shows by its stored id, so the id is hostile too.
+      await insert('feedback', texts.map((text, i) => ({ ts: `2026-11-0${i + 1}T10:00:00.000Z`, page: text, message: text })));
       await insert('events', texts.map((text) => search(text, 0)));
       return (await get('/admin/')).text();
     };

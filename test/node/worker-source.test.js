@@ -99,6 +99,31 @@ describe('worker/ source (SPEC §14.1)', () => {
   });
 });
 
+describe('stored times (SPEC §14.1)', () => {
+  // Project lead, 2026-11-07: every stored time is rounded down to the hour,
+  // and no exact time is stored anywhere.
+  it('writes every row with ts first, from hourTimestamp(now), and reads no other clock', () => {
+    const inserts = {};
+    for (const [file, text] of Object.entries(source)) {
+      const body = code(text);
+      for (const match of body.matchAll(/INSERT INTO (\w+) \(([^)]*)\)[^']*', \[\s*([^,\]]+)/g)) {
+        (inserts[file] ??= []).push([match[1], match[2].split(', ')[0], match[3].trim()]);
+      }
+      // The API routes (routes/admin.js only reads, and needs today's date).
+      if (/^routes\/(event|rate|feedback)\.js$/.test(file)) expect(body, file).not.toMatch(/toISOString|Date\.now|getTime|Date\.parse/);
+    }
+    expect(inserts).toEqual({
+      'routes/event.js': [['events', 'ts', 'hourTimestamp(now)']],
+      'routes/feedback.js': [['feedback', 'ts', 'hourTimestamp(now)']],
+      'routes/rate.js': [['ratings', 'ts', 'hourTimestamp(now)']],
+    });
+    // No other statement writes: the admin queries only read.
+    for (const [file, text] of Object.entries(source)) {
+      if (!inserts[file]) expect(code(text), file).not.toMatch(/\b(INSERT|UPDATE|REPLACE INTO|DELETE FROM)\b/);
+    }
+  });
+});
+
 describe('the admin code (SPEC §14.4, §20 M6)', () => {
   const ADMIN_FILES = ['routes/admin.js', 'lib/admin-page.js', 'lib/admin-queries.js', 'lib/admin-data.js'];
   const statements = Object.entries(queries).filter(([, value]) => typeof value === 'string' && /\bSELECT\b/.test(value));

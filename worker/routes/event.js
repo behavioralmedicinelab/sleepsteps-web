@@ -15,12 +15,13 @@
 //   detail      not an object with exactly the type's keys; a value that
 //               fails its rule (media must be a video on that page)
 //
-// The server sets `ts` (ISO 8601 UTC, rounded down to the hour for a search)
-// and stores a detail rebuilt from the checked values, never the client's
-// own text. A search is stored without a session_id. The D1 insert is
-// awaited, so a failed write answers 500. Nothing from the request is ever
-// logged: a failed write logs a fixed message and the error's D1_ code only
-// (D1 messages can echo bound values; lib/d1.js, shared with /api/rate).
+// The server sets `ts`: its own time rounded down to the hour for every type
+// (lib/time.js), so no event carries an exact time. It stores a detail
+// rebuilt from the checked values, never the client's own text. A search is
+// stored without a session_id. The D1 insert is awaited, so a failed write
+// answers 500. Nothing from the request is ever logged: a failed write logs
+// a fixed message and the error's D1_ code only (D1 messages can echo bound
+// values; lib/d1.js, shared with /api/rate).
 
 import { insertRow } from '../lib/d1.js';
 import { apiError, hasExactKeys, isPlainObject } from '../lib/http.js';
@@ -125,11 +126,10 @@ export async function handleEvent(body, env, index, now = new Date()) {
   if (result.error) return apiError(400, result.error);
   const { row } = result;
 
-  // A search is kept apart from the rest of its visit (SPEC §10.1).
-  const ts = row.type === 'search' ? hourTimestamp(now) : now.toISOString();
-
+  // Every type is stored with the hour only (SPEC §14.1); a search is also
+  // kept apart from the rest of its visit by having no session_id (§10.1).
   return insertRow(env, '/api/event', 'INSERT INTO events (ts, session_id, page, type, detail) VALUES (?, ?, ?, ?, ?)', [
-    ts,
+    hourTimestamp(now),
     row.session_id,
     row.page,
     row.type,

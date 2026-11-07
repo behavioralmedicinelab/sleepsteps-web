@@ -142,7 +142,7 @@ describe('storing each type', () => {
     ['video_play', valid.video_play(), { media: 'settling-your-body', furthest: 50 }],
     ['audio_play', valid.audio_play(), { media: 'pain-about', furthest: 100 }],
     ['handout_open', valid.handout_open(), { media: 'pain-about' }],
-  ])('%s: 204, and one row with the server time, the visit code and the detail', async (type, body, detail) => {
+  ])('%s: 204, and one row with the server time rounded down to the hour, the visit code and the detail', async (type, body, detail) => {
     const before = Date.now();
     const res = await send(body);
     const after = Date.now();
@@ -157,9 +157,10 @@ describe('storing each type', () => {
     expect(Object.keys(row).sort()).toEqual(['detail', 'id', 'page', 'session_id', 'ts', 'type']);
     expect([row.type, row.page, row.session_id]).toEqual([type, 'pain', SESSION]);
     expect(row.detail).toBe(JSON.stringify(detail));
-    expect(row.ts).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
-    expect(Date.parse(row.ts)).toBeGreaterThanOrEqual(before);
-    expect(Date.parse(row.ts)).toBeLessThanOrEqual(after);
+    // No exact time is stored (SPEC §14.1, project lead, 2026-11-07).
+    expect(row.ts).toMatch(/^\d{4}-\d\d-\d\dT\d\d:00:00\.000Z$/);
+    expect(Date.parse(row.ts)).toBeGreaterThanOrEqual(floorHour(before));
+    expect(Date.parse(row.ts)).toBeLessThanOrEqual(floorHour(after));
     expect(logged).toEqual([]);
   });
 
@@ -177,17 +178,21 @@ describe('storing each type', () => {
     expect(Date.parse(row.ts)).toBeLessThanOrEqual(floorHour(after));
   });
 
-  it('takes the time from the server: exact for events, the hour for a search', async () => {
-    const now = new Date('2026-11-06T13:59:59.999Z');
+  it('takes the time from the server and rounds it down to the hour for every type, never into the next hour or day', async () => {
     const env = ENV();
-    expect((await handleEvent(valid.page_view(), env, index, now)).status).toBe(204);
-    expect((await handleEvent(valid.search(), env, index, now)).status).toBe(204);
-    expect((await rows()).map((r) => [r.type, r.ts])).toEqual([
-      ['page_view', '2026-11-06T13:59:59.999Z'],
-      ['search', '2026-11-06T13:00:00.000Z'],
-    ]);
-    // The `now` passed in is not changed.
-    expect(now.toISOString()).toBe('2026-11-06T13:59:59.999Z');
+    const cases = [
+      ['2026-11-06T13:59:59.999Z', '2026-11-06T13:00:00.000Z'],
+      ['2026-11-06T13:00:00.000Z', '2026-11-06T13:00:00.000Z'],
+      ['2026-12-31T23:59:59.999Z', '2026-12-31T23:00:00.000Z'],
+    ];
+    for (const [at] of cases) {
+      const now = new Date(at);
+      for (const type of SHAPES.keys()) expect((await handleEvent(valid[type](), env, index, now)).status, type).toBe(204);
+      // The `now` passed in is not changed.
+      expect(now.toISOString()).toBe(at);
+    }
+    const want = cases.flatMap(([, hour]) => [...SHAPES.keys()].map((type) => [type, hour]));
+    expect((await rows()).map((r) => [r.type, r.ts])).toEqual(want);
   });
 
   it('stores only its own columns: no IP address, user agent or referrer, whatever the request carries', async () => {
