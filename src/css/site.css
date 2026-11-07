@@ -206,11 +206,15 @@ a:hover {
   border-bottom: var(--border-width) solid var(--keyline);
 }
 
+/* The board's 32px gaps between the header's parts and between its links
+   from 1100px; 24px below, so with "Get more help" in place of "About" the
+   bar still fits one row from 1000px and two rows from 600px, as it did
+   (SPEC §7.5, project lead, 2026-11-07; measured in headless Chrome). */
 .site-header__inner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4) var(--space-8);
+  gap: var(--space-4) var(--space-7);
   padding-block: var(--space-4);
 }
 
@@ -239,12 +243,19 @@ a:hover {
 .site-nav__list {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-8);
+  gap: var(--space-1) var(--space-7);
   padding: 0;
   list-style: none;
   font-size: var(--fs-label);
   line-height: var(--lh-label);
   font-weight: var(--weight-semibold);
+}
+
+@media (min-width: 68.75em) {
+  .site-header__inner,
+  .site-nav__list {
+    column-gap: var(--space-8);
+  }
 }
 
 .site-nav__link {
@@ -758,15 +769,26 @@ button.site-footer__feedback {
    (closed, the browser hides it). It is anchored to the top and the status
    line comes last, so a message only makes it longer downwards; taller than
    the viewport (a phone, or zoom), it scrolls within itself. No animation
-   and no scroll lock. */
+   and no scroll lock: the page behind still scrolls, but a scroll that
+   starts in the dialog stays in it (overscroll-behavior), rather than
+   carrying on to the page once the dialog reaches its end.
+   Above an on-screen keyboard, which hides the lower part of a dialog
+   fixed to the layout viewport, feedback.js sets --feedback-visible-top and
+   --feedback-visible-height (the visual viewport's offset and height) and
+   the dialog fits the visible area, a gutter inside it at every width. Unset
+   (no keyboard, pinch zoom, closed), the two --feedback-fit- properties are
+   invalid, so the fallbacks below give the usual layout. */
 .feedback-dialog {
   --focus-colour: var(--deep-teal);
+  --feedback-fit-top: calc(var(--feedback-visible-top) + var(--gutter));
+  --feedback-fit-height: calc(var(--feedback-visible-height) - 2 * var(--gutter));
   width: min(100% - 2 * var(--gutter), var(--measure) + 2 * var(--space-8));
   max-width: calc(100% - 2 * var(--gutter));
-  max-height: calc(100% - 2 * var(--gutter));
-  margin: var(--gutter) auto auto;
+  max-height: var(--feedback-fit-height, calc(100% - 2 * var(--gutter)));
+  margin: var(--feedback-fit-top, var(--gutter)) auto auto;
   padding: var(--space-5);
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: var(--border-width) solid var(--keyline);
   border-radius: var(--radius-md);
   background: var(--paper);
@@ -840,12 +862,29 @@ button.site-footer__feedback {
   min-height: 140px;
 }
 
-/* Full-width buttons on phones (.button), side by side from 600px. */
+/* Send and Cancel share a row at every width (project lead's phone test,
+   2026-11-07): on phones each grows from 7rem to fill half the row, so
+   the two take one row instead of two (60px less), and Send and its
+   message fit together above an on-screen keyboard. They stack again when
+   there is no room for both (very large text). From 600px they keep their
+   own width, as .button does. Alone (Close, with no usable key), the button
+   fills the row on phones. */
 .feedback__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
   margin-top: var(--space-5);
+}
+
+.feedback__actions .button {
+  flex: 1 1 7rem;
+  width: auto;
+}
+
+@media (min-width: 37.5em) {
+  .feedback__actions .button {
+    flex: 0 0 auto;
+  }
 }
 
 .feedback__actions .button[aria-disabled="true"] {
@@ -879,8 +918,8 @@ button.site-footer__feedback {
 
 @media (min-width: 37.5em) {
   .feedback-dialog {
-    max-height: calc(100% - 2 * var(--space-9));
-    margin-top: var(--space-9);
+    max-height: var(--feedback-fit-height, calc(100% - 2 * var(--space-9)));
+    margin-top: var(--feedback-fit-top, var(--space-9));
     padding: var(--space-8);
   }
 }
@@ -1200,9 +1239,20 @@ button.site-footer__feedback {
   font-weight: var(--weight-semibold);
 }
 
-/* The SPEC §15.1 notices: under each video, and in the feedback dialog. */
+/* The SPEC §15.1 notices: the YouTube note, and in the feedback dialog. */
 .notice-text {
   color: var(--slate-grey);
+}
+
+/* The YouTube note, once at the end of each page with a video (SPEC §15.1;
+   notices/video.njk): a quiet note, in the helper size and italic, at most
+   the reading measure wide. Slate-grey on paper or white is above 4.5:1. */
+.youtube-note {
+  max-width: var(--measure);
+  margin-top: var(--space-8);
+  font-size: var(--fs-helper);
+  line-height: var(--lh-helper);
+  font-style: italic;
 }
 
 /* 11. Getting urgent help: minimal header and column ------------------- */
@@ -1275,6 +1325,7 @@ button.site-footer__feedback {
   .site-header,
   .minimal-header,
   .site-footer,
+  .feedback-dialog,
   .with-sidebar__side {
     display: none;
   }

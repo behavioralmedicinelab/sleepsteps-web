@@ -210,8 +210,8 @@
 
 /* 2. Problem block --------------------------------------------------------- */
 
-/* In the page's order below 784px: the video with its notice, 12px, its
-   row of controls (.problem-block__controls), 16px, "Is this you?". */
+/* In the page's order below 784px: the video, 12px, its row of controls
+   (.problem-block__controls), 16px, "Is this you?". */
 .problem-block {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -598,7 +598,6 @@ button.solution__face {
   gap: var(--space-4);
 }
 
-.solution__video .video__notice,
 .solution__tools {
   padding-inline: var(--space-4);
 }
@@ -676,7 +675,6 @@ button.solution__face {
     padding: var(--space-6);
   }
 
-  .solution__video .video__notice,
   .solution__tools {
     padding-inline: 0;
   }

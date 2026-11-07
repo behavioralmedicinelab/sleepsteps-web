@@ -528,14 +528,14 @@ describe('base.njk and features.events', () => {
   });
   const env = new nunjucks.Environment(new nunjucks.FileSystemLoader('src/_includes'), { autoescape: true });
   for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
-  // The minimal header and no footer, so no collections are needed.
+  // The minimal header, so no collections are needed; feedback off, so
+  // feedback.js (which base.njk adds) stays out of the script list.
   const render = (events, data) =>
     env.render('layouts/base.njk', {
-      site: { siteName: 'SleepSteps', features: { ratings: true, feedback: true, events } },
+      site: { siteName: 'SleepSteps', features: { ratings: true, feedback: false, events } },
       title: 'A page',
       page_id: 'a-page',
       header: 'minimal',
-      footer: false,
       content: '<main id="main"></main>',
       ...data,
     });

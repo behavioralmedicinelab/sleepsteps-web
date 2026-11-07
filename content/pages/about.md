@@ -43,9 +43,9 @@ trial_facts:
 <section>
 <h2 id="who-we-are">Who we are</h2>
 <p class="about-intro">Researchers, clinicians and people with lived experience of cancer, working together.</p>
-{#- One row per person in data/team.csv (name, role, organisation), in the file's order. Edit it in Excel and save as CSV UTF-8. #}
+{#- One row per person in data/team.csv (name, role, organisation), listed by last name (the last word of the name), whatever the file's order. Edit it in Excel and save as CSV UTF-8. #}
 <ul class="about-team" role="list">
-{%- for person in team %}
+{%- for person in team | byLastName %}
 <li class="about-person"><span class="about-person__name">{{ person.name }}</span> <span class="about-person__role">{{ person.role }}{% if person.organisation %}, {{ person.organisation }}{% endif %}</span></li>
 {%- endfor %}
 </ul>

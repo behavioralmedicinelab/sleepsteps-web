@@ -1,9 +1,9 @@
 // The feedback dialog (SPEC §13, §15.1, §16.2). Markup:
 // src/_includes/partials/feedback-dialog.njk, which base.njk renders, with
-// this module, on every page that has the footer and a data-page-id while
-// features.feedback is exactly true. Not on Getting urgent help (no footer)
-// or the 404 page (no page_id); there the footer's "Send feedback" stays a
-// link to the Contact page.
+// this module, on every page that has a data-page-id while
+// features.feedback is exactly true: every page but the 404 page (no
+// page_id), where the footer's "Send feedback" stays a link to the Contact
+// page. The footer is on every page, Getting urgent help included.
 //
 // Without JavaScript, without <dialog> support, or if this module fails,
 // nothing changes: "Send feedback" is an <a href="/contact/"> and the dialog
@@ -61,7 +61,26 @@
 // tree, and one that appears together with its text may not be announced.
 // Messages only make the dialog longer downwards, so nothing above
 // them moves. After Send, the dialog scrolls, if it must, to show the line
-// (on a phone it is below the buttons); nothing else scrolls it.
+// (on a phone it is below the buttons); apart from the fit below, nothing
+// else scrolls it.
+//
+// The on-screen keyboard: iOS Safari, and Chrome on Android by default
+// (interactive-widget=resizes-visual), shrink only the visual viewport
+// when it opens, while the dialog stays fixed to the layout viewport, so
+// its lower part (the spam check, Send, Cancel and the status line) stays
+// behind the keyboard, where scrolling the dialog can't lift it. While the
+// dialog is open, this module follows window.visualViewport and, when it
+// is shorter than the layout viewport (by more than the rounding of
+// innerHeight to whole px) at no pinch zoom, sets two custom
+// properties on the dialog (FIT_PROPERTIES: the visible area's top and
+// height), from which site.css fits the dialog to the visible area. A fit
+// that makes the dialog shorter keeps the focused control in view by
+// scrolling the dialog itself, never the page, whose scrolling would move
+// the visual viewport and so the fit. Zoomed in, at full height and on
+// closing, the properties are removed, so the dialog goes back to its usual
+// place and a reader of a magnified page pans as before. Custom properties
+// set through the CSSOM (style.setProperty) aren't a style attribute, so
+// style-src 'self' allows them (SPEC §16.1); nothing else is styled here.
 //
 // Never: console calls, device storage, a `sleepsteps:event`, reading the
 // address's query, or putting the message anywhere but the request body.
@@ -88,6 +107,28 @@ export const MAX_LENGTH = 2000;
 
 /** Below this width (px) the widget is Turnstile's compact size (150x140), else normal (300x65). */
 export const NORMAL_WIDTH = 300;
+
+/**
+ * The dialog's two custom properties while it is fitted above an on-screen
+ * keyboard: the visual viewport's top offset and height, in whole px. site.css
+ * uses them; they are the only styles this module sets.
+ */
+export const FIT_PROPERTIES = Object.freeze({ top: '--feedback-visible-top', height: '--feedback-visible-height' });
+
+/** The room (px) kept above and below a control kept in view: its 2px focus ring, 2px offset and a little more. */
+export const FIT_MARGIN = 8;
+
+/** How far from 1 the visual viewport's scale may be and still count as not zoomed. */
+const SCALE_TOLERANCE = 0.01;
+
+/**
+ * How much shorter than window.innerHeight the visual viewport may be and
+ * still count as full height. innerHeight is whole px and the visual
+ * viewport's height needn't be: at 125% display scaling, with no keyboard,
+ * Chrome gives 705.6 against an innerHeight of 706, which would otherwise
+ * move a desktop dialog from 40px to 24px below the top.
+ */
+const HEIGHT_TOLERANCE = 1;
 
 /** The dialog's copy (SPEC §13; SEND_FAILED and THANKS fixed by §11 and §13, the rest drafts for the lead, A5). */
 export const MESSAGES = Object.freeze({
@@ -192,6 +233,8 @@ export function init() {
     limitShown: false,
     shown: '', // the status line's message key
     announceTimer: undefined,
+    viewport: null, // the visual viewport followed while the dialog is open
+    fit: null, // the visible area the dialog is fitted to, { top, height }, or null
   };
 
   // ---- The status line ----------------------------------------------------
@@ -349,6 +392,85 @@ export function init() {
     document.head.append(script);
   }
 
+  // ---- Fitting the dialog above an on-screen keyboard --------------------------
+
+  /**
+   * Fit the open dialog to the visual viewport while that is shorter than
+   * the layout viewport (window.innerHeight), by more than rounding, at no
+   * pinch zoom: an on-screen keyboard is open. Otherwise (zoomed in, full height, closed) put it back.
+   * Writes only what changed, in whole px.
+   */
+  function fit() {
+    const viewport = state.viewport;
+    const covered =
+      dialog.open &&
+      viewport !== null &&
+      Math.abs(viewport.scale - 1) < SCALE_TOLERANCE &&
+      viewport.height > 0 &&
+      viewport.height < window.innerHeight - HEIGHT_TOLERANCE;
+    if (!covered) {
+      unfit();
+      return;
+    }
+    const top = Math.round(viewport.offsetTop);
+    const height = Math.round(viewport.height);
+    const before = state.fit;
+    if (before?.top === top && before?.height === height) return;
+    state.fit = { top, height };
+    if (before?.top !== top) dialog.style.setProperty(FIT_PROPERTIES.top, `${top}px`);
+    if (before?.height !== height) dialog.style.setProperty(FIT_PROPERTIES.height, `${height}px`);
+    if (!before || height < before.height) keepFocusInView();
+  }
+
+  /** Back to the dialog's usual place and size. */
+  function unfit() {
+    if (!state.fit) return;
+    state.fit = null;
+    dialog.style.removeProperty(FIT_PROPERTIES.top);
+    dialog.style.removeProperty(FIT_PROPERTIES.height);
+  }
+
+  /**
+   * After a fit made the dialog shorter, keep the control with focus (the
+   * textarea, as the keyboard opens) in view, as scrollIntoView's "nearest"
+   * would but by scrolling the dialog alone: scrolling the page would move
+   * the visual viewport, and with it the fit.
+   */
+  function keepFocusInView() {
+    const focused = document.activeElement;
+    if (!focused || focused === dialog || !dialog.contains(focused)) return;
+    const box = dialog.getBoundingClientRect();
+    const top = box.top + dialog.clientTop + FIT_MARGIN;
+    const bottom = box.top + dialog.clientTop + dialog.clientHeight - FIT_MARGIN;
+    const item = focused.getBoundingClientRect();
+    // Its bottom into view, unless that would hide its top.
+    let by = 0;
+    if (item.top < top) by = item.top - top;
+    else if (item.bottom > bottom) by = Math.min(item.bottom - bottom, item.top - top);
+    if (by) dialog.scrollTop += by;
+  }
+
+  /** While the dialog is open: a keyboard may open, or be open already. */
+  function followViewport() {
+    const viewport = window.visualViewport;
+    if (viewport && !state.viewport) {
+      state.viewport = viewport;
+      viewport.addEventListener('resize', fit);
+      viewport.addEventListener('scroll', fit);
+    }
+    fit();
+  }
+
+  function stopFollowing() {
+    const viewport = state.viewport;
+    state.viewport = null;
+    if (viewport) {
+      viewport.removeEventListener('resize', fit);
+      viewport.removeEventListener('scroll', fit);
+    }
+    unfit();
+  }
+
   // ---- Opening and closing ----------------------------------------------------
 
   function open() {
@@ -361,6 +483,7 @@ export function init() {
       return;
     }
     title.focus();
+    followViewport();
     // Reserve the widget's box at its size before it renders.
     check.dataset.size = check.getBoundingClientRect().width >= NORMAL_WIDTH ? 'normal' : 'compact';
     // Keep "Sending…", or an answer that came while the dialog was closed;
@@ -375,6 +498,7 @@ export function init() {
   }
 
   function onClose() {
+    stopFollowing();
     removeWidget();
     cancel.textContent = closeLabel;
     // A fresh line next time, except "Sending…", whose answer is still to come.

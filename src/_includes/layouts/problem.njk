@@ -18,11 +18,11 @@ scripts:
   solution cards as an accordion (src/css/pages/problem.css).
 
   Order: breadcrumb, H1, the first-person line; the problem block (the
-  problem video with its notice, its row of controls, then "Is this you?";
-  on wide screens "Is this you?" sits beside the video and the row runs
-  under both); Main solutions; "Other things that can help" (only when
-  there are extras); Related topics (only when there are some); "Back to
-  all sleep problems".
+  problem video, its row of controls, then "Is this you?"; on wide screens
+  "Is this you?" sits beside the video and the row runs under both); Main
+  solutions; "Other things that can help" (only when there are extras);
+  Related topics (only when there are some); "Back to all sleep problems";
+  then the page's YouTube note (notices/video.njk), once, last.
   Heading outline: h1, then h2 for "Is this you?", each solutions section and
   Related topics, then h3 per solution.
 
@@ -30,7 +30,7 @@ scripts:
   solutions: its own video, made for it, is the page's main content. The
   "On this page" chips and both solutions sections are left out (each needs
   solutions to link to or list), so the page is the problem block, then
-  Related topics and "Back to all sleep problems", and
+  Related topics, "Back to all sleep problems" and the YouTube note, and
   content/problems/problems.11tydata.js leaves solutions.js out. Each section
   renders from its own count, so no empty section or orphaned heading can
   appear.
@@ -38,7 +38,7 @@ scripts:
   Front matter: SPEC §7.2 (title, statement, area, problem_video, standalone,
   is_this_you, solutions, related). The problem file's body isn't shown.
 
-  Under every video, after its notice, one row of controls
+  Under every video, one row of controls
   (partials/video-controls.njk): "Audio only", the handout and, while
   site.features.ratings is exactly true, "Was this helpful?" with its stars
   (SPEC §12), hidden until rating.js reveals it. There are no transcripts on
@@ -46,6 +46,7 @@ scripts:
   "Send feedback" is the only route.
 -#}
 {%- from "partials/icons.njk" import icon -%}
+{%- from "notices/video.njk" import youtubeNote -%}
 {%- from "partials/video.njk" import videoEmbed -%}
 {%- from "partials/video-controls.njk" import videoControls -%}
 {%- from "problem/solutions.njk" import solutionsSection -%}
@@ -136,5 +137,7 @@ scripts:
     </section>
     {%- endif %}
     <p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>
+    {#- The page's YouTube note, once, last (SPEC §15.1). #}
+    {{ youtubeNote() }}
   </div>
 </div>

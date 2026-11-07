@@ -1,6 +1,6 @@
 {#-
-  VideoEmbed (SPEC §9.1, §15.1; HANDOFF §5, §7): the click-to-load facade,
-  then the YouTube notice under it.
+  VideoEmbed (SPEC §9.1, §15.1; HANDOFF §5, §7): the click-to-load facade.
+  The YouTube note is once per page, at its end (notices/video.njk).
 
     {% from "partials/video.njk" import videoEmbed %}
     {% set video = problem_video | videoById(collections.videos) %}
@@ -20,9 +20,10 @@
     size       'md' (default): 72px play disc, 56px below 600px.
                'lg': 80px / 64px (Start here)
 
-  The notice's sentences have the id video-notice-<video_id>, and the facade
-  names it in aria-describedby, so the notice is heard with the play control
-  although it comes after it (SPEC §9.1: pressing play is an informed choice).
+  The facade names the page's YouTube note (id youtube-note-text, rendered
+  by the page's layout) in aria-describedby, so the note is heard with the
+  play control although it is at the end of the page (SPEC §9.1: pressing
+  play is an informed choice).
 
   Without JavaScript the facade is a "Watch on YouTube" link. src/js/players.js
   turns it into a "Play video" button that loads the YouTube player only when
@@ -31,14 +32,12 @@
   (media/thumbs/) if it has one, otherwise the plain night-teal frame.
 
   A placeholder video (`placeholder: true`) shows "[Video coming soon]" and
-  has no link or button. Its notice is still shown, so the page reads as it
-  will at launch.
+  has no link or button. The page's note is still shown, so the page reads
+  as it will at launch.
 -#}
 {%- from "partials/icons.njk" import icon -%}
-{%- from "notices/video.njk" import videoNotice -%}
 {%- macro videoEmbed(video, showTitle=false, bleed='inset', arc=false, size='md') -%}
 {%- set spoken = video.duration | spokenDuration -%}
-{%- set noticeId = 'video-notice-' + video.video_id -%}
 <div class="video video--{{ bleed }}{% if size == 'lg' %} video--lg{% endif %}{% if video.placeholder %} video--placeholder{% endif %}" data-video="{{ video.video_id }}"{% if not video.placeholder %} data-youtube-id="{{ video.youtube_id }}"{% endif %} data-title="{{ video.title }}">
   <div class="video__frame">
     {%- if video.thumbnail or arc %}
@@ -55,7 +54,7 @@
       <span class="duration-badge video__duration">{{ video.duration }}</span>
     </div>
     {%- else %}
-    <a class="video__facade" href="https://www.youtube.com/watch?v={{ video.youtube_id }}" rel="noreferrer" aria-describedby="{{ noticeId }}">
+    <a class="video__facade" href="https://www.youtube.com/watch?v={{ video.youtube_id }}" rel="noreferrer" aria-describedby="youtube-note-text">
       <span class="video__action visually-hidden">Watch on YouTube: </span>
       <span class="video__title{% if not showTitle %} visually-hidden{% endif %}">{{ video.title }}</span>
       <span class="play-disc" aria-hidden="true">{{ icon('play', 28, 'play-disc__icon') }}</span>
@@ -64,6 +63,5 @@
     </a>
     {%- endif %}
   </div>
-  {{ videoNotice(noticeId) }}
 </div>
 {%- endmacro -%}

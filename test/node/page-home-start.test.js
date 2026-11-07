@@ -225,7 +225,7 @@ describe('Home (/)', () => {
     const trial = elementByClass(html, 'home-trial', 'div');
     expect(links(trial).map((l) => [l.href, l.name])).toEqual([
       ['/about/', 'More about us and the trial'],
-      ['/help/', 'Getting more help'],
+      ['/help/', 'Get more help'],
     ]);
     const { trial_text } = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
     expect(text(elementByClass(trial, 'home-trial__main', 'section'))).toBe(`About the trial Part of a research study ${trial_text} More about us and the trial`);
@@ -326,17 +326,12 @@ describe('Start here (/start/)', () => {
       expect(text(elementByClass(html, 'start-chapter__desc', 'p'))).toBe(c.description);
     });
 
-    it('embeds the video with the YouTube notice directly under the frame', () => {
+    it("embeds the video, with no notice of its own (the page's YouTube note is last, SPEC §15.1)", () => {
       const video = elementByClass(html, 'video', 'div');
       const wrapper = tags(video, 'div')[0];
       expect(attr(wrapper, 'data-video')).toBe(c.video);
       expect(attr(wrapper, 'class').split(' ')).toEqual(expect.arrayContaining(['video--page', 'video--lg']));
-      expect(video).toMatch(/<\/div>\s*<p class="notice-text video__notice"><span id="video-notice-[a-z0-9-]+">Pressing play loads this video from YouTube \(Google\)\./);
-      const notice = elementByClass(video, 'video__notice', 'p');
-      // Only the privacy link: the handout is in the row of controls
-      // (SPEC §15.1); never a transcript.
-      expect(tags(notice, 'a').map((t) => attr(t, 'href'))).toEqual(['/privacy/#cookies-and-browser-storage']);
-      expect(notice).not.toMatch(/data-handout|handout/i);
+      expect(video).not.toMatch(/notice-text|video__notice|Pressing play/);
       expect(html).not.toMatch(/transcript/i);
       const facades = tags(video, 'a').filter((t) => attr(t, 'class') === 'video__facade');
       if (c.placeholder) {
@@ -357,7 +352,8 @@ describe('Start here (/start/)', () => {
         return;
       }
       expect(row).toBeTruthy();
-      expect(html).toMatch(/<\/p>\s*<\/div>\s*<div class="video-controls"[^>]*>/);
+      // The video's frame, then the video itself, end right before the row.
+      expect(html).toMatch(/<\/div>\s*<\/div>\s*<div class="video-controls"[^>]*>/);
       expect(html.slice(html.indexOf(row) + row.length).trim()).toBe('</article>');
       expect(tags(row, 'div')[0]).toBe(hasFormats ? '<div class="video-controls">' : '<div class="video-controls" hidden data-rating-reveal>');
       // "Audio only" first, so opening it never moves its button (SPEC §7.5).
@@ -393,7 +389,7 @@ describe('Start here (/start/)', () => {
     expect([...content.matchAll(/\sdata-rating="([^"]+)"/g)].map((m) => m[1])).toEqual(ratingsOn ? chapters.map((c) => c.video) : []);
   });
 
-  it('ends with the card to the Sleep problems page', () => {
+  it('ends with the card to the Sleep problems page, then the YouTube note, once, last (SPEC §15.1)', () => {
     const card = elementByClass(main, 'start-next', 'section');
     expect(text(elementByClass(card, 'start-next__body', 'p'))).toBe(
       `${problems.length} sleep problems, grouped into ten areas. Pick as many as sound like you.`,
@@ -401,6 +397,13 @@ describe('Start here (/start/)', () => {
     expect(links(card).map((l) => [l.href, l.cls, l.name])).toEqual([
       ['/problems/', 'button button--light start-next__action', 'See sleep problems'],
     ]);
+    const notes = [...main.matchAll(/<p class="notice-text youtube-note">[\s\S]*?<\/p>/g)].map((m) => m[0]);
+    expect(notes).toHaveLength(1);
+    const after = main.indexOf(card) + card.length;
+    expect(main.indexOf(notes[0])).toBeGreaterThan(after);
+    // Nothing but closing tags between the card and the note, and after the note.
+    expect(main.slice(after, main.indexOf(notes[0]))).toMatch(/^\s*$/);
+    expect(main.slice(main.indexOf(notes[0]) + notes[0].length)).toMatch(/^(\s*<\/div>)*\s*(<\/main>)?\s*$/);
   });
 
   it('contacts nothing before play: no resource hints, iframes or YouTube scripts', () => {

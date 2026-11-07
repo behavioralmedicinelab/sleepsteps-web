@@ -21,18 +21,20 @@ layout: layouts/base.njk
                                file (introChapters filter)
 
   Each chapter: a large faint number, "Video n of N · duration", the title
-  (H2) and description, the video facade with its YouTube notice
-  (partials/video.njk), then the row of controls under every video
+  (H2) and description, the video facade (partials/video.njk), then the
+  row of controls under every video
   (partials/video-controls.njk): "Audio only", the handout and, while
   site.features.ratings is exactly true, "Was this helpful?" with its stars
   (SPEC §12). As on problem pages, it is a plain row, not the board's white
   bar (SPEC §7.5). It is left out when it would be empty; holding only the
   rating, it ships hidden for rating.js to reveal. No transcripts (SPEC
   §9.3) and no per-video feedback (SPEC §7.5, §13). Then the end card to the
-  Sleep problems page.
+  Sleep problems page, and the page's YouTube note (notices/video.njk),
+  once, last.
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- from "partials/video.njk" import videoEmbed -%}
+{%- from "notices/video.njk" import youtubeNote -%}
 {%- from "partials/video-controls.njk" import videoControls -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
 {%- set introVideos = chapters | introChapters(collections.videos) -%}
@@ -83,6 +85,8 @@ layout: layouts/base.njk
         </div>
         <a class="button button--light start-next__action" href="/problems/">See sleep problems</a>
       </section>
+      {#- The page's YouTube note, once, last (SPEC §15.1). #}
+      {{ youtubeNote() }}
     </div>
   </div>
 </main>

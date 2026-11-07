@@ -1,7 +1,7 @@
 {#-
   The feedback dialog (SPEC §13, §15.1). base.njk renders it, after the
-  footer and outside <main>, on every page with the footer and a page_id
-  while features.feedback is exactly true, and loads src/js/feedback.js with
+  footer and outside <main>, on every page with a page_id (all but the 404
+  page; the footer is on every page) while features.feedback is exactly true, and loads src/js/feedback.js with
   it. Not inside the footer, whose ink ground sets paper text and a paper
   focus ring.
 
@@ -21,7 +21,10 @@
   script says what is wrong in the status line. Focus order: heading
   (focused on open), textarea, the Turnstile widget, Send, Cancel, then a
   link in the status line. The field's wrapper (data-feedback-field) is
-  there only to be hidden. Nothing inline (SPEC §16.1).
+  there only to be hidden. Nothing inline (SPEC §16.1): while an on-screen
+  keyboard is open, feedback.js sets two custom properties on the dialog
+  through the CSSOM, which style-src 'self' allows, and site.css fits the
+  dialog above the keyboard with them (SPEC §13).
 -#}
 <dialog class="feedback-dialog" id="feedback-dialog" data-feedback-dialog aria-labelledby="feedback-title" aria-describedby="feedback-notice" data-sitekey="{{ site.turnstileSiteKey }}" hidden>
   <form class="feedback" method="dialog" novalidate>

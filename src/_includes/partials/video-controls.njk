@@ -1,6 +1,6 @@
 {#-
   VideoControls (SPEC §9.2, §9.3, §12; HANDOFF §5 FormatLinks, StarRating):
-  the one row of controls under every video, after its YouTube notice.
+  the one row of controls right after every video.
 
     {% from "partials/video-controls.njk" import videoControls %}
     {{ videoControls(video, site.features.ratings === true) }}
@@ -24,7 +24,7 @@
     narration (there are no transcripts on the site). Its format is still
     open (PDF, Word or web page, SPEC §9.3, §21), so the label is "Handout"
     and the format is said only to screen readers. It is the only handout
-    link near the video: the YouTube notice doesn't repeat it.
+    link near the video: the page's YouTube note doesn't repeat it.
   - "Was this helpful?" and the five stars, then the rating's status line on
     its own line under the row.
 

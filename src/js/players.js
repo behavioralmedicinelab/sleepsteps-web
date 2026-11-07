@@ -263,7 +263,8 @@ function upgradeFacade(link) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = link.className;
-  // The notice under the video (SPEC §9.1, §15.1) stays its description.
+  // The page's YouTube note (id youtube-note-text, notices/video.njk;
+  // SPEC §9.1, §15.1) stays its description.
   const describedBy = link.getAttribute('aria-describedby');
   if (describedBy) button.setAttribute('aria-describedby', describedBy);
   button.append(...link.childNodes);
