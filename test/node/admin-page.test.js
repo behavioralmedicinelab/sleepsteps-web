@@ -47,10 +47,11 @@ function sampleResults() {
     ],
     searchTotals: [{ searches: 1234, zero: 56, ...ids(7) }],
     zeroSearches: [{ q: 'insomnia pills', n: 9, ...ids(8) }, { q: 'melatonin', n: 2, ...ids(9) }],
-    feedbackCount: [{ n: 2, ...ids(10) }],
+    feedbackCount: [{ n: 3, ...ids(10) }],
     recentFeedback: [
-      { ts: '2026-11-01T03:00:00.000Z', page: 'pain', page_title: 'Pain', message: 'a\n\n\tb', ...ids(11) },
-      { ts: '2026-10-20T22:00:00.000Z', page: 'start', page_title: null, message: 'Thanks', ...ids(12) },
+      { ts: '2026-11-01T03:00:00.000Z', page: 'pain', message: 'a\n\n\tb', ...ids(11) },
+      { ts: '2026-10-20T22:00:00.000Z', page: 'start', message: 'Thanks', ...ids(12) },
+      { ts: '2026-10-19T08:00:00.000Z', page: 'old-slug', message: 'Gone', ...ids(16) },
     ],
     plays: [
       { type: 'video_play', media: 'pain-about', plays: 5, f0: 1, f25: 1, f50: 1, f75: 1, f100: 1, ...ids(13) },
@@ -281,7 +282,7 @@ describe('the summary page with data', () => {
 
   it('describes the files: UTF-8, UTC, the formula guard with tab, line breaks and the full-width forms, and no event row numbers', () => {
     const text = textOf(doc.querySelector('.admin-section--downloads'));
-    expect(text).toContain('Times in the files are UTC, and searches and feedback are rounded down to the hour.');
+    expect(text).toContain('Times in the files are UTC and rounded down to the hour.');
     expect(text).toContain("A text cell that starts with =, +, -, @, ', a tab or a line break (or the full-width ＝, ＋, －, ＠) gets an extra ' in front");
     expect(text).toContain('Usage events have no row number, on purpose.');
     expect(text).toContain('Each download covers at most 31 days and 100,000 rows.');
@@ -334,16 +335,27 @@ describe('the summary page with data', () => {
     expect(textOf(section.querySelector('caption'))).toBe('Searches with no results');
   });
 
-  it('shows feedback newest first, by page title (the page id when it has none), with the hour in UTC', () => {
+  it('shows feedback newest first, by the page\'s current title and its id (the id alone for a page no longer on the site), with the hour in UTC', () => {
     const items = all(doc, '.feedback-item');
     expect(items.map((li) => textOf(li.querySelector('h3')))).toEqual([
-      'Pain, 1 Nov 2026, 03:00 to 04:00 UTC',
-      'start, 20 Oct 2026, 22:00 to 23:00 UTC',
+      'Pain (pain), 1 Nov 2026, 03:00 to 04:00 UTC',
+      'Start here (start), 20 Oct 2026, 22:00 to 23:00 UTC',
+      'old-slug (no longer on the site), 19 Oct 2026, 08:00 to 09:00 UTC',
     ]);
+    expect(items.map((li) => textOf(li.querySelector('.feedback-item__page')))).toEqual(['Pain', 'Start here', 'old-slug']);
+    expect(items.map((li) => li.querySelector('.feedback-item__page-id') && textOf(li.querySelector('.feedback-item__page-id')))).toEqual(['(pain)', '(start)', null]);
     expect(items[0].querySelector('time').getAttribute('datetime')).toBe('2026-11-01T03:00:00.000Z');
     expect(textOf(doc.querySelector('section[aria-labelledby="feedback"] p'))).toMatch(
-      /^All 2 messages in this range, newest first\. Times are UTC, rounded down to the hour\. Messages are shown as stored: /,
+      /^All 3 messages in this range, newest first\. Times are UTC, rounded down to the hour\. Messages are shown as stored: /,
     );
+  });
+
+  it('shows a page whose title in pages.json is empty by its id once', () => {
+    const untitled = pageIndex({ ...PAGES, blank: { url: '/blank/', title: '', page_view: false, videos: [] } });
+    const results = { ...emptyResults(), feedbackCount: [{ n: 1 }], recentFeedback: [{ ts: '2026-11-01T03:00:00.000Z', page: 'blank', message: 'x' }] };
+    const view = summaryView('', { results });
+    const page = parseHtml(renderSummary({ ...view, summary: summaryModel(results, untitled) }));
+    expect(textOf(page.querySelector('.feedback-item h3'))).toBe('blank, 1 Nov 2026, 03:00 to 04:00 UTC');
   });
 
   it('keeps a message byte for byte inside its blockquote, with no added whitespace', () => {
@@ -401,10 +413,10 @@ describe('the summary page, more ranges and lists', () => {
   it('says UTC on every title, heading and link that names a month, in a range split into months too', () => {
     const split = parseHtml(renderSummary(summaryView('from=2026-08-01&to=2026-10-31')));
     expect(all(split, '.admin-section--downloads h4').map(textOf)).toEqual(['1 Aug to 31 Aug 2026 (UTC days)', '1 Sep to 30 Sep 2026 (UTC days)', '1 Oct to 31 Oct 2026 (UTC days)']);
-    // The title; last month's heading and 4 links; 3 month headings with 4 links each; 2 feedback headings.
-    expect(expectUtcDates(split)).toBe(1 + 5 + 3 * 5 + 2);
-    // The title; last month's heading and 4 links; this range's 4 links; 2 feedback headings.
-    expect(expectUtcDates(parseHtml(STATES.ok))).toBe(1 + 5 + 4 + 2);
+    // The title; last month's heading and 4 links; 3 month headings with 4 links each; 3 feedback headings.
+    expect(expectUtcDates(split)).toBe(1 + 5 + 3 * 5 + 3);
+    // The title; last month's heading and 4 links; this range's 4 links; 3 feedback headings.
+    expect(expectUtcDates(parseHtml(STATES.ok))).toBe(1 + 5 + 4 + 3);
   });
 
   it('offers no download of a range that starts today, and doesn\'t repeat last month', () => {
@@ -419,7 +431,7 @@ describe('the summary page, more ranges and lists', () => {
   });
 
   it('says how many of how many messages it shows, and points to the downloads only when some are left out', () => {
-    const message = (i) => ({ ts: '2026-11-01T03:00:00.000Z', page: 'pain', page_title: 'Pain', message: `m${i}` });
+    const message = (i) => ({ ts: '2026-11-01T03:00:00.000Z', page: 'pain', message: `m${i}` });
     const lead = (recent, total) => {
       const results = { ...emptyResults(), feedbackCount: [{ n: total }], recentFeedback: Array.from({ length: recent }, (_, i) => message(i)) };
       const doc = parseHtml(renderSummary(summaryView('', { results })));
@@ -472,7 +484,8 @@ describe('escaping', () => {
       searchTotals: [{ searches: texts.length, zero: texts.length }],
       zeroSearches: texts.map((text) => ({ q: text, n: 1 })),
       feedbackCount: [{ n: texts.length }],
-      recentFeedback: texts.map((text) => ({ ts: '2026-11-01T03:00:00.000Z', page: 'pain', page_title: text, message: text })),
+      // A page no longer on the site shows by its stored id, so the id is hostile too.
+      recentFeedback: texts.map((text) => ({ ts: '2026-11-01T03:00:00.000Z', page: text, message: text })),
       plays: texts.map((text) => ({ type: 'video_play', media: text, plays: 1, f0: 1, f25: 0, f50: 0, f75: 0, f100: 0 })),
       handouts: texts.map((text) => ({ media: text, clicks: 1, visits: 1 })),
     };
@@ -482,7 +495,7 @@ describe('escaping', () => {
   const dirty = seeded(PAYLOADS);
   const clean = seeded(PAYLOADS.map((_, i) => `plain text ${i}`));
 
-  it('renders feedback, page titles, search text, ids and the host as text, never as markup', () => {
+  it('renders feedback, page ids, search text, video ids and the host as text, never as markup', () => {
     expect(dirty).not.toMatch(/<script|<img|<b>/i);
     for (const tag of dirty.match(/<[^>]*>/g)) expect(tag).not.toMatch(/\son\w+\s*=/i);
     expect(dirty).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
@@ -500,7 +513,7 @@ describe('escaping', () => {
   });
 
   it('shows a stored time that isn\'t toISOString() output as text, with no <time>', () => {
-    const results = { ...emptyResults(), feedbackCount: [{ n: 1 }], recentFeedback: [{ ts: '2026-11-01 03:00"><b>', page: 'pain', page_title: 'Pain', message: 'x' }] };
+    const results = { ...emptyResults(), feedbackCount: [{ n: 1 }], recentFeedback: [{ ts: '2026-11-01 03:00"><b>', page: 'pain', message: 'x' }] };
     const page = renderSummary(summaryView('', { results }));
     expect(page).not.toContain('<time');
     expect(page).toContain('2026-11-01 03:00&quot;&gt;&lt;b&gt;');

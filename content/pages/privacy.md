@@ -12,10 +12,10 @@ scripts: ["stats-switch.js"]
 collect:
   - "Star ratings you give a video"
   - feature: feedback
-    text: "Written feedback, if you choose to send it, and the page you sent it from. We store it with the time rounded to the hour"
-  - "Words you type into the site search. We store these without the code that groups your visit, and with the time rounded to the hour"
+    text: "Written feedback, if you choose to send it, and the page you sent it from"
+  - "Words you type into the site search. We store these without the code that groups your visit"
   - "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts opened"
-collect_note: "Each of these is stored with the page it came from and the date and time."
+collect_note: "Each of these is stored with the page it came from and the date and hour, never the exact time."
 not_collect:
   - "Your name, email or other contact details, unless you email or phone us (see below)"
   - "Accounts or passwords"

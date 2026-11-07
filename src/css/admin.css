@@ -487,6 +487,12 @@ body.admin {
   overflow-wrap: anywhere;
 }
 
+/* The page id after the page's current title, quieter than the title. */
+.feedback-item__page-id {
+  color: var(--slate-grey);
+  font-weight: var(--weight-regular);
+}
+
 /* The message exactly as stored: its line breaks and tabs show. */
 .feedback-item__message {
   margin-inline: 0;

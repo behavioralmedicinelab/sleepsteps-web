@@ -253,7 +253,10 @@ describe('the privacy page and features.feedback (SPEC §15.2, §15.4)', () => {
       site: { features: { ratings: true, events: true, feedback } },
     });
 
-  const ITEM = 'Written feedback, if you choose to send it, and the page you sent it from. We store it with the time rounded to the hour';
+  const ITEM = 'Written feedback, if you choose to send it, and the page you sent it from';
+  // Every time is stored rounded down to the hour (SPEC §14.1), so the note
+  // under the list says it once for all of them, feedback on or off.
+  const NOTE = '<p>Each of these is stored with the page it came from and the date and hour, never the exact time.</p>';
   const CHECK = "The check receives technical details such as your IP address and browser, and the address of the page you're on, which on the search page includes your search.";
   const ROW = '<code>cf.turnstile.u</code>';
   // The sentence on blocking storage names the spam check only while the switch is on.
@@ -261,9 +264,10 @@ describe('the privacy page and features.feedback (SPEC §15.2, §15.4)', () => {
   const STORAGE_OFF = 'YouTube videos come from another service and may not work if you block its storage.';
   const shown = (html) => [html.includes(`<li>${ITEM}</li>`), text(html).includes(CHECK), html.includes(ROW), text(html).includes(STORAGE_ON)];
 
-  it('lists the feedback item (time rounded to the hour), what the check receives, cf.turnstile.u and the check in the blocking sentence while the switch is on', () => {
+  it('lists the feedback item, what the check receives, cf.turnstile.u and the check in the blocking sentence while the switch is on', () => {
     expect(shown(render(true))).toEqual([true, true, true, true]);
     expect(text(render(true))).not.toContain(STORAGE_OFF);
+    expect(render(true)).toContain(NOTE);
   });
 
   it.each([false, 'true', undefined])('leaves all four out with features.feedback %s, and keeps the rest', (feedback) => {
@@ -271,6 +275,7 @@ describe('the privacy page and features.feedback (SPEC §15.2, §15.4)', () => {
     expect(shown(html)).toEqual([false, false, false, false]);
     expect(text(html)).toContain(STORAGE_OFF);
     expect(html).toContain('<li>Star ratings you give a video</li>');
+    expect(html).toContain(NOTE);
     expect(html).toContain('<code>cf_clearance</code>');
     expect(text(html)).toContain('It also protects the site from spam and automated attacks.');
   });
@@ -987,7 +992,7 @@ describe.runIf(feedbackOn)('feedback.js in the browser (SPEC §11, §13)', () =>
       expect(Object.keys(request.body)).toEqual(FEEDBACK_KEYS);
       expect(request.body).toEqual({ page_id: 'tired-but-wired', message, turnstile_token: DUMMY_TOKEN });
       const checked = validateFeedback(request.body, index);
-      expect(checked.row).toEqual({ page: 'tired-but-wired', title: pagesJson['tired-but-wired'].title, message: cleanMessage(message) });
+      expect(checked.row).toEqual({ page: 'tired-but-wired', message: cleanMessage(message) });
       expect(checked.token).toBe(DUMMY_TOKEN);
       // While it is in flight.
       expect(said()).toEqual([MESSAGES.SENDING]);

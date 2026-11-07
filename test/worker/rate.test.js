@@ -36,7 +36,9 @@ const EVENT_URL = `${ORIGIN}/api/event`;
 const ENV = () => ({ DB: testEnv.DB, DATA_COLLECTION: 'on', API_HOSTS: 'example.com' });
 const SESSION = crypto.randomUUID();
 const COLUMNS = ['id', 'page', 'stars', 'ts', 'video'];
-const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
+// Every stored time is the start of a UTC hour (SPEC §14.1).
+const HOUR = /^\d{4}-\d\d-\d\dT\d\d:00:00\.000Z$/;
+const floorHour = (ms) => Math.floor(ms / 3_600_000) * 3_600_000;
 
 /** A valid rating body, as rating.js sends it. */
 const rating = (stars = 4) => ({ page_id: 'pain', video_id: 'settling-your-body', stars });
@@ -158,7 +160,7 @@ describe('the rating body (SPEC §12)', () => {
 });
 
 describe('storing a rating', () => {
-  it.each([1, 2, 3, 4, 5])('%i star(s): 204 with no body, and one row with the server time and nothing else', async (stars) => {
+  it.each([1, 2, 3, 4, 5])('%i star(s): 204 with no body, and one row with the server time rounded down to the hour and nothing else', async (stars) => {
     const before = Date.now();
     const res = await send(rating(stars));
     const after = Date.now();
@@ -170,21 +172,28 @@ describe('storing a rating', () => {
     expect(Object.keys(row).sort()).toEqual(COLUMNS);
     expect([row.page, row.video, row.stars]).toEqual(['pain', 'settling-your-body', stars]);
     expect(await starTypes()).toEqual(['integer']);
-    expect(row.ts).toMatch(ISO);
-    expect(Date.parse(row.ts)).toBeGreaterThanOrEqual(before);
-    expect(Date.parse(row.ts)).toBeLessThanOrEqual(after);
-    // No events row and no session_id (SPEC §12, §14.1). Its exact ts could
-    // still be matched to a visit by time, which §14.1 and §22 accept.
+    // No exact time is stored (SPEC §14.1, project lead, 2026-11-07).
+    expect(row.ts).toMatch(HOUR);
+    expect(Date.parse(row.ts)).toBeGreaterThanOrEqual(floorHour(before));
+    expect(Date.parse(row.ts)).toBeLessThanOrEqual(floorHour(after));
+    // No events row and no session_id (SPEC §12, §14.1).
     expect(await eventRows()).toEqual([]);
     expect(logged).toEqual([]);
   });
 
-  it('keeps the exact server time, not rounded like a search', async () => {
-    const now = new Date('2026-11-06T13:59:59.999Z');
-    expect((await handleRate(rating(3), ENV(), index, now)).status).toBe(204);
-    expect((await rows()).map((r) => r.ts)).toEqual(['2026-11-06T13:59:59.999Z']);
-    // The `now` passed in is not changed.
-    expect(now.toISOString()).toBe('2026-11-06T13:59:59.999Z');
+  it('rounds the server time down to the hour, as for every row, never into the next hour or day', async () => {
+    const cases = [
+      ['2026-11-06T13:59:59.999Z', '2026-11-06T13:00:00.000Z'],
+      ['2026-11-06T13:00:00.000Z', '2026-11-06T13:00:00.000Z'],
+      ['2026-12-31T23:59:59.999Z', '2026-12-31T23:00:00.000Z'],
+    ];
+    for (const [at] of cases) {
+      const now = new Date(at);
+      expect((await handleRate(rating(3), ENV(), index, now)).status).toBe(204);
+      // The `now` passed in is not changed.
+      expect(now.toISOString()).toBe(at);
+    }
+    expect((await rows()).map((r) => r.ts)).toEqual(cases.map(([, hour]) => hour));
   });
 
   it('stores only its own columns: no IP address, user agent or referrer, whatever the request carries', async () => {

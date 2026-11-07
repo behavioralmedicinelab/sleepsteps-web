@@ -49,7 +49,8 @@ const SECRET = 'zq-turnstile-secret-0x4AAAAAAAzq';
 const ENV = () => ({ DB: testEnv.DB, DATA_COLLECTION: 'on', API_HOSTS: 'example.com', TURNSTILE_SECRET: SECRET });
 const TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
 const IP = '203.0.113.77';
-const COLUMNS = ['id', 'message', 'page', 'page_title', 'ts'];
+// No page_title: feedback stores the page id only (migration 0002, SPEC §17).
+const COLUMNS = ['id', 'message', 'page', 'ts'];
 const HOUR = /^\d{4}-\d\d-\d\dT\d\d:00:00\.000Z$/;
 
 /** A valid body, as feedback.js sends it. */
@@ -219,7 +220,7 @@ describe('storing feedback', () => {
     expect(stored).toHaveLength(1);
     const [row] = stored;
     expect(Object.keys(row).sort()).toEqual(COLUMNS);
-    expect([row.page, row.page_title, row.message]).toEqual(['pain', 'Pain', 'The audio on this page was too quiet zq-message']);
+    expect([row.page, row.message]).toEqual(['pain', 'The audio on this page was too quiet zq-message']);
     expect(row.ts).toMatch(HOUR);
     expect([floorHour(before), floorHour(after)]).toContain(Date.parse(row.ts));
     // No events or ratings row, and so no session_id (SPEC §14.1).
@@ -240,7 +241,7 @@ describe('storing feedback', () => {
     secrets.push('198.51.100.23');
   });
 
-  it('rounds the time down to the hour, as for a search (SPEC §10.1, §14.1)', async () => {
+  it('rounds the time down to the hour, as for every row (SPEC §14.1)', async () => {
     for (const [now, ts] of [
       ['2026-11-06T13:59:59.999Z', '2026-11-06T13:00:00.000Z'],
       ['2026-11-06T13:00:00.000Z', '2026-11-06T13:00:00.000Z'],
@@ -255,13 +256,15 @@ describe('storing feedback', () => {
     expect((await rows()).map((r) => r.ts)).toEqual(['2026-11-06T13:00:00.000Z', '2026-11-06T13:00:00.000Z', '2026-12-31T23:00:00.000Z']);
   });
 
-  it('takes the page title from pages.json, never from the client, and stores NULL for an empty one', async () => {
+  it('stores the page id only, never a title, whatever the page\'s title in pages.json', async () => {
     await expectStored(await send({ ...feedback(), page_id: 'start' }));
     await expectStored(await send({ ...feedback(), page_id: 'untitled' }));
-    expect((await rows()).map((r) => [r.page, r.page_title])).toEqual([
-      ['start', 'Start here'],
-      ['untitled', null],
+    expect(await rows()).toEqual([
+      expect.objectContaining({ page: 'start' }),
+      expect.objectContaining({ page: 'untitled' }),
     ]);
+    for (const row of await rows()) expect(Object.keys(row).sort()).toEqual(COLUMNS);
+    expect(JSON.stringify(await rows())).not.toContain('Start here');
   });
 
   it.each(['home', 'search', 'urgent-help', 'start'])('accepts feedback from %s: any page in pages.json', async (page) => {
@@ -459,7 +462,7 @@ describe('validation: 400 or 403 with the failed rule, before Siteverify, and no
   it('checks without changing the body it was given, and returns only the checked values', () => {
     const body = feedback('  zq\r\nchecked\u0000  ');
     const copy = structuredClone(body);
-    expect(validateFeedback(body, index)).toEqual({ row: { page: 'pain', title: 'Pain', message: 'zq\nchecked' }, token: TOKEN });
+    expect(validateFeedback(body, index)).toEqual({ row: { page: 'pain', message: 'zq\nchecked' }, token: TOKEN });
     expect(body).toEqual(copy);
   });
 
@@ -791,22 +794,22 @@ describe('the Worker as deployed: the real pages.json and site.config.json', () 
   const deployed = (body) => worker.fetch(request(body), env(), createExecutionContext());
   const expected = site.features.feedback === true ? 204 : 404;
 
-  it('accepts feedback from every page in pages.json, with its title', () => {
+  it('accepts feedback from every page in pages.json', () => {
     const real = pageIndex(realPages);
     expect(real.size).toBeGreaterThan(0);
-    for (const [page, entry] of real) {
-      expect(entry.title, page).not.toBe('');
+    for (const page of real.keys()) {
       const result = validateFeedback({ page_id: page, message: 'zq', turnstile_token: TOKEN }, real);
-      expect(result, page).toEqual({ row: { page, title: entry.title, message: 'zq' }, token: TOKEN });
+      expect(result, page).toEqual({ row: { page, message: 'zq' }, token: TOKEN });
     }
   });
 
-  it.each(['tired-but-wired', 'home', 'search', 'start', 'contact'])('stores feedback from %s with the title in pages.json', async (page) => {
-    expect(realPages[page]?.title).toBeTruthy();
+  it.each(['tired-but-wired', 'home', 'search', 'start', 'contact'])('stores feedback from %s with its page id only', async (page) => {
+    expect(realPages[page]).toBeTruthy();
     const res = await deployed({ page_id: page, message: 'Real page zq', turnstile_token: TOKEN });
     expect(res.status).toBe(expected);
-    const want = expected === 204 ? [[page, realPages[page].title]] : [];
-    expect((await rows()).map((r) => [r.page, r.page_title])).toEqual(want);
+    const want = expected === 204 ? [{ page, message: 'Real page zq' }] : [];
+    expect((await rows()).map((r) => ({ page: r.page, message: r.message }))).toEqual(want);
+    for (const row of await rows()) expect(Object.keys(row).sort()).toEqual(COLUMNS);
   });
 
   it('refuses a path, as the 404 page would have sent (SPEC §13)', async () => {

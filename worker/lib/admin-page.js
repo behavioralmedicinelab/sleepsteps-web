@@ -255,7 +255,7 @@ ${exportLinks(piece.from, piece.to, formatSpan(piece.from, piece.to))}
   }
   return section(
     'downloads',
-    html`<p>CSV files (UTF-8 with a byte-order mark, and a header row) for Excel, R or Python. Times in the files are UTC, and searches and feedback are rounded down to the hour. A text cell that starts with =, +, -, @, ', a tab or a line break (or the full-width ＝, ＋, －, ＠) gets an extra ' in front, so a spreadsheet shows it as text: remove one leading ' to get the stored text. Usage events have no row number, on purpose.</p>
+    html`<p>CSV files (UTF-8 with a byte-order mark, and a header row) for Excel, R or Python. Times in the files are UTC and rounded down to the hour. A text cell that starts with =, +, -, @, ', a tab or a line break (or the full-width ＝, ＋, －, ＠) gets an extra ' in front, so a spreadsheet shows it as text: remove one leading ' to get the stored text. Usage events have no row number, on purpose.</p>
 <p>Feedback and search text come from anyone and can hold health or identifying details. Save every file in the team's restricted folder, never in the code repository or an email.</p>
 <h3>Last month: ${formatMonth(lastMonth.from)} (UTC)</h3>
 <p class="hint">A UTC month starts at 10 am on the 1st in Melbourne (11 am during daylight saving), so each month's files are ready from that time on the 1st of the next month. Until then, these links show the month before.</p>
@@ -342,6 +342,17 @@ function hourOf(ts) {
   return TS_RE.test(ts) ? html`<time datetime="${ts}">${formatHour(ts)}</time>` : ts;
 }
 
+/**
+ * A message's page: its current title from pages.json and its id, or its id
+ * alone when it is no longer on the site (feedback stores no title, SPEC
+ * §14.4).
+ */
+function feedbackPage(item) {
+  if (!item.known) return html`<span class="feedback-item__page">${item.page}</span> (no longer on the site)`;
+  if (item.title === item.page) return html`<span class="feedback-item__page">${item.page}</span>`;
+  return html`<span class="feedback-item__page">${item.title}</span> <span class="feedback-item__page-id">(${item.page})</span>`;
+}
+
 function feedback(s) {
   const { total, recent } = s.feedback;
   if (total === 0 || recent.length === 0) return section('feedback', empty('No feedback in this range.'));
@@ -351,7 +362,7 @@ function feedback(s) {
   else lead = `All ${thousands(total)} messages in this range, newest first.`;
   const items = recent.map(
     (item) => html`<li class="feedback-item">
-<h3 class="feedback-item__heading"><span class="feedback-item__page">${item.title}${item.known ? '' : ' (no longer on the site)'}</span>, ${hourOf(item.ts)}</h3>
+<h3 class="feedback-item__heading">${feedbackPage(item)}, ${hourOf(item.ts)}</h3>
 <blockquote class="feedback-item__message" dir="auto">${item.message}</blockquote>
 </li>
 `,

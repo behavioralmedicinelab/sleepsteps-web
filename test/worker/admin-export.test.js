@@ -127,7 +127,8 @@ describe('columns (SPEC §14.4, decision B1)', () => {
   it('has four tables, each header its columns, and no id for events or searches', async () => {
     expect([...EXPORT_TABLES.keys()]).toEqual(['ratings', 'feedback', 'events', 'searches']);
     expect(EXPORT_TABLES.get('ratings').columns).toEqual(['id', 'ts', 'page', 'video', 'stars']);
-    expect(EXPORT_TABLES.get('feedback').columns).toEqual(['id', 'ts', 'page', 'page_title', 'message']);
+    // No page_title: feedback stores the page id only (migration 0002).
+    expect(EXPORT_TABLES.get('feedback').columns).toEqual(['id', 'ts', 'page', 'message']);
     expect(EXPORT_TABLES.get('events').columns).toEqual(['ts', 'session_id', 'page', 'type', 'media', 'furthest']);
     expect(EXPORT_TABLES.get('searches').columns).toEqual(['ts', 'q', 'results']);
     for (const table of EXPORT_TABLES.keys()) {
@@ -196,7 +197,7 @@ describe('parts (paged=1)', () => {
   it('joins parts of 2 and of 3 rows into exactly the one-file export', async () => {
     await insert('events', sampleEvents((i) => 900_000_001 + i));
     await insert('ratings', Array.from({ length: 7 }, (_, i) => ({ ts: `2026-10-0${1 + (i % 3)}T10:00:00.000Z`, page: 'pain', video: 'pain-about', stars: 1 + (i % 5) })));
-    await insert('feedback', Array.from({ length: 5 }, (_, i) => ({ ts: '2026-10-09T10:00:00.000Z', page: 'pain', page_title: 'Pain', message: `m${i}` })));
+    await insert('feedback', Array.from({ length: 5 }, (_, i) => ({ ts: '2026-10-09T10:00:00.000Z', page: 'pain', message: `m${i}` })));
     for (const table of EXPORT_TABLES.keys()) {
       const reference = await whole(table);
       for (const pageRows of [1, 2, 3]) expect(await joined(table, undefined, makeRouter({ pageRows })), `${table} ${pageRows}`).toBe(reference);
@@ -212,6 +213,52 @@ describe('parts (paged=1)', () => {
     expect(got[1].res.headers.get('X-Export-Next')).toBe('type=search&ts=2026-10-20T07%3A00%3A00.000Z&skip=10');
     const rows = parseCsv(got.map((p) => p.text).join('')).slice(1);
     expect(rows.map((r) => r[1])).toEqual(words);
+  });
+
+  it('pages hours whose rows all share one ts, identical rows included, with no gap or repeat, whatever the ids and part size', async () => {
+    // Every stored ts is an hour (SPEC §14.1), so one hour of a type is one
+    // tie group that the ORDER BY sorts by content. Identical rows (one
+    // visit viewing a page twice in an hour) may land on either side of a
+    // part boundary.
+    const C = 'c5e3a2b4-8d6f-4a0c-9b3e-4f5a6b7c8d9e';
+    const hour = '2026-10-12T05:00:00.000Z';
+    const rows = [];
+    for (const session of [A, B, C]) {
+      for (const page of ['pain', 'start']) {
+        rows.push(ev('page_view', hour, page, session), ev('page_view', hour, page, session));
+        rows.push(ev('video_play', hour, page, session, { media: page === 'pain' ? 'pain-about' : 'how-sleep-works', furthest: session === A ? 100 : 25 }));
+      }
+    }
+    rows.push(ev('page_view', '2026-10-12T04:00:00.000Z', 'pain', C), ev('page_view', '2026-10-12T06:00:00.000Z', 'pain', A));
+    rows.push(...['b', 'a', 'c', 'a'].map((q) => search(q, 1, hour)));
+    const files = [];
+    for (const ids of [(i) => 910_000_001 + i, (i, n) => 910_000_001 + (n - 1 - i), (i) => 910_000_001 + ((i * 11) % rows.length)]) {
+      await testEnv.DB.prepare('DELETE FROM events').run();
+      await insert('events', rows.map((row, i) => ({ ...row, id: ids(i, rows.length) })));
+      const reference = [await whole('events'), await whole('searches')];
+      for (const pageRows of [1, 2, 3, 5, 7]) {
+        expect(await joined('events', undefined, makeRouter({ pageRows })), `events ${pageRows}`).toBe(reference[0]);
+        expect(await joined('searches', undefined, makeRouter({ pageRows })), `searches ${pageRows}`).toBe(reference[1]);
+      }
+      files.push(reference);
+    }
+    expect(files[1]).toEqual(files[0]);
+    expect(files[2]).toEqual(files[0]);
+    const events = parseCsv(files[0][0]).slice(1);
+    expect(events).toHaveLength(20);
+    expect(events.filter((r) => r[0] === hour && r[3] === 'page_view')).toHaveLength(12);
+    expect(parseCsv(files[0][1]).slice(1).map((r) => r[1])).toEqual(['a', 'a', 'b', 'c']);
+    // Within the hour, page views go by page, then visit code; each pair of identical rows stays together.
+    expect(events.slice(1, 13).map((r) => `${r[2]} ${r[1][0]}`)).toEqual(['pain a', 'pain a', 'pain b', 'pain b', 'pain c', 'pain c', 'start a', 'start a', 'start b', 'start b', 'start c', 'start c']);
+    // The cursor counts the rows of the hour already sent: 14 page views
+    // (1 at 04:00, 12 at 05:00, 1 at 06:00), then 6 plays at 05:00.
+    const got = await parts('events', undefined, makeRouter({ pageRows: 5 }));
+    expect(got.map((p) => p.res.headers.get('X-Export-Next'))).toEqual([
+      'type=page_view&ts=2026-10-12T05%3A00%3A00.000Z&skip=4',
+      'type=page_view&ts=2026-10-12T05%3A00%3A00.000Z&skip=9',
+      'type=video_play&ts=2026-10-12T05%3A00%3A00.000Z&skip=1',
+      null,
+    ]);
   });
 
   it('puts the BOM and header in the first part only, ends every part with CRLF, and leaves X-Export-Next off the last', async () => {
@@ -444,21 +491,26 @@ describe('dates', () => {
 
 describe('the CSV (RFC 4180, OWASP)', () => {
   it('starts with the UTF-8 BOM bytes, ends records with CRLF, leaves NULL empty and numbers bare', async () => {
-    await insert('feedback', [{ id: 12, ts: '2026-10-05T10:00:00.000Z', page: 'pain', page_title: null, message: 'a "quoted", line\nbreak' }]);
+    await insert('feedback', [{ id: 12, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message: 'a "quoted", line\nbreak' }]);
+    await insert('ratings', [{ id: 3, ts: '2026-10-05T10:00:00.000Z', page: 'start', video: 'how-sleep-works', stars: 4 }]);
+    await insert('events', [ev('page_view', '2026-10-05T10:00:00.000Z', 'pain', A)]);
     const res = await get('table=feedback&from=2026-10-01&to=2026-10-31');
     const bytes = new Uint8Array(await res.arrayBuffer());
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
     // The header's cells are text, so they are quoted too.
-    expect(text).toBe(`${BOM}"id","ts","page","page_title","message"\r\n12,"2026-10-05T10:00:00.000Z","pain",,"a ""quoted"", line\nbreak"\r\n`);
+    expect(text).toBe(`${BOM}"id","ts","page","message"\r\n12,"2026-10-05T10:00:00.000Z","pain","a ""quoted"", line\nbreak"\r\n`);
+    // NULL is an empty field: a page view has no media or furthest.
+    expect(await whole('events')).toBe(`${BOM}"ts","session_id","page","type","media","furthest"\r\n"2026-10-05T10:00:00.000Z","${A}","pain","page_view",,\r\n`);
+    expect(await whole('ratings')).toBe(`${BOM}"id","ts","page","video","stars"\r\n3,"2026-10-05T10:00:00.000Z","start","how-sleep-works",4\r\n`);
   });
 
   it('defuses a search and a feedback message that start with = (and every other formula start)', async () => {
     const starts = ['=SUM(1)', '＝1', '+1', '-1', '@x', '\tx', '\rx', '\nx', "'x", '＋1', '－1', '＠x'];
-    await insert('feedback', starts.map((message, i) => ({ id: 100 + i, ts: '2026-10-05T10:00:00.000Z', page: 'pain', page_title: 'Pain', message })));
+    await insert('feedback', starts.map((message, i) => ({ id: 100 + i, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message })));
     await insert('events', [search('=HYPERLINK("http://x")', 0), search('plain', 1)]);
     const feedback = parseCsv(await whole('feedback')).slice(1);
-    expect(feedback.map((r) => r[4])).toEqual(starts.map((s) => `'${s}`));
+    expect(feedback.map((r) => r[3])).toEqual(starts.map((s) => `'${s}`));
     const searches = parseCsv(await whole('searches')).slice(1);
     expect(searches.map((r) => r[1])).toEqual(['\'=HYPERLINK("http://x")', 'plain']);
     for (const message of starts) expect(FORMULA_START.test(message), JSON.stringify(message)).toBe(true);
@@ -466,11 +518,10 @@ describe('the CSV (RFC 4180, OWASP)', () => {
 
   it('round-trips the stored text: parse, then remove one leading apostrophe', async () => {
     const texts = ['commas, here', 'quotes "like this"', 'line\nbreak', 'é and “curly” quotes', 'emoji 😴', "'already quoted", '=1', 'tab\tinside', '  spaces  '];
-    await insert('feedback', texts.map((message, i) => ({ id: 200 + i, ts: '2026-10-06T10:00:00.000Z', page: 'pain', page_title: message, message })));
+    await insert('feedback', texts.map((message, i) => ({ id: 200 + i, ts: '2026-10-06T10:00:00.000Z', page: 'pain', message })));
     await insert('events', texts.map((q, i) => search(q, i, '2026-10-07T10:00:00.000Z')));
     const unguard = (cell) => (cell.startsWith("'") ? cell.slice(1) : cell);
     const feedback = parseCsv(await whole('feedback')).slice(1);
-    expect(feedback.map((r) => unguard(r[4]))).toEqual(texts);
     expect(feedback.map((r) => unguard(r[3]))).toEqual(texts);
     const searches = parseCsv(await whole('searches')).slice(1).map((r) => unguard(r[1]));
     expect(searches.sort()).toEqual([...texts].sort());

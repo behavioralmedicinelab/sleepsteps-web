@@ -86,9 +86,10 @@ const meanOf = (row) => (row.n > 0 ? row.total / row.n : null);
  *   ratings: byVideo by count, then video id; byPage by count, then title,
  *   then id; byPageVideo by page title and id, then count, then video id.
  *   mean is total / n, unrounded. searches.top keeps D1's order (count,
- *   then text). feedback.recent keeps D1's order (newest first; title is
- *   the stored page_title, or the page id when it is NULL). plays and
- *   handouts by count, then video id.
+ *   then text). feedback.recent keeps D1's order (newest first); its page
+ *   shows by its current title in pages.json (feedback stores none), or by
+ *   its id when it is no longer there (known false). plays and handouts by
+ *   count, then video id.
  */
 export function summaryModel(results, index) {
   const rowsOf = (name) => (Array.isArray(results?.[name]) ? results[name] : []);
@@ -160,16 +161,11 @@ export function summaryModel(results, index) {
     },
     feedback: {
       total: count(feedbackCount.n),
-      recent: rowsOf('recentFeedback').map((row) => {
-        const page = String(row.page);
-        return {
-          ts: String(row.ts),
-          page,
-          title: typeof row.page_title === 'string' && row.page_title !== '' ? row.page_title : page,
-          known: index.has(page),
-          message: String(row.message ?? ''),
-        };
-      }),
+      recent: rowsOf('recentFeedback').map((row) => ({
+        ts: String(row.ts),
+        ...pageOf(index, String(row.page)),
+        message: String(row.message ?? ''),
+      })),
     },
     plays: { video: playRows('video_play'), audio: playRows('audio_play') },
     handouts: rowsOf('handouts')
@@ -205,7 +201,11 @@ export const EXPORT_ERRORS = Object.freeze({
   cursor: "This part of the download isn't valid. Start the download again.",
 });
 
-/** A stored ts, exactly as toISOString() writes it. */
+/**
+ * A stored ts, exactly as toISOString() writes it. Since 2026-11-07 every
+ * stored ts is an hour (SPEC §14.1), but a preview's older test rows can
+ * hold any time, so any millisecond is accepted.
+ */
 export const TS_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SKIP_RE = /^\d{1,7}$/;
 
@@ -266,6 +266,16 @@ export async function countRows(db, spec, range, cap) {
  * start. So a part makes at most one query per type, and `next` is null
  * exactly when nothing remains. The skip count is safe because every row in
  * an export's range is final (complete days only).
+ *
+ * Every stored ts is an hour (SPEC §14.1), so a skip often counts rows of a
+ * large group: everything of one type in one hour. The statements order
+ * that group by content (page, session_id, detail for events; id for ratings
+ * and feedback, their own sequences), never by events.id, so the first
+ * `skip` rows of a group are the same rows on every request: no gap and no
+ * repeat at a part boundary. Rows that tie on every ORDER BY term are
+ * identical in every exported column, so which of them comes first can't
+ * change the file. The cost: SQLite reads the whole hour for each part that
+ * starts or ends in it (lib/admin-queries.js).
  *
  * @param {D1Database} db
  * @param {object} spec    an EXPORT_TABLES entry

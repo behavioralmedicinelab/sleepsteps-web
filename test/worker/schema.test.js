@@ -1,7 +1,8 @@
 // The database after migrations/ is applied (SPEC §17): exactly the three
 // tables and their indexes, and no table or column that could hold an IP
 // address, a user agent or a client timestamp. Search events are rows in
-// `events` (SPEC §10.1), so there is no separate searches table.
+// `events` (SPEC §10.1), so there is no separate searches table. Feedback
+// has no page_title since 0002 (project lead, 2026-11-07).
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
@@ -27,7 +28,7 @@ describe('migrations (SPEC §17)', () => {
   it.each([
     ['events', [['id', 'INTEGER', 0, 1], ['ts', 'TEXT', 1, 0], ['session_id', 'TEXT', 0, 0], ['page', 'TEXT', 1, 0], ['type', 'TEXT', 1, 0], ['detail', 'TEXT', 0, 0]]],
     ['ratings', [['id', 'INTEGER', 0, 1], ['ts', 'TEXT', 1, 0], ['page', 'TEXT', 1, 0], ['video', 'TEXT', 1, 0], ['stars', 'INTEGER', 1, 0]]],
-    ['feedback', [['id', 'INTEGER', 0, 1], ['ts', 'TEXT', 1, 0], ['page', 'TEXT', 1, 0], ['page_title', 'TEXT', 0, 0], ['message', 'TEXT', 1, 0]]],
+    ['feedback', [['id', 'INTEGER', 0, 1], ['ts', 'TEXT', 1, 0], ['page', 'TEXT', 1, 0], ['message', 'TEXT', 1, 0]]],
   ])('give %s exactly its columns: [name, type, not null, primary key]', async (table, columns) => {
     const info = await all(`SELECT name, type, "notnull", pk FROM pragma_table_info('${table}') ORDER BY cid`);
     expect(info.map((c) => [c.name, c.type, c.notnull, c.pk])).toEqual(columns);
@@ -36,6 +37,34 @@ describe('migrations (SPEC §17)', () => {
   it('index events by type and time, the admin queries’ filter (SPEC §14.4)', async () => {
     const columns = await all(`SELECT name FROM pragma_index_info('idx_events_type_ts') ORDER BY seqno`);
     expect(columns.map((c) => c.name)).toEqual(['type', 'ts']);
+  });
+
+  it('are 0001_init.sql and 0002_feedback_drop_page_title.sql, in that order', () => {
+    expect(env.TEST_MIGRATIONS.map((m) => m.name)).toEqual(['0001_init.sql', '0002_feedback_drop_page_title.sql']);
+  });
+
+  it('0002 drops feedback.page_title from a database that holds 0001 rows, keeping every row and its other columns', async () => {
+    // Put this file's database back into 0001's shape, with rows, then run
+    // 0002's own statements on it, as `wrangler d1 migrations apply` does on
+    // the preview database (SPEC §17). It ends in the migrated shape again.
+    const [drop] = env.TEST_MIGRATIONS.filter((m) => m.name === '0002_feedback_drop_page_title.sql');
+    await env.DB.prepare('ALTER TABLE feedback ADD COLUMN page_title TEXT').run();
+    const old = [
+      [7, '2026-11-01T10:00:00.000Z', 'pain', 'Pain', 'first'],
+      [9, '2026-11-02T11:00:00.000Z', 'start', null, 'second\nline'],
+    ];
+    await env.DB.batch(old.map((row) => env.DB.prepare('INSERT INTO feedback (id, ts, page, page_title, message) VALUES (?, ?, ?, ?, ?)').bind(...row)));
+    for (const query of drop.queries) await env.DB.prepare(query).run();
+    expect(await all('SELECT id, ts, page, message FROM feedback ORDER BY id')).toEqual([
+      { id: 7, ts: '2026-11-01T10:00:00.000Z', page: 'pain', message: 'first' },
+      { id: 9, ts: '2026-11-02T11:00:00.000Z', page: 'start', message: 'second\nline' },
+    ]);
+    const info = await all(`SELECT name FROM pragma_table_info('feedback') ORDER BY cid`);
+    expect(info.map((c) => c.name)).toEqual(['id', 'ts', 'page', 'message']);
+    // Its index is untouched.
+    const index = await all(`SELECT name FROM pragma_index_info('idx_feedback_ts') ORDER BY seqno`);
+    expect(index.map((c) => c.name)).toEqual(['ts']);
+    await env.DB.prepare('DELETE FROM feedback').run();
   });
 
   it('use no AUTOINCREMENT: ids are row ids (d1_migrations has its own)', async () => {

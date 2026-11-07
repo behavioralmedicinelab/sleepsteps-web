@@ -44,9 +44,13 @@ export const ZERO_SEARCHES_SQL =
 /** How many feedback messages. */
 export const FEEDBACK_COUNT_SQL = 'SELECT COUNT(*) AS n FROM feedback WHERE ts >= ?1 AND ts < ?2';
 
-/** The 20 most recent messages, by ts and then id, newest first (SPEC §14.4). feedback.id is its own sequence. */
+/**
+ * The 20 most recent messages, by ts and then id, newest first (SPEC §14.4).
+ * feedback.id is its own sequence. The page is shown by its current title
+ * from pages.json: feedback stores no title (migration 0002).
+ */
 export const RECENT_FEEDBACK_SQL =
-  'SELECT ts, page, page_title, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts DESC, id DESC LIMIT 20';
+  'SELECT ts, page, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts DESC, id DESC LIMIT 20';
 
 /**
  * Plays per item and format: a play is one (session, page, item) group at
@@ -78,11 +82,20 @@ export const TABLES_PRESENT_SQL =
   "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('ratings', 'feedback', 'events')";
 
 // The exports. Each part runs one statement per event type (type = ?1), so
-// SQLite walks idx_events_type_ts and stops early: about 2 rows read per row
-// sent. (Measured: `type IN (all)` with `ORDER BY ts LIMIT n` sorts the whole
-// range on every part, and with no type filter it scans the table.) The
-// cursor's ts is the lower bound and its skip the OFFSET (see buildPart in
-// lib/admin-data.js).
+// SQLite walks idx_events_type_ts and stops early. (Measured: `type IN (all)`
+// with `ORDER BY ts LIMIT n` sorts the whole range on every part, and with no
+// type filter it scans the table.) The cursor's ts is the lower bound and its
+// skip the OFFSET (see buildPart in lib/admin-data.js).
+//
+// Every stored ts is rounded down to the hour (SPEC §14.1), so all of a
+// type's rows in one hour share a ts and the index can't order them: SQLite
+// reads and sorts that whole hour (the "LAST 3 TERMS" of ORDER BY) for each
+// part that starts or ends in it, and OFFSET then skips the rows already
+// sent. A part costs about 2 rows read (index entry and row) per row it
+// touches, so an export reads about 2 x (1 + G / part size) rows per row
+// sent while each hour of a type holds G rows, fewer than a part, and about
+// 2 x G / part size inside an hour bigger than a part (SPEC §14.4, §17,
+// §21).
 
 /** The usage-event types in the events file, in file order. Searches have a file of their own. */
 export const EVENT_TYPE_ORDER = Object.freeze(['page_view', 'video_play', 'audio_play', 'handout_open']);
@@ -95,13 +108,17 @@ export const EVENTS_PART_SQL =
 export const SEARCHES_PART_SQL =
   "SELECT ts, json_extract(detail, '$.q') AS q, json_extract(detail, '$.results') AS results FROM events WHERE type = ?1 AND ts >= ?2 AND ts < ?3 ORDER BY ts, page, session_id, detail LIMIT ?4 OFFSET ?5";
 
-/** Ratings keep their id: its own sequence, not interleaved with events.id (SPEC §15.3). */
+/**
+ * Ratings keep their id: its own sequence, not interleaved with events.id
+ * (SPEC §15.3). So the ratings of one hour, which share a ts, come in id
+ * order, as the file's id column shows anyway; the same holds for feedback.
+ */
 export const RATINGS_PART_SQL =
   'SELECT id, ts, page, video, stars FROM ratings WHERE ts >= ?1 AND ts < ?2 ORDER BY ts, id LIMIT ?3 OFFSET ?4';
 
-/** Feedback keeps its id, for the same reason. */
+/** Feedback keeps its id, for the same reason. It stores no page title (migration 0002). */
 export const FEEDBACK_PART_SQL =
-  'SELECT id, ts, page, page_title, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts, id LIMIT ?3 OFFSET ?4';
+  'SELECT id, ts, page, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts, id LIMIT ?3 OFFSET ?4';
 
 // Before a download starts: how many rows it holds, counting at most ?3 (the
 // row cap plus one), so the count itself reads at most that many index
@@ -125,7 +142,7 @@ export const FEEDBACK_COUNT_CAPPED_SQL = 'SELECT COUNT(*) AS n FROM (SELECT 1 FR
  */
 export const EXPORT_TABLES = new Map([
   ['ratings', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'video', 'stars']), partSql: RATINGS_PART_SQL, countSql: RATINGS_COUNT_SQL, pageRows: 2000 })],
-  ['feedback', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'page_title', 'message']), partSql: FEEDBACK_PART_SQL, countSql: FEEDBACK_COUNT_CAPPED_SQL, pageRows: 500 })],
+  ['feedback', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'message']), partSql: FEEDBACK_PART_SQL, countSql: FEEDBACK_COUNT_CAPPED_SQL, pageRows: 500 })],
   ['events', Object.freeze({ types: EVENT_TYPE_ORDER, columns: Object.freeze(['ts', 'session_id', 'page', 'type', 'media', 'furthest']), partSql: EVENTS_PART_SQL, countSql: EVENTS_COUNT_SQL, pageRows: 2000 })],
   ['searches', Object.freeze({ types: Object.freeze(['search']), columns: Object.freeze(['ts', 'q', 'results']), partSql: SEARCHES_PART_SQL, countSql: SEARCHES_COUNT_SQL, pageRows: 2000 })],
 ]);

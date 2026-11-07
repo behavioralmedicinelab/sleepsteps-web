@@ -20,8 +20,8 @@
 // - type: "problem", "start" or "page".
 //
 // It also builds worker/generated/pages.json (SPEC §8.3, §14.1), which the
-// Worker checks events, ratings and feedback against (a feedback row's
-// page_title is the page's `title` there): eleventy.config.js passes every
+// Worker checks events, ratings and feedback against, and where the admin
+// page finds each page's current `title`: eleventy.config.js passes every
 // Eleventy build's rendered pages to pagesIndex() in its eleventy.after hook
 // and writes the result with writeIfChanged().
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
