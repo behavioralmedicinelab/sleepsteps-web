@@ -10,6 +10,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from 'vitest';
 import configure from '../../eleventy.config.js';
+import { parseCsvRecords } from '../../scripts/lib/csv.js';
 import { MAX_QUERY_LOGGED } from '../../src/js/search-config.js';
 import { pageIndex } from '../../worker/lib/pages.js';
 import {
@@ -19,7 +20,7 @@ import {
   UUID_V4 as WORKER_UUID_V4,
   validateEvent,
 } from '../../worker/routes/event.js';
-import { attr, listFiles, pageAt, readHtmlPages, tags } from './helpers.js';
+import { attr, pageAt, readHtmlPages, tags } from './helpers.js';
 import { MemoryStorage, installDom } from './mini-dom.js';
 
 // The site built with every feature on, whatever site.config.json says, so
@@ -496,7 +497,8 @@ describe('built pages and the usage statistics modules (SPEC §10.1, §11)', () 
   });
 
   it('names only real videos in the attributes players.js reports from, and the ratings widget sends', () => {
-    const library = new Set(listFiles('content/videos', (f) => f.endsWith('.md')).map((f) => f.replace(/\.md$/, '')));
+    const library = new Set(parseCsvRecords(readFileSync('data/videos.csv', 'utf8')).map((row) => row.video_id));
+    expect(library.size).toBeGreaterThan(0);
     for (const { file, html } of pages) {
       for (const [, name, id] of html.matchAll(/\sdata-(video|media|handout|rating)="([^"]*)"/g)) {
         expect(library.has(id), `${file}: data-${name}="${id}"`).toBe(true);

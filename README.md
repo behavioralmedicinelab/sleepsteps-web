@@ -62,32 +62,50 @@ In page text, don't lean on the name "SleepSteps" (one word): call it "this prog
 
 ### Videos
 
-One file per video in `content/videos/<video_id>.md`. The file name is the `video_id`: lowercase words joined by hyphens, and never renamed once used. A video has no page of its own; problem pages and Start here show it.
+All the videos are in one spreadsheet, `data/videos.csv`: one row per video. Edit it in Excel and save it as **CSV UTF-8 (Comma delimited)**, as with the other files in `data/`. A video has no page of its own; problem pages and Start here show it, with everything on its row (`SPEC.md` §7.1). The columns, in this order:
 
-```yaml
----
-title: "Sleep drive"
-youtube_id: "AbCdEfGhIjK"           # the 11 characters after watch?v= in the YouTube link
-duration: "6:40"                    # minutes:seconds, in quotes
-audio: "sleep-drive.mp3"            # the audio-only version: a file in media/audio/ (25 MiB at most)
-handout: "sleep-drive.pdf"          # the handout: a file in media/pdf/
-thumbnail: "sleep-drive.jpg"        # optional: a file in media/thumbs/
----
-Optional: a transcript, as plain paragraphs. The site never shows it, but its
-words help the site search find the video's page. Leave a blank line between
-paragraphs. No headings (#), no HTML, no images, and no links except to pages
-on this site, such as [Pain](/problems/pain/).
+| Column | What goes in it |
+|---|---|
+| `video_id` | The video's permanent name: lowercase words joined by hyphens, such as `sleep-drive`. Problems, Start here, ratings and usage records use it, so **never change it** once the video is on the site. |
+| `title` | The video's title. |
+| `description` | One or two sentences about the video, shown with it. A line break inside the cell is fine. |
+| `youtube_url` | The link to the video on YouTube: the link from YouTube's Share button (`https://youtu.be/…`), the watch page (`https://www.youtube.com/watch?v=…`) or an embed link (`https://www.youtube.com/embed/…`). Leave it blank until the video is on YouTube. |
+| `duration` | The video's length, minutes:seconds, such as `6:40` (`[mm:ss]` until it's known). Format this column as Text in Excel, or Excel may turn `6:40` into a time (`6:40:00`), which the build refuses. |
+| `audio` | The audio-only version: a file name in `media/audio/` (25 MiB at most). |
+| `handout` | The handout: a file name in `media/pdf/`. |
+| `thumbnail` | Optional: a picture for the video's frame, a file name in `media/thumbs/`. Leave it blank for the plain frame. |
+
+A real video's row, as the file holds it (Excel adds the quotes around a cell with a comma when it saves, so just type the text):
+
+```csv
+video_id,title,description,youtube_url,duration,audio,handout,thumbnail
+sleep-drive,Sleep drive,"Why time awake builds the pressure to sleep, and how to use it.",https://youtu.be/AbCdEfGhIjK,6:40,sleep-drive.mp3,sleep-drive.pdf,
 ```
 
-Every video needs a handout and an audio-only version by launch. The build warns about a video that is missing either, and the launch check (`node scripts/validate-content.js --no-placeholders`) fails on it. Any format a video doesn't have yet is simply not shown. Under each video the page shows one row: "Audio only", "Handout" and "Was this helpful?" with its stars.
+Every column but `youtube_url` and `thumbnail` needs something in it. The build checks every row and stops, naming the row as Excel numbers it (the header is row 1), on a missing cell, an unknown or repeated `video_id`, a link that isn't a YouTube video link, two rows linking to the same YouTube video, a duration that isn't minutes:seconds or a file that isn't in `media/`. A file name must match the file exactly, capitals included (`Sleep-Drive.mp3` is not `sleep-drive.mp3`: a Mac doesn't mind, but the website's host does), and the message suggests the right name. The build also stops if the file was saved as plain "CSV" instead of "CSV UTF-8", which spoils curly quotes and accented letters, and on text that was garbled by opening the file in the wrong encoding (`â€œ` where a `“` was): undo, open the file through Excel's Data > From Text/CSV with "65001: Unicode (UTF-8)", and save it as CSV UTF-8 again. The file starts with an invisible UTF-8 marker (a byte-order mark) so that Excel opens it as UTF-8 when you double-click it; Excel's "CSV UTF-8" save keeps it. If a column to the right of the table was ever used, Excel may save an extra column with no name: the build names it ("Column I has no name"), so delete that column in Excel.
 
-**The handout carries the narration.** There are no transcripts on the site: the handout is each video's text version (the text alternative for people who can't hear the audio), so it has the video's full narration, word for word, naming the speakers, plus anything that matters on screen. The "Handout" button under each video links to it. Make it accessible: for a PDF, export it from Word as a tagged PDF and check it (`SPEC.md` §9.3).
+The rows can be in any order; the pages follow the problem files and `content/start.md`, not the spreadsheet. To use a video on a page, name its `video_id` there (below).
 
-A transcript in the video file is optional. If there is one, it is never shown, but the site search indexes it, and it can be the source for the YouTube captions.
+**Every video looks the same** wherever it is (the problem's own video, an open solution card, a Start here chapter): its label where it has one ("1 Main", "2 Extra" on a solution, "1 of 3" on Start here), its title and description, the video, then one row: "Audio only", "Handout" and "Was this helpful?" with its stars. A closed solution card shows its label, length, title and description (on a phone, its number, title and description). All of it comes from the video's row (a solution's `blurb` can replace the description, below); the layout is one template, `src/_includes/partials/video-block.njk`, and a test checks that every video on the site matches it (`SPEC.md` §7.5).
 
-The handout's format (PDF, Word or a web page) is still being decided (`SPEC.md` §9.3); until then it is a PDF.
+**The handout carries the narration.** There are no transcripts on the site: the handout is each video's text version (the text alternative for people who can't hear the audio), so it has the video's full narration, word for word, naming the speakers, plus anything that matters on screen. The "Handout" button under each video links to it. Make it accessible: for a PDF, export it from Word as a tagged PDF and check it (`SPEC.md` §9.3). The handout's format (PDF, Word or a web page) is still being decided; until then it is a PDF.
 
-**Placeholder videos.** Until a video is on YouTube, its file has `placeholder: true`, `youtube_id: "PLACEHOLDER"` and `duration: "[mm:ss]"`; the page shows "[Video coming soon]". To make it real, put in the YouTube ID and duration, replace the bracketed stand-in transcript (if it has one) with the real transcript or delete it, and delete the `placeholder: true` line. The build fails on a real video that still has the stand-in, since the search would index it. The build lists the placeholders that are left; there must be none at launch.
+**Transcripts are optional.** A video's transcript is a plain-text file, `data/transcripts/<video_id>.txt` (such as `data/transcripts/sleep-drive.txt`), saved as plain text in UTF-8 (in Word: Save As, Plain Text, then the Unicode (UTF-8) encoding). It is never shown, but the site search indexes it, so a search for words in it finds the video's pages, and it can be the source for the YouTube captions. The build stops on a transcript whose name isn't a `video_id` in `data/videos.csv`, on text that isn't UTF-8 or was garbled by opening the file in the wrong encoding, and on a real video's transcript that is only `[bracketed]` placeholder text. There are none yet, so the `data/transcripts/` folder is created with the first one.
+
+**Placeholder videos.** Until a video is on YouTube, its row has a blank `youtube_url`, `[mm:ss]` as its duration, a `[bracketed]` title and description, and the shared stand-in files `placeholder-audio.mp3` (in `media/audio/`, two seconds of silence) and `placeholder-handout.pdf` (in `media/pdf/`, a one-page PDF) in its `audio` and `handout` columns; the page shows "[Video coming soon]" in place of the video, and "Audio only" and "Handout" open the stand-ins. Every video is a placeholder for now. Keep the two stand-in files while any row names them.
+
+**Replacing a placeholder with the real video** (`SPEC.md` §19.2 has the YouTube settings):
+
+1. Put the video's audio-only MP3 in `media/audio/` and its handout in `media/pdf/`, named after its `video_id` (`sleep-drive.mp3`, `sleep-drive.pdf`).
+2. In its row of `data/videos.csv`, keep the `video_id` as it is, and put in:
+   - `youtube_url`: the link from YouTube's Share button;
+   - `duration`: its length as minutes:seconds, in place of `[mm:ss]`;
+   - `audio` and `handout`: its own file names, in place of the stand-ins;
+   - the real `title` and `description`, in place of the bracketed ones (the build doesn't check these, so look over the row);
+   - a `thumbnail`, if it has one.
+3. Save as CSV UTF-8 and commit. Every page with the video picks up the change; nothing else needs editing.
+
+The build stops if a video with a link still has a `[mm:ss]` duration or one of the stand-in files, or shares its audio or handout with another video. It lists the placeholders that are left; there must be none at launch (`node scripts/validate-content.js --no-placeholders` checks).
 
 ### Exporting the audio-only version
 
@@ -159,14 +177,13 @@ solutions:                              # 1-3 main, then 0-3 extra, in display o
     video: conditioning
     blurb: "Try this if bed has become a place where you lie awake."
   - tier: extra
-    video: sleep-effort-and-control
-    blurb: "Try this if trying hard to fall asleep keeps you awake."
+    video: sleep-effort-and-control     # no blurb: the card shows the video's description
 related:                                # 2-3 other problems, by file name
   - not-sleepy-at-bedtime
   - stress-and-worries
 ```
 
-The solutions follow the team's planning sheet (`SPEC.md` §7.2): its 1s are the main solutions, with the suggested start first, and its 2s are the extras.
+The solutions follow the team's planning sheet (`SPEC.md` §7.2): its 1s are the main solutions, with the suggested start first, and its 2s are the extras. A solution's card shows the video's description from `data/videos.csv`; a `blurb` (optional) replaces it on this problem only, to say why the video suits this problem.
 
 A **stand-alone problem** has one video made for it instead of mechanism videos. Its file has `standalone: true` and no `solutions`; its `problem_video` is that video, and the page shows it with "Is this you?" and no solution cards. The build stops if a stand-alone problem lists solutions, or if any other problem has none.
 
@@ -179,16 +196,16 @@ A video can appear on several pages, but only once on each page. Leave the lines
 
 ### Start here
 
-The intro videos are `chapters` in `content/start.md`, in order, each with a `video` (a `video_id`) and a one-line `description`. Titles and durations come from the video files.
+The intro videos are `chapters` in `content/start.md`, in order, each a `video` (a `video_id`). Their titles, descriptions and durations come from their rows in `data/videos.csv`, so change an intro video's description there: a chapter has only its `video`, and the build stops on a `description` line in `content/start.md`.
 
 ### Other content
 
 - **Home page** wording (the hero, the format tiles' line and the trial text): the front matter at the top of `content/index.njk`. The hero photo goes in `src/img/`, named in `hero.photo`.
 - **Footer** wording: `footer` in `site.config.json` (`SPEC.md` §11). `tagline` is the line under the name; `acknowledgement` is the Acknowledgement of Country; `trialRegistration` and `ethicsApproval` share a line (leave one empty, `""`, to hide it); `licenceExceptions` is the end of the licence sentence, after "Content is licensed under CC BY 4.0,", with no full stop (the site adds it). The words "Content is licensed under CC BY 4.0" and their link stay in `src/_includes/partials/site-footer.njk`, so the footer always names the licence. This file is JSON: keep the double quotes and the commas between lines, or the build stops.
 - **Problem areas:** `data/areas.csv` (edit in Excel, save as CSV UTF-8).
-- **The team** on About ("Who we are"): `data/team.csv` (edit in Excel, save as CSV UTF-8). One row per person, in any order: `name`, `role` and an optional `organisation`. The page lists people by last name, taken as the last word of `name`. The build stops if a row has no name or role.
-- **Search keywords:** `data/keywords.csv` (edit in Excel, save as CSV UTF-8). One row per page: `page_id` is a problem's file name (without `.md`), `start`, or an information page's file name; `keywords` lists the words people might type, separated by `;`, including misspellings and US spellings. The site search and the filter on the Sleep problems page both use them. The build stops on an unknown or repeated `page_id`, and lists pages with no keywords. `npm test` checks that example searches (`test/node/search-queries.test.js`) still find the right page, so add a case there when you add keywords for something new. An information page with `search: false` in its front matter is left out of the search.
-- **Star ratings** under each video: on or off with `ratings` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there are no stars and no note on Home). The question ("Was this helpful?") and the star names are in `src/_includes/partials/rating.njk`; there is no line under the stars (`SPEC.md` §15.1). The row under each video (Audio only, Handout, the stars) is in `src/_includes/partials/video-controls.njk`. The message after a rating ("Thanks. You rated this 4 of 5.") is in `src/js/rating.js`, and the failure message in `src/js/api.js`. `rating.njk` also holds hidden copies of the two longest messages, which keep room for them, so change them together. Home's "Rate each video to help us improve" is in `content/index.njk`; like the stars, it shows only when JavaScript runs. The tests check all of this wording word for word, so a change also needs the tests updated, or the build stops; ask a developer (or Claude) to make it.
+- **The team** on About ("Who we are"): `data/team.csv` (edit in Excel, save as CSV UTF-8). One row per person, in any order: `name`, `role` and an optional `organisation`. The page lists people by last name, taken as the last word of `name`. The build stops if a row has no name or role, or has text garbled by opening the file in the wrong encoding (as for `data/videos.csv`, above).
+- **Search keywords:** `data/keywords.csv` (edit in Excel, save as CSV UTF-8). One row per page: `page_id` is a problem's file name (without `.md`), `start`, or an information page's file name; `keywords` lists the words people might type, separated by `;`, including misspellings and US spellings. The site search and the filter on the Sleep problems page both use them. The build stops on an unknown or repeated `page_id`, and on text garbled by opening the file in the wrong encoding (as for `data/videos.csv`, above), and lists pages with no keywords. `npm test` checks that example searches (`test/node/search-queries.test.js`) still find the right page, so add a case there when you add keywords for something new. An information page with `search: false` in its front matter is left out of the search.
+- **Star ratings** under each video: on or off with `ratings` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there are no stars and no note on Home). The question ("Was this helpful?") and the star names are in `src/_includes/partials/rating.njk`; there is no line under the stars (`SPEC.md` §15.1). The row under each video (Audio only, Handout, the stars) is in the video template, `src/_includes/partials/video-block.njk`. The message after a rating ("Thanks. You rated this 4 of 5.") is in `src/js/rating.js`, and the failure message in `src/js/api.js`. `rating.njk` also holds hidden copies of the two longest messages, which keep room for them, so change them together. Home's "Rate each video to help us improve" is in `content/index.njk`; like the stars, it shows only when JavaScript runs. The tests check all of this wording word for word, so a change also needs the tests updated, or the build stops; ask a developer (or Claude) to make it.
 - **Information pages:** `content/pages/*.md`. The front matter they take is described at the top of `src/_includes/layouts/info.njk`.
 - **The YouTube note** at the end of each page with a video ("Pressing play on a video loads it from YouTube …"): `src/_includes/notices/video.njk` (draft wording for the privacy officer, `SPEC.md` §15.1). The tests check it word for word, so ask a developer (or Claude) to change it.
 - **Feedback** ("Send feedback" in the footer, which opens a dialog): on or off with `feedback` in `features` in `site.config.json` (`true` or `false`, without quotes; with it off there is no "Send feedback"). The notice in the dialog is in `src/_includes/notices/feedback.njk` (draft wording for the privacy officer, `SPEC.md` §15.1), the heading, label and hint in `src/_includes/partials/feedback-dialog.njk`, the dialog's messages in `MESSAGES` in `src/js/feedback.js`, and the failure message in `src/js/api.js`. The tests check this wording word for word, so ask a developer (or Claude) to change it. `turnstileSiteKey` in `site.config.json` is the spam check's public site key: a person creates it in Cloudflare (`SPEC.md` §18.4 step 5), and until then it stays `"<PUBLIC_SITE_KEY>"`.

@@ -1,0 +1,114 @@
+{#-
+  The video template (SPEC §7.5, §9, §12; project lead, 2026-11-09: "a
+  consistent template that is reproduced exactly, without variation"). Every
+  video on the site is this macro and nothing else: the problem's own video,
+  each open solution card (main and extra) and each Start here chapter. Same
+  markup, same CSS (components.css, "Video template"), so they can't drift.
+  A build test (video-template.test.js) checks every video on every page.
+
+    {% from "partials/video-block.njk" import videoBlock %}
+    {{ videoBlock(video, heading=2, ratings=ratingsOn) }}
+    {{ videoBlock(video, heading=3, description=solution.description,
+                  label={ num: 1, text: 'Main' }, close=id + '-panel',
+                  bleed='card', ratings=ratingsOn) }}
+
+  In this order, every time:
+    0. the label, if the context has one: a step chip ("1 Main", "2 Extra"
+       on a solution card; "1 of 3" on Start here). The problem's own video
+       has none. A solution card's Close sits at the label's right.
+    1. the title, a heading (h2 on the problem page and Start here, h3 in a
+       solution card, under its section's h2), id video-<video_id>-title;
+    2. the description (data/videos.csv, or a solution's blurb, SPEC §7.2);
+    then the video (partials/video.njk), then one row of controls:
+    3. "Audio only": a native <details> holding <audio controls
+       preload="none"> (the video's own soundtrack, SPEC §9.2). First, so
+       opening it never moves its own button: open, it takes the row's
+       full width, the player opens under its button, and the handout and
+       the stars move down under the player;
+    4. "Handout": a link to media/pdf/ (the video's text alternative,
+       carrying its full narration, SPEC §9.3). The format is still open
+       (SPEC §21), so the label is "Handout" and "(PDF)" is said only to
+       screen readers. It is the only handout link near the video;
+    5. "Was this helpful?" and the five stars (partials/rating.njk), while
+       `ratings` is exactly true (the callers pass
+       site.features.ratings === true); its status line takes a line of
+       its own under the row.
+  Every row of data/videos.csv names an audio file and a handout (the
+  content check fails the build otherwise, SPEC §7.1), so both always render.
+
+  Layout (components.css): decided by the width of the page's main column
+  (.with-sidebar__main, the one query container for every video on the
+  page, so the problem video and an open card switch together). From 768px
+  (the Problem-A open card's 420 + 24 + 280 = 724, plus an open card's
+  border and padding) the video (3fr) and the label, title and description
+  (2fr) sit side by side and the row runs under both; narrower, the label,
+  title and description come first (the DOM order), then the video and the
+  row. Every caller must render inside .with-sidebar__main.
+
+  Arguments (keyword arguments, all optional after `video`):
+    video        a video from `videoById` (or `introChapters`/`solutionsByTier`)
+    heading      the title's heading level: 2 (default) or 3
+    description  the text under the title; default the video's description
+    label        { num, text }: the step chip; none by default
+    close        the id of the solution card's panel: adds "Close" at the
+                 label's right, ships the header `hidden` and makes the
+                 title focusable (tabindex="-1"). Without JavaScript the
+                 card's <summary> names it and is its only close control
+                 (a button can't close a <details>), so src/js/solutions.js
+                 shows the header once Close works, and moves focus to the
+                 title when the card opens.
+    bleed        'page' (default) or 'card': how the frame meets the edges
+                 below 600px (partials/video.njk)
+    ratings      exactly true: the ratings widget ends the row
+
+  Without JavaScript the handout and audio work as they are. src/js/players.js
+  pauses other media when audio plays and has the event hooks (data-handout
+  and the audio's data-media hold the video_id, whatever the handout's
+  format or the audio's file name; SPEC §9.4, §10.2). pages.json reads the
+  same attributes (SPEC §8.3), so the Worker accepts exactly these ids.
+
+  ids: video-<video_id>-title, audio-<video_id>, and the widget's
+  rating-<video_id>-*. The validator allows each video once per page, so
+  they are unique.
+-#}
+{%- from "partials/icons.njk" import icon -%}
+{%- from "partials/rating.njk" import rating -%}
+{%- from "partials/step-chip.njk" import stepChip -%}
+{%- from "partials/video.njk" import videoEmbed -%}
+{%- macro videoBlock(video, heading=2, description='', label=none, close='', bleed='page', ratings=false) -%}
+{%- set h = 'h3' if heading == 3 else 'h2' -%}
+{%- set id = video.video_id -%}
+<div class="video-block">
+  <div class="video-block__grid">
+    <div class="video-block__header"{% if close %} hidden{% endif %}>
+      {%- if label or close %}
+      <div class="video-block__top">
+        {%- if label %}
+        {{ stepChip(label.num, label.text, variant='sm') }}
+        {%- endif %}
+        {%- if close %}
+        <button type="button" class="video-block__close" aria-expanded="true" aria-controls="{{ close }}">Close<span class="visually-hidden"> {{ video.title }}</span></button>
+        {%- endif %}
+      </div>
+      {%- endif %}
+      <{{ h }} class="video-block__title" id="video-{{ id }}-title"{% if close %} tabindex="-1"{% endif %}>{{ video.title }}</{{ h }}>
+      <p class="video-block__desc">{{ description or video.description }}</p>
+    </div>
+    <div class="video-block__video">
+      {{ videoEmbed(video, bleed=bleed) }}
+    </div>
+    <div class="video-controls">
+      <details class="format-disclosure" id="audio-{{ id }}">
+        <summary class="format-disclosure__toggle"><span class="format-button">{{ icon('headphones', 18, 'format-button__icon') }}Audio only<span class="visually-hidden">: {{ video.title }}</span>{{ icon('chevron-down', 16, 'format-disclosure__chevron') }}</span></summary>
+        <div class="format-disclosure__panel">
+          <audio class="format-audio" controls preload="none" src="/media/audio/{{ video.audio }}" data-media="{{ id }}" aria-label="Audio only: {{ video.title }}"><a href="/media/audio/{{ video.audio }}">Download the audio (MP3)</a></audio>
+        </div>
+      </details>
+      <a class="format-button" href="/media/pdf/{{ video.handout }}" type="application/pdf" data-handout="{{ id }}">{{ icon('download', 18, 'format-button__icon') }}Handout<span class="visually-hidden">: {{ video.title }} (PDF)</span></a>
+      {%- if ratings === true %}
+      {{ rating(video) }}
+      {%- endif %}
+    </div>
+  </div>
+</div>
+{%- endmacro -%}

@@ -1,12 +1,14 @@
-// The shared components (SPEC §9.1-§9.3, §12, §15.1; HANDOFF §5):
-// VideoEmbed, the row of controls under each video (handout, "Audio only" and
-// the ratings widget), the step chip, rendered with Eleventy's own Nunjucks
-// and our filters, plus the plumbing they rely on in the built site.
+// The shared components (SPEC §7.5, §9.1-§9.3, §12, §15.1; HANDOFF §5):
+// VideoEmbed, the video template every video uses (its label, title and
+// description, and the row of controls under it: "Audio only", the handout
+// and the ratings widget), the step chip, rendered with Eleventy's own
+// Nunjucks and our filters, plus the plumbing they rely on in the built
+// site. video-template.test.js checks every video on every built page.
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, inject, it } from 'vitest';
 import configure from '../../eleventy.config.js';
-import { attr, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
+import { attr, elementByClass, pageAt, readHtmlPages, tags, text, videoRow } from './helpers.js';
 
 const require = createRequire(import.meta.url);
 const nunjucks = createRequire(require.resolve('@11ty/eleventy'))('nunjucks');
@@ -23,21 +25,17 @@ configure({
 const env = new nunjucks.Environment(new nunjucks.FileSystemLoader('src/_includes'), { autoescape: true });
 for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
 
-// Stand-ins for the `videos` collection. None of these IDs is a real video.
-const item = (id, data, body = '') => ({
-  page: { fileSlug: id },
-  data,
-  rawInput: body,
-  templateContent: body.trim() ? `<p>${body.trim()}</p>\n` : '',
-});
+// Stand-ins for data/videos.csv rows. None of these IDs is a real video.
+// Every row names an audio file and a handout, as the content check
+// requires (SPEC §7.1).
+const yt = (id) => `https://youtu.be/${id}`;
+const files = (id) => ({ audio: `${id}.mp3`, handout: `${id}.pdf` });
 const videos = [
-  item('full', { title: 'Settling "your" body', youtube_id: 'AbCdEfGhIjK', duration: '6:40', audio: 'full.mp3', handout: 'full.pdf' }, 'The transcript.'),
-  item('bare', { title: 'Bare', youtube_id: 'Zz_-9yXwVu0', duration: '1:05' }),
-  item('thumb', { title: 'Thumb', youtube_id: 'AbCdEfGhIjK', duration: '0:45', thumbnail: 'thumb.jpg' }),
-  item('soon', { title: '[Coming]', youtube_id: 'PLACEHOLDER', duration: '[mm:ss]', placeholder: true }, 'Words.'),
-  item('handout', { title: 'Handout only', youtube_id: 'AbCdEfGhIjK', duration: '2:00', handout: 'h.pdf' }),
-  item('audio', { title: 'Audio only', youtube_id: 'AbCdEfGhIjK', duration: '2:00', audio: 'a.mp3' }),
-  item('words', { title: 'Words only', youtube_id: 'AbCdEfGhIjK', duration: '2:00' }, 'Just words.'),
+  videoRow('full', { title: 'Settling "your" body', description: 'What it is about.', youtube_url: yt('AbCdEfGhIjK'), duration: '6:40', ...files('full') }),
+  videoRow('bare', { title: 'Bare', description: 'Bare words.', youtube_url: 'https://www.youtube.com/watch?v=Zz_-9yXwVu0', duration: '1:05', ...files('bare') }),
+  videoRow('thumb', { title: 'Thumb', description: 'A thumbnail.', youtube_url: yt('AbCdEfGhIjK'), duration: '0:45', thumbnail: 'thumb.jpg', ...files('thumb') }),
+  videoRow('soon', { title: '[Coming]', description: '[Words.]', audio: 'placeholder-audio.mp3', handout: 'placeholder-handout.pdf' }),
+  videoRow('words', { title: 'Words only', description: 'Just words.', youtube_url: yt('AbCdEfGhIjK'), duration: '2:00', ...files('words') }),
 ];
 const video = (id) => filters.videoById(id, videos);
 const siteConfig = JSON.parse(readFileSync('site.config.json', 'utf8'));
@@ -45,14 +43,14 @@ const siteConfig = JSON.parse(readFileSync('site.config.json', 'utf8'));
 const render = (call, context = {}) =>
   env
     .renderString(
-      `{% from "partials/video.njk" import videoEmbed %}{% from "partials/video-controls.njk" import videoControls %}` +
+      `{% from "partials/video.njk" import videoEmbed %}{% from "partials/video-block.njk" import videoBlock %}` +
         `{% from "partials/step-chip.njk" import stepChip %}{% from "partials/rating.njk" import rating %}${call}`,
       context,
     )
     .trim();
 
 describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
-  const html = render('{{ videoEmbed(v, showTitle=true) }}', { v: video('full') });
+  const html = render('{{ videoEmbed(v) }}', { v: video('full') });
   const facade = tags(html, 'a').find((t) => attr(t, 'class') === 'video__facade');
 
   it('is a "Watch on YouTube" link without JavaScript, named by the title and spoken duration', () => {
@@ -63,18 +61,20 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
     expect(html).toMatch(/<span class="play-disc" aria-hidden="true"><svg class="icon play-disc__icon"/);
   });
 
-  it('carries what players.js needs, and the title as a visible plate with showTitle', () => {
+  it('carries what players.js needs, and never a title plate: the template\'s heading names the video', () => {
     const wrapper = tags(html, 'div')[0];
     expect([attr(wrapper, 'class'), attr(wrapper, 'data-video'), attr(wrapper, 'data-youtube-id'), attr(wrapper, 'data-title')]).toEqual([
       'video video--inset', 'full', 'AbCdEfGhIjK', 'Settling &quot;your&quot; body',
     ]);
-    expect(html).toContain('<span class="video__title">Settling &quot;your&quot; body</span>');
-    expect(render('{{ videoEmbed(v) }}', { v: video('full') })).toContain('<span class="video__title visually-hidden">');
+    expect(html).toContain('<span class="video__title visually-hidden">Settling &quot;your&quot; body</span>');
+    for (const v of videos) {
+      expect(render('{{ videoEmbed(v) }}', { v: video(v.video_id) }), v.video_id).not.toMatch(/<span class="video__title">/);
+    }
   });
 
   it('contacts nothing: no iframe, player host, API script, preconnect or YouTube image', () => {
     for (const v of videos) {
-      const out = render('{{ videoEmbed(v, arc=true) }}', { v: filters.videoById(v.page.fileSlug, videos) });
+      const out = render('{{ videoEmbed(v) }}', { v: filters.videoById(v.video_id, videos) });
       expect(out).not.toMatch(/<iframe|youtube-nocookie|iframe_api|ytimg|preconnect|dns-prefetch|<script/i);
       for (const tag of out.match(/<[a-z][^>]*>/gi)) {
         expect(attr(tag, 'src') ?? '', tag).not.toMatch(/^(https?:)?\/\//);
@@ -83,11 +83,11 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
   });
 
   it('carries no notice of its own: the YouTube note is once per page, at its end (SPEC §15.1, §22 2026-11-07)', () => {
-    for (const id of ['full', 'handout', 'bare', 'words', 'audio', 'soon']) {
+    for (const id of ['full', 'bare', 'words', 'soon']) {
       const out = render('{{ videoEmbed(v) }}', { v: video(id) });
       expect(out, id).not.toMatch(/notice-text|video__notice|youtube-note"|Pressing play/);
-      // No handout link and no transcript (the file's body isn't shown).
-      expect(out, id).not.toMatch(/data-handout|media\/pdf|transcript|Just words|The transcript/i);
+      // No handout link, description or transcript: the facade is only the video.
+      expect(out, id).not.toMatch(/data-handout|media\/pdf|transcript|Just words|What it is about/i);
     }
   });
 
@@ -107,34 +107,38 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
     expect(tags(note, 'a').map((a) => attr(a, 'href'))).toEqual(['/privacy/#cookies-and-browser-storage']);
   });
 
-  it('shows a self-hosted thumbnail if there is one, otherwise the arc when asked', () => {
-    const thumb = render('{{ videoEmbed(v, arc=true) }}', { v: video('thumb') });
+  it('shows a self-hosted thumbnail if there is one, otherwise the settling arc, on every frame', () => {
+    const thumb = render('{{ videoEmbed(v) }}', { v: video('thumb') });
     const img = tags(thumb, 'img')[0];
     expect([attr(img, 'src'), attr(img, 'alt'), attr(img, 'loading')]).toEqual(['/media/thumbs/thumb.jpg', '', 'lazy']);
     expect(thumb).not.toContain('class="arc');
-    expect(render('{{ videoEmbed(v, arc=true) }}', { v: video('bare') })).toContain('<svg class="arc arc--video" viewBox="0 0 960 120"');
-    expect(render('{{ videoEmbed(v) }}', { v: video('bare') })).not.toMatch(/class="arc"|video__media/);
+    for (const id of ['full', 'bare', 'soon']) {
+      expect(render('{{ videoEmbed(v) }}', { v: video(id) }), id).toContain('<svg class="arc arc--video" viewBox="0 0 960 120"');
+    }
   });
 
-  it('sets the bleed and size variants', () => {
+  it('sets the bleed, and has no size variant (every facade is the same)', () => {
     const wrapper = (out) => attr(tags(out, 'div')[0], 'class');
-    expect(wrapper(render("{{ videoEmbed(v, bleed='page', size='lg') }}", { v: video('bare') }))).toBe('video video--page video--lg');
+    expect(wrapper(render("{{ videoEmbed(v, bleed='page') }}", { v: video('bare') }))).toBe('video video--page');
     expect(wrapper(render("{{ videoEmbed(v, bleed='card') }}", { v: video('bare') }))).toBe('video video--card');
+    expect(readFileSync('src/_includes/partials/video.njk', 'utf8')).not.toMatch(/showTitle|video--lg|size=/);
   });
 
   it('shows a placeholder video as "[Video coming soon]", with no link, button or YouTube ID', () => {
-    const out = render('{{ videoEmbed(v, showTitle=true) }}', { v: video('soon') });
+    const out = render('{{ videoEmbed(v) }}', { v: video('soon') });
     expect(out).not.toMatch(/<a class="video__facade|<button|data-youtube-id|youtube\.com\/watch|PLACEHOLDER/);
     expect(text(elementByClass(out, 'video__facade', 'div'))).toBe('[Coming] [Video coming soon] [mm:ss]');
     expect(attr(tags(out, 'div')[0], 'class')).toBe('video video--inset video--placeholder');
     // The page's YouTube note still shows (from the layout), so the page reads as it will at launch.
-    expect(out).not.toContain('Words.');
+    expect(out).not.toContain('[Words.]');
   });
 });
 
-describe('videoControls (the row under each video, SPEC §9.2, §9.3, §12)', () => {
+// The one video template (partials/video-block.njk; SPEC §7.5; project lead,
+// 2026-11-09): every video on the site is this macro.
+describe('videoBlock (the video template, SPEC §7.5, §9.2, §9.3, §12)', () => {
   const summaries = (html) => [...html.matchAll(/<summary[^>]*>([\s\S]*?)<\/summary>/g)].map((m) => text(m[1]).replace(' :', ':'));
-  // The row's direct children, in order, as "tag.class" (icons and the
+  // An element's direct children, in order, as "tag.class" (icons and the
   // radios, which have no closing tag, left out).
   const children = (html) => {
     const out = [];
@@ -150,75 +154,100 @@ describe('videoControls (the row under each video, SPEC §9.2, §9.3, §12)', ()
     }
     return out;
   };
+  const row = (html) => elementByClass(html, 'video-controls', 'div');
+  const header = (html) => elementByClass(html, 'video-block__header', 'div');
 
-  it('renders nothing for a video with no handout or audio while ratings are off, whatever its body', () => {
-    for (const id of ['bare', 'words', 'thumb']) {
-      expect(render('{{ videoControls(v) }}', { v: video(id) }), id).toBe('');
-      expect(render('{{ videoControls(v, false) }}', { v: video(id) }), id).toBe('');
-      // Only exactly true turns the rating on (SPEC §11).
-      expect(render("{{ videoControls(v, 'true') }}", { v: video(id) }), id).toBe('');
-    }
+  it('is the header, the video, then the row of controls, in that order', () => {
+    const html = render('{{ videoBlock(v, ratings=true) }}', { v: video('full') });
+    expect(tags(html, 'div').slice(0, 2)).toEqual(['<div class="video-block">', '<div class="video-block__grid">']);
+    expect(children(elementByClass(html, 'video-block__grid', 'div'))).toEqual(['div.video-block__header', 'div.video-block__video', 'div.video-controls']);
+    expect(children(elementByClass(html, 'video-block__video', 'div'))).toEqual(['div.video video--page']);
+  });
+
+  it('heads it with the title and the description, and no label or Close unless asked', () => {
+    const html = render('{{ videoBlock(v) }}', { v: video('full') });
+    expect(header(html)).toBe(
+      '<div class="video-block__header">\n      <h2 class="video-block__title" id="video-full-title">Settling &quot;your&quot; body</h2>\n      <p class="video-block__desc">What it is about.</p>\n    </div>',
+    );
+    expect(html).not.toMatch(/video-block__top|step-chip|<button/);
+    // h3 inside a solution card.
+    expect(tags(render('{{ videoBlock(v, heading=3) }}', { v: video('full') }), 'h3')).toEqual(['<h3 class="video-block__title" id="video-full-title">']);
+    // Another description (a solution's blurb) replaces the video's.
+    expect(text(elementByClass(render("{{ videoBlock(v, description='Try this.') }}", { v: video('full') }), 'video-block__desc', 'p'))).toBe('Try this.');
+  });
+
+  it('puts the label first, and a solution card\'s Close at its right, shipping that header hidden', () => {
+    const labelled = render("{{ videoBlock(v, label={ num: 2, text: 'of 3' }) }}", { v: video('bare') });
+    expect(children(header(labelled))).toEqual(['div.video-block__top', 'h2.video-block__title', 'p.video-block__desc']);
+    expect(text(elementByClass(labelled, 'video-block__top', 'div'))).toBe('2 of 3');
+    expect(tags(labelled, 'div')).toContain('<div class="video-block__header">');
+
+    const card = render("{{ videoBlock(v, heading=3, label={ num: 1, text: 'Main' }, close='solution-bare-panel', bleed='card') }}", { v: video('bare') });
+    expect(tags(card, 'div')).toContain('<div class="video-block__header" hidden>');
+    expect(children(elementByClass(card, 'video-block__top', 'div'))).toEqual(['span.step-chip step-chip--sm', 'button.video-block__close']);
+    expect(tags(card, 'button')).toEqual(['<button type="button" class="video-block__close" aria-expanded="true" aria-controls="solution-bare-panel">']);
+    expect(text(elementByClass(card, 'video-block__close', 'button'))).toBe('Close Bare');
+    // The title is where solutions.js moves focus when the card opens.
+    expect(tags(card, 'h3')).toEqual(['<h3 class="video-block__title" id="video-bare-title" tabindex="-1">']);
+    expect(attr(tags(card, 'div').find((t) => /class="video /.test(t)), 'class')).toBe('video video--card');
   });
 
   it('is one row: "Audio only", then the handout link, then the rating, with nothing else', () => {
-    const html = render('{{ videoControls(v, true) }}', { v: video('full') });
-    expect(tags(html, 'div')[0]).toBe('<div class="video-controls">');
+    const html = render('{{ videoBlock(v, ratings=true) }}', { v: video('full') });
+    expect(tags(row(html), 'div')[0]).toBe('<div class="video-controls">');
     // "Audio only" first, so opening it never moves its button (project
     // lead, 2026-11-07; SPEC §7.5).
-    expect(children(html)).toEqual(['details.format-disclosure', 'a.format-button', 'div.rating']);
+    expect(children(row(html))).toEqual(['details.format-disclosure', 'a.format-button', 'div.rating']);
     expect(text(elementByClass(html, 'format-button', 'a')).replace(' :', ':')).toBe('Handout: Settling "your" body (PDF)');
     expect(summaries(html)).toEqual(['Audio only: Settling "your" body']);
     // No transcript, print button, group label or notice (project lead, 2026-11-06).
-    expect(html).not.toMatch(/transcript|Print|role="group"|Other formats|notice-text|anonymous|About the information/i);
-    expect(html).not.toContain('The transcript.');
+    expect(row(html)).not.toMatch(/transcript|Print|role="group"|Other formats|notice-text|anonymous|About the information/i);
+    expect(row(html)).not.toContain('What it is about.');
+  });
+
+  it('renders "Audio only" and the handout for every video, placeholders included, and the rating only while ratings are exactly true', () => {
+    for (const v of videos) {
+      const id = v.video_id;
+      for (const ratings of [false, 'true', undefined]) {
+        const call = ratings === undefined ? '{{ videoBlock(v) }}' : `{{ videoBlock(v, ratings=${JSON.stringify(ratings)}) }}`;
+        expect(children(row(render(call, { v: video(id) }))), `${id} ${ratings}`).toEqual(['details.format-disclosure', 'a.format-button']);
+      }
+      expect(children(row(render('{{ videoBlock(v, ratings=true) }}', { v: video(id) }))), id).toEqual(['details.format-disclosure', 'a.format-button', 'div.rating']);
+      // Never hidden: it always holds the two buttons (no data-rating-reveal).
+      expect(tags(row(render('{{ videoBlock(v, ratings=true) }}', { v: video(id) })), 'div')[0], id).toBe('<div class="video-controls">');
+    }
+    expect(readFileSync('src/_includes/partials/video-block.njk', 'utf8')).not.toMatch(/if video\.(audio|handout)|data-rating-reveal/);
   });
 
   it('links the handout by video_id, opening the PDF in media/pdf/', () => {
-    const handout = tags(render('{{ videoControls(v) }}', { v: video('full') }), 'a').find((t) => attr(t, 'class') === 'format-button');
+    const html = render('{{ videoBlock(v) }}', { v: video('full') });
+    const handout = tags(html, 'a').find((t) => attr(t, 'class') === 'format-button');
     // data-handout holds the video_id, not the file name (handout_open, SPEC §10.2).
     expect([attr(handout, 'class'), attr(handout, 'href'), attr(handout, 'data-handout'), attr(handout, 'type')]).toEqual([
       'format-button', '/media/pdf/full.pdf', 'full', 'application/pdf',
     ]);
-    expect(render('{{ videoControls(v) }}', { v: video('full') })).toContain('Handout<span class="visually-hidden">: Settling &quot;your&quot; body (PDF)</span></a>');
+    expect(html).toContain('Handout<span class="visually-hidden">: Settling &quot;your&quot; body (PDF)</span></a>');
   });
 
   it('plays audio from media/audio/ only on request, in a closed native disclosure with a download link inside', () => {
-    const html = render('{{ videoControls(v) }}', { v: video('audio') });
-    expect(tags(html, 'details')).toEqual(['<details class="format-disclosure" id="audio-audio">']);
+    const html = render('{{ videoBlock(v) }}', { v: video('words') });
+    expect(tags(html, 'details')).toEqual(['<details class="format-disclosure" id="audio-words">']);
     expect(tags(html, 'summary')).toEqual(['<summary class="format-disclosure__toggle">']);
     const audio = tags(html, 'audio')[0];
     // data-media holds the video_id, not the file name (audio_play, SPEC §10.2).
     expect([attr(audio, 'src'), attr(audio, 'preload'), attr(audio, 'data-media'), attr(audio, 'aria-label')]).toEqual([
-      '/media/audio/a.mp3', 'none', 'audio', 'Audio only: Audio only',
+      '/media/audio/words.mp3', 'none', 'words', 'Audio only: Words only',
     ]);
     expect(attr(audio, 'controls')).toBe('');
-    expect(html).toContain('<a href="/media/audio/a.mp3">Download the audio (MP3)</a>');
-    expect(html).not.toMatch(/Handout|transcript/);
-    expect(children(html)).toEqual(['details.format-disclosure']);
+    expect(html).toContain('<a href="/media/audio/words.mp3">Download the audio (MP3)</a>');
+    expect(html).not.toMatch(/transcript/i);
   });
 
-  it('shows only the formats a video has, and is visible without JavaScript whenever it has one', () => {
-    const handout = render('{{ videoControls(v, true) }}', { v: video('handout') });
-    expect(children(handout)).toEqual(['a.format-button', 'div.rating']);
-    expect(tags(handout, 'div')[0]).toBe('<div class="video-controls">');
-    expect(handout).not.toMatch(/<details|<audio/);
-    const audio = render('{{ videoControls(v, true) }}', { v: video('audio') });
-    expect(children(audio)).toEqual(['details.format-disclosure', 'div.rating']);
-  });
-
-  it('ships a row that would hold only the rating hidden, for rating.js to reveal (SPEC §11)', () => {
-    for (const id of ['bare', 'words', 'soon']) {
-      const html = render('{{ videoControls(v, true) }}', { v: video(id) });
-      expect(tags(html, 'div')[0], id).toBe('<div class="video-controls" hidden data-rating-reveal>');
-      expect(children(html), id).toEqual(['div.rating']);
-    }
-  });
-
-  it("adds a page's own classes to the row", () => {
-    expect(tags(render("{{ videoControls(v, true, 'solution__tools') }}", { v: video('full') }), 'div')[0]).toBe('<div class="video-controls solution__tools">');
-    expect(tags(render("{{ videoControls(v, true, 'solution__tools') }}", { v: video('bare') }), 'div')[0]).toBe(
-      '<div class="video-controls solution__tools" hidden data-rating-reveal>',
-    );
+  it('keeps a placeholder\'s shared stand-in files apart by video_id in its hooks', () => {
+    const html = render('{{ videoBlock(v) }}', { v: video('soon') });
+    expect(attr(tags(html, 'audio')[0], 'src')).toBe('/media/audio/placeholder-audio.mp3');
+    expect(attr(tags(html, 'audio')[0], 'data-media')).toBe('soon');
+    expect(attr(tags(html, 'a').find((t) => attr(t, 'class') === 'format-button'), 'data-handout')).toBe('soon');
   });
 });
 

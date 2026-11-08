@@ -161,22 +161,35 @@ describe('the row of controls under each video (components.css)', () => {
     expect(rule('.video-controls > .format-disclosure[open]')).toMatch(/flex-basis: 100%;/);
   });
 
-  // SPEC §7.5: a wide problem block puts the video beside "Is this you?" and
-  // runs the row under both, as a wide open solution card does; below that
-  // it is one column in the page's order.
-  it('runs the problem video\'s row under the video and "Is this you?" on a wide problem block (problem.css)', () => {
-    const page = sheets.find((s) => s.file === path.join('pages', 'problem.css')).css;
-    const block = page.match(/\n\.problem-block \{(\s*display: grid;[^}]*)\}/)?.[1] ?? '';
-    expect(block).toMatch(/display: grid;/);
-    expect(block).toMatch(/grid-template-columns: minmax\(0, 1fr\);/);
-    expect(page).toMatch(/\.problem__top \{[^}]*container: problem-top \/ inline-size;/);
-    const wide = page.match(/@container problem-top \(min-width: 784px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
-    expect(wide).toMatch(/\.problem-block:has\(> \.is-this-you\) \{[^}]*grid-template-columns: minmax\(0, 3fr\) minmax\(0, 2fr\);[^}]*grid-template-areas: "video thisis";/);
-    expect(wide).toMatch(/> \.problem-block__video \{\s*grid-area: video;/);
-    expect(wide).toMatch(/> \.is-this-you \{\s*grid-area: thisis;/);
-    // An implicit row across both columns, so a hidden row leaves no gap.
-    expect(wide).toMatch(/> \.problem-block__controls \{\s*grid-column: 1 \/ -1;\s*\}/);
-    expect(wide).not.toMatch(/controls controls/);
+  // SPEC §7.5 (project lead, 2026-11-09): one video template everywhere.
+  // Every template on a page switches at the width of the page's main
+  // column (one query container, site.css), so the problem video and an
+  // open card never show two layouts at once: one column in the DOM's order
+  // (header, video, row) below 768px, and from 768px the video (3fr) beside
+  // the header (2fr) with the row under both. 768 = 724 + 2 × (an open
+  // card's 2px border + 20px panel padding).
+  it('lays out every video on a page the same way, by the main column\'s width (site.css, components.css)', () => {
+    const siteCss = sheets.find((s) => s.file === 'site.css').css;
+    const main = siteCss.match(/(?:^|\n)\.with-sidebar__main \{([^}]*)\}/)?.[1] ?? '';
+    expect(main).toMatch(/container: video-context \/ inline-size;/);
+    expect(main).toMatch(/flex: 999 1 600px;/);
+    // The template is no container of its own, and no other rule names one
+    // for it.
+    expect(rule('.video-block')).toBe('');
+    for (const s of sheets) expect(s.css, s.file).not.toMatch(/video-block \/ inline-size|@container video-block\b/);
+    expect(rule('.video-block__grid')).toMatch(/display: grid;[\s\S]*grid-template-columns: minmax\(0, 1fr\);/);
+    const wide = css.match(/@container video-context \(min-width: 768px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+    expect(wide).not.toBe('');
+    expect(wide).toMatch(/\.video-block__grid \{[^}]*grid-template-columns: minmax\(0, 3fr\) minmax\(0, 2fr\);[^}]*grid-template-areas:\s*"video header"\s*"controls controls";/);
+    expect(wide).toMatch(/\.video-block__header \{\s*grid-area: header;/);
+    expect(wide).toMatch(/\.video-block__video \{\s*grid-area: video;/);
+    expect(wide).toMatch(/\.video-block__grid > \.video-controls \{\s*grid-area: controls;/);
+    // A card's header that ships hidden (no JavaScript) leaves no empty column.
+    expect(wide).toMatch(/\.video-block__header\[hidden\] ~ \* \{\s*grid-column: 1 \/ -1;/);
+    // No page lays a video out on its own any more.
+    for (const s of sheets) {
+      expect(s.css, s.file).not.toMatch(/problem-block|solution__tools|solution__header|solution__heading|solution__lede|solution__meta|solution__quick|start-chapter__(head|num|title|desc|eyebrow)|@container (solution|problem-top)\b|video--lg|video__title:not/);
+    }
   });
 
   it('makes the rating\'s fieldset and status line items of the row, the status line on a line of its own', () => {

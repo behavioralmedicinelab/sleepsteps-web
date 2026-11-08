@@ -97,23 +97,21 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
       const solutions = data.solutions ?? [];
 
       // The row of controls under a video ends with its widget, after
-      // "Audio only" and the handout; it ships hidden only when the widget is
-      // all it holds.
+      // "Audio only" and the handout. The row is never hidden: it always
+      // holds those two (SPEC §7.1), so only the widget waits for rating.js.
       const checkRow = (row, id) => {
         const widget = elementByClass(row, 'rating', 'div');
         expect(tags(widget, 'div')[0], id).toBe(`<div class="rating" data-rating="${id}" hidden>`);
         expect(row.slice(row.indexOf(widget) + widget.length).trim(), id).toBe('</div>');
-        const hasFormats = /class="format-button"|<details/.test(row);
-        expect(attr(tags(row, 'div')[0], 'hidden') !== undefined, id).toBe(!hasFormats);
-        expect(attr(tags(row, 'div')[0], 'data-rating-reveal') !== undefined, id).toBe(!hasFormats);
+        expect(row, id).toMatch(/class="format-button"[\s\S]*<div class="rating"/);
+        expect(tags(row, 'div')[0], id).toBe('<div class="video-controls">');
       };
 
-      it('ends the row under the problem video, after its notice, with the widget', () => {
-        const block = elementByClass(main, 'problem-block', 'div');
+      it('ends the row under the problem video with the widget', () => {
+        const block = elementByClass(main, 'problem-video', 'div');
         const video = elementByClass(block, 'video', 'div');
         const row = elementByClass(block, 'video-controls', 'div');
         expect(block.indexOf(row)).toBeGreaterThan(block.indexOf(video) + video.length - 1);
-        expect(attr(tags(row, 'div')[0], 'class')).toBe('video-controls problem-block__controls');
         checkRow(row, data.problem_video);
       });
 
@@ -122,13 +120,12 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
         expect(cards).toHaveLength(solutions.length);
         cards.forEach((card, i) => {
           const id = solutions[i].video;
-          const row = elementByClass(elementByClass(card, 'solution__panel', 'div'), 'solution__tools', 'div');
-          expect(attr(tags(row, 'div')[0], 'class')).toBe('video-controls solution__tools');
+          const row = elementByClass(elementByClass(card, 'solution__panel', 'div'), 'video-controls', 'div');
           checkRow(row, id);
-          const meta = elementByClass(card, 'solution__meta', 'div');
-          expect(meta).not.toMatch(/rating|You rated/);
+          expect(elementByClass(card, 'solution__face', 'summary')).not.toMatch(/rating|You rated/);
+          expect(card).not.toMatch(/solution__meta/);
         });
-        expect(main).not.toMatch(/data-rating-summary/);
+        expect(main).not.toMatch(/data-rating-summary|data-rating-reveal/);
       });
     });
   });
@@ -174,19 +171,18 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
     });
   });
 
-  it('hides a Start here row until rating.js runs when the rating is all it holds', () => {
+  it('shows every Start here row without JavaScript: every video has its audio and handout now (SPEC §7.1)', () => {
     const main = mainOf(pageAt(site, '/start/'));
     const rows = elements(main, 'video-controls', 'div');
     expect(rows).toHaveLength(chapters.length);
     rows.forEach((row, i) => {
-      const hasFormats = /class="format-button"|<details/.test(row);
       const { handout, audio } = model.videos.get(chapters[i]).data;
-      expect(hasFormats, chapters[i]).toBe(Boolean(handout || audio));
-      expect(tags(row, 'div')[0], chapters[i]).toBe(hasFormats ? '<div class="video-controls">' : '<div class="video-controls" hidden data-rating-reveal>');
+      expect([Boolean(handout), Boolean(audio)], chapters[i]).toEqual([true, true]);
+      expect(tags(row, 'div')[0], chapters[i]).toBe('<div class="video-controls">');
+      expect(row, chapters[i]).toMatch(/class="format-button"/);
     });
-    // Only how-sleep-works has a handout and audio yet; a transcript no
-    // longer counts as a format (SPEC §9.3).
-    expect(rows.filter((row) => row.startsWith('<div class="video-controls" hidden'))).toHaveLength(2);
+    // No row holds only the widget, so none waits for rating.js.
+    expect(main).not.toMatch(/data-rating-reveal/);
   });
 });
 
@@ -420,9 +416,8 @@ describe('rating.js in the browser (SPEC §11, §12)', () => {
   // row says what was rated.
   const cardShows = (id) => {
     const card = dom.document.getElementById(`solution-${id}`);
-    const meta = card.querySelector('.solution__meta').textContent;
     const face = card.querySelector('.solution__face').textContent;
-    return `${meta} ${face}`.match(/You rated[^.]*\./)?.[0] ?? '';
+    return face.match(/You rated[^.]*\./)?.[0] ?? '';
   };
   const event = (type, props = {}) => Object.assign(new Event(type, { bubbles: true }), props);
 
@@ -523,8 +518,9 @@ describe('rating.js in the browser (SPEC §11, §12)', () => {
         expect(radios(id).some((r) => r.checked || r.disabled)).toBe(false);
       }
       expect($$('[data-rating-summary]')).toEqual([]);
-      // The rows that would hold only a widget are revealed with it.
+      // No row of controls is ever hidden: each holds "Audio only" and the handout.
       for (const row of $$('.video-controls')) expect(row.hidden).toBe(false);
+      expect($$('[data-rating-reveal]')).toHaveLength(0);
       expect(requests).toEqual([]);
     });
 
@@ -534,13 +530,13 @@ describe('rating.js in the browser (SPEC §11, §12)', () => {
       expect(requests).toEqual([]);
     });
 
-    it('on Start here, reveals the three widgets and the row that holds only a widget', async () => {
+    it('on Start here, reveals the three widgets', async () => {
       await open('/start/', { modules: ['players', 'rating'] });
       expect([...$$('[data-rating]')].map((w) => [w.getAttribute('data-rating'), w.hidden])).toEqual(
         model.start.data.chapters.map((c) => [c.video, false]),
       );
       expect([...$$('.video-controls')].map((row) => row.hidden)).toEqual([false, false, false]);
-      expect($$('[data-rating-reveal]')).toHaveLength(2);
+      expect($$('[data-rating-reveal]')).toHaveLength(0);
       radio('how-to-use-this-program', 5).click();
       await settle();
       expect(requests.map((r) => r.body)).toEqual([{ page_id: 'start', video_id: 'how-to-use-this-program', stars: 5 }]);

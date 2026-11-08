@@ -76,3 +76,22 @@ export function currentLinks(html) {
     .filter(([, attrs]) => /\saria-current=/.test(attrs))
     .map(([tag, , inner]) => ({ href: attr(tag, 'href'), value: attr(tag, 'aria-current'), label: text(inner) }));
 }
+
+/**
+ * A data/videos.csv row (SPEC §7.1) as the CSV data extension gives it, for
+ * filter and template tests: every column, as text. `youtube_url` blank
+ * makes a placeholder. None of the tests' YouTube IDs is a real video.
+ */
+export function videoRow(video_id, fields = {}) {
+  return {
+    video_id,
+    title: video_id,
+    description: '',
+    youtube_url: '',
+    duration: '[mm:ss]',
+    audio: '',
+    handout: '',
+    thumbnail: '',
+    ...fields,
+  };
+}

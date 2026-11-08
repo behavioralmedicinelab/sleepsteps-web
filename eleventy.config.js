@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pagesIndex, writeIfChanged } from './scripts/build-data.js';
 import { parseCsvRecords } from './scripts/lib/csv.js';
+import { toVideo } from './scripts/lib/videos.js';
 import { formatIssue, validateContent } from './scripts/validate-content.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -11,23 +12,6 @@ const ROOT = fileURLToPath(new URL('.', import.meta.url));
 // directory) leaves it ready for the Worker tests and `wrangler deploy`.
 const PAGES_JSON = path.join(ROOT, 'worker', 'generated', 'pages.json');
 const site = JSON.parse(readFileSync(new URL('./site.config.json', import.meta.url), 'utf8'));
-
-// A video as templates see it (SPEC §7.1): its front matter. The file's body
-// (an optional transcript) isn't shown on any page (SPEC §9.3); only the
-// search index reads it (scripts/build-data.js).
-function toVideo(item) {
-  const d = item.data;
-  return {
-    video_id: item.page.fileSlug,
-    title: d.title,
-    youtube_id: d.youtube_id,
-    duration: d.duration,
-    audio: d.audio || '',
-    handout: d.handout || '',
-    thumbnail: d.thumbnail || '',
-    placeholder: d.placeholder === true,
-  };
-}
 
 /**
  * People sorted by last name, taken as the last word of `name`, then by the
@@ -65,7 +49,8 @@ export default function (eleventyConfig) {
   });
 
   // Team-edited CSV files in data/ become global data, one array of row
-  // objects per file: data/areas.csv -> `areas` (SPEC §7.2).
+  // objects per file: data/areas.csv -> `areas` (SPEC §7.2), data/videos.csv
+  // -> `videos` (SPEC §7.1).
   eleventyConfig.addDataExtension('csv', {
     parser: (contents) => parseCsvRecords(contents),
   });
@@ -164,48 +149,56 @@ export default function (eleventyConfig) {
     return [...byId.values()];
   });
 
-  // The video library (SPEC §7.1), ordered by video_id. Templates read a
-  // video through `videoById`, which returns the shape documented on toVideo().
-  eleventyConfig.addCollection('videos', (collectionApi) =>
-    collectionApi
-      .getFilteredByGlob('./content/videos/*.md')
-      .sort((a, b) => a.page.fileSlug.localeCompare(b.page.fileSlug)),
-  );
-
+  // The video library (SPEC §7.1) is data/videos.csv, so the global data
+  // `videos` holds its rows (the CSV data extension above). Templates read a
+  // video through `videoById`, which returns the shape documented on
+  // toVideo() in scripts/lib/videos.js. Transcripts
+  // (data/transcripts/<video_id>.txt) never reach a template: only the
+  // search index reads them (content/search-index.11ty.js).
   const videoIndexes = new WeakMap();
   const lookupVideo = (id, videos) => {
-    if (!Array.isArray(videos)) throw new Error('pass collections.videos, e.g. problem_video | videoById(collections.videos)');
+    if (!Array.isArray(videos)) throw new Error('pass the videos data (data/videos.csv), e.g. problem_video | videoById(videos)');
     let index = videoIndexes.get(videos);
     if (!index) {
-      index = new Map(videos.map((item) => [item.page.fileSlug, toVideo(item)]));
+      index = new Map();
+      for (const row of videos) {
+        const video = toVideo(row);
+        // The content check refuses these before anything is built.
+        if (!video.placeholder && !video.youtube_id) throw new Error(`video "${video.video_id}": youtube_url isn't a YouTube video link`);
+        index.set(video.video_id, video);
+      }
       videoIndexes.set(videos, index);
     }
     const video = index.get(id);
-    if (!video) throw new Error(`unknown video "${id}" (no content/videos/${id}.md)`);
+    if (!video) throw new Error(`unknown video "${id}" (not in data/videos.csv)`);
     return video;
   };
 
-  // "sleep-drive" | videoById(collections.videos) ->
-  // { video_id, title, youtube_id, duration, audio, handout, thumbnail,
-  //   placeholder }. Unknown ids fail the build.
+  // "sleep-drive" | videoById(videos) ->
+  // { video_id, title, description, youtube_id, duration, audio, handout,
+  //   thumbnail, placeholder }. Unknown ids fail the build.
   eleventyConfig.addFilter('videoById', lookupVideo);
 
   // A problem's `solutions` split by tier, each with its video resolved:
-  // { main: [{ n, tier, blurb, video }], extra: [...] }; n counts from 1
-  // within each tier (the step chip number).
+  // { main: [{ n, tier, blurb, description, video }], extra: [...] }; n
+  // counts from 1 within each tier (the step chip number). `description` is
+  // the solution's own blurb where it has one, otherwise the video's
+  // description (SPEC §7.2).
   eleventyConfig.addFilter('solutionsByTier', (solutions, videos) => {
     const tiers = { main: [], extra: [] };
     for (const solution of solutions ?? []) {
       const list = tiers[solution.tier];
       if (!list) throw new Error(`solution tier must be "main" or "extra", not "${solution.tier}"`);
-      list.push({ n: list.length + 1, tier: solution.tier, blurb: solution.blurb, video: lookupVideo(solution.video, videos) });
+      const video = lookupVideo(solution.video, videos);
+      const blurb = typeof solution.blurb === 'string' ? solution.blurb.trim() : '';
+      list.push({ n: list.length + 1, tier: solution.tier, blurb, description: blurb || video.description, video });
     }
     return tiers;
   });
 
   // Start here chapters (SPEC §7.3) with their videos resolved:
-  // [{ n, id: 'v1', video_id, title, duration, description, video }].
-  // No chapters (any other page) gives [].
+  // [{ n, id: 'v1', video_id, title, duration, description, video }], all
+  // from the video's row. No chapters (any other page) gives [].
   eleventyConfig.addFilter('introChapters', (chapters, videos) =>
     (chapters ?? []).map((chapter, i) => {
       const video = lookupVideo(chapter.video, videos);
@@ -215,7 +208,7 @@ export default function (eleventyConfig) {
         video_id: video.video_id,
         title: video.title,
         duration: video.duration,
-        description: chapter.description,
+        description: video.description,
         video,
       };
     }),
@@ -223,7 +216,7 @@ export default function (eleventyConfig) {
 
   // Which formats any video in the library has: { handout, audio }.
   eleventyConfig.addFilter('videoFormats', (videos) => {
-    const all = (videos ?? []).map((item) => lookupVideo(item.page.fileSlug, videos));
+    const all = (videos ?? []).map(toVideo);
     return {
       handout: all.some((v) => Boolean(v.handout)),
       audio: all.some((v) => Boolean(v.audio)),

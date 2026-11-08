@@ -147,10 +147,11 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     const { ran, failed } = await open('/problems/tired-but-wired/', 'api.js');
     expect(failed).toEqual(['rating.js', 'feedback.js']);
     expect(ran).toEqual(['menu.js', 'events.js', 'solutions.js', 'players.js']);
-    // Ratings and their rows stay hidden, as without JavaScript (SPEC §12).
+    // Ratings stay hidden, as without JavaScript (SPEC §12); their rows,
+    // which always hold "Audio only" and the handout, still show.
     expect($$('[data-rating]').length).toBeGreaterThan(0);
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(true);
-    for (const row of $$('[data-rating-reveal]')) expect(row.hidden).toBe(true);
+    for (const row of $$('.video-controls')) expect(row.hidden).toBe(false);
     // "Send feedback" is still the plain Contact link, and the dialog stays shut (SPEC §13).
     const trigger = $('[data-feedback-trigger]');
     expect([trigger.localName, trigger.getAttribute('href')]).toEqual(['a', '/contact/']);

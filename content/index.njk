@@ -35,7 +35,7 @@ trial_text: "We're testing this program in a research trial run by a team at Mon
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
 {%- set problemCount = collections.problems | length -%}
 {%- set areaWord = topicAreas | length | numberWord -%}
-{%- set formats = collections.videos | videoFormats -%}
+{%- set formats = videos | videoFormats -%}
 
 <section class="home-hero on-dark">
   <div class="home-hero__inner container">

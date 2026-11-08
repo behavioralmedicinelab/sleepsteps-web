@@ -17,42 +17,40 @@ scripts:
   instead of the breadcrumb, runs the problem video full-bleed and shows the
   solution cards as an accordion (src/css/pages/problem.css).
 
-  Order: breadcrumb, H1, the first-person line; the problem block (the
-  problem video, its row of controls, then "Is this you?"; on wide screens
-  "Is this you?" sits beside the video and the row runs under both); Main
+  Order: breadcrumb, H1, the first-person line; the problem's own video
+  (the video template, partials/video-block.njk, as every video on the
+  site: its title (h2) and description beside the video on wide screens,
+  above it on narrow ones, then "Audio only", "Handout" and "Was this
+  helpful?"); "Is this you?", its own section directly below the video
+  (project lead, 2026-11-09; on Problem-A it sits beside the video); Main
   solutions; "Other things that can help" (only when there are extras);
   Related topics (only when there are some); "Back to all sleep problems";
   then the page's YouTube note (notices/video.njk), once, last.
-  Heading outline: h1, then h2 for "Is this you?", each solutions section and
-  Related topics, then h3 per solution.
+  Heading outline: h1, then h2 for the problem video's title, "Is this
+  you?", each solutions section and Related topics, then h3 per solution.
 
   A stand-alone problem (`standalone: true`, SPEC §7.2, §7.5) has no
   solutions: its own video, made for it, is the page's main content. The
   "On this page" chips and both solutions sections are left out (each needs
-  solutions to link to or list), so the page is the problem block, then
-  Related topics, "Back to all sleep problems" and the YouTube note, and
-  content/problems/problems.11tydata.js leaves solutions.js out. Each section
-  renders from its own count, so no empty section or orphaned heading can
-  appear.
+  solutions to link to or list), so the page is the problem video, "Is this
+  you?", then Related topics, "Back to all sleep problems" and the YouTube
+  note, and content/problems/problems.11tydata.js leaves solutions.js out.
+  Each section renders from its own count, so no empty section or orphaned
+  heading can appear.
 
   Front matter: SPEC §7.2 (title, statement, area, problem_video, standalone,
   is_this_you, solutions, related). The problem file's body isn't shown.
 
-  Under every video, one row of controls
-  (partials/video-controls.njk): "Audio only", the handout and, while
-  site.features.ratings is exactly true, "Was this helpful?" with its stars
-  (SPEC §12), hidden until rating.js reveals it. There are no transcripts on
-  the page (SPEC §9.3) and no per-video feedback (SPEC §13): the footer's
-  "Send feedback" is the only route.
+  There are no transcripts on the page (SPEC §9.3) and no per-video
+  feedback (SPEC §13): the footer's "Send feedback" is the only route.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 {%- from "notices/video.njk" import youtubeNote -%}
-{%- from "partials/video.njk" import videoEmbed -%}
-{%- from "partials/video-controls.njk" import videoControls -%}
+{%- from "partials/video-block.njk" import videoBlock -%}
 {%- from "problem/solutions.njk" import solutionsSection -%}
 {%- set problemArea = areas | areaById(area) -%}
-{%- set problemVideo = problem_video | videoById(collections.videos) -%}
-{%- set tiers = solutions | solutionsByTier(collections.videos) -%}
+{%- set problemVideo = problem_video | videoById(videos) -%}
+{%- set tiers = solutions | solutionsByTier(videos) -%}
 {%- set ratingsOn = site.features.ratings === true -%}
 {%- set mainCount = tiers.main.length -%}
 {%- set extraCount = tiers.extra.length -%}
@@ -83,35 +81,29 @@ scripts:
       </ul>
     </nav>
     {%- endif %}
-    <div class="problem-block" id="about-this">
-      <div class="problem-block__video">
-        {{ videoEmbed(problemVideo, showTitle=true, bleed='page', arc=true) }}
-      </div>
-      {#- The row of controls is the block's own child, after the video and
-          before "Is this you?" in the page, so it reads with its video. On
-          wide screens it runs under both (pages/problem.css). #}
-      {{- videoControls(problemVideo, ratingsOn, 'problem-block__controls') }}
-      {%- if thisIsYou.summary or bullets.length %}
-      <div class="is-this-you panel panel--wash">
-        <h2 class="is-this-you__title" id="is-this-you-title">Is this you?</h2>
-        {%- if thisIsYou.summary %}
-        <p class="is-this-you__summary">{{ thisIsYou.summary }}</p>
-        {%- endif %}
-        {%- if bullets.length %}
-        <p class="is-this-you__lead">This topic may help if you:</p>
-        <ul class="is-this-you__list">
-          {%- for bullet in bullets %}
-          <li>{{ bullet }}</li>
-          {%- endfor %}
-        </ul>
-        {%- endif %}
-        {%- if related and related.length %}
-        {%- set nextTopic = related[0] | problemBySlug(collections.problems) %}
-        <p class="is-this-you__next">Not quite? Try <a href="{{ nextTopic.url }}">{{ nextTopic.title }}</a>.</p>
-        {%- endif %}
-      </div>
-      {%- endif %}
+    <div class="problem-video" id="about-this">
+      {{ videoBlock(problemVideo, heading=2, ratings=ratingsOn) }}
     </div>
+    {%- if thisIsYou.summary or bullets.length %}
+    <section class="is-this-you panel panel--wash" aria-labelledby="is-this-you-title">
+      <h2 class="is-this-you__title" id="is-this-you-title">Is this you?</h2>
+      {%- if thisIsYou.summary %}
+      <p class="is-this-you__summary">{{ thisIsYou.summary }}</p>
+      {%- endif %}
+      {%- if bullets.length %}
+      <p class="is-this-you__lead">This topic may help if you:</p>
+      <ul class="is-this-you__list">
+        {%- for bullet in bullets %}
+        <li>{{ bullet }}</li>
+        {%- endfor %}
+      </ul>
+      {%- endif %}
+      {%- if related and related.length %}
+      {%- set nextTopic = related[0] | problemBySlug(collections.problems) %}
+      <p class="is-this-you__next">Not quite? Try <a href="{{ nextTopic.url }}">{{ nextTopic.title }}</a>.</p>
+      {%- endif %}
+    </section>
+    {%- endif %}
   </div>
 
   {%- if mainCount %}

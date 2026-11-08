@@ -1076,9 +1076,15 @@ button.site-footer__feedback {
   max-width: 320px;
 }
 
+/* The query container for every video template on the page (components.css,
+   partials/video-block.njk): the problem video, the open solution cards and
+   Start here's chapters all switch layout at the same column width, so no
+   page shows two layouts at once. Inline-size containment leaves the flex
+   basis (600px, not the content) and the sidebar's wrapping as they were. */
 .with-sidebar__main {
   flex: 999 1 600px;
   min-width: 0;
+  container: video-context / inline-size;
 }
 
 .with-sidebar--roomy {

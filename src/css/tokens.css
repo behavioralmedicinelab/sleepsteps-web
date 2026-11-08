@@ -122,8 +122,6 @@
   --target-xl: 52px;         /* large buttons: home hero, Start here end card */
   --play-disc: 72px;         /* video play button (boards: 72-76px) */
   --play-disc-phone: 56px;   /* below 600px */
-  --play-disc-lg: 80px;      /* Start here videos (Intro-B.dc.html) */
-  --play-disc-lg-phone: 64px;
   --play-disc-sm: 52px;      /* a closed solution card's thumbnail band */
 
   --gutter: 16px;            /* page side gutter: 16px on phones, 24px from 600px */

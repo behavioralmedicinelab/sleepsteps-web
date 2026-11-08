@@ -1,24 +1,24 @@
 {#-
   VideoEmbed (SPEC §9.1, §15.1; HANDOFF §5, §7): the click-to-load facade.
+  Only partials/video-block.njk calls it: every video on the site is the
+  one video template (SPEC §7.5), so no page sets up a facade of its own.
   The YouTube note is once per page, at its end (notices/video.njk).
 
     {% from "partials/video.njk" import videoEmbed %}
-    {% set video = problem_video | videoById(collections.videos) %}
-    {{ videoEmbed(video, showTitle=true, bleed='page', arc=true) }}
+    {{ videoEmbed(video, bleed='page') }}
 
-  Arguments (keyword arguments, all optional after `video`):
-    video      a video from `videoById` (or `introChapters`/`solutionsByTier`)
-    showTitle  true: a title plate on the frame (use it where no heading
-               nearby names the video, e.g. a problem's own video). false:
-               the title is still the control's accessible name.
-    bleed      'inset' (default): rounded frame inside the column.
-               'page': below 600px the frame runs to the screen edges
-               (cancels the page gutter). 'card': below 600px square corners
-               to fill a card edge to edge (the card has no side padding).
-    arc        true: the settling arc at the frame's base, from 600px, when
-               the video has no thumbnail
-    size       'md' (default): 72px play disc, 56px below 600px.
-               'lg': 80px / 64px (Start here)
+  Arguments:
+    video   a video from `videoById` (or `introChapters`/`solutionsByTier`)
+    bleed   'inset' (default): rounded frame inside the column.
+            'page': below 600px the frame runs to the screen edges
+            (cancels the page gutter). 'card': below 600px it runs to the
+            card's edges (cancels the card's padding), with square corners.
+
+  Every facade is the same (project lead, 2026-11-09): the 72px play disc
+  (56px below 600px), the duration badge, and the settling arc at the
+  frame's base from 600px when the video has no thumbnail. The title is
+  the play control's accessible name and isn't repeated on the frame: the
+  video template's heading names the video beside (or above) it.
 
   The facade names the page's YouTube note (id youtube-note-text, rendered
   by the page's layout) in aria-describedby, so the note is heard with the
@@ -31,32 +31,30 @@
   YouTube thumbnail). The frame shows the video's self-hosted thumbnail
   (media/thumbs/) if it has one, otherwise the plain night-teal frame.
 
-  A placeholder video (`placeholder: true`) shows "[Video coming soon]" and
-  has no link or button. The page's note is still shown, so the page reads
-  as it will at launch.
+  A placeholder video (a blank youtube_url in data/videos.csv) shows
+  "[Video coming soon]" and has no link or button. The page's note is still
+  shown, so the page reads as it will at launch.
 -#}
 {%- from "partials/icons.njk" import icon -%}
-{%- macro videoEmbed(video, showTitle=false, bleed='inset', arc=false, size='md') -%}
+{%- macro videoEmbed(video, bleed='inset') -%}
 {%- set spoken = video.duration | spokenDuration -%}
-<div class="video video--{{ bleed }}{% if size == 'lg' %} video--lg{% endif %}{% if video.placeholder %} video--placeholder{% endif %}" data-video="{{ video.video_id }}"{% if not video.placeholder %} data-youtube-id="{{ video.youtube_id }}"{% endif %} data-title="{{ video.title }}">
+<div class="video video--{{ bleed }}{% if video.placeholder %} video--placeholder{% endif %}" data-video="{{ video.video_id }}"{% if not video.placeholder %} data-youtube-id="{{ video.youtube_id }}"{% endif %} data-title="{{ video.title }}">
   <div class="video__frame">
-    {%- if video.thumbnail or arc %}
     <div class="video__media">
       {%- if video.thumbnail %}<img class="video__thumb" src="/media/thumbs/{{ video.thumbnail }}" alt="" width="1280" height="720" loading="lazy" decoding="async">
       {%- else %}{#- The boards' flatter video arc (Problem-A, Intro-B), not the hero's (partials/arc.njk). -#}
       <svg class="arc arc--video" viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 120 L0 80 Q480 10 960 80 L960 120 Z"/></svg>{% endif %}
     </div>
-    {%- endif %}
     {%- if video.placeholder %}
     <div class="video__facade video__facade--placeholder">
-      <span class="video__title{% if not showTitle %} visually-hidden{% endif %}">{{ video.title }}</span>
+      <span class="video__title visually-hidden">{{ video.title }}</span>
       <span class="video__soon">[Video coming soon]</span>
       <span class="duration-badge video__duration">{{ video.duration }}</span>
     </div>
     {%- else %}
     <a class="video__facade" href="https://www.youtube.com/watch?v={{ video.youtube_id }}" rel="noreferrer" aria-describedby="youtube-note-text">
       <span class="video__action visually-hidden">Watch on YouTube: </span>
-      <span class="video__title{% if not showTitle %} visually-hidden{% endif %}">{{ video.title }}</span>
+      <span class="video__title visually-hidden">{{ video.title }}</span>
       <span class="play-disc" aria-hidden="true">{{ icon('play', 28, 'play-disc__icon') }}</span>
       <span class="duration-badge video__duration" aria-hidden="true">{{ video.duration }}</span>
       {%- if spoken %}<span class="visually-hidden">, {{ spoken }}</span>{% endif %}

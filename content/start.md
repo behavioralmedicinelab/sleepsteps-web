@@ -16,14 +16,11 @@ scripts: ["players.js", "rating.js"]
 # Analytics (SPEC §10.2): this page sends a page_view. base.njk renders it as
 # <body data-page-view>, which events.js and pages.json (SPEC §8.3) read.
 track_page_view: true
-# The intro videos, in order (SPEC §7.3). Each `video` is a file name in
-# content/videos/ (without .md); its title, duration and formats come from
-# that file. The descriptions are placeholders (HANDOFF §12).
+# The intro videos, in order (SPEC §7.3). Each `video` is a video_id in
+# data/videos.csv; its title, description, duration and formats come from
+# that row.
 chapters:
   - video: how-sleep-works
-    description: "[What happens while we sleep, and what makes us feel sleepy at night.]"
   - video: why-cancer-can-change-sleep
-    description: "[How diagnosis, treatment and recovery can affect your nights and days.]"
   - video: how-to-use-this-program
-    description: "[Finding the sleep problems that fit you, and trying one idea at a time.]"
 ---

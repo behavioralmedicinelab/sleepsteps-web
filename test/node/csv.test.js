@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CsvError, parseCsv, parseCsvRecords } from '../../scripts/lib/csv.js';
+import { CsvError, columnLetter, parseCsv, parseCsvRecords, parseCsvTable } from '../../scripts/lib/csv.js';
 
 describe('parseCsv (RFC 4180)', () => {
   it('parses simple rows', () => {
@@ -81,19 +81,50 @@ describe('parseCsvRecords', () => {
     ]);
   });
 
-  it('rejects rows with the wrong number of fields, naming the line', () => {
-    expect(() => parseCsvRecords('a,b\n1,2\n3\n')).toThrow(/Expected 2 fields but found 1 \(line 3\)/);
-    // Line numbers count line breaks inside quoted fields.
-    expect(() => parseCsvRecords('a,b\n"x\ny",2\n3,4,5\n')).toThrow(/line 4/);
+  it('rejects rows with the wrong number of fields, naming the row and the line', () => {
+    expect(() => parseCsvRecords('a,b\n1,2\n3\n')).toThrow(/Expected 2 fields but found 1 in row 3 \(line 3\)/);
+    // Line numbers count line breaks inside quoted fields; rows, as in Excel, don't.
+    expect(() => parseCsvRecords('a,b\n"x\ny",2\n3,4,5\n')).toThrow(/in row 3 \(line 4\)/);
   });
 
-  it('rejects empty and duplicate column names', () => {
-    expect(() => parseCsvRecords('a,,c\n1,2,3\n')).toThrow(/Empty column name/);
+  it('rejects empty and duplicate column names, naming an empty one by its Excel letter', () => {
+    expect(() => parseCsvRecords('a,,c\n1,2,3\n')).toThrow('Column B has no name in row 1: delete column B in Excel if it should be empty (line 1)');
+    // The stray column Excel writes after a table when a cell right of it was used.
+    expect(() => parseCsvRecords('a,b,c,d,e,f,g,h,\n1,2,3,4,5,6,7,8,\n')).toThrow(/^Column I has no name/);
     expect(() => parseCsvRecords('a,a\n1,2\n')).toThrow(/Duplicate column name "a"/);
+  });
+
+  it('names columns as Excel does: A-Z, then AA, AB, ...', () => {
+    expect([0, 1, 8, 25, 26, 27, 51, 52, 701, 702].map(columnLetter)).toEqual(['A', 'B', 'I', 'Z', 'AA', 'AB', 'AZ', 'BA', 'ZZ', 'AAA']);
   });
 
   it('returns no records for an empty file or a header only', () => {
     expect(parseCsvRecords('')).toEqual([]);
     expect(parseCsvRecords('a,b\n')).toEqual([]);
+  });
+});
+
+describe('parseCsvTable', () => {
+  it('gives the header and each record with its row number as Excel shows it', () => {
+    // Row 3 is blank (skipped, but counted); row 4's quoted field has a line break.
+    const csv = '\uFEFFvideo_id,description\r\none,"First"\r\n\r\ntwo,"Line one\r\nline two, with ""quotes"""\r\nthree,x\r\n';
+    expect(parseCsvTable(csv)).toEqual({
+      columns: ['video_id', 'description'],
+      rows: [
+        { row: 2, record: { video_id: 'one', description: 'First' } },
+        { row: 4, record: { video_id: 'two', description: 'Line one\r\nline two, with "quotes"' } },
+        { row: 5, record: { video_id: 'three', description: 'x' } },
+      ],
+    });
+  });
+
+  it('keeps the header of a file with no rows, and gives nothing for an empty file', () => {
+    expect(parseCsvTable('a,b\n')).toEqual({ columns: ['a', 'b'], rows: [] });
+    expect(parseCsvTable('')).toEqual({ columns: [], rows: [] });
+  });
+
+  it('agrees with parseCsvRecords', () => {
+    const csv = 'a,b\n1,2\n\n,\n3,"4, 5"\n';
+    expect(parseCsvTable(csv).rows.map((r) => r.record)).toEqual(parseCsvRecords(csv));
   });
 });

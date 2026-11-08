@@ -8,7 +8,7 @@ import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import configure from '../../eleventy.config.js';
 import { validateContent } from '../../scripts/validate-content.js';
-import { attr, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
+import { attr, elementByClass, pageAt, readHtmlPages, tags, text, videoRow } from './helpers.js';
 
 // The site built with every feature on, whatever site.config.json says, so
 // none of these checks changes while features.ratings is off (SPEC §11). The
@@ -17,7 +17,6 @@ const site = inject('builtSiteOn');
 const { model } = validateContent(process.cwd());
 const problems = [...model.problems.entries()];
 const video = (id) => model.videos.get(id);
-const hasTranscript = (id) => video(id).body.trim() !== '';
 
 /** Visible text: tags, visually hidden spans and the rating's invisible sizers left out. */
 const visibleText = (html) =>
@@ -95,78 +94,66 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     expect(notes).toHaveLength(1);
     expect(main.indexOf(notes[0])).toBeGreaterThan(main.lastIndexOf('problem__all'));
     expect(tags(notes[0], 'a').map((t) => attr(t, 'href'))).toEqual(['/privacy/#cookies-and-browser-storage']);
-    // The problem's own video carries a visible title plate; solution videos
-    // are named by their card.
-    expect(blocks[0]).toMatch(/<span class="video__title">/);
-    for (const block of blocks.slice(1)) expect(block).toMatch(/<span class="video__title visually-hidden">/);
+    // No title plate on any frame: the video template's heading names every
+    // video (project lead, 2026-11-09), and the title is the play control's name.
+    for (const block of blocks) expect(block).toMatch(/<span class="video__title visually-hidden">/);
+    expect(main).not.toMatch(/<span class="video__title">/);
   });
 
   it('contacts nothing before a play button is pressed', () => {
     expect(html).not.toMatch(/<iframe|youtube-nocookie|iframe_api|i\.ytimg|preconnect|dns-prefetch/);
   });
 
-  it('shows each video\'s handout and audio exactly when it has one, and never a transcript', () => {
-    // Each video's own block: the problem block, or the video's card.
-    const blocks = [elementByClass(main, 'problem-block', 'div'), ...cards];
+  it('shows every video\'s "Audio only" and handout, once each, and never a transcript', () => {
+    // Each video's own block: the problem video, or the video's card. Every
+    // video has both (SPEC §7.1), and a closed card has no quick link
+    // (project lead, 2026-11-09).
+    const blocks = [elementByClass(main, 'problem-video', 'div'), ...cards];
     pageVideos.forEach((id, i) => {
       const { data: v } = video(id);
       const block = blocks[i];
-      expect(block.includes(`id="audio-${id}"`), `${id} audio`).toBe(Boolean(v.audio));
+      expect([Boolean(v.audio), Boolean(v.handout)], id).toEqual([true, true]);
+      expect(block.match(/<audio\b/g), `${id} audio`).toHaveLength(1);
+      expect(block, `${id} audio`).toContain(`id="audio-${id}"`);
       const handouts = tags(block, 'a').filter((t) => attr(t, 'data-handout'));
-      expect(handouts.map((t) => [attr(t, 'href'), attr(t, 'data-handout')]), `${id} handout`).toEqual(
-        // The row's "Handout", plus a solution card's quick link (the notice
-        // has none); the hook holds the video_id (SPEC §10.2).
-        !v.handout ? [] : Array(i === 0 ? 1 : 2).fill([`/media/pdf/${v.handout}`, id]),
-      );
+      // The hook holds the video_id (SPEC §10.2).
+      expect(handouts.map((t) => [attr(t, 'href'), attr(t, 'data-handout')]), `${id} handout`).toEqual([[`/media/pdf/${v.handout}`, id]]);
       expect(block, id).not.toMatch(/transcript/i);
     });
+    expect(main).not.toMatch(/solution__meta|solution__quick/);
   });
 
-  it('puts one row of controls right after each video: "Audio only", the handout and the rating', () => {
-    // The problem block holds its video's column, then the row (a child of
-    // the block, so it can run under "Is this you?" on wide screens, SPEC
-    // §7.5), then "Is this you?" or nothing. A card's panel holds the video,
-    // then the row, then nothing else.
-    const block = elementByClass(main, 'problem-block', 'div');
-    const holders = [block, ...cards.map((card) => elementByClass(card, 'solution__panel', 'div'))];
+  it('puts each video in the video template: header, video, then one row of "Audio only", the handout and the rating', () => {
+    // The problem video's wrapper and each card's panel hold the template
+    // and nothing else; video-template.test.js checks the template itself
+    // on every page.
+    const holders = [elementByClass(main, 'problem-video', 'div'), ...cards.map((card) => elementByClass(card, 'solution__panel', 'div'))];
     pageVideos.forEach((id, i) => {
-      const { data: v } = video(id);
       const holder = holders[i];
-      const row = elementByClass(holder, 'video-controls', 'div');
-      const hasFormats = Boolean(v.handout || v.audio);
-      expect(holder.indexOf(row), id).toBeGreaterThan(holder.lastIndexOf('video__frame'));
-      const after = holder.slice(holder.indexOf(row) + row.length);
-      if (i === 0) {
-        const column = elementByClass(block, 'problem-block__video', 'div');
-        expect(column, id).not.toContain('video-controls');
-        expect(block.slice(block.indexOf(column) + column.length, block.indexOf(row)).trim(), id).toBe('');
-        const panel = elementByClass(block, 'is-this-you', 'div');
-        expect(after.replace(panel ?? '', '').replace(/<\/div>/g, '').trim(), id).toBe('');
-        if (panel) expect(after.trim().startsWith('<div class="is-this-you'), id).toBe(true);
-      } else {
-        expect(after.replace(/<\/div>/g, '').trim(), id).toBe('');
-      }
-      const first = tags(row, 'div')[0];
-      expect(attr(first, 'class'), id).toBe(i === 0 ? 'video-controls problem-block__controls' : 'video-controls solution__tools');
-      // Shipped hidden only when it would hold just the (JavaScript-only) rating.
-      expect(attr(first, 'hidden') !== undefined, id).toBe(!hasFormats);
-      expect(attr(first, 'data-rating-reveal') !== undefined, id).toBe(!hasFormats);
-      // In order: Audio only (first, so opening it never moves its button),
-      // Handout, the rating's fieldset and status line.
-      const order = [
-        ...(v.audio ? [`<details class="format-disclosure" id="audio-${id}">`] : []),
-        ...(v.handout ? [`>Handout<span class="visually-hidden">: `] : []),
-        `<div class="rating" data-rating="${id}" hidden>`,
-        'Was this helpful?',
-        'class="rating__status-box"',
-      ];
-      const at = order.map((needle) => row.indexOf(needle));
-      expect(at.every((n) => n >= 0), `${id}: ${order}`).toBe(true);
+      const block = elementByClass(holder, 'video-block', 'div');
+      expect(holder.replace(block, '').replace(/<[^>]+>/g, '').trim(), id).toBe('');
+      const order = ['class="video-block__header"', 'class="video-block__title"', 'class="video-block__desc"', `data-video="${id}"`, 'class="video-controls"'].map((needle) => block.indexOf(needle));
+      expect(order.every((n) => n >= 0), id).toBe(true);
+      expect(order, id).toEqual([...order].sort((a, b) => a - b));
+      const row = elementByClass(block, 'video-controls', 'div');
+      // Never hidden: it always holds "Audio only" and the handout.
+      expect(tags(row, 'div')[0], id).toBe('<div class="video-controls">');
+      const at = [`<details class="format-disclosure" id="audio-${id}">`, '>Handout<span class="visually-hidden">: ', `<div class="rating" data-rating="${id}" hidden>`, 'Was this helpful?', 'class="rating__status-box"'].map((needle) => row.indexOf(needle));
+      expect(at.every((n) => n >= 0), id).toBe(true);
       expect(at, id).toEqual([...at].sort((a, b) => a - b));
-      expect(tags(row, 'a').filter((t) => attr(t, 'class') === 'format-button')).toHaveLength(v.handout ? 1 : 0);
-      expect(tags(row, 'details')).toHaveLength(v.audio ? 1 : 0);
-      expect(tags(row, 'fieldset')).toHaveLength(1);
+      // Nothing after the widget: it ends the row.
+      const widget = elementByClass(row, 'rating', 'div');
+      expect(row.slice(row.indexOf(widget) + widget.length).trim(), id).toBe('</div>');
     });
+    expect(main).not.toMatch(/data-rating-reveal|problem-block|solution__tools|solution__header|solution__heading/);
+  });
+
+  it('puts "Is this you?" in its own section directly below the problem video', () => {
+    const wrapper = elementByClass(main, 'problem-video', 'div');
+    const panel = elementByClass(main, 'is-this-you', 'section');
+    expect(wrapper).not.toContain('is-this-you');
+    expect(main.slice(main.indexOf(wrapper) + wrapper.length).trim().startsWith('<section class="is-this-you panel panel--wash" aria-labelledby="is-this-you-title">')).toBe(true);
+    expect(main.indexOf(panel)).toBeLessThan(main.indexOf('class="solutions') === -1 ? Infinity : main.indexOf('class="solutions'));
   });
 
   it('renders each solution as a closed native <details name="solution">, numbered within its tier', () => {
@@ -190,20 +177,23 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       const summary = card.match(/<summary class="solution__face">([\s\S]*?)<\/summary>/)[1];
       expect(summary).not.toMatch(/<(a|button|input|select|textarea|details|iframe|audio)\b|tabindex/);
       expect(text(elementByClass(summary, 'solution__title', 'span'))).toBe(video(s.video).data.title);
-      expect(text(elementByClass(summary, 'solution__blurb', 'span'))).toBe(s.blurb);
+      // The blurb, or the video's description where there is none (SPEC §7.2).
+      expect(text(elementByClass(summary, 'solution__blurb', 'span'))).toBe(s.blurb || video(s.video).data.description);
       expect(summary).toContain(`id="solution-${s.video}-length"`);
       expect(tags(summary, 'span').find((t) => attr(t, 'class') === 'solution__band')).toContain('aria-hidden="true"');
     });
   });
 
-  it('keeps the JavaScript-only parts hidden: card headers', () => {
+  it('keeps the JavaScript-only parts hidden: the card\'s template header, with Close', () => {
     for (const card of cards) {
-      expect(tags(card, 'div').find((t) => /\bsolution__header\b/.test(attr(t, 'class')))).toMatch(/\shidden(?=[\s>])/);
-      const close = tags(card, 'button').find((t) => attr(t, 'class') === 'solution__close');
+      expect(tags(card, 'div').find((t) => /\bvideo-block__header\b/.test(attr(t, 'class')))).toBe('<div class="video-block__header" hidden>');
+      const close = tags(card, 'button').find((t) => attr(t, 'class') === 'video-block__close');
       const panelId = attr(tags(card, 'div').find((t) => attr(t, 'class') === 'solution__panel'), 'id');
-      expect([attr(close, 'aria-expanded'), attr(close, 'aria-controls')]).toEqual(['true', panelId]);
-      expect(text(elementByClass(card, 'solution__close', 'button'))).toMatch(/^Close \S/);
+      expect([attr(close, 'type'), attr(close, 'aria-expanded'), attr(close, 'aria-controls')]).toEqual(['button', 'true', panelId]);
+      expect(text(elementByClass(card, 'video-block__close', 'button'))).toMatch(/^Close \S/);
     }
+    // The problem video's header is shown without JavaScript.
+    expect(tags(elementByClass(main, 'problem-video', 'div'), 'div').find((t) => /\bvideo-block__header\b/.test(attr(t, 'class')))).toBe('<div class="video-block__header">');
   });
 
   it('has no transcript anywhere: no disclosure, print button, quick link or visible mention (project lead, 2026-11-06)', () => {
@@ -235,7 +225,7 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
   });
 
   it('shows "Is this you?", with "Not quite? Try" the first related topic', () => {
-    const panel = elementByClass(main, 'is-this-you', 'div');
+    const panel = elementByClass(main, 'is-this-you', 'section');
     expect(panel).toMatch(/<h2 class="is-this-you__title" id="is-this-you-title">Is this you\?<\/h2>/);
     expect(text(elementByClass(panel, 'is-this-you__summary', 'p'))).toBe(data.is_this_you.summary);
     expect([...panel.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]))).toEqual(data.is_this_you.bullets);
@@ -272,13 +262,16 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     expect(main).not.toMatch(/<(form|textarea)\b/);
   });
 
-  it('keeps a heading outline without skipped levels: h1, h2 sections, h3 solutions', () => {
+  it('keeps a heading outline without skipped levels: h1, the problem video\'s h2, h2 sections, h3 solutions', () => {
     const levels = [...main.matchAll(/<h([1-6])\b/g)].map((m) => Number(m[1]));
     expect(levels[0]).toBe(1);
     levels.forEach((level, i) => {
       if (i) expect(level, `heading ${i + 1}`).toBeLessThanOrEqual(levels[i - 1] + 1);
     });
+    // Each card's title is an h3 in the template (and, with JavaScript, its face too).
     expect(levels.filter((l) => l === 3)).toHaveLength(solutions.length);
+    const headings = [...main.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => [Number(m[1]), text(m[2])]);
+    expect(headings.slice(0, 3)).toEqual([[1, data.title], [2, video(data.problem_video).data.title], [2, 'Is this you?']]);
     expect(main.slice(main.indexOf('>') + 1)).not.toMatch(/\sid="main"/);
   });
 });
@@ -308,7 +301,7 @@ describe('the layout samples (SPEC §7)', () => {
 });
 
 // A stand-alone problem (SPEC §7.2): its own video, made for it, is the main
-// content, with no solutions. sharing-a-bed's video has every format.
+// content, with no solutions.
 describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
   const slug = 'sharing-a-bed';
   const { data } = model.problems.get(slug);
@@ -316,10 +309,9 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
   const main = mainOf(html);
   const { data: v } = video(data.problem_video);
 
-  it('is a stand-alone problem whose video has a handout, audio and a (stand-in) transcript, which isn\'t shown', () => {
+  it('is a stand-alone problem whose video has a handout and audio', () => {
     expect([data.standalone, data.solutions]).toEqual([true, undefined]);
-    expect([Boolean(v.handout), Boolean(v.audio), hasTranscript(data.problem_video)]).toEqual([true, true, true]);
-    expect(main).not.toContain(`[Transcript of “${v.title.slice(1, -1)}”.]`);
+    expect([Boolean(v.handout), Boolean(v.audio)]).toEqual([true, true]);
   });
 
   it('has no solutions section, solution cards, chips or solutions.js', () => {
@@ -328,17 +320,20 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     expect(html).not.toContain('/js/solutions.js');
   });
 
-  it('shows the problem video, titled, with its notice and every format, as the main content', () => {
-    const block = elementByClass(main, 'problem-block', 'div');
+  it('shows the problem video, in the video template with its title, description and every format, as the main content', () => {
+    const wrapper = elementByClass(main, 'problem-video', 'div');
     const videos = elements(main, 'video', 'div');
     expect(videos).toHaveLength(1);
-    expect(block).toContain(videos[0]);
+    expect(wrapper).toContain(videos[0]);
     expect(attr(tags(videos[0], 'div')[0], 'data-video')).toBe(data.problem_video);
-    expect(text(elementByClass(videos[0], 'video__title', 'span'))).toBe(v.title);
+    expect(text(elementByClass(wrapper, 'video-block__title', 'h2'))).toBe(v.title);
+    expect(text(elementByClass(wrapper, 'video-block__desc', 'p'))).toBe(v.description);
+    // No label: the problem's own video has none.
+    expect(wrapper).not.toMatch(/video-block__top|step-chip|video-block__close/);
     expect(videos[0]).not.toMatch(/video__notice|notice-text/);
     expect(elements(main, 'youtube-note', 'p')).toHaveLength(1);
-    const row = elementByClass(block, 'video-controls', 'div');
-    expect(tags(row, 'div')[0]).toBe('<div class="video-controls problem-block__controls">');
+    const row = elementByClass(wrapper, 'video-controls', 'div');
+    expect(tags(row, 'div')[0]).toBe('<div class="video-controls">');
     expect(tags(row, 'a').filter((t) => attr(t, 'data-handout') === data.problem_video)).toHaveLength(1);
     // The row's "Handout" is the page's only handout link (SPEC §15.1).
     expect(tags(main, 'a').filter((t) => attr(t, 'data-handout'))).toHaveLength(1);
@@ -348,10 +343,11 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     expect(row).not.toMatch(/transcript/i);
   });
 
-  it('keeps its headings in order: the title, then "Is this you?" (and Related topics, when it has some)', () => {
+  it('keeps its headings in order: the title, its video\'s title, then "Is this you?" (and Related topics, when it has some)', () => {
     const headings = [...main.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => [Number(m[1]), text(m[2])]);
     expect(headings).toEqual([
       [1, data.title],
+      [2, v.title],
       [2, 'Is this you?'],
       ...(data.related.length ? [[2, 'Related topics']] : []),
     ]);
@@ -402,15 +398,9 @@ describe('solutionsSection with a playable video', () => {
   });
   const env = new nunjucks.Environment(new nunjucks.FileSystemLoader('src/_includes'), { autoescape: true });
   for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
-  const item = (id, data, body = '') => ({
-    page: { fileSlug: id },
-    data,
-    rawInput: body,
-    templateContent: body ? `<p>${body}</p>\n` : '',
-  });
   const videos = [
-    item('full', { title: 'Settling your body', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' }, 'Words.'),
-    item('bare', { title: 'Bare', youtube_id: 'Zz_-9yXwVu0', duration: '1:05' }),
+    videoRow('full', { title: 'Settling your body', description: 'Words.', youtube_url: 'https://youtu.be/AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' }),
+    videoRow('bare', { title: 'Bare', description: 'The bare video.', youtube_url: 'https://www.youtube.com/watch?v=Zz_-9yXwVu0', duration: '1:05', handout: 'bare.pdf', audio: 'bare.mp3' }),
   ];
   const render = (solutions, ratings = false) =>
     env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page", ratings) }}', {
@@ -432,40 +422,55 @@ describe('solutionsSection with a playable video', () => {
     expect(attr(facade, 'aria-describedby')).toBe('youtube-note-text');
   });
 
-  it('describes the card with its spoken length and orders the panel header, video, row of controls', () => {
+  it('describes the card with its spoken length, and opens to the video template: header, video, row of controls', () => {
     expect(text(elementByClass(full, 'solution__length', 'span'))).toBe('Video, 6 minutes 40 seconds');
     const panel = elementByClass(full, 'solution__panel', 'div');
-    const order = ['class="solution__header', 'class="solution__video', 'class="video-controls solution__tools'].map((c) => panel.indexOf(c));
+    const order = ['class="video-block__header" hidden', 'class="video-block__top"', 'class="step-chip step-chip--sm"', 'class="video-block__close"', 'class="video-block__title"', 'class="video-block__desc"', 'class="video-block__video"', 'class="video-controls"'].map((c) => panel.indexOf(c));
     expect(order.every((n) => n >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(elementByClass(panel, 'solution__heading', 'h3')).toBe(
-      '<h3 class="solution__heading" id="solution-full-heading" tabindex="-1">Settling your body</h3>',
-    );
+    expect(elementByClass(panel, 'video-block__title', 'h3')).toBe('<h3 class="video-block__title" id="video-full-title" tabindex="-1">Settling your body</h3>');
+    expect(text(elementByClass(panel, 'step-chip', 'span'))).toBe('1 Main');
+    expect(text(elementByClass(panel, 'video-block__desc', 'p'))).toBe('Try this.');
   });
 
-  it('gives the closed card only a quick Handout link, with hidden context', () => {
-    const meta = elementByClass(full, 'solution__meta', 'div');
-    expect(tags(meta, 'p')).toEqual(['<p class="solution__quick">']);
-    expect([...meta.matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])])).toEqual([
-      ['/media/pdf/full.pdf', 'Handout : Settling your body (PDF)'],
-    ]);
-    expect(attr(tags(meta, 'a')[0], 'data-handout')).toBe('full');
+  it('gives the closed card nothing but its face: no quick Handout link (project lead, 2026-11-09)', () => {
+    for (const card of [full, bare]) {
+      const inner = card.match(/^<li[^>]*>([\s\S]*)<\/li>$/)[1].trim();
+      expect(inner).toMatch(/^<details class="solution__disclosure" name="solution">[\s\S]*<\/details>$/);
+      expect(card).not.toMatch(/solution__meta|solution__quick/);
+      // Its only handout link is the row's, inside the panel.
+      const handouts = tags(card, 'a').filter((t) => attr(t, 'data-handout'));
+      expect(handouts).toHaveLength(1);
+      expect(elementByClass(card, 'video-controls', 'div')).toContain(handouts[0]);
+    }
     expect(full).not.toMatch(/transcript|Words\./i);
   });
 
   it('puts "Audio only" and the handout in one row right under the video in the open card', () => {
     const panel = elementByClass(full, 'solution__panel', 'div');
     const row = elementByClass(panel, 'video-controls', 'div');
-    expect(tags(row, 'div')[0]).toBe('<div class="video-controls solution__tools">');
+    expect(tags(row, 'div')[0]).toBe('<div class="video-controls">');
     // "Audio only" first, so opening it never moves its button (SPEC §7.5).
     expect(row.indexOf('<details class="format-disclosure" id="audio-full">')).toBeGreaterThan(-1);
     expect(row.indexOf('<details class="format-disclosure" id="audio-full">')).toBeLessThan(row.indexOf('<a class="format-button"'));
     expect(panel.indexOf(row)).toBeGreaterThan(panel.indexOf('video__frame'));
   });
 
-  it('leaves out the row of controls and quick link for a video without formats', () => {
-    expect(bare).not.toMatch(/solution__tools|solution__quick|video-controls/);
-    expect(bare).toMatch(/<div class="solution__meta">\s*<\/div>/);
+  it('shows the video\'s description, from data/videos.csv, on a solution without a blurb (SPEC §7.2)', () => {
+    const [card] = elements(render([{ tier: 'main', video: 'bare' }]), 'solution', 'li');
+    expect(text(elementByClass(card, 'solution__blurb', 'span'))).toBe('The bare video.');
+    expect(text(elementByClass(card, 'video-block__desc', 'p'))).toBe('The bare video.');
+    // A blurb replaces it, on this problem only.
+    expect(text(elementByClass(bare, 'solution__blurb', 'span'))).toBe('Or this.');
+    expect(bare).not.toContain('The bare video.');
+  });
+
+  it('renders "Audio only" and the handout for every video: the content check guarantees the files (SPEC §7.1)', () => {
+    for (const [card, id] of [[full, 'full'], [bare, 'bare']]) {
+      const row = elementByClass(card, 'video-controls', 'div');
+      expect(row).toContain(`<audio class="format-audio" controls preload="none" src="/media/audio/${id}.mp3" data-media="${id}"`);
+      expect(row).toContain(`<a class="format-button" href="/media/pdf/${id}.pdf" type="application/pdf" data-handout="${id}">`);
+    }
   });
 
   it('renders nothing for a tier with no solutions (a stand-alone problem has none, SPEC §7.2)', () => {
@@ -478,29 +483,30 @@ describe('solutionsSection with a playable video', () => {
 
     it('ends the open card\'s row of controls with the widget, after "Audio only" and the handout', () => {
       const panel = elementByClass(onFull, 'solution__panel', 'div');
-      const row = elementByClass(panel, 'solution__tools', 'div');
-      expect(tags(row, 'div')[0]).toBe('<div class="video-controls solution__tools">');
+      const row = elementByClass(panel, 'video-controls', 'div');
+      expect(tags(row, 'div')[0]).toBe('<div class="video-controls">');
       const widget = elementByClass(row, 'rating', 'div');
       expect(tags(widget, 'div')[0]).toBe('<div class="rating" data-rating="full" hidden>');
       expect(row.indexOf(widget)).toBeGreaterThan(row.indexOf('id="audio-full"'));
       expect(row.indexOf(widget)).toBeGreaterThan(row.indexOf('<a class="format-button"'));
-      expect(panel.indexOf('solution__video')).toBeLessThan(panel.indexOf('solution__tools'));
+      expect(panel.indexOf('video-block__video')).toBeLessThan(panel.indexOf('video-controls'));
       expect(onFull.match(/data-rating="/g)).toHaveLength(1);
       expect(elementByClass(onFull, 'solution__face', 'summary')).not.toMatch(/rating/);
     });
 
-    it('shows no rating summary or notice in the closed card\'s meta row', () => {
-      expect(elementByClass(onFull, 'solution__meta', 'div')).toMatch(/^<div class="solution__meta">\s*<p class="solution__quick"><a [^>]*>Handout<span[^>]*>[^<]*<\/span><\/a><\/p>\s*<\/div>$/);
-      expect(onFull).not.toMatch(/data-rating-summary|solution__rating|Ratings are anonymous|notice-text">Ratings/);
+    it('shows no rating summary or notice in the closed card', () => {
+      expect(onFull).not.toMatch(/solution__meta|data-rating-summary|solution__rating|Ratings are anonymous|notice-text">Ratings/);
       // "You rated this" only in the status line's invisible sizer, never in the closed card.
       expect(visibleText(onFull)).not.toMatch(/You rated/);
     });
 
-    it('hides the row until rating.js runs when the widget is all it holds', () => {
-      const row = elementByClass(onBare, 'solution__tools', 'div');
-      expect(tags(row, 'div')[0]).toBe('<div class="video-controls solution__tools" hidden data-rating-reveal>');
-      expect(row).not.toMatch(/format-button|<details/);
-      expect(elementByClass(onBare, 'solution__meta', 'div')).toMatch(/^<div class="solution__meta">\s*<\/div>$/);
+    it('never hides the row: it always holds "Audio only" and the handout, and only the widget waits for rating.js', () => {
+      for (const card of [onFull, onBare]) {
+        const row = elementByClass(card, 'video-controls', 'div');
+        expect(tags(row, 'div')[0]).toBe('<div class="video-controls">');
+        expect(row).toMatch(/format-button[\s\S]*<div class="rating" data-rating="[a-z]+" hidden>/);
+      }
+      expect(onBare).not.toMatch(/data-rating-reveal/);
     });
 
     it('renders the slots only for exactly true', () => {

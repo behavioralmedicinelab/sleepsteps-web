@@ -12,11 +12,12 @@
 // - summary: a problem's statement, or the page's `summary`;
 // - keywords: the page's row in data/keywords.csv, as words (SPEC §8.2);
 // - transcript: plain text. For a problem, its "Is this you?" text and, for
-//   every video on the page, the video's title, the solution's blurb and the
-//   transcript (the video file's body, which the site doesn't show), so a
-//   match in a solution video leads to the problem page. For Start here,
-//   each intro video's title, description and transcript. For an
-//   information page, the text of its rendered body.
+//   every video on the page, the video's title, its description (for a
+//   solution with a blurb, the blurb instead, as the page shows) and its
+//   transcript (data/transcripts/<video_id>.txt, which the site doesn't
+//   show), so a match in a solution video leads to the problem page. For
+//   Start here, each intro video's title, description and transcript. For
+//   an information page, the text of its rendered body.
 // - type: "problem", "start" or "page".
 //
 // It also builds worker/generated/pages.json (SPEC §8.3, §14.1), which the
@@ -25,15 +26,7 @@
 // Eleventy build's rendered pages to pagesIndex() in its eleventy.after hook
 // and writes the result with writeIfChanged().
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-
-const require = createRequire(import.meta.url);
-const MarkdownIt = createRequire(require.resolve('@11ty/eleventy'))('markdown-it');
-
-// Transcripts are rendered as Eleventy renders them (markdown-it with HTML on
-// and indented code off), then reduced to text.
-const markdown = new MarkdownIt({ html: true }).disable('code');
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 // Inline elements join their text to the words around them; any other tag
@@ -56,11 +49,6 @@ export function htmlToText(html) {
     .trim();
 }
 
-/** Text of a Markdown transcript. */
-export function markdownToText(source) {
-  return htmlToText(markdown.render(String(source ?? '')));
-}
-
 /** data/keywords.csv rows -> Map(page_id -> [keyword, ...]). */
 export function keywordsByPage(rows = []) {
   const map = new Map();
@@ -74,21 +62,24 @@ export function keywordsByPage(rows = []) {
   return map;
 }
 
-const join = (parts) => parts.map((p) => String(p ?? '').trim()).filter(Boolean).join(' ');
+// Plain text on one line: a transcript's or a CSV cell's line breaks become spaces.
+const join = (parts) => parts.map((p) => String(p ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(' ');
 
 /**
  * Build the index entries.
  * @param {object} input
  * @param {object[]} input.problems  collections.problems items
- * @param {object[]} input.videos    collections.videos items (rawInput is the transcript)
+ * @param {object[]} input.videos    data/videos.csv rows (the `videos` global data)
+ * @param {Map<string, string>} [input.transcripts] video_id -> plain-text
+ *   transcript (readTranscripts() in scripts/lib/videos.js)
  * @param {object} [input.start]     the Start here item (collections.all, page_id "start")
  * @param {object[]} [input.pages]   information page items, rendered (templateContent)
  * @param {object[]} [input.keywords] data/keywords.csv rows
  */
-export function searchIndex({ problems = [], videos = [], start, pages = [], keywords = [] }) {
+export function searchIndex({ problems = [], videos = [], transcripts = new Map(), start, pages = [], keywords = [] }) {
   const kw = keywordsByPage(keywords);
   const library = new Map(
-    videos.map((item) => [item.page.fileSlug, { title: item.data.title, text: markdownToText(item.rawInput) }]),
+    videos.map((row) => [row.video_id, { title: row.title, description: row.description, text: transcripts.get(row.video_id) ?? '' }]),
   );
   const video = (id) => {
     const v = library.get(id);
@@ -110,10 +101,11 @@ export function searchIndex({ problems = [], videos = [], start, pages = [], key
     const d = item.data;
     const parts = [d.is_this_you?.summary, ...(d.is_this_you?.bullets ?? [])];
     const about = video(d.problem_video);
-    parts.push(about.title, about.text);
+    parts.push(about.title, about.description, about.text);
     for (const s of d.solutions ?? []) {
       const v = video(s.video);
-      parts.push(v.title, s.blurb, v.text);
+      const blurb = typeof s.blurb === 'string' ? s.blurb.trim() : '';
+      parts.push(v.title, blurb || v.description, v.text);
     }
     entries.push(entry(item, 'problem', d.statement, join(parts)));
   }
@@ -121,7 +113,7 @@ export function searchIndex({ problems = [], videos = [], start, pages = [], key
     const parts = [];
     for (const c of start.data.chapters ?? []) {
       const v = video(c.video);
-      parts.push(v.title, c.description, v.text);
+      parts.push(v.title, v.description, v.text);
     }
     entries.push(entry(start, 'start', start.data.summary, join(parts)));
   }

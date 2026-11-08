@@ -103,9 +103,16 @@ const openMenu = async (tab) => {
   await tab.click('.mobile-menu__toggle');
   await tab.waitFor(`document.querySelector('.mobile-menu__toggle[aria-expanded="true"]')`, 2000);
 };
+// The enhanced face (solutions.js), never "any button in the card": the
+// template's Close always carries aria-expanded="true" and stays in the DOM
+// inside the hidden panel, so a looser selector matches before any card
+// opens. If solutions.js didn't enhance the cards, the click finds nothing
+// and throws.
 const openFirstCard = async (tab) => {
-  await tab.click('.solution button[aria-expanded]');
-  await tab.waitFor(`document.querySelector('.solution button[aria-expanded="true"]')`, 2000);
+  await tab.click('.solution button.solution__face[aria-expanded]');
+  if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) {
+    throw new Error("the first solution card didn't open");
+  }
 };
 const openCardAndAudio = async (tab) => {
   await openFirstCard(tab);
@@ -218,7 +225,7 @@ function states() {
       feature: 'ratings',
       path: '/problems/tired-but-wired/',
       setup: async (tab) => {
-        await tab.click('.problem-block__controls .rating__star');
+        await tab.click('.problem-video .rating__star');
         const done = await tab.waitFor(`/Thanks/.test(${statusText('[data-rating-status]')})`, 6000);
         if (!done) throw new Error('the rating never said thanks');
       },
@@ -229,7 +236,7 @@ function states() {
       path: '/problems/tired-but-wired/',
       apiOff: true,
       setup: async (tab) => {
-        await tab.click('.problem-block__controls .rating__star');
+        await tab.click('.problem-video .rating__star');
         const done = await tab.waitFor(`/Couldn't send/.test(${statusText('[data-rating-status]')})`, 6000);
         if (!done) throw new Error('the rating never showed its failure');
       },
@@ -493,9 +500,11 @@ function walks() {
       path: '/problems/tired-but-wired/',
       run: async (tab) => {
         const problems = [];
-        await js(tab, `document.querySelector('.solution button[aria-expanded]').focus()`);
+        if (!(await js(tab, `!!document.querySelector('.solution button.solution__face')`))) return { problems: ["solutions.js didn't enhance the cards"] };
+        await js(tab, `document.querySelector('.solution button.solution__face').focus()`);
         await tab.key('Enter');
-        if (!(await tab.waitFor(`document.querySelector('.solution button[aria-expanded="true"]')`, 2000))) problems.push("Enter didn't open the card");
+        if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) problems.push("Enter didn't open the card");
+        else if (!(await js(tab, `document.activeElement.matches('.solution.is-open .video-block__title')`))) problems.push("Opening the card didn't move focus to its title");
         const walk = await tabWalk(tab);
         return { stops: walk.stops, problems: [...problems, ...walk.problems] };
       },
