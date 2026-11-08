@@ -109,6 +109,39 @@ describe.each(sheets.map((s) => [s.file, s.css]))('%s', (file, css) => {
   });
 });
 
+// M7's accessibility fixes (SPEC §7.5, §13): the feedback dialog's own ring
+// inside its border, rings kept clear of the viewport's edge, and long
+// addresses in sentence links that break rather than scroll the page.
+describe('focus rings and sentence links (site.css, admin.css)', () => {
+  const site = sheets.find((s) => s.file === 'site.css').css;
+  const admin = sheets.find((s) => s.file === 'admin.css').css;
+  /** The declarations of the first top-level rule with exactly this selector list. */
+  const rule = (css, selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/,\s*/g, ',\\s*');
+    return css.match(new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`))?.[1] ?? '';
+  };
+
+  it("draws the feedback dialog's own focus ring inside its border, not on the backdrop", () => {
+    expect(rule(site, '.feedback-dialog:focus-visible')).toMatch(
+      /^\s*outline-offset: calc\(-1 \* \(var\(--focus-width\) \+ var\(--border-width\) \+ var\(--space-1\)\)\);\s*$/,
+    );
+    // It keeps the global ring's colour, deep-teal on the dialog's paper.
+    expect(rule(site, '.feedback-dialog')).toMatch(/--focus-colour: var\(--deep-teal\);[\s\S]*background: var\(--paper\);/);
+  });
+
+  it('keeps focus rings clear of the viewport edge on the public and admin pages', () => {
+    const ring = /outline: var\(--focus-width\) solid var\(--focus-colour\);\s*outline-offset: var\(--focus-offset\);\s*scroll-margin-block: var\(--space-3\);/;
+    expect(rule(site, ':focus-visible')).toMatch(ring);
+    expect(rule(admin, '.admin :focus-visible')).toMatch(ring);
+  });
+
+  it('breaks long addresses in sentence links, so text spacing never scrolls the page sideways (WCAG 1.4.12)', () => {
+    const links = rule(site, '.notice--urgent a, .search-fallback a, .link-standalone a, .info-body p a, .notice-text a');
+    expect(links).toMatch(/display: inline-flex;[\s\S]*min-height: var\(--target-min\);/);
+    expect(links).toMatch(/overflow-wrap: anywhere;/);
+  });
+});
+
 // The row of controls under each video (SPEC §7.5, §9.2, §12): one wrapping
 // row, an open "Audio only" across its full width, the rating's parts as
 // items of the row, and nothing left for transcripts or a ratings notice.

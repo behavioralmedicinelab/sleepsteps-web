@@ -19,9 +19,10 @@ import { validateContent } from '../../scripts/validate-content.js';
 import { attr, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
 import { MemoryStorage, installDom } from './mini-dom.js';
 
-const site = inject('builtSite');
-const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
-const ratingsOn = config.features.ratings === true;
+// The site built with every feature on, whatever site.config.json says, so
+// none of these checks is skipped while features.ratings is off (SPEC §11).
+// The pages with the switch off are checked in features-off.test.js.
+const site = inject('builtSiteOn');
 const pagesJson = JSON.parse(readFileSync('worker/generated/pages.json', 'utf8'));
 const index = pageIndex(pagesJson);
 const { model } = validateContent(process.cwd());
@@ -62,13 +63,12 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
   };
 
   it.each(pages.map((p) => [p.file, p.html]))('%s has one widget per video, in page order, and only on problem pages and Start here', (file, html) => {
-    expect(ratedIn(html)).toEqual(ratingsOn ? expectedOn(file) : []);
+    expect(ratedIn(html)).toEqual(expectedOn(file));
   });
 
   it('renders widgets on exactly the 36 problem pages (13 of them stand-alone) and Start here', () => {
     const rated = pages.filter((p) => ratedIn(p.html).length).map((p) => p.file);
-    expect(rated).toHaveLength(ratingsOn ? 37 : 0);
-    if (!ratingsOn) return;
+    expect(rated).toHaveLength(37);
     expect(problems.filter(([, p]) => p.data.standalone === true)).toHaveLength(13);
     expect(pages.filter((p) => p.file === 'start/index.html' && ratedIn(p.html).length === 3)).toHaveLength(1);
   });
@@ -86,12 +86,12 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
 
   it('loads rating.js on exactly 37 pages, and builds api.js beside it', () => {
     const loading = pages.filter((p) => scriptsOf(p.html).includes('/js/rating.js'));
-    expect(loading).toHaveLength(ratingsOn ? 37 : 0);
+    expect(loading).toHaveLength(37);
     expect(existsSync(path.join(site, 'js/rating.js'))).toBe(true);
     expect(existsSync(path.join(site, 'js/api.js'))).toBe(true);
   });
 
-  describe.runIf(ratingsOn)('on problem pages', () => {
+  describe('on problem pages', () => {
     describe.each(problems.map(([slug, p]) => [slug, p.data]))('/problems/%s/', (slug, data) => {
       const main = mainOf(pageAt(site, `/problems/${slug}/`));
       const solutions = data.solutions ?? [];
@@ -133,7 +133,7 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
     });
   });
 
-  describe.runIf(ratingsOn)('each widget', () => {
+  describe('each widget', () => {
     const widgets = pages.flatMap(({ file, html }) => elements(html, 'rating', 'div').map((w) => [file, w]));
 
     it('are all checked here', () => {
@@ -174,7 +174,7 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
     });
   });
 
-  it.runIf(ratingsOn)('hides a Start here row until rating.js runs when the rating is all it holds', () => {
+  it('hides a Start here row until rating.js runs when the rating is all it holds', () => {
     const main = mainOf(pageAt(site, '/start/'));
     const rows = elements(main, 'video-controls', 'div');
     expect(rows).toHaveLength(chapters.length);
@@ -190,8 +190,8 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
   });
 });
 
-// The same layout with the switch off, as the built site can't show it
-// (site.config.json is fixed for the test build).
+// The same layout with the switch's other values (features-off.test.js
+// checks the pages built with it off).
 describe('base.njk and features.ratings', () => {
   const require = createRequire(import.meta.url);
   const nunjucks = createRequire(require.resolve('@11ty/eleventy'))('nunjucks');
@@ -351,10 +351,10 @@ describe('api.js postJson', () => {
 
 // ---- rating.js on the built pages ---------------------------------------------
 
-describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
+describe('rating.js in the browser (SPEC §11, §12)', () => {
   let dom;
   let requests; // every fetch: { url, init, body, answer(status), fail() }
-  let mode; // 'manual' | number (answer at once with that status) | 'reject' | 'missing' | 'hang'
+  let mode; // 'manual' | number (answer at once with that status) | 'reject' | 'redirect' | 'missing' | 'hang'
   let events; // sleepsteps:event reports
 
   beforeEach(() => {
@@ -382,7 +382,11 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')));
       requests.push(request);
       if (typeof mode === 'number') request.answer(mode);
-      else if (mode === 'reject') request.fail();
+      // 'redirect': the API redirected to another site, as Cloudflare Access
+      // does once a preview's session ends. The browser refuses to follow it
+      // (connect-src 'self', and CORS without the CSP) and the fetch rejects
+      // with "TypeError: Failed to fetch" (Chrome 157, M7).
+      else if (mode === 'reject' || mode === 'redirect') request.fail();
     });
 
   /** Open a built page and run `modules` on it, freshly imported. */
@@ -654,6 +658,8 @@ describe.runIf(ratingsOn)('rating.js in the browser (SPEC §11, §12)', () => {
       ['a 429', 429],
       ['a 500', 500],
       ['a network error', 'reject'],
+      ['a redirect to the Access sign-in on another site (a preview whose session ended)', 'redirect'],
+      ['a 302 with no Location, which fetch returns as it is', 302],
       ['no fetch', 'missing'],
     ])('shows the message after %s, un-checks the stars, and retries the same star', async (name, answer) => {
       await open(PROBLEM, { answer });

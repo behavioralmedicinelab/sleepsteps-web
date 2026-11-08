@@ -10,13 +10,14 @@ import configure from '../../eleventy.config.js';
 import { validateContent } from '../../scripts/validate-content.js';
 import { attr, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
-const site = inject('builtSite');
-const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
+// The site built with every feature on, whatever site.config.json says, so
+// none of these checks changes while features.ratings is off (SPEC §11). The
+// pages with the switch off are checked in features-off.test.js.
+const site = inject('builtSiteOn');
 const { model } = validateContent(process.cwd());
 const problems = [...model.problems.entries()];
 const video = (id) => model.videos.get(id);
 const hasTranscript = (id) => video(id).body.trim() !== '';
-const ratingsOn = config.features.ratings === true;
 
 /** Visible text: tags, visually hidden spans and the rating's invisible sizers left out. */
 const visibleText = (html) =>
@@ -133,10 +134,6 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       const holder = holders[i];
       const row = elementByClass(holder, 'video-controls', 'div');
       const hasFormats = Boolean(v.handout || v.audio);
-      if (!hasFormats && !ratingsOn) {
-        expect(row, id).toBeUndefined();
-        return;
-      }
       expect(holder.indexOf(row), id).toBeGreaterThan(holder.lastIndexOf('video__frame'));
       const after = holder.slice(holder.indexOf(row) + row.length);
       if (i === 0) {
@@ -159,14 +156,16 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       const order = [
         ...(v.audio ? [`<details class="format-disclosure" id="audio-${id}">`] : []),
         ...(v.handout ? [`>Handout<span class="visually-hidden">: `] : []),
-        ...(ratingsOn ? [`<div class="rating" data-rating="${id}" hidden>`, 'Was this helpful?', 'class="rating__status-box"'] : []),
+        `<div class="rating" data-rating="${id}" hidden>`,
+        'Was this helpful?',
+        'class="rating__status-box"',
       ];
       const at = order.map((needle) => row.indexOf(needle));
       expect(at.every((n) => n >= 0), `${id}: ${order}`).toBe(true);
       expect(at, id).toEqual([...at].sort((a, b) => a - b));
       expect(tags(row, 'a').filter((t) => attr(t, 'class') === 'format-button')).toHaveLength(v.handout ? 1 : 0);
       expect(tags(row, 'details')).toHaveLength(v.audio ? 1 : 0);
-      expect(tags(row, 'fieldset')).toHaveLength(ratingsOn ? 1 : 0);
+      expect(tags(row, 'fieldset')).toHaveLength(1);
     });
   });
 
@@ -345,7 +344,7 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     expect(tags(main, 'a').filter((t) => attr(t, 'data-handout'))).toHaveLength(1);
     expect(text(elementByClass(row, 'format-button', 'a'))).toBe(`Handout : ${v.title} (PDF)`);
     expect(row).toContain(`id="audio-${data.problem_video}"`);
-    expect(row.includes(`data-rating="${data.problem_video}"`)).toBe(ratingsOn);
+    expect(row.includes(`data-rating="${data.problem_video}"`)).toBe(true);
     expect(row).not.toMatch(/transcript/i);
   });
 
@@ -363,7 +362,7 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     expect(main).toMatch(/<audio\b[^>]*\scontrols\b/);
     const hidden = [...main.matchAll(/<([a-z0-9]+)\b[^>]*\shidden(?=[\s>])[^>]*>/g)].map((m) => [m[1], attr(m[0], 'class')]);
     // The ratings widget (SPEC §12) needs JavaScript; nothing else does.
-    expect(hidden).toEqual(ratingsOn ? [['div', 'rating']] : []);
+    expect(hidden).toEqual([['div', 'rating']]);
     expect(elementByClass(main, 'problem__all', 'p')).toBe('<p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>');
   });
 

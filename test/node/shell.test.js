@@ -7,6 +7,11 @@ import { parseCsvRecords } from '../../scripts/lib/csv.js';
 import { attr, currentLinks, elementByClass, listFiles, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
 const site = inject('builtSite');
+// Checks of what a switchable feature adds (the footer's "Send feedback",
+// the scripts, the privacy page's storage rows) read the site built with
+// every feature on, so none of them changes or is skipped while a switch is
+// off (SPEC §11). features-off.test.js checks the pages with each switch off.
+const siteOn = inject('builtSiteOn');
 const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
 const handoffProblems = JSON.parse(
   readFileSync('docs/design/HANDOFF.md', 'utf8').match(/```json\n([\s\S]*?)\n```/)[1],
@@ -347,7 +352,7 @@ describe('information pages', () => {
 });
 
 describe('footer', () => {
-  const pages = readHtmlPages(site).filter((p) => p.file !== 'urgent-help/index.html');
+  const pages = readHtmlPages(siteOn).filter((p) => p.file !== 'urgent-help/index.html');
   // The footer's wording is `footer` in site.config.json (SPEC §11).
   // components.test.js renders the partial with stand-in values to show that
   // each field comes from there.
@@ -360,7 +365,7 @@ describe('footer', () => {
     expect(footer).toBeTruthy();
     expect(tags(footer, 'nav').map((t) => attr(t, 'aria-label'))).toEqual(['Footer', 'Help and policies']);
     const feedback = tags(footer, 'a').filter((t) => attr(t, 'class') === 'site-footer__feedback');
-    expect(feedback.map((t) => attr(t, 'href'))).toEqual(config.features.feedback ? ['/contact/'] : []);
+    expect(feedback.map((t) => attr(t, 'href'))).toEqual(['/contact/']);
     expect(text(elementByClass(footer, 'site-footer__tagline', 'p'))).toBe(copy.tagline);
     // An empty acknowledgement, registration or ethics value is left out.
     expect(paragraphs(elementByClass(footer, 'site-footer__meta', 'div'))).toEqual(
@@ -392,7 +397,7 @@ describe('footer', () => {
 });
 
 describe('Getting urgent help', () => {
-  const html = pageAt(site, '/urgent-help/');
+  const html = pageAt(siteOn, '/urgent-help/');
 
   it('has the minimal header, no search or menu, and the site footer like every page; its scripts send its page view and run "Send feedback"', () => {
     const header = elementByClass(html, 'minimal-header', 'header');
@@ -405,11 +410,9 @@ describe('Getting urgent help', () => {
     expect(tags(footer, 'nav').map((t) => attr(t, 'aria-label'))).toEqual(['Footer', 'Help and policies']);
     expect(currentLinks(footer)).toEqual([{ href: '/urgent-help/', value: 'page', label: 'Get urgent help' }]);
     // events.js (SPEC §10.1, §10.2) while features.events is on, and feedback.js
-    // while features.feedback is (SPEC §13); no menu.js.
-    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toEqual([
-      ...(config.features.events ? ['/js/events.js'] : []),
-      ...(config.features.feedback === true ? ['/js/feedback.js'] : []),
-    ]);
+    // while features.feedback is (SPEC §13); no menu.js. With either off,
+    // features-off.test.js.
+    expect(tags(html, 'script').map((t) => attr(t, 'src'))).toEqual(['/js/events.js', '/js/feedback.js']);
     expect(html).toMatch(/<body[^>]* data-page-id="urgent-help" data-page-view>/);
   });
 
@@ -501,30 +504,48 @@ describe('other pages', () => {
 
 // Device storage must be disclosed (SPEC §2, §15.4): every item in the §15.4
 // inventory appears in the privacy page's table, and any sessionStorage or
-// localStorage key used in src/js/ is named on the privacy page.
+// localStorage key used in src/js/ is named on the privacy page, here as
+// built with every feature on. With a switch off, the rows and keys of the
+// modules it leaves out go too (SPEC §15.2; features-off.test.js).
 describe('Privacy: cookies and browser storage', () => {
-  const privacyHtml = pageAt(site, '/privacy/');
+  const privacyHtml = pageAt(siteOn, '/privacy/');
   const table = elementByClass(privacyHtml, 'storage-table', 'table');
   const spec = readFileSync('SPEC.md', 'utf8');
   const inventory = spec.slice(spec.indexOf('### 15.4'), spec.indexOf('## 16.'));
+  const rows = () => [...table.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((m) => m[1]);
 
   it('has a storage table with a caption and header cells', () => {
     expect(table).toMatch(/<caption[^>]*>What may be stored in your browser<\/caption>/);
     expect(tags(table, 'th').filter((t) => attr(t, 'scope') === 'col')).toHaveLength(4);
   });
 
-  // Rows for a feature that is off are left out of the table (SPEC §15.2).
-  const FEATURE_ROWS = { 'sleepsteps-visit': 'events', 'sleepsteps-stats-off': 'events', 'cf.turnstile.u': 'feedback' };
-
-  it.each(['sleepsteps-visit', 'sleepsteps-stats-off', 'cf_clearance', 'cf.turnstile.u', 'YSC', '__Secure-YNID'])(
-    'lists %s in SPEC §15.4, and in the table unless its feature is off',
+  it.each(['sleepsteps-visit', 'sleepsteps-stats-off', 'cf_clearance', 'cf.turnstile.u', 'cf-nel', 'YSC', '__Secure-YNID'])(
+    'lists %s in SPEC §15.4 and in the table',
     (name) => {
-      const feature = FEATURE_ROWS[name];
-      if (feature && config.features[feature] !== true) expect(table).not.toContain(`<code>${name}</code>`);
-      else expect(table).toContain(`<code>${name}</code>`);
+      expect(table).toContain(`<code>${name}</code>`);
       expect(inventory).toContain(`\`${name}\``);
     },
   );
+
+  // The browser keeps an HSTS record for the site (SPEC §15.4, §16.1, M7).
+  it('lists the HTTPS-only setting while the site sends Strict-Transport-Security', () => {
+    expect(readFileSync('src/_headers', 'utf8')).toMatch(/^ {2}Strict-Transport-Security: max-age=31536000$/m);
+    const row = rows().find((tr) => text(tr).trim().startsWith('HTTPS-only setting (HSTS)'));
+    expect(text(row ?? '').trim()).toBe(
+      'HTTPS-only setting (HSTS) This website Tells your browser to always use a secure (HTTPS) connection to this website. It holds no code and nothing about you. One year after your last visit',
+    );
+    expect(inventory).toMatch(/\| HSTS record for the site's address \|/);
+  });
+
+  // Cloudflare adds Network Error Logging headers to production's responses;
+  // the project lead chose to disclose them, not to override them (C4,
+  // SPEC §15.4, §16.1).
+  it("lists Cloudflare's network error reports, which can carry a search page's address", () => {
+    const row = text(rows().find((tr) => tr.includes('<code>cf-nel</code>')) ?? '').trim();
+    expect(row).toMatch(/^Network error reporting \( ?cf-nel ?\) Cloudflare, our hosting provider In Chrome, Edge and other browsers built on Chromium: /);
+    expect(row).toContain('If that address was a search results page, it includes what you searched for.');
+    expect(row).toMatch(/7 days after your last visit$/);
+  });
 
   it('does not list the reserve-only __cf_bm cookie while Bot Fight Mode is off', () => {
     expect(inventory).toMatch(/`__cf_bm` \*\(reserve only\)\*/);

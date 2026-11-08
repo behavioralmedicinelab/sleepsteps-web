@@ -30,9 +30,11 @@ import { FEEDBACK_KEYS, MAX_MESSAGE_LENGTH, cleanMessage, validateFeedback } fro
 import { attr, elementByClass, listFiles, pageAt, readHtmlPages, tags, text } from './helpers.js';
 import { MemoryStorage, VisualViewport, installDom, pressEscape } from './mini-dom.js';
 
-const site = inject('builtSite');
+// The site built with every feature on, whatever site.config.json says, so
+// none of these checks is skipped while features.feedback is off (SPEC §11).
+// The pages with the switch off are checked in features-off.test.js.
+const site = inject('builtSiteOn');
 const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
-const feedbackOn = config.features.feedback === true;
 const pagesJson = JSON.parse(readFileSync('worker/generated/pages.json', 'utf8'));
 const index = pageIndex(pagesJson);
 const spec = readFileSync('SPEC.md', 'utf8');
@@ -55,7 +57,7 @@ const dialogOf = (html) => elementByClass(html, 'feedback-dialog', 'dialog');
 
 // ---- The built site ----------------------------------------------------------
 
-describe.runIf(feedbackOn)('built pages and the feedback dialog (SPEC §13)', () => {
+describe('built pages and the feedback dialog (SPEC §13)', () => {
   const pages = readHtmlPages(site);
   const withDialog = pages.filter((p) => p.file !== '404.html');
 
@@ -238,8 +240,8 @@ describe('base.njk and features.feedback', () => {
 
 // What the privacy page says about feedback and its spam check (SPEC §15.2,
 // §15.4; decisions A3 and A4) follows features.feedback, as the events rows
-// follow features.events. The built site has one config, so the page's
-// source is also rendered here with the switch off.
+// follow features.events. The page's source is rendered here with the
+// switch's other values too; features-off.test.js checks the built pages.
 describe('the privacy page and features.feedback (SPEC §15.2, §15.4)', () => {
   const require = createRequire(import.meta.url);
   const eleventyRequire = createRequire(require.resolve('@11ty/eleventy'));
@@ -280,7 +282,7 @@ describe('the privacy page and features.feedback (SPEC §15.2, §15.4)', () => {
     expect(text(html)).toContain('It also protects the site from spam and automated attacks.');
   });
 
-  it.runIf(feedbackOn)('says all four on the built page', () => {
+  it('says all four on the page built with the switch on', () => {
     expect(shown(pageAt(site, '/privacy/'))).toEqual([true, true, true, true]);
   });
 });
@@ -526,10 +528,10 @@ function fakeTurnstile() {
   };
 }
 
-describe.runIf(feedbackOn)('feedback.js in the browser (SPEC §11, §13)', () => {
+describe('feedback.js in the browser (SPEC §11, §13)', () => {
   let dom;
   let requests; // every fetch: { url, init, body, answer(status), fail() }
-  let mode; // 'manual' | number (answer at once with that status) | 'reject' | 'missing'
+  let mode; // 'manual' | number (answer at once with that status) | 'reject' | 'redirect' | 'missing'
   let events; // sleepsteps:event reports
   let storage;
   let turnstile;
@@ -560,7 +562,11 @@ describe.runIf(feedbackOn)('feedback.js in the browser (SPEC §11, §13)', () =>
       init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')));
       requests.push(request);
       if (typeof mode === 'number') request.answer(mode);
-      else if (mode === 'reject') request.fail();
+      // 'redirect': the API redirected to another site, as Cloudflare Access
+      // does once a preview's session ends. The browser refuses to follow it
+      // (connect-src 'self', and CORS without the CSP) and the fetch rejects
+      // with "TypeError: Failed to fetch" (Chrome 157, M7).
+      else if (mode === 'reject' || mode === 'redirect') request.fail();
     });
 
   /** Open a built page (or `html`) and run feedback.js on it, freshly imported. */
@@ -1056,6 +1062,8 @@ describe.runIf(feedbackOn)('feedback.js in the browser (SPEC §11, §13)', () =>
       ['429', 429],
       ['500', 500],
       ['a network error', 'reject'],
+      ['a redirect to the Access sign-in on another site (a preview whose session ended)', 'redirect'],
+      ['a 302 with no Location, which fetch returns as it is', 302],
       ['no fetch', 'missing'],
     ])('on %s, says it couldn\'t send, offers the Contact page and keeps the text', async (name, answer) => {
       await ready(PROBLEM, { answer });

@@ -11,7 +11,9 @@ import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin';
 // test/global-setup.js, in the root config so that it runs before both,
 // builds the site into a fresh temporary directory first, so the tests never
 // read a stale dist/, and writes the worker/generated/pages.json the Worker
-// imports.
+// imports. It also builds the site with every combination of the feature
+// switches (test/features.config.js), so no test depends on site.config.json's
+// switches (SPEC §11; `npm run test:features` checks that).
 export default defineConfig({
   test: {
     globalSetup: ['test/global-setup.js'],

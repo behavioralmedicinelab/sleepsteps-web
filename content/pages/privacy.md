@@ -8,14 +8,21 @@ scripts: ["stats-switch.js"]
 # The two cards at the top of the page. Keep them in step with SPEC §15.2
 # and with what the site actually stores (SPEC §10, §12, §13, §15.3).
 # A `collect` item with a `feature` shows only while that switch in
-# site.config.json is exactly true; its wording is then in `text`.
+# site.config.json is exactly true; its wording is then in `text`. Searches
+# and usage are both sent as usage events, so both follow features.events.
+# With every item hidden, `collect_none` replaces the list and its note
+# (SPEC §15.2). [Draft wording for features that are off: privacy officer.]
 collect:
-  - "Star ratings you give a video"
+  - feature: ratings
+    text: "Star ratings you give a video"
   - feature: feedback
     text: "Written feedback, if you choose to send it, and the page you sent it from"
-  - "Words you type into the site search. We store these without the code that groups your visit"
-  - "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts opened"
+  - feature: events
+    text: "Words you type into the site search. We store these without the code that groups your visit"
+  - feature: events
+    text: "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts opened"
 collect_note: "Each of these is stored with the page it came from and the date and hour, never the exact time."
+collect_none: "Nothing at the moment: ratings, feedback and usage statistics are all turned off. Anything collected before is kept as “How long we keep it” below says."
 not_collect:
   - "Your name, email or other contact details, unless you email or phone us (see below)"
   - "Accounts or passwords"
@@ -31,17 +38,26 @@ not_collect_note: "To count visits, your browser tab holds a temporary random co
   in. Links to other sites need rel="noreferrer" and a host on the build
   test's allowlist (SPEC §16.1).
 -#}
+{#- The `collect` items whose switch is on (or that have none). #}
+{%- set collected = [] %}
+{%- for item in collect %}
+{%- if not item.feature or site.features[item.feature] === true %}
+{%- set _ = collected.push(item.text or item) %}
+{%- endif %}
+{%- endfor %}
 <div class="privacy-cards">
 <section class="card privacy-card privacy-card--collect">
 <h2>What we collect</h2>
+{%- if collected.length %}
 <ul>
-{%- for item in collect %}
-{%- if not item.feature or site.features[item.feature] === true %}
-<li>{{ item.text or item }}</li>
-{%- endif %}
+{%- for text in collected %}
+<li>{{ text }}</li>
 {%- endfor %}
 </ul>
 <p>{{ collect_note }}</p>
+{%- else %}
+<p>{{ collect_none }}</p>
+{%- endif %}
 </section>
 <section class="card privacy-card privacy-card--not-collect">
 <h2>What we don't collect</h2>
@@ -92,7 +108,7 @@ Some of this processing may happen outside Australia.
 
 Websites can keep small pieces of information in your browser. Cookies are one kind. Browser storage is another.
 
-We don't use cookies to track you or show you ads, and we don't set any cookies ourselves. A few things may be stored in your browser, by us or by the services we use: to make the site work, to protect it from spam and automated programs, or to count visits without knowing who you are. They are all listed here. We don't use any of them to find out who you are.
+We don't use cookies to track you or show you ads, and we don't set any cookies ourselves. A few things may be stored in your browser, by us or by the services we use: to make the site work and keep your connection secure, to protect it from spam and automated programs{% if site.features.events === true %}, to tell our hosting provider about connections that fail, or to count visits without knowing who you are{% else %}{# features.events off: draft wording for the privacy officer (SPEC §15.2, §21) #}, or to tell our hosting provider about connections that fail{% endif %}. They are all listed here. We don't use any of them to find out who you are.
 
 <div class="table-scroll" role="region" aria-labelledby="storage-table-caption" tabindex="0">
 <table class="storage-table">
@@ -105,10 +121,16 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
 <tr><th scope="row"><code>sleepsteps-visit</code></th><td>This website</td><td>A random code that lets us count visits. It groups the usage information from one visit, such as page views and plays. On its own it can't identify you. It is stored when you open a sleep problem page, the introduction or Getting urgent help, unless you have turned off usage statistics.</td><td>Deleted when you close the tab. Reopening a closed tab, or your browser restoring its tabs, can bring it back, and duplicating a tab copies it.</td></tr>
 <tr><th scope="row"><code>sleepsteps-stats-off</code></th><td>This website</td><td>Remembers that you turned off usage statistics. It is only stored if you do this.</td><td>Until you turn statistics back on or clear your browser data. Safari can also delete it after 7 days without a visit to this website.</td></tr>
 {%- endif %}
+{#- The HSTS and network error reporting rows: draft wording for the privacy
+    officer (SPEC §15.4, §21). The site sends Strict-Transport-Security from
+    src/_headers and the admin pages; Cloudflare adds its own NEL headers to
+    production's responses. #}
+<tr><th scope="row">HTTPS-only setting (HSTS)</th><td>This website</td><td>Tells your browser to always use a secure (HTTPS) connection to this website. It holds no code and nothing about you.</td><td>One year after your last visit</td></tr>
 <tr><th scope="row"><code>cf_clearance</code></th><td>Cloudflare, our hosting provider</td><td>Only if Cloudflare asks your browser to do a quick check that you're a person, not an automated program. It remembers that you passed, so you aren't asked again straight away.</td><td>30 minutes</td></tr>
 {%- if site.features.feedback === true %}
 <tr><th scope="row"><code>cf.turnstile.u</code></th><td>Cloudflare</td><td>Part of the check on the feedback form that stops automated spam. It is only stored if you open the form.</td><td>Cloudflare doesn't say. In our tests it stayed until browser data was cleared.</td></tr>
 {%- endif %}
+<tr><th scope="row">Network error reporting (<code>cf-nel</code>)</th><td>Cloudflare, our hosting provider</td><td>In Chrome, Edge and other browsers built on Chromium: if a request to this website fails, your browser may report the failure to Cloudflare, with the address that failed and the page it came from. If that address was a search results page, it includes what you searched for. Cloudflare says it doesn't record your IP address for this.</td><td>7 days after your last visit</td></tr>
 <tr><th scope="row">YouTube cookies and storage, such as <code>YSC</code> and <code>__Secure-YNID</code></th><td>YouTube (Google)</td><td>Only if you press play on a video. Google says it uses them to play videos, keep YouTube secure and measure use, and lists other purposes, including advertising, on its cookies page. We don't receive this information.</td><td>Some last until you close your browser. Google says others last up to 13 months.</td></tr>
 </tbody>
 </table>
@@ -116,12 +138,21 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
 
 ### Turning off usage statistics
 
-You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts opened, and searches. Ratings and feedback you choose to send still reach us.
-
-{# The switch (src/js/stats-switch.js). Without JavaScript the status line
-    explains and the button stays hidden; the script shows the button and
-    the current state, or says that the browser won't let it save a choice. #}
+{# While features.events is on: what turning statistics off stops, then
+    what still reaches us, naming only the features that are on (SPEC §15.2),
+    then the switch (src/js/stats-switch.js). Without JavaScript the switch's
+    status line explains and the button stays hidden; the script shows the
+    button and the current state, or says that the browser won't let it save
+    a choice. #}
 {% if site.features.events === true %}
+{%- set ratingsOn = site.features.ratings === true %}
+{%- set feedbackOn = site.features.feedback === true %}
+You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts opened, and searches.
+{%- if ratingsOn and feedbackOn %} Ratings and feedback you choose to send still reach us.
+{%- elif ratingsOn %} Ratings you choose to give still reach us.
+{%- elif feedbackOn %} Feedback you choose to send still reaches us.
+{%- endif %}
+
 <div class="stats-switch" data-stats-switch>
 <p class="stats-switch__status" data-stats-status>Turning usage statistics off here needs JavaScript. Without JavaScript, your browser sends us no usage statistics.</p>
 <button type="button" class="button button--primary stats-switch__toggle" data-stats-toggle hidden>Turn off usage statistics</button>

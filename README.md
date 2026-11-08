@@ -6,7 +6,7 @@ Website for a clinical trial of a stepped-care sleep intervention. It is a stati
 
 ## Quick start
 
-Requires Node 22.12 or later. Cloudflare builds with the Node version in `.node-version` (24.22.1) and the npm version in `package.json`'s `packageManager`.
+Requires Node 22.13 or later (`npm test` and the accessibility check use Node's built-in `node:sqlite`, which needs no flag from 22.13). Cloudflare builds with the Node version in `.node-version` (24.22.1) and the npm version in `package.json`'s `packageManager`.
 
 ```sh
 npm install
@@ -14,6 +14,8 @@ npm run build   # build the site into dist/
 npm run dev     # local site + Worker at http://localhost:8787
 npm test        # run tests
 npm run db:migrate:local && npm run dev:collect   # the same, storing usage statistics, ratings and feedback locally (below)
+npm run test:features   # the tests and the build with every combination of the feature switches (Tests, below)
+npm run test:a11y       # the accessibility check in Google Chrome, on a Mac (below)
 ```
 
 `npm run dev` passes extra flags to `wrangler dev`, e.g. `npm run dev -- --port 8799`.
@@ -196,11 +198,43 @@ The intro videos are `chapters` in `content/start.md`, in order, each with a `vi
 
 `npm test` runs two Vitest projects: `worker` (the Worker, inside the Workers runtime, each test file with an empty database of its own that the migrations are applied to) and `node` (the CSV parser, content data, checks on a fresh build of the whole site, and the browser modules run on that build in a small test DOM, `test/node/mini-dom.js`). `npm test -- --project node` runs one of them. Before either runs, `test/global-setup.js` builds the site into a temporary directory; that build also writes `worker/generated/pages.json`, the list of pages and their videos the Worker checks events, ratings and feedback against (`SPEC.md` §8.3). The tests never contact Cloudflare: the Worker tests stand in for Turnstile's Siteverify, and the browser-module tests for its script. The admin tests sign their own Access tokens with throwaway keys and stand in for Access's key list.
 
+The setup also builds the site with every combination of the three feature switches (ratings, feedback, usage statistics) through `test/features.config.js`, a test-only config that never writes `pages.json`. The widget tests run on the build with all three on, and `test/node/features-off.test.js` checks each combination's pages, so turning a feature off in `site.config.json` skips none of the checks and `npm test` still passes (`SPEC.md` §11). `npm run test:features` goes further: for each combination it runs `npm test` and `npm run build` in a temporary copy of the repo with `site.config.json` set that way, and fails unless every run has the same tests as all on. It takes about 25 seconds and changes nothing in the repo.
+
+## Security headers and browser checks
+
+### Security headers
+
+Static pages, scripts, styles and media get their headers from one rule, `/*`, in `src/_headers`: the Content Security Policy (enforced), `Referrer-Policy`, `X-Content-Type-Options`, `Permissions-Policy`, `X-Frame-Options`, `Cross-Origin-Opener-Policy` and `Strict-Transport-Security`. The API and the admin pages set their own in the Worker (`worker/lib/http.js`, `worker/routes/admin.js`). `SPEC.md` §16.1 explains each value, and `test/node/deploy-config.test.js` pins them.
+
+- Set each header in one rule only. Cloudflare joins a header that two rules set with a comma, which for the policy means two policies, both enforced. A rule for one path that needs a different value goes after `/*` and starts with `! <Header>`.
+- A new third-party script or frame needs its host in the policy and in `SPEC.md` §16.2; the deploy-config test fails if the code loads a host the policy doesn't allow. Inline scripts, inline styles and `style="…"` are blocked, and the build tests forbid them.
+- Never use `no-referrer` anywhere: embedded videos stop playing and the API refuses the pages' requests.
+- Cloudflare adds Network Error Logging headers (`nel`, `report-to`) of its own to production's responses. The site discloses them on the privacy page rather than overriding them (`SPEC.md` §15.4, §16.1).
+
+To look for problems by hand, run `npm run dev` and open http://localhost:8787 (not another host name: Chrome logs an error about `Cross-Origin-Opener-Policy` on plain-`http` hosts other than `localhost`, `127.0.0.1` and `*.localhost`). In the developer tools' Console, with every level shown, there should be no "Content Security Policy" message. These don't count (`SPEC.md` §20 M7): the API's 404s while data collection is off, a missing page's own 404, and messages inside YouTube's and Cloudflare's frames, or warnings from their scripts in our page (for example a `postMessage` warning from Turnstile's `api.js` or YouTube's widget API).
+
+### The accessibility check (`npm run test:a11y`)
+
+`npm run test:a11y` builds the site, serves it locally under the real headers (and the admin pages through the real Worker code with sample data and a throwaway sign-in), and drives Google Chrome to check it with axe-core:
+
+- every page, and the main states (menus, groups, the filter, an open solution card, a rating sent or failed, search results, none and failed, the statistics switch, the feedback dialog's states, pages without JavaScript, the admin summary, error and download pages), at 320 and 1280px wide;
+- at 320px with WCAG 1.4.12's wider text spacing, every page and the open phone menu, solution card and feedback dialog and the admin summary and download pages, where nothing may scroll sideways or be cut off by a box that clips (text that overlaps other content without being clipped still needs a person's eye);
+- a keyboard walk of each page type, the phone menu, a solution card and the feedback dialog: every stop shows a 2px ring, is at least 44px, and comes fully on screen, Tab and Shift+Tab give the same order, and nothing traps focus;
+- in every state, the site's own errors: Content Security Policy violations, script errors, console messages from our scripts and failed requests to the site.
+
+It fails on any of those, and lists for a person to check what axe couldn't decide, other sites' console messages and warnings in our page (for example from Turnstile's `api.js`), failed requests to other sites and failures caused on purpose. It doesn't capture messages inside YouTube's or Cloudflare's frames (Turnstile's frame logs errors on every render, `SPEC.md` §13). Those don't count (`SPEC.md` §20 M7), and only a person's own browser check sees them. It runs on a Mac with Google Chrome installed (set `CHROME_PATH` to use another Chrome or Chromium); without Chrome it stops and says so. It needs the internet only for Turnstile's test widget, and takes about four minutes with the build. A check that needs a feature that is switched off is skipped, and the output says so. `npm run test:a11y -- --only <pattern>` runs the checks whose names match, and `-- --report <file>` saves every result as JSON. It isn't part of `npm test` or Cloudflare's builds, which have no browser. Run it after changes to templates, CSS or browser scripts, and before launch. It doesn't replace people: one screen-reader session with VoiceOver and NVDA is planned before the privacy go-ahead pull request or launch (M8), whichever comes first (`SPEC.md` §18.4).
+
+`npm run a11y:serve` builds the site and serves the same local copy without Chrome, until you press Ctrl+C: the site with data collection on, and the admin pages with sample data and a throwaway sign-in, at http://127.0.0.1:8790/ (it prints the admin addresses to open). Use it for checks a person makes, such as the screen-reader session, zoom, print preview and the admin download. `npm run a11y:serve -- --port 8791` picks another port, and `-- --host <address>` listens on one of the Mac's network addresses instead, so NVDA in a Windows virtual machine or on another computer can reach it (there the feedback dialog says the spam check isn't working, as on any host other than `localhost` or `127.0.0.1`). Nothing it stores outlasts the run.
+
+### The site icons
+
+`src/favicon.svg`, `src/favicon.ico` and `src/apple-touch-icon.png` are the only copies of the site icons. The build copies them to the site root, and every page and the admin pages link them. To change an icon, replace the file in `src/`, keeping the SVG to presentation attributes (no `<style>`, `style="…"`, script or link; a build test checks this, `SPEC.md` §7.5).
+
 ## Deployment
 
 Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 
-- **Merging to `main`** runs `npm test && npm run build` and deploys production. Until launch, production is at `sleepsteps.behavioural-medicine-lab.workers.dev`, marked `noindex` so search engines leave it out.
+- **Merging to `main`** runs `npm test && npm run build` and deploys production. Until launch, production is at `sleepsteps.behavioural-medicine-lab.workers.dev`, marked `noindex` so search engines leave it out. Merging a change to `src/_headers` changes production's security headers, so a person checks the pull request's preview in Chrome, Firefox and Safari first (`SPEC.md` §18.4).
 - **Other branches** each get a preview at `<branch>-sleepsteps.behavioural-medicine-lab.workers.dev`. All previews share one database, `sleepsteps-preview`, separate from production's, for test data only.
 - **Data collection is off** (`DATA_COLLECTION` in `wrangler.jsonc`): in production until the privacy officer's go-ahead, and in previews until they are behind Cloudflare Access (`SPEC.md` §11, §21). Pages still send usage statistics, and the API answers them with 404 and stores nothing; the stars under each video show, and say "Couldn't send right now — please try again later" when used. The feedback dialog shows too. In production, until a person has created the Turnstile widget and its site key is in `site.config.json`, it has no box to write in: it says the spam check isn't working, points to the Contact page and offers Close; after that it says "Couldn't send right now…" until the go-ahead. Previews always use Cloudflare's test key (`SPEC.md` §11, §13). The API also answers only on the hosts in `API_HOSTS`: none in production until launch, and every preview URL in previews (`SPEC.md` §14.1).
 - **The admin page** (`/admin/`, below) answers only after Cloudflare Access is set up (`SPEC.md` §18.4 step 6): until then it says "Forbidden" everywhere. Once previews are behind Access, everyone who opens a preview link signs in with a PIN, and `/admin/` there shows the preview database's test data, after `npm run db:migrate:preview`.
@@ -210,7 +244,7 @@ Cloudflare Workers Builds deploys the site from GitHub (`SPEC.md` §18.3):
 
 The research team sees what the site has stored (ratings, feedback, searches and usage statistics) at `/admin/` on the live site, and on preview links once those are behind Cloudflare Access (`SPEC.md` §14.4). Access asks for your university email and sends you a one-time PIN. Only people on the "data access" list get into production's page; previews use a separate "preview reviewers" list, and their database holds test data only. Sign out with the link at the top of the page, which also shows which address you are on.
 
-Until a person has set up Access (`SPEC.md` §18.4 step 6), every `/admin` address answers "Forbidden", everywhere. The admin pages also answer only on the addresses the site's API answers on (`API_HOSTS`), never on production's version URLs. There is no way to open them locally with `npm run dev`: they need an Access sign-in, and there is deliberately no way to skip it.
+Until a person has set up Access (`SPEC.md` §18.4 step 6), every `/admin` address answers "Forbidden", everywhere. The admin pages also answer only on the addresses the site's API answers on (`API_HOSTS`), never on production's version URLs. There is no way to open them locally with `npm run dev`: they need an Access sign-in, and the deployed Worker deliberately has no way to skip it. To look at them locally with sample data (for accessibility checks, print preview or a download), run `npm run a11y:serve` (above): its server, which is never deployed, signs itself in with a throwaway token.
 
 **What the page shows,** for a date range (the last 30 days unless you choose; up to 92 days):
 

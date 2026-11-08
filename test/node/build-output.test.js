@@ -1,11 +1,16 @@
 // Checks every built HTML page for the document shell and for what the CSP
-// in SPEC §16.1 will enforce. The site is built fresh by global-setup.js.
+// in SPEC §16.1 enforces (src/_headers; deploy-config.test.js checks the
+// policy itself). The site is built fresh by global-setup.js, with every
+// feature on whatever site.config.json says, so no check here changes while a
+// switch is off (SPEC §11). features-off.test.js checks the shell and the CSP
+// rules on the site built with each combination of switches, and that the
+// real build matches the one with the same switches.
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import { attr, readHtmlPages, tags, text } from './helpers.js';
 
-const site = inject('builtSite');
+const site = inject('builtSiteOn');
 const pages = readHtmlPages(site);
 
 // A URL with a scheme, or protocol-relative: anything not on our own origin.
@@ -53,6 +58,52 @@ describe('the admin assets', () => {
 
   it('loads neither on any public page', () => {
     for (const { file, html } of pages) expect(html, file).not.toMatch(/admin\.css|admin-export\.js/);
+  });
+});
+
+// The site icons (SPEC §7.5), copied from src/ to the site root. Each
+// page links all three, so no browser asks for a missing one; /favicon.ico is
+// also where a browser looks when nothing names an icon (the PDF viewer).
+const ICON_LINKS = [
+  '<link rel="icon" href="/favicon.svg" type="image/svg+xml">',
+  '<link rel="icon" href="/favicon.ico" sizes="32x32">',
+  '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
+];
+
+describe('the site icons (SPEC §7.5)', () => {
+  const read = (name) => readFileSync(path.join(site, name));
+
+  it('copies favicon.svg: an SVG drawn with presentation attributes only, loading nothing', () => {
+    const svg = read('favicon.svg').toString('utf8');
+    const root = svg.match(/^(?:<\?xml[^>]*\?>\s*)?(<svg\b[^>]*>)/)?.[1] ?? '';
+    expect(root).toMatch(/\sxmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+    expect(root).toMatch(/\sviewBox="[^"]+"/);
+    expect(svg.trim()).toMatch(/<\/svg>$/);
+    // Like the logo: no <style>, style attribute, script, event handler or link.
+    expect(svg).not.toMatch(/<style|\sstyle\s*=|<script|\son[a-z]+\s*=|href\s*=|url\(/i);
+  });
+
+  it('copies favicon.ico: an icon file holding 16 and 32px images', () => {
+    const ico = read('favicon.ico');
+    expect([...ico.subarray(0, 4)]).toEqual([0, 0, 1, 0]);
+    const count = ico.readUInt16LE(4);
+    const sizes = Array.from({ length: count }, (_, i) => ico[6 + 16 * i] || 256);
+    expect(sizes).toEqual(expect.arrayContaining([16, 32]));
+    expect(ico.length).toBeLessThan(10 * 1024);
+  });
+
+  it('copies apple-touch-icon.png: a 180 by 180 PNG', () => {
+    const png = read('apple-touch-icon.png');
+    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(png.subarray(12, 16).toString('latin1')).toBe('IHDR');
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([180, 180]);
+  });
+
+  it('serves the files in src/, the only copy (none left in docs/design/)', () => {
+    for (const name of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png']) {
+      expect(read(name).equals(readFileSync(path.join('src', name))), name).toBe(true);
+      expect(existsSync(path.join('docs/design', name)), `docs/design/${name}`).toBe(false);
+    }
   });
 });
 
@@ -124,6 +175,18 @@ describe.each(pages.map((p) => [p.file, p.html]))('%s', (file, html) => {
     expect(html).not.toMatch(/<[^>]+\son[a-z]+\s*=/i);
   });
 
+  it('links the site icons in its <head>, once each', () => {
+    const head = html.slice(0, html.indexOf('</head>'));
+    for (const link of ICON_LINKS) {
+      expect(head.split(link).length - 1, link).toBe(1);
+      expect(html.split(link).length - 1, link).toBe(1);
+    }
+  });
+
+  it('sets no policy in a meta tag: the CSP comes from the header alone (a second policy would also enforce)', () => {
+    expect(html).not.toMatch(/<meta[^>]+http-equiv\s*=\s*["']?content-security-policy/i);
+  });
+
   it('loads nothing from another origin', () => {
     for (const tag of html.match(/<[a-z][a-z0-9-]*\b[^>]*>/gi) ?? []) {
       const name = tag.match(/^<([a-z0-9-]+)/i)[1].toLowerCase();
@@ -143,9 +206,8 @@ describe.each(pages.map((p) => [p.file, p.html]))('%s', (file, html) => {
   // §16.2): its address is in src/js/feedback.js alone, never in a page.
   it('never names Turnstile\'s host, and loads feedback.js exactly when it has the feedback dialog', () => {
     expect(html).not.toMatch(/challenges\.cloudflare\.com/i);
-    const feedbackOn = JSON.parse(readFileSync('site.config.json', 'utf8')).features.feedback === true;
     const footer = html.indexOf('</footer>');
-    const hasDialog = feedbackOn && footer > -1 && attr(tags(html, 'body')[0], 'data-page-id') !== undefined;
+    const hasDialog = footer > -1 && attr(tags(html, 'body')[0], 'data-page-id') !== undefined;
     const dialogs = tags(html, 'dialog');
     expect(dialogs).toHaveLength(hasDialog ? 1 : 0);
     expect(tags(html, 'script').filter((t) => attr(t, 'src') === '/js/feedback.js')).toHaveLength(hasDialog ? 1 : 0);

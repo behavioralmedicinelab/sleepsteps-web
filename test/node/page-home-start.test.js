@@ -10,9 +10,11 @@ import { parseFrontMatter, validateContent } from '../../scripts/validate-conten
 import { attr, elementByClass, pageAt, readHtmlPages, tags, text } from './helpers.js';
 import { installDom } from './mini-dom.js';
 
-const site = inject('builtSite');
-const config = JSON.parse(readFileSync('site.config.json', 'utf8'));
-const ratingsOn = config.features.ratings === true;
+// The site built with every feature on, whatever site.config.json says, so
+// none of these checks changes or is skipped while features.ratings is off
+// (SPEC §11). The pages with the switch off are checked in
+// features-off.test.js.
+const site = inject('builtSiteOn');
 const { model } = validateContent();
 const areas = parseCsvRecords(readFileSync('data/areas.csv', 'utf8')).sort((a, b) => Number(a.order) - Number(b.order));
 const problems = [...model.problems.values()];
@@ -101,22 +103,14 @@ describe('Home (/)', () => {
   it('ends step 3 with the ratings note while ratings are on (Main.dc.html, SPEC §7.5), and has no widget', () => {
     const body = elementByClass(elementByClass(html, 'home-step--3', 'li'), 'home-step__body', 'div');
     const note = elementByClass(body, 'home-step__note', 'p');
-    if (ratingsOn) {
-      expect(note).toBe('<p class="home-step__note" hidden data-js-only>Rate each video to help us improve</p>');
-      expect(body).toMatch(/<\/p>\s*<p class="home-step__note" [^>]*>[^<]*<\/p>\s*<\/div>$/);
-    } else {
-      expect(note).toBeUndefined();
-    }
-    expect(text(main).match(/Rate each video/g) ?? []).toHaveLength(ratingsOn ? 1 : 0);
+    expect(note).toBe('<p class="home-step__note" hidden data-js-only>Rate each video to help us improve</p>');
+    expect(body).toMatch(/<\/p>\s*<p class="home-step__note" [^>]*>[^<]*<\/p>\s*<\/div>$/);
+    expect(text(main).match(/Rate each video/g) ?? []).toHaveLength(1);
     expect(main).not.toMatch(/data-rating|Was this helpful|<fieldset/);
   });
 
   it('ships the ratings note hidden, so without JavaScript Home reads as with ratings off (SPEC §11)', () => {
     const note = tags(main, 'p').find((t) => attr(t, 'class') === 'home-step__note');
-    if (!ratingsOn) {
-      expect(note).toBeUndefined();
-      return;
-    }
     expect([attr(note, 'hidden'), attr(note, 'data-js-only')]).toEqual(['', '']);
     // menu.js shows it, and Home loads menu.js but not rating.js.
     const scripts = tags(html, 'script').map((t) => attr(t, 'src'));
@@ -125,8 +119,8 @@ describe('Home (/)', () => {
   });
 
   it('renders the note only while features.ratings is exactly true (SPEC §11)', () => {
-    // Home's body rendered with each switch value, as the built site can't
-    // show more than one (site.config.json is fixed for the test build).
+    // Home's body rendered with each switch value (features-off.test.js
+    // checks the pages built with the switch off).
     const require = createRequire(import.meta.url);
     const nunjucks = createRequire(require.resolve('@11ty/eleventy'))('nunjucks');
     const filters = {};
@@ -153,12 +147,8 @@ describe('Home (/)', () => {
       vi.resetModules();
       await import('../../src/js/menu.js');
       const note = dom.document.querySelector('.home-step__note');
-      if (ratingsOn) {
-        expect([note.hidden, note.textContent]).toEqual([false, 'Rate each video to help us improve']);
-        expect(dom.document.querySelectorAll('[data-js-only]')).toEqual([note]);
-      } else {
-        expect(note).toBeNull();
-      }
+      expect([note.hidden, note.textContent]).toEqual([false, 'Rate each video to help us improve']);
+      expect(dom.document.querySelectorAll('[data-js-only]')).toEqual([note]);
     } finally {
       dom.restore();
     }
@@ -347,10 +337,6 @@ describe('Start here (/start/)', () => {
       const hasFormats = Boolean(c.handout || c.audio);
       // The board's white bar is gone: the row sits right after the video.
       expect(html).not.toMatch(/start-chapter__bar/);
-      if (!ratingsOn && !hasFormats) {
-        expect(row).toBeUndefined();
-        return;
-      }
       expect(row).toBeTruthy();
       // The video's frame, then the video itself, end right before the row.
       expect(html).toMatch(/<\/div>\s*<\/div>\s*<div class="video-controls"[^>]*>/);
@@ -359,16 +345,12 @@ describe('Start here (/start/)', () => {
       // "Audio only" first, so opening it never moves its button (SPEC §7.5).
       if (c.audio && c.handout) expect(row.indexOf('<details')).toBeLessThan(row.indexOf('<a class="format-button"'));
       const widget = elementByClass(row, 'rating', 'div');
-      if (ratingsOn) {
-        expect(tags(widget, 'div')[0]).toBe(`<div class="rating" data-rating="${c.video}" hidden>`);
-        expect(text(elementByClass(widget, 'rating__legend', 'legend'))).toBe(`Was this helpful? ${text(c.title)}`);
-        for (const before of ['<a class="format-button"', '<details']) {
-          if (row.includes(before)) expect(row.indexOf(before)).toBeLessThan(row.indexOf(widget));
-        }
-        expect(widget).not.toMatch(/notice-text|anonymous|About the information/);
-      } else {
-        expect(widget).toBeUndefined();
+      expect(tags(widget, 'div')[0]).toBe(`<div class="rating" data-rating="${c.video}" hidden>`);
+      expect(text(elementByClass(widget, 'rating__legend', 'legend'))).toBe(`Was this helpful? ${text(c.title)}`);
+      for (const before of ['<a class="format-button"', '<details']) {
+        if (row.includes(before)) expect(row.indexOf(before)).toBeLessThan(row.indexOf(widget));
       }
+      expect(widget).not.toMatch(/notice-text|anonymous|About the information/);
       expect(tags(row, 'a').filter((t) => attr(t, 'class') === 'format-button').map((t) => attr(t, 'href'))).toEqual(
         c.handout ? [`/media/pdf/${c.handout}`] : [],
       );
@@ -385,8 +367,8 @@ describe('Start here (/start/)', () => {
     const content = elementByClass(main, 'start-flow', 'div');
     expect(links(content).filter((l) => /feedback/i.test(l.name))).toEqual([]);
     expect(content).not.toMatch(/<textarea|<form\b/);
-    expect(tags(content, 'fieldset')).toHaveLength(ratingsOn ? chapters.length : 0);
-    expect([...content.matchAll(/\sdata-rating="([^"]+)"/g)].map((m) => m[1])).toEqual(ratingsOn ? chapters.map((c) => c.video) : []);
+    expect(tags(content, 'fieldset')).toHaveLength(chapters.length);
+    expect([...content.matchAll(/\sdata-rating="([^"]+)"/g)].map((m) => m[1])).toEqual(chapters.map((c) => c.video));
   });
 
   it('ends with the card to the Sleep problems page, then the YouTube note, once, last (SPEC §15.1)', () => {
@@ -407,7 +389,11 @@ describe('Start here (/start/)', () => {
   });
 
   it('contacts nothing before play: no resource hints, iframes or YouTube scripts', () => {
-    expect(tags(html, 'link').map((t) => attr(t, 'rel'))).toEqual(tags(html, 'link').map(() => 'stylesheet'));
+    // Only this site's stylesheets and icons (SPEC §7.5): no preconnect, preload or other hint.
+    for (const link of tags(html, 'link')) {
+      expect(['stylesheet', 'icon', 'apple-touch-icon'], link).toContain(attr(link, 'rel'));
+      expect(attr(link, 'href'), link).toMatch(/^\/(?!\/)/);
+    }
     expect(html).not.toMatch(/<iframe|iframe_api|youtube-nocookie|ytimg/);
   });
 });
@@ -418,7 +404,7 @@ describe('[data-js-only] across the built site', () => {
   const pages = readHtmlPages(site).filter((p) => /\sdata-js-only[\s>=]/.test(p.html));
 
   it('is on Home alone, while ratings are on', () => {
-    expect(pages.map((p) => p.file)).toEqual(ratingsOn ? ['index.html'] : []);
+    expect(pages.map((p) => p.file)).toEqual(['index.html']);
   });
 
   it.each(pages.map((p) => [p.file, p.html]))('%s ships each one hidden and loads menu.js, which shows them', (file, html) => {

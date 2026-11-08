@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.13.0"
   },
   "packageManager": "npm@11.18.0",
   "scripts": {
@@ -16,6 +16,9 @@
     "dev:collect": "npm run build && (eleventy --watch --quiet & wrangler dev --var DATA_COLLECTION:on --var API_HOSTS:localhost:8787,127.0.0.1:8787 --var TURNSTILE_SECRET:1x0000000000000000000000000000000AA)",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:features": "node scripts/test-features.js",
+    "test:a11y": "npm run build && node scripts/a11y/run.js",
+    "a11y:serve": "npm run build && node scripts/a11y/run.js --serve",
     "db:migrate:local": "wrangler d1 migrations apply sleepsteps --local",
     "db:migrate:remote": "wrangler d1 migrations apply sleepsteps --remote",
     "db:migrate:preview": "wrangler d1 migrations apply sleepsteps-preview --remote --config wrangler.preview-migrations.jsonc"
@@ -23,6 +26,7 @@
   "devDependencies": {
     "@11ty/eleventy": "3.1.7",
     "@cloudflare/vitest-plugin": "1.4.8",
+    "axe-core": "4.14.0",
     "vitest": "4.1.12",
     "wrangler": "4.153.0"
   },
