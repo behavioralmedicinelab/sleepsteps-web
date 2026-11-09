@@ -56,7 +56,7 @@ const ALL_ON = {
   'Sleep problems': ['menu', 'problems', 'feedback'],
   Privacy: ['menu', 'stats-switch', 'feedback'],
   'Getting urgent help': ['events', 'feedback'],
-  'Home, About, Contact, Get more help': ['menu', 'feedback'],
+  'Home, About, Contact, Referral info': ['menu', 'feedback'],
   '404 page': ['menu'],
 };
 
@@ -70,7 +70,7 @@ function kindOf(file) {
     'privacy/index.html': 'Privacy',
     'urgent-help/index.html': 'Getting urgent help',
     '404.html': '404 page',
-  }[file] ?? 'Home, About, Contact, Get more help';
+  }[file] ?? 'Home, About, Contact, Referral info';
 }
 
 const allOn = builds.find((b) => b.name === 'all on');

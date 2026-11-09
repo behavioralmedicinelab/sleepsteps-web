@@ -7,8 +7,8 @@
   The current nav item comes from page.url (aria-current="page", or "true" on
   pages inside the Sleep problems section).
 
-  The items are Start here, Sleep problems, Get more help and Contact
-  (project lead, 2026-11-07; the boards have About where Get more help
+  The items are Start here, Sleep problems, Referral info and Contact
+  (project lead, 2026-11-07; the boards have About where Referral info
   is). About is in the footer only (SPEC §7.5).
 
   Phone menu: a native <details>/<summary>, so it opens with JavaScript off.
@@ -31,7 +31,7 @@
           {%- for item in [
             { href: '/start/', label: 'Start here' },
             { href: '/problems/', label: 'Sleep problems' },
-            { href: '/help/', label: 'Get more help' },
+            { href: '/help/', label: 'Referral info' },
             { href: '/contact/', label: 'Contact' }
           ] %}
           <li><a class="site-nav__link" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href, 'section') | safe }}>{{ item.label }}</a></li>
@@ -69,7 +69,7 @@
             {%- for item in [
               { href: '/problems/', label: 'Sleep problems', primary: true },
               { href: '/start/', label: 'Start here' },
-              { href: '/help/', label: 'Get more help' },
+              { href: '/help/', label: 'Referral info' },
               { href: '/contact/', label: 'Contact' }
             ] %}
             <li><a class="mobile-nav__link{% if item.primary %} mobile-nav__link--primary{% endif %}" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href, 'section') | safe }}>{{ item.label }}</a></li>

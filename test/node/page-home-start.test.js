@@ -215,7 +215,7 @@ describe('Home (/)', () => {
     const trial = elementByClass(html, 'home-trial', 'div');
     expect(links(trial).map((l) => [l.href, l.name])).toEqual([
       ['/about/', 'More about us and the trial'],
-      ['/help/', 'Get more help'],
+      ['/help/', 'Referral info'],
     ]);
     const { trial_text } = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
     expect(text(elementByClass(trial, 'home-trial__main', 'section'))).toBe(`About the trial Part of a research study ${trial_text} More about us and the trial`);
