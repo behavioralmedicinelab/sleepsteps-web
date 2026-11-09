@@ -30,7 +30,7 @@ const NAV_CURRENT = {
   '/problems/restless-legs/': ['Sleep problems', 'true'],
   '/about/': null,
   '/contact/': ['Contact', 'page'],
-  '/help/': ['Get more help', 'page'],
+  '/help/': ['Referral info', 'page'],
   '/privacy/': null,
   '/search/': null,
   '/404.html': null,
@@ -190,7 +190,7 @@ describe('problem pages and the Sleep problems page', () => {
 
 describe('information pages', () => {
   const INFO = {
-    '/help/': 'Get more help',
+    '/help/': 'Referral info',
     '/about/': 'About us',
     '/contact/': 'Contact us',
     '/privacy/': 'Privacy and your data',
@@ -234,10 +234,10 @@ describe('information pages', () => {
 
   it.each(Object.entries(INFO))('marks %s as the current page in the header and footer menus', (url, label) => {
     const html = pageAt(site, url);
-    // Get more help and Contact are in the header too, Contact as
+    // Referral info and Contact are in the header too, Contact as
     // "Contact"; About ("About" in the footer) and Privacy and your data are
     // in the footer only.
-    const header = { '/help/': 'Get more help', '/contact/': 'Contact' }[url];
+    const header = { '/help/': 'Referral info', '/contact/': 'Contact' }[url];
     const short = { '/about/': 'About', '/contact/': 'Contact' }[url];
     expect(currentLinks(elementByClass(html, 'site-nav', 'nav'))).toEqual(header ? [{ href: url, value: 'page', label: header }] : []);
     expect(currentLinks(elementByClass(html, 'site-footer', 'footer'))).toEqual([{ href: url, value: 'page', label: short ?? label }]);
@@ -267,7 +267,7 @@ describe('information pages', () => {
     if (url === '/privacy/') expect(text(html).replace(/ ([,.])/g, '$1')).toContain('Contact the team at psych.sleepsteps@monash.edu,');
   });
 
-  it('starts "Other support" on Get more help with Cancer Council, its number, hours and website (SPEC §7.4)', () => {
+  it('starts "Other support" on Referral info with Cancer Council, its number, hours and website (SPEC §7.4)', () => {
     const services = elementByClass(pageAt(site, '/help/'), 'help-services', 'ul');
     const first = services.match(/<li\b[^>]*>([\s\S]*?)<\/li>/)[1];
     expect(first).toMatch(/^<h3 class="help-service__name">Cancer Council<\/h3>/);
@@ -338,7 +338,7 @@ describe('information pages', () => {
     );
   });
 
-  it('offers no GP summary or sleep diary on Get more help (SPEC §7.5, §21: not for now)', () => {
+  it('offers no GP summary or sleep diary on Referral info (SPEC §7.5, §21: not for now)', () => {
     const page = pageAt(site, '/help/');
     expect(text(page)).not.toMatch(/GP summary|summary for your GP|diary/i);
     expect(page).not.toMatch(/help-print/);

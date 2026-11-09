@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import configure, { config } from '../../eleventy.config.js';
+import { videoRow } from './helpers.js';
 
 const registered = { filters: {}, collections: {}, dataExtensions: {}, passthrough: [] };
 configure({
@@ -174,58 +175,58 @@ describe('eleventy.config.js', () => {
     ]);
   });
 
-  describe('the video library filters', () => {
-    // Stand-ins for Eleventy collection items.
-    const item = (id, data, body = '') => ({
-      page: { fileSlug: id },
-      data: { video_id: id, ...data },
-      rawInput: body,
-      get templateContent() {
-        if (!body.trim()) throw new Error('no transcript to render');
-        return `<p>${body.trim()}</p>\n`;
-      },
-    });
+  describe('the video library filters (data/videos.csv rows, SPEC §7.1)', () => {
     const videos = [
-      item('intro', { title: 'Intro', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'intro.pdf', audio: 'intro.mp3' }, 'Words.'),
-      item('sleep-drive', { title: '[Sleep drive]', youtube_id: 'PLACEHOLDER', duration: '[mm:ss]', placeholder: true }),
-      item('cognitive-arousal', { title: 'Cognitive arousal', youtube_id: 'AbCdEfGhIj0', duration: '3:05', thumbnail: 'w.jpg' }, '\n  \n'),
+      videoRow('intro', { title: 'Intro', description: 'What it covers.', youtube_url: 'https://youtu.be/AbCdEfGhIjK', duration: '6:40', handout: 'intro.pdf', audio: 'intro.mp3' }),
+      videoRow('sleep-drive', { title: '[Sleep drive]', description: '[Description of “Sleep drive”.]', audio: 'placeholder-audio.mp3', handout: 'placeholder-handout.pdf' }),
+      videoRow('cognitive-arousal', { title: 'Cognitive arousal', description: 'Racing thoughts.', youtube_url: 'https://www.youtube.com/embed/AbCdEfGhIj0?si=x', duration: '3:05', thumbnail: 'w.jpg' }),
     ];
 
-    it('videoById returns the template shape, without the transcript (no page shows it, SPEC §9.3)', () => {
+    it('videoById returns the template shape, with the ID taken from the link', () => {
       const intro = f.videoById('intro', videos);
       expect(intro).toEqual({
-        video_id: 'intro', title: 'Intro', youtube_id: 'AbCdEfGhIjK', duration: '6:40', audio: 'intro.mp3',
-        handout: 'intro.pdf', thumbnail: '', placeholder: false,
+        video_id: 'intro', title: 'Intro', description: 'What it covers.', youtube_id: 'AbCdEfGhIjK', duration: '6:40',
+        audio: 'intro.mp3', handout: 'intro.pdf', thumbnail: '', placeholder: false,
       });
-      // Building the shape never renders a body (the stand-in throws if it is read).
       const arousal = f.videoById('cognitive-arousal', videos);
-      expect([arousal.thumbnail, 'hasTranscript' in arousal, 'transcriptHtml' in arousal]).toEqual(['w.jpg', false, false]);
-      expect(f.videoById('sleep-drive', videos).placeholder).toBe(true);
-      expect(f.videoById('intro', videos)).toBe(intro); // cached per collection
-      expect(() => f.videoById('nope', videos)).toThrow(/unknown video "nope"/);
-      expect(() => f.videoById('intro', undefined)).toThrow(/collections\.videos/);
+      expect([arousal.youtube_id, arousal.thumbnail, arousal.placeholder]).toEqual(['AbCdEfGhIj0', 'w.jpg', false]);
+      // A blank youtube_url is a placeholder, with no ID.
+      expect(f.videoById('sleep-drive', videos)).toMatchObject({ placeholder: true, youtube_id: '', duration: '[mm:ss]' });
+      // No transcript, and not the link itself: the fallback link is built from the ID.
+      expect(Object.keys(intro)).not.toContain('transcript');
+      expect(Object.keys(intro)).not.toContain('youtube_url');
+      expect(f.videoById('intro', videos)).toBe(intro); // cached per data array
+      expect(() => f.videoById('nope', videos)).toThrow(/unknown video "nope" \(not in data\/videos\.csv\)/);
+      expect(() => f.videoById('intro', undefined)).toThrow(/videoById\(videos\)/);
     });
 
-    it('solutionsByTier splits solutions by tier, numbering each tier from 1', () => {
+    it('videoById fails the build on a link that is not a YouTube video link', () => {
+      expect(() => f.videoById('x', [videoRow('x', { youtube_url: 'https://vimeo.com/1' })])).toThrow(/video "x": youtube_url/);
+    });
+
+    it('solutionsByTier splits solutions by tier, numbering each tier from 1, with the blurb or else the video\'s description', () => {
       const tiers = f.solutionsByTier(
         [
           { tier: 'main', video: 'intro', blurb: 'A' },
-          { tier: 'extra', video: 'cognitive-arousal', blurb: 'B' },
-          { tier: 'main', video: 'sleep-drive', blurb: 'C' },
+          { tier: 'extra', video: 'cognitive-arousal' },
+          { tier: 'main', video: 'sleep-drive', blurb: '  ' },
         ],
         videos,
       );
-      expect(tiers.main.map((s) => [s.n, s.blurb, s.video.video_id])).toEqual([[1, 'A', 'intro'], [2, 'C', 'sleep-drive']]);
-      expect(tiers.extra.map((s) => [s.n, s.tier, s.video.title])).toEqual([[1, 'extra', 'Cognitive arousal']]);
+      expect(tiers.main.map((s) => [s.n, s.blurb, s.description, s.video.video_id])).toEqual([
+        [1, 'A', 'A', 'intro'],
+        [2, '', '[Description of “Sleep drive”.]', 'sleep-drive'],
+      ]);
+      expect(tiers.extra.map((s) => [s.n, s.tier, s.video.title, s.description])).toEqual([[1, 'extra', 'Cognitive arousal', 'Racing thoughts.']]);
       expect(f.solutionsByTier(undefined, videos)).toEqual({ main: [], extra: [] });
       expect(() => f.solutionsByTier([{ tier: 'other', video: 'intro' }], videos)).toThrow(/tier/);
     });
 
-    it('introChapters resolves Start here chapters, and gives [] without any', () => {
-      const chapters = f.introChapters([{ video: 'intro', description: 'One.' }, { video: 'cognitive-arousal', description: 'Two.' }], videos);
+    it('introChapters resolves Start here chapters from the videos\' rows, and gives [] without any', () => {
+      const chapters = f.introChapters([{ video: 'intro' }, { video: 'cognitive-arousal' }], videos);
       expect(chapters.map(({ video, ...rest }) => rest)).toEqual([
-        { n: 1, id: 'v1', video_id: 'intro', title: 'Intro', duration: '6:40', description: 'One.' },
-        { n: 2, id: 'v2', video_id: 'cognitive-arousal', title: 'Cognitive arousal', duration: '3:05', description: 'Two.' },
+        { n: 1, id: 'v1', video_id: 'intro', title: 'Intro', duration: '6:40', description: 'What it covers.' },
+        { n: 2, id: 'v2', video_id: 'cognitive-arousal', title: 'Cognitive arousal', duration: '3:05', description: 'Racing thoughts.' },
       ]);
       expect(chapters[0].video).toBe(f.videoById('intro', videos));
       expect(f.introChapters(undefined, videos)).toEqual([]);
@@ -234,7 +235,7 @@ describe('eleventy.config.js', () => {
 
     it('videoFormats says which formats any video has', () => {
       expect(f.videoFormats(videos)).toEqual({ handout: true, audio: true });
-      expect(f.videoFormats(videos.slice(1))).toEqual({ handout: false, audio: false });
+      expect(f.videoFormats(videos.slice(2))).toEqual({ handout: false, audio: false });
     });
   });
 

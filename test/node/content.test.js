@@ -7,7 +7,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseCsvRecords } from '../../scripts/lib/csv.js';
+import { parseCsvRecords, parseCsvTable } from '../../scripts/lib/csv.js';
+import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, readTranscripts } from '../../scripts/lib/videos.js';
 import { validateContent } from '../../scripts/validate-content.js';
 import { listFiles } from './helpers.js';
 
@@ -114,15 +115,18 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
     }
   });
 
-  it('has the 13 stand-alone problems, each with its own [bracketed] video title and no solutions', () => {
+  // The video's title is the team's to change in data/videos.csv, so it is
+  // checked only while the video is still a placeholder.
+  it('has the 13 stand-alone problems, each with no solutions and its own video, whose placeholder title names it', () => {
     const standalone = [...problems].filter(([, { data }]) => data.standalone === true).map(([slug]) => slug);
     expect(standalone.sort()).toEqual([...STANDALONE].sort());
     for (const slug of STANDALONE) {
       const { data } = problems.get(slug);
       expect(data.solutions, slug).toBeUndefined();
-      const title = model.videos.get(data.problem_video).data.title;
-      expect(title, slug).toMatch(/^\[.+\]$/);
-      expect(title, slug).not.toMatch(/^\[About:/);
+      const video = model.videos.get(data.problem_video).data;
+      if (!video.placeholder) continue;
+      expect(video.title, slug).toMatch(/^\[.+\]$/);
+      expect(video.title, slug).not.toMatch(/^\[About:/);
     }
   });
 
@@ -138,11 +142,14 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
     expect([...used].sort()).toEqual([...MECHANISMS].sort());
   });
 
-  it('gives each mechanism video a [bracketed] title and stand-in transcript', () => {
+  // Their wording and transcripts are the team's to change (data/videos.csv,
+  // data/transcripts/), so the brackets are checked only on placeholders.
+  it('has the eight mechanism videos in the library, each placeholder with a [bracketed] title and description', () => {
     for (const id of MECHANISMS) {
-      const { data, body } = model.videos.get(id);
+      const { data } = model.videos.get(id);
+      if (!data.placeholder) continue;
       expect(data.title, id).toMatch(/^\[.+\]$/);
-      expect(body.trim(), id).toBe(`[Transcript of “${data.title.slice(1, -1)}”.]`);
+      expect(data.description, id).toMatch(/^\[.+\]$/);
     }
   });
 
@@ -165,23 +172,89 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
     },
   );
 
-  it('lists the three Start here videos in order', () => {
-    expect(model.start.data.chapters.map((c) => c.video)).toEqual(['how-sleep-works', 'why-cancer-can-change-sleep', 'how-to-use-this-program']);
+  it('lists the three Start here videos in order, each with only its video (the rest is its row)', () => {
+    expect(model.start.data.chapters).toEqual([{ video: 'how-sleep-works' }, { video: 'why-cancer-can-change-sleep' }, { video: 'how-to-use-this-program' }]);
+  });
+});
+
+// The video library, migrated from content/videos/*.md (project lead,
+// 2026-11-09, SPEC §7.1, §22). The team edits it in Excel, so these check
+// rules, not the sample rows: rows may be in any order, videos may be added,
+// and a placeholder may become a real video (README "Videos"). The
+// validator's fixture tests (validate-content.test.js) cover each rule.
+describe('data/videos.csv', () => {
+  const { model, warnings } = validateContent(process.cwd());
+  const bytes = readFileSync('data/videos.csv');
+  const { columns, rows } = parseCsvTable(bytes.toString('utf8'));
+  const INTRO = ['how-sleep-works', 'why-cancer-can-change-sleep', 'how-to-use-this-program'];
+  const problemVideos = handoffProblems.map((p) => `${p.slug}-about`);
+
+  it('has the SPEC §7.1 columns, in order', () => {
+    expect(columns).toEqual(['video_id', 'title', 'description', 'youtube_url', 'duration', 'audio', 'handout', 'thumbnail']);
   });
 
-  it('has sample videos covering every combination of formats the templates handle (a transcript is not one: no page shows it)', () => {
-    const videos = [...model.videos.values()].map(({ data }) => data);
-    expect(videos.some((v) => v.handout && v.audio)).toBe(true);
-    expect(videos.some((v) => !v.handout && !v.audio)).toBe(true);
-    expect(videos.some((v) => v.audio && !v.handout)).toBe(true);
-    expect(videos.some((v) => v.handout && !v.audio)).toBe(true);
+  // Excel reads a CSV without a byte-order mark as Windows-1252 (or Mac
+  // Roman), garbling the curly quotes, and the team then saves the garbled
+  // text as "CSV UTF-8" (SPEC §7.1). Excel's own "CSV UTF-8" save writes one.
+  it('starts with a UTF-8 byte-order mark, so Excel opens it as UTF-8', () => {
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
   });
 
-  it('marks every sample video as a placeholder, with no YouTube ID', () => {
-    // Sample content must never carry a real third-party video ID.
-    for (const [id, { data }] of model.videos) {
-      expect([id, data.placeholder, data.youtube_id]).toEqual([id, true, 'PLACEHOLDER']);
+  // video_ids are permanent (SPEC §7.1): ratings, events and pages.json use
+  // them. Any order, and more rows, are fine.
+  it('keeps every video_id migrated from content/videos (the intro, mechanism and problem videos)', () => {
+    const ids = rows.map((r) => r.record.video_id);
+    expect(ids).toEqual(expect.arrayContaining([...INTRO, ...MECHANISMS, ...problemVideos]));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('numbers its rows as Excel does: unique and increasing from row 2', () => {
+    const numbers = rows.map((r) => r.row);
+    expect(numbers[0]).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < numbers.length; i += 1) expect(numbers[i]).toBeGreaterThan(numbers[i - 1]);
+  });
+
+  it('marks each video without a link as a placeholder, with no YouTube ID and a [bracketed] title and description', () => {
+    for (const { record } of rows.filter((r) => r.record.youtube_url === '')) {
+      expect(model.videos.get(record.video_id).data, record.video_id).toMatchObject({ placeholder: true, youtube_id: '' });
+      expect(record.title, record.video_id).toMatch(/^\[.+\]$/);
+      expect(record.description, record.video_id).toMatch(/^\[.+\]$/);
     }
+    // The build lists them (SPEC §20 M8 requires none).
+    const placeholders = rows.filter((r) => r.record.youtube_url === '').map((r) => r.record.video_id);
+    expect(warnings.filter((w) => w.code === 'placeholder-video').map((w) => w.message)).toEqual(placeholders);
+  });
+
+  it('gives each video with a link a YouTube ID, its own audio and handout, and a real duration', () => {
+    for (const { record } of rows.filter((r) => r.record.youtube_url !== '')) {
+      const { data } = model.videos.get(record.video_id);
+      expect(data.placeholder, record.video_id).toBe(false);
+      expect(data.youtube_id, record.video_id).toMatch(/^[A-Za-z0-9_-]{11}$/);
+      expect(data.duration, record.video_id).toMatch(/^\d{1,2}:[0-5]\d$/);
+      expect([data.audio, data.handout], record.video_id).not.toContain(PLACEHOLDER_FILES.audio);
+      expect([data.audio, data.handout], record.video_id).not.toContain(PLACEHOLDER_FILES.handout);
+    }
+  });
+
+  it('gives every transcript in data/transcripts/ a video in the library', () => {
+    for (const id of readTranscripts(TRANSCRIPTS_DIR).keys()) expect(model.videos.has(id), id).toBe(true);
+  });
+});
+
+describe('the M1b layouts', () => {
+  const { model, warnings } = validateContent(process.cwd());
+  // A video may be added to the spreadsheet before a page names it: the
+  // build warns about it rather than failing (SPEC §7.1).
+  it('use only videos in the library, and the build lists any video no page uses', () => {
+    const used = new Set();
+    for (const { data } of model.problems.values()) {
+      used.add(data.problem_video);
+      for (const s of data.solutions ?? []) used.add(s.video);
+    }
+    for (const c of model.start.data.chapters) used.add(c.video);
+    for (const id of used) expect(model.videos.has(id), id).toBe(true);
+    const unused = [...model.videos.keys()].filter((id) => !used.has(id));
+    expect(warnings.filter((w) => w.code === 'unused-video').map((w) => w.message)).toEqual(unused);
   });
 });
 

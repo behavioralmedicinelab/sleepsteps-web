@@ -35,7 +35,7 @@ trial_text: "We're testing this program in a research trial run by a team at Mon
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
 {%- set problemCount = collections.problems | length -%}
 {%- set areaWord = topicAreas | length | numberWord -%}
-{%- set formats = collections.videos | videoFormats -%}
+{%- set formats = videos | videoFormats -%}
 
 <section class="home-hero on-dark">
   <div class="home-hero__inner container">
@@ -142,7 +142,7 @@ trial_text: "We're testing this program in a research trial run by a team at Mon
     <section class="home-help">
       <h2 class="home-help__heading">Need more help?</h2>
       <p>When to talk to your doctor, and how to see a sleep specialist.</p>
-      <p class="home-help__link link-standalone"><a href="/help/">Get more help</a></p>
+      <p class="home-help__link link-standalone"><a href="/help/">Referral info</a></p>
     </section>
   </div>
 </div>

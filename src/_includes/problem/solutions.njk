@@ -3,7 +3,7 @@
   Problem-A.dc.html, phone Problem-Phone.dc.html; SPEC §7.2, §7.5).
 
     {% from "problem/solutions.njk" import solutionsSection %}
-    {% set tiers = solutions | solutionsByTier(collections.videos) %}
+    {% set tiers = solutions | solutionsByTier(videos) %}
     {% set ratingsOn = site.features.ratings === true %}
     {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, page_id, ratingsOn) }}{% endif %}
     {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, page_id, ratingsOn) }}{% endif %}
@@ -23,32 +23,43 @@
 
   solutionCard(solution, pageId, ratings): one card, an <li> in the grid.
 
+  The closed card (V1, project lead, 2026-11-09) is the same on every card:
+  the thumbnail band with its play disc, step chip ("1 Main" / "1 Extra")
+  and duration, then the title and the description (the solution's blurb,
+  or the video's description where it has none: `solution.description`,
+  SPEC §7.2). Nothing else: no quick "Handout" link and no rating summary.
+  Below 600px it is the Problem-Phone accordion row (number disc, title,
+  description, chevron).
+
+  The open card is the video template (partials/video-block.njk), as every
+  video on the site is: the step chip with Close at its right, the title
+  (h3) and the description, the video, then "Audio only", "Handout" and
+  "Was this helpful?".
+
   Without JavaScript each card is a native <details name="solution">: the
-  <summary> is the closed card (thumbnail band, step chip, duration, title,
-  blurb), and opening it shows the video, then the row of controls under
-  it (partials/video-controls.njk: "Audio only", the
-  handout and the rating). The shared `name` keeps one card open at a
-  time across both sections where browsers support it; elsewhere several
-  can be open, which is harmless. Cards start closed, so the first screen
-  holds one video facade, not two; add `open` to a card's <details> to start
-  it open, and src/js/solutions.js keeps it open.
+  <summary> is the closed card, and opening it shows the video and its row
+  of controls, while the <summary> stays above them as the card's name and
+  only close control (the template's header ships `hidden`). The shared
+  `name` keeps one card open at a time across both sections where browsers
+  support it; elsewhere several can be open, which is harmless. Cards start
+  closed, so the first screen holds one video facade, not two; add `open`
+  to a card's <details> to start it open, and src/js/solutions.js keeps it
+  open.
 
   src/js/solutions.js turns each <details> into a <div>, its summary into an
   <h3> holding a <button aria-expanded aria-controls>, and the panel into a
-  labelled region. It shows the open card's header (step chip, Close,
-  heading, blurb), which ships `hidden` because only it can close the card.
-  Opening a card closes any other, in either section, pausing its media.
-
-  A closed card's meta row (600px and up) holds only a "Handout" link when
-  the video has a handout: no rating summary (project lead, 2026-11-06).
+  region labelled by the template's title. It shows the template's header
+  (step chip, Close, title, description); while a card is open its face is
+  hidden at every width, and Close closes it. Opening a card closes any
+  other, in either section, pausing its media, and moves focus to its title.
 
   ids (unique per page; the validator allows each video once per page):
-  solution-<video_id> on the card, plus -panel, -heading, -blurb, -length.
+  solution-<video_id> on the card, plus -panel, -blurb, -length, and the
+  template's video-<video_id>-title.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/step-chip.njk" import stepChip -%}
-{%- from "partials/video.njk" import videoEmbed -%}
-{%- from "partials/video-controls.njk" import videoControls -%}
+{%- from "partials/video-block.njk" import videoBlock -%}
 
 {%- macro solutionCard(solution, pageId, ratings=false) -%}
 {%- set video = solution.video -%}
@@ -68,36 +79,15 @@
       <span class="solution__disc" aria-hidden="true">{{ solution.n }}</span>
       <span class="solution__text">
         <span class="solution__title">{{ video.title }}</span>
-        <span class="solution__blurb" id="{{ id }}-blurb">{{ solution.blurb }}</span>
+        <span class="solution__blurb" id="{{ id }}-blurb">{{ solution.description }}</span>
         <span class="solution__length visually-hidden" id="{{ id }}-length">Video{% if spoken %}, {{ spoken }}{% endif %}</span>
       </span>
       <span class="solution__chevron" aria-hidden="true">{{ icon('chevron-down', 18) }}</span>
     </span></summary>
     <div class="solution__panel" id="{{ id }}-panel">
-      {#- The open card's header: shown by solutions.js from 600px. Without
-          JavaScript the summary above stays visible and names the card. #}
-      <div class="solution__header" hidden>
-        <div class="solution__header-row">
-          {{ stepChip(solution.n, label, variant='sm') }}
-          <button type="button" class="solution__close" aria-expanded="true" aria-controls="{{ id }}-panel">Close<span class="visually-hidden"> {{ video.title }}</span></button>
-        </div>
-        <h3 class="solution__heading" id="{{ id }}-heading" tabindex="-1">{{ video.title }}</h3>
-        <p class="solution__lede">{{ solution.blurb }}</p>
-      </div>
-      <div class="solution__video">
-        {{ videoEmbed(video, bleed='card') }}
-      </div>
-      {#- The row of controls under the video ("Audio only", the handout, the
-          rating), left out when it would be empty. Holding only the
-          rating, it ships hidden for rating.js to reveal. #}
-      {{- videoControls(video, ratingsOn, 'solution__tools') }}
+      {{ videoBlock(video, heading=3, description=solution.description, label={ num: solution.n, text: label }, close=id + '-panel', bleed='card', ratings=ratingsOn) }}
     </div>
   </details>
-  <div class="solution__meta">
-    {%- if video.handout %}
-    <p class="solution__quick"><a href="/media/pdf/{{ video.handout }}" type="application/pdf" data-handout="{{ video.video_id }}">Handout<span class="visually-hidden">: {{ video.title }} (PDF)</span></a></p>
-    {%- endif %}
-  </div>
 </li>
 {%- endmacro -%}
 

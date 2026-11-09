@@ -21,7 +21,7 @@ const EXTERNAL_URL = /^\s*(?:[a-z][a-z0-9+.-]*:|\/\/|\\\\)/i;
 // YouTube" fallback (§9.1) and YouTube's Terms of Service on /privacy/ (§15.2).
 // Google: its privacy policy, on /privacy/ (§15.2). Creative Commons: the
 // content licence in the footer (§22). Cancer Council: its website, on
-// Getting urgent help and Get more help (§7.4).
+// Getting urgent help and Referral info (§7.4).
 const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommons.org', 'www.cancer.org.au'];
 
 describe('build output', () => {

@@ -215,7 +215,7 @@ describe('Home (/)', () => {
     const trial = elementByClass(html, 'home-trial', 'div');
     expect(links(trial).map((l) => [l.href, l.name])).toEqual([
       ['/about/', 'More about us and the trial'],
-      ['/help/', 'Get more help'],
+      ['/help/', 'Referral info'],
     ]);
     const { trial_text } = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
     expect(text(elementByClass(trial, 'home-trial__main', 'section'))).toBe(`About the trial Part of a research study ${trial_text} More about us and the trial`);
@@ -258,7 +258,8 @@ describe('Start here (/start/)', () => {
       n: i + 1,
       id: `v${i + 1}`,
       video: c.video,
-      description: c.description,
+      // From the video's row in data/videos.csv (SPEC §7.3).
+      description: v.data.description,
       title: v.data.title,
       duration: v.data.duration,
       youtubeId: v.data.youtube_id,
@@ -305,22 +306,27 @@ describe('Start here (/start/)', () => {
   describe.each(chapters.map((c) => [c.id, c]))('chapter #%s', (id, c) => {
     const html = article(id);
 
-    it('is an article named by its title, with the number, eyebrow and description', () => {
-      expect(html).toMatch(new RegExp(`^<article class="start-chapter" id="${id}" aria-labelledby="${id}-title">`));
-      expect(tags(html, 'h2').map((t) => attr(t, 'id'))).toEqual([`${id}-title`]);
-      expect(text(elementByClass(html, 'start-chapter__title', 'h2'))).toBe(text(c.title));
-      expect(elementByClass(html, 'start-chapter__num', 'span')).toBe(`<span class="start-chapter__num" aria-hidden="true">${c.n}</span>`);
-      const eyebrow = elementByClass(html, 'start-chapter__eyebrow', 'p');
-      const visible = eyebrow.replace(/<span class="visually-hidden">[\s\S]*?<\/span>/g, '');
-      expect(text(visible)).toBe(`Video ${c.n} of ${chapters.length} · ${c.duration}`);
-      expect(text(elementByClass(html, 'start-chapter__desc', 'p'))).toBe(c.description);
+    it('is an article named by its title: the video template with the label "n of N", the title and the description', () => {
+      expect(html).toMatch(new RegExp(`^<article class="start-chapter" id="${id}" aria-labelledby="video-${c.video}-title">\\s*<div class="video-block">`));
+      expect(tags(html, 'h2').map((t) => attr(t, 'id'))).toEqual([`video-${c.video}-title`]);
+      expect(text(elementByClass(html, 'video-block__title', 'h2'))).toBe(text(c.title));
+      // Intro-B's "Video n of N · duration" becomes the template's label, in
+      // the solution cards' pill: the frame beside it shows the duration
+      // (project lead, 2026-11-09). No large faint number, no eyebrow.
+      expect(elementByClass(html, 'video-block__top', 'div')).toMatch(
+        new RegExp(`^<div class="video-block__top">\\s*<span class="step-chip step-chip--sm"><span class="step-chip__num">${c.n}</span> <span class="step-chip__label">of ${chapters.length}</span></span>\\s*</div>$`),
+      );
+      expect(html).not.toMatch(/start-chapter__(num|eyebrow|desc|head)|video-block__close/);
+      expect(tags(html, 'div').find((t) => /video-block__header/.test(t))).toBe('<div class="video-block__header">');
+      expect(text(elementByClass(html, 'video-block__desc', 'p'))).toBe(c.description);
     });
 
     it("embeds the video, with no notice of its own (the page's YouTube note is last, SPEC §15.1)", () => {
       const video = elementByClass(html, 'video', 'div');
       const wrapper = tags(video, 'div')[0];
       expect(attr(wrapper, 'data-video')).toBe(c.video);
-      expect(attr(wrapper, 'class').split(' ')).toEqual(expect.arrayContaining(['video--page', 'video--lg']));
+      expect(attr(wrapper, 'class').split(' ')).toEqual(expect.arrayContaining(['video', 'video--page']));
+      expect(attr(wrapper, 'class')).not.toMatch(/video--lg/);
       expect(video).not.toMatch(/notice-text|video__notice|Pressing play/);
       expect(html).not.toMatch(/transcript/i);
       const facades = tags(video, 'a').filter((t) => attr(t, 'class') === 'video__facade');
@@ -332,29 +338,24 @@ describe('Start here (/start/)', () => {
       }
     });
 
-    it('ends with one row of controls under the video: "Audio only", the handout, then the rating, hidden without JavaScript when it would hold only the rating', () => {
+    it('ends with one row of controls under the video: "Audio only", the handout, then the rating', () => {
       const row = elementByClass(html, 'video-controls', 'div');
-      const hasFormats = Boolean(c.handout || c.audio);
       // The board's white bar is gone: the row sits right after the video.
       expect(html).not.toMatch(/start-chapter__bar/);
       expect(row).toBeTruthy();
-      // The video's frame, then the video itself, end right before the row.
-      expect(html).toMatch(/<\/div>\s*<\/div>\s*<div class="video-controls"[^>]*>/);
-      expect(html.slice(html.indexOf(row) + row.length).trim()).toBe('</article>');
-      expect(tags(row, 'div')[0]).toBe(hasFormats ? '<div class="video-controls">' : '<div class="video-controls" hidden data-rating-reveal>');
+      // The video's column ends right before the row, and the row ends the template.
+      expect(html).toMatch(/<\/div>\s*<\/div>\s*<\/div>\s*<div class="video-controls">/);
+      expect(html.slice(html.indexOf(row) + row.length).replace(/<\/div>/g, '').trim()).toBe('</article>');
+      expect(tags(row, 'div')[0]).toBe('<div class="video-controls">');
       // "Audio only" first, so opening it never moves its button (SPEC §7.5).
-      if (c.audio && c.handout) expect(row.indexOf('<details')).toBeLessThan(row.indexOf('<a class="format-button"'));
+      expect(row.indexOf('<details')).toBeLessThan(row.indexOf('<a class="format-button"'));
       const widget = elementByClass(row, 'rating', 'div');
       expect(tags(widget, 'div')[0]).toBe(`<div class="rating" data-rating="${c.video}" hidden>`);
       expect(text(elementByClass(widget, 'rating__legend', 'legend'))).toBe(`Was this helpful? ${text(c.title)}`);
-      for (const before of ['<a class="format-button"', '<details']) {
-        if (row.includes(before)) expect(row.indexOf(before)).toBeLessThan(row.indexOf(widget));
-      }
+      for (const before of ['<a class="format-button"', '<details']) expect(row.indexOf(before)).toBeLessThan(row.indexOf(widget));
       expect(widget).not.toMatch(/notice-text|anonymous|About the information/);
-      expect(tags(row, 'a').filter((t) => attr(t, 'class') === 'format-button').map((t) => attr(t, 'href'))).toEqual(
-        c.handout ? [`/media/pdf/${c.handout}`] : [],
-      );
-      expect(tags(row, 'audio').map((t) => attr(t, 'src'))).toEqual(c.audio ? [`/media/audio/${c.audio}`] : []);
+      expect(tags(row, 'a').filter((t) => attr(t, 'class') === 'format-button').map((t) => attr(t, 'href'))).toEqual([`/media/pdf/${c.handout}`]);
+      expect(tags(row, 'audio').map((t) => attr(t, 'src'))).toEqual([`/media/audio/${c.audio}`]);
     });
   });
 

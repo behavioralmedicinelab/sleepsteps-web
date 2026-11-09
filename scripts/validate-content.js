@@ -1,54 +1,75 @@
 // Content validation (SPEC §7.1-§7.3, §9.2, §9.3, §18.1). Fails the build,
-// with the file and field, on anything a template would otherwise render
-// wrongly or silently drop: missing or misspelt fields, unknown references,
-// solution counts outside 1-3 main / 0-3 extra (a stand-alone problem has
-// none), a video used twice on one page, and media files that are missing or
-// too large. Warns, without failing, about placeholder content that can
-// still build, and about a real (non-placeholder) video without its handout
-// or audio-only version, which every video is to have by launch. A video's
-// transcript (the file's body) is optional and not shown on the site, but
-// the search index reads it, so a body that is there must be plain Markdown.
+// with the file and field (or, in data/videos.csv, the row), on anything a
+// template would otherwise render wrongly or silently drop: missing or
+// misspelt fields, unknown references, solution counts outside 1-3 main /
+// 0-3 extra (a stand-alone problem has none), a video used twice on one
+// page, and media files that are missing or too large. Warns, without
+// failing, about placeholder content that can still build.
+//
+// The video library is data/videos.csv, one row per video (SPEC §7.1): every
+// field is required except youtube_url (blank until the video is on YouTube:
+// a placeholder) and thumbnail. A video on YouTube has its own link (no two
+// rows are one YouTube video), its own audio and handout, never the shared
+// placeholder files, and a real duration. Media names must match a file
+// exactly, capitals included. A transcript
+// (data/transcripts/<video_id>.txt) is optional plain text, not shown on the
+// site; the search index reads it. The team's CSVs and transcripts also fail
+// on text that isn't UTF-8 or that was garbled by opening the file in the
+// wrong encoding (MOJIBAKE).
 //
 // CLI:    node scripts/validate-content.js [--no-placeholders]
 //         (exit code 1 on errors; --no-placeholders is the launch check,
-//         SPEC §20 M8: it also fails on placeholder videos and on any video
-//         without a handout or audio)
+//         SPEC §20 M8: it also fails on placeholder videos)
 // Module: validateContent(rootDir, { launch }) -> { errors, warnings, model }
 //
 // Front matter is read with Eleventy's own parser (gray-matter with js-yaml,
-// resolved from Eleventy's install), so this script reads every file exactly
-// as the build does. No extra dependency (SPEC §5).
+// resolved from Eleventy's install), and data/videos.csv with the same CSV
+// parser as Eleventy's data extension, so this script reads every file
+// exactly as the build does. No extra dependency (SPEC §5).
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseCsvRecords } from './lib/csv.js';
+import { parseCsvRecords, parseCsvTable } from './lib/csv.js';
+import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, VIDEO_COLUMNS, readTranscript, toVideo, transcriptFiles, youtubeIdFromUrl } from './lib/videos.js';
 
 const require = createRequire(import.meta.url);
 const fromEleventy = createRequire(require.resolve('@11ty/eleventy'));
 const matter = fromEleventy('gray-matter');
 const yaml = fromEleventy('js-yaml');
-const MarkdownIt = fromEleventy('markdown-it');
-
-// Transcripts parsed as Eleventy and the search index read them: markdown-it
-// with HTML on and indented code off (Eleventy's defaults,
-// src/Engines/Markdown.js; scripts/build-data.js).
-const markdown = new MarkdownIt({ html: true }).disable('code');
 
 export const TIMES_OF_DAY = ['evening', 'bedtime', 'night', 'early-morning', 'day', 'any'];
 export const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // the static asset limit (SPEC §9.2)
 export const SOLUTION_LIMITS = { main: [1, 3], extra: [0, 3] };
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
-const DURATION = /^\d{1,2}:[0-5]\d(?::[0-5]\d)?$/;
+// m:ss, as YouTube Studio shows a length (no video runs an hour: the audio
+// limit is about 36 minutes, SPEC §9.2). Refusing h:mm:ss also catches
+// Excel turning "6:40" into the time "6:40:00".
+const DURATION = /^\d{1,2}:[0-5]\d$/;
 const BRACKETED = /^\[.*\]$/;
-// A line of a placeholder's stand-in transcript: [bracketed] text, perhaps as
-// a list item, such as "[Transcript of “Pain”.]" or "- [one point]".
+// A line of a stand-in transcript: [bracketed] text, perhaps as a list item,
+// such as "[Transcript of “Pain”.]" or "- [one point]".
 const STAND_IN_LINE = /^\s*(?:[-*+]\s+|\d+[.)]\s+)?\[.*\]\s*$/;
 const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// What a UTF-8 decoder puts in place of bytes that aren't UTF-8: a file
+// Excel saved as plain "CSV" (Windows-1252) instead of "CSV UTF-8".
+const NOT_UTF8 = '\uFFFD';
+// Text that is valid UTF-8 but garbled: a UTF-8 file that Excel (or an
+// editor) opened as Windows-1252, Latin-1 or Mac Roman and then saved as
+// UTF-8, so each accented letter or curly quote became two or three
+// characters. “ turns into â€œ (Windows-1252), â\u0080\u009C (Latin-1) or
+// ‚Äú (Mac Roman); é into Ã© (Windows-1252) or √© (Mac Roman); a no-break
+// space into Â and a no-break space, or ¬†. None of these pairs occurs in
+// real text. CP1252_HIGH is what Windows-1252 shows for the bytes 0x80-0x9F
+// (its five unused bytes come through as C1 controls), MAC_HIGH what Mac
+// Roman shows for 0x80-0xBF.
+const CP1252_HIGH = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
+const MAC_HIGH = 'ÄÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø';
+const MOJIBAKE = new RegExp(`[\\u0080-\\u009F]|â€|Ã[\\u00A0-\\u00BF${CP1252_HIGH}]|Â[\\u00A0-\\u00BF]|‚Ä|[√¬][${MAC_HIGH}]`);
+const GARBLED_CSV = 'has garbled characters (for example â€œ in place of “): Excel opened the file in the wrong encoding. Undo, open it through Data > From Text/CSV with "65001: Unicode (UTF-8)", then save as "CSV UTF-8 (Comma delimited)"';
 
-const VIDEO_KEYS = ['title', 'youtube_id', 'duration', 'audio', 'handout', 'thumbnail', 'placeholder'];
+const VIDEOS_FILE = 'data/videos.csv';
 const PROBLEM_KEYS = [
   'title', 'statement', 'source_title', 'area', 'time_of_day', 'order', 'new',
   'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
@@ -61,9 +82,7 @@ const MEDIA = {
 
 // Warning codes, with the heading the CLI prints above each group.
 export const WARNINGS = {
-  'placeholder-video': 'Placeholder videos (no real YouTube video yet; SPEC §20 M8 requires none)',
-  'missing-handout': 'Videos without a handout (every video needs one by launch, SPEC §9.3)',
-  'missing-audio': 'Videos without an audio-only version (every video needs one by launch, SPEC §9.2)',
+  'placeholder-video': 'Placeholder videos (no YouTube link yet; SPEC §20 M8 requires none)',
   'related-few': 'Problems with fewer than 2 related topics (SPEC §7.2 asks for 2-3)',
   'is-this-you-empty': 'Problems with no "Is this you?" text',
   'bullets-few': 'Problems with fewer than 2 "Is this you?" bullets (SPEC §7.2 asks for 2-4)',
@@ -73,7 +92,8 @@ export const WARNINGS = {
 };
 
 const isText = (value) => typeof value === 'string' && value.trim() !== '';
-const isGiven = (value) => value !== undefined && value !== null && value !== '';
+/** The columns of a CSV record whose text is garbled (MOJIBAKE). */
+const garbledFields = (record) => Object.keys(record).filter((key) => MOJIBAKE.test(String(record[key] ?? '')));
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const listOf = (values) => values.map((v) => `"${v}"`).join(', ');
 
@@ -88,79 +108,6 @@ export function formatIssue({ file, field, message }) {
   return [file, field, message].filter(Boolean).join(': ');
 }
 
-/** A link a transcript may carry: a path on this site, or a #fragment. */
-const isSiteLink = (href) => /^\/(?!\/)/.test(href) || href.startsWith('#');
-
-/**
- * Images and links in a transcript, from the parsed Markdown (so inline,
- * reference and <autolink> forms are all caught). The site doesn't show
- * transcripts, but the search index reads them, and a transcript is a
- * caption source: plain text keeps both clean, and a transcript stays safe
- * to show if a page ever does (an image would load from wherever it points,
- * which the CSP blocks, SPEC §16.1; a link to another site would skip the
- * outbound-link allowlist and rel="noreferrer"). Links to pages on this
- * site ("/problems/pain/") are fine.
- */
-function transcriptLinkProblems(body, lines) {
-  const problems = [];
-  // The line a token is on: the first line of its block that mentions it.
-  const lineOf = (block, needle) => {
-    const [start, end] = block.map ?? [0, 0];
-    for (let i = start; i < end; i += 1) {
-      if (needle && lines[i]?.includes(needle)) return i + 1;
-    }
-    return start + 1;
-  };
-  for (const block of markdown.parse(body, {})) {
-    for (const token of block.children ?? []) {
-      if (token.type === 'image') {
-        const src = token.attrGet('src') ?? '';
-        problems.push(`line ${lineOf(block, src)} has an image ("${src}"); transcripts are text only`);
-      } else if (token.type === 'link_open') {
-        const href = token.attrGet('href') ?? '';
-        if (!isSiteLink(href)) {
-          problems.push(`line ${lineOf(block, href)} links to "${href}"; a transcript can link only to pages on this site, such as /problems/pain/`);
-        }
-      }
-    }
-  }
-  return problems;
-}
-
-/**
- * Transcript bodies, where there is one, are plain Markdown: no headings,
- * no raw HTML, including comments (the search index drops them, so a body
- * that is only a comment would index nothing), no images and no links to
- * other sites. The site doesn't show transcripts (SPEC §9.3); these rules
- * keep the search text and caption source plain, and the text safe to show
- * if a page ever does (headings would break a page's outline, and the CSP
- * and our markup rules apply to HTML, SPEC §16.1). Returns a list of
- * problems.
- */
-export function transcriptProblems(body) {
-  const problems = [];
-  const lines = body.split(/\r?\n/);
-  let fenced = false;
-  lines.forEach((line, i) => {
-    if (/^\s{0,3}(```|~~~)/.test(line)) fenced = !fenced;
-    if (fenced) return;
-    if (/^\s{0,3}#{1,6}(\s|$)/.test(line)) {
-      problems.push(`line ${i + 1} is a Markdown heading ("${line.trim()}"); transcripts can't have headings`);
-    } else if (/^\s{0,3}(=+|-+)\s*$/.test(line) && i > 0 && lines[i - 1].trim() !== '') {
-      problems.push(`line ${i + 1} ("${line.trim()}") turns the line above into a heading; add a blank line before it`);
-    }
-  });
-  const outsideCode = body.replace(/`[^`]*`/g, '');
-  if (/<\/?[a-z][a-z0-9-]*(\s[^>]*)?\/?>/i.test(outsideCode)) {
-    problems.push('contains HTML tags; transcripts are plain Markdown');
-  }
-  if (outsideCode.includes('<!--')) {
-    problems.push("contains an HTML comment (<!-- -->), which the search index drops; transcripts are plain Markdown");
-  }
-  problems.push(...transcriptLinkProblems(body, lines));
-  return problems;
-}
-
 function listMarkdown(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
@@ -170,8 +117,8 @@ function listMarkdown(dir) {
 
 /**
  * Validate the content in `rootDir` (the repository root).
- * `launch: true` is the launch check (SPEC §20 M8): placeholder videos, and
- * any video without a handout or audio, are errors instead of warnings.
+ * `launch: true` is the launch check (SPEC §20 M8): placeholder videos are
+ * errors instead of warnings.
  * @param {string} rootDir
  * @param {{ launch?: boolean }} [options]
  * @returns {{ errors: object[], warnings: object[], model: object }}
@@ -216,109 +163,212 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       error(teamFile, '', `the columns must be name,role,organisation (found ${columns.join(',')})`);
     } else {
       team.forEach((person, i) => {
+        const garbled = garbledFields(person);
+        if (garbled.length) error(teamFile, `row ${i + 2}: ${garbled.join(', ')}`, GARBLED_CSV);
         if (!isText(person.name)) error(teamFile, `row ${i + 2}`, 'name is empty');
         if (!isText(person.role)) error(teamFile, `row ${i + 2}`, 'role is empty');
       });
     }
   }
 
-  // ---- Videos (content/videos/<video_id>.md, SPEC §7.1) ------------------
+  // ---- Videos (data/videos.csv, SPEC §7.1) --------------------------------
+  // One row per video, edited in Excel. Messages name the row as Excel shows
+  // it (the header is row 1) and, when it has one, the row's video_id.
   const videos = new Map();
-  for (const name of listMarkdown(at('content/videos'))) {
-    const file = `content/videos/${name}`;
-    const id = name.slice(0, -3);
-    const parsed = read(file);
-    if (!parsed) continue;
-    const { data, body } = parsed;
-    videos.set(id, { file, data, body });
-
-    if (!SLUG.test(id)) error(file, '', 'the file name (the video_id) must be lowercase words joined by hyphens');
-    for (const key of Object.keys(data)) {
-      if (!VIDEO_KEYS.includes(key)) error(file, key, `unknown field; a video takes only ${listOf(VIDEO_KEYS)}`);
-    }
-
-    const placeholder = data.placeholder === true;
-    if (data.placeholder !== undefined && typeof data.placeholder !== 'boolean') {
-      error(file, 'placeholder', 'must be true or false');
-    }
-    if (!isText(data.title)) error(file, 'title', 'required');
-
-    if (data.youtube_id === undefined || data.youtube_id === null || data.youtube_id === '') {
-      error(file, 'youtube_id', 'required (use "PLACEHOLDER" with placeholder: true until the video is on YouTube)');
-    } else if (typeof data.youtube_id !== 'string') {
-      error(file, 'youtube_id', 'put the ID in double quotes');
-    } else if (!placeholder) {
-      if (/^placeholder$/i.test(data.youtube_id)) {
-        error(file, 'youtube_id', 'is a placeholder: add the real YouTube ID, or set placeholder: true');
-      } else if (!YOUTUBE_ID.test(data.youtube_id)) {
-        error(file, 'youtube_id', `"${data.youtube_id}" isn't a YouTube video ID (11 letters, digits, - or _)`);
+  let videoRows = [];
+  // False while the file is missing or unreadable (wrong columns, a broken
+  // quote, a stray empty column): then the checks that look a video_id up
+  // (problems, Start here, transcripts, unused videos) are skipped, so one
+  // spreadsheet mistake is one error, not one per reference.
+  let videoLibraryRead = false;
+  if (!existsSync(at(VIDEOS_FILE))) {
+    error(VIDEOS_FILE, '', `missing: the video library, one row per video with the columns ${VIDEO_COLUMNS.join(',')}`);
+  } else {
+    try {
+      const table = parseCsvTable(readFileSync(at(VIDEOS_FILE), 'utf8'));
+      if (table.columns.join(',') !== VIDEO_COLUMNS.join(',')) {
+        error(VIDEOS_FILE, '', `the columns must be ${VIDEO_COLUMNS.join(',')}, in that order (found ${table.columns.join(',') || 'none'})`);
+      } else {
+        videoRows = table.rows;
+        videoLibraryRead = true;
       }
+    } catch (e) {
+      error(VIDEOS_FILE, '', e.message);
+    }
+    if (!videoLibraryRead) {
+      error(VIDEOS_FILE, '', 'video references in problems, Start here and transcripts were not checked: fix this file first');
+    }
+  }
+
+  // Media file names must match a file exactly, capitals included: macOS
+  // ignores case when it opens a file, but the site's host doesn't. So each
+  // name is looked up among the names in its folder (read once each).
+  const dirNames = new Map();
+  const namesIn = (dir) => {
+    if (!dirNames.has(dir)) dirNames.set(dir, new Set(existsSync(at(dir)) ? readdirSync(at(dir)) : []));
+    return dirNames.get(dir);
+  };
+
+  // Which rows name each audio and handout file, and each YouTube video, for
+  // the "its own files" and "its own link" rules below.
+  const filesUsed = { audio: new Map(), handout: new Map() };
+  const youtubeIdsUsed = new Map();
+  for (const { row, record } of videoRows) {
+    const id = record.video_id;
+    const where = isText(id) ? `row ${row} (${id})` : `row ${row}`;
+    const fail = (field, message) => error(VIDEOS_FILE, field ? `${where}: ${field}` : where, message);
+
+    if (Object.values(record).some((value) => value.includes(NOT_UTF8))) {
+      fail('', 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"');
+    }
+    const garbled = garbledFields(record);
+    if (garbled.length) fail(garbled.join(', '), GARBLED_CSV);
+    if (!isText(id)) {
+      fail('video_id', 'required: lowercase words joined by hyphens, e.g. sleep-drive');
+      continue;
+    }
+    if (!SLUG.test(id)) {
+      fail('video_id', `"${id}" must be lowercase words joined by hyphens, e.g. sleep-drive`);
+      continue;
+    }
+    if (videos.has(id)) {
+      fail('video_id', `"${id}" is already on row ${videos.get(id).row}; each video has one row`);
+      continue;
     }
 
-    if (data.duration === undefined || data.duration === null || data.duration === '') {
-      error(file, 'duration', 'required, e.g. "6:40"');
-    } else if (typeof data.duration !== 'string') {
-      error(file, 'duration', 'put the duration in double quotes, e.g. "6:40"');
-    } else if (!DURATION.test(data.duration) && !(placeholder && BRACKETED.test(data.duration))) {
-      error(file, 'duration', `"${data.duration}" must be minutes:seconds, e.g. "6:40" (or h:mm:ss)`);
+    const url = record.youtube_url;
+    const placeholder = url === '';
+    const youtubeId = placeholder ? null : youtubeIdFromUrl(url);
+    if (!placeholder && !youtubeId) {
+      fail('youtube_url', `"${url}" isn't a link to a YouTube video: use the link from YouTube's Share button (https://youtu.be/...), the watch page (https://www.youtube.com/watch?v=...) or an embed link (https://www.youtube.com/embed/...), or leave it blank until the video is on YouTube`);
+    }
+    if (youtubeId) {
+      if (!youtubeIdsUsed.has(youtubeId)) youtubeIdsUsed.set(youtubeId, []);
+      youtubeIdsUsed.get(youtubeId).push({ row, id, fail });
+    }
+    for (const field of ['title', 'description']) {
+      if (!isText(record[field])) fail(field, 'required');
+    }
+
+    const duration = record.duration;
+    if (!isText(duration)) {
+      fail('duration', placeholder ? 'required: minutes:seconds, e.g. 6:40, or [mm:ss] until the video is on YouTube' : 'required: minutes:seconds, e.g. 6:40');
+    } else if (!DURATION.test(duration) && !(placeholder && BRACKETED.test(duration))) {
+      fail('duration', BRACKETED.test(duration)
+        ? `"${duration}" is a placeholder: put in the video's length as minutes:seconds, e.g. 6:40`
+        : `"${duration}" must be minutes:seconds, e.g. 6:40 (if Excel shows a time such as 6:40:00, format the column as Text and type it again)`);
     }
 
     for (const [field, { dir, extensions }] of Object.entries(MEDIA)) {
-      const value = data[field];
-      if (value === undefined || value === null || value === '') continue;
-      if (typeof value !== 'string' || !FILE_NAME.test(value)) {
-        error(file, field, `must be a file name in ${dir}/, e.g. "${id}${extensions[0]}"`);
+      const value = record[field];
+      if (!isText(value)) {
+        // Every video has an audio-only version (SPEC §9.2) and a handout
+        // (SPEC §9.3); a placeholder names the shared stand-in files.
+        if (field !== 'thumbnail') {
+          fail(field, placeholder
+            ? `required: a file name in ${dir}/ (${PLACEHOLDER_FILES[field]} until the video's own file exists)`
+            : `required: a file name in ${dir}/, e.g. ${id}${extensions[0]}`);
+        }
+        continue;
+      }
+      if (!FILE_NAME.test(value)) {
+        fail(field, `"${value}" must be a file name in ${dir}/, e.g. ${id}${extensions[0]}`);
         continue;
       }
       if (!extensions.includes(path.extname(value).toLowerCase())) {
-        error(file, field, `"${value}" must be a ${extensions.join(' or ')} file`);
+        fail(field, `"${value}" must be a ${extensions.join(' or ')} file`);
         continue;
       }
       const target = at(dir, value);
-      if (!existsSync(target) || !statSync(target).isFile()) {
-        error(file, field, `${dir}/${value} does not exist`);
+      const names = namesIn(dir);
+      if (!names.has(value) || !statSync(target).isFile()) {
+        const near = [...names].find((name) => name !== value && name.toLowerCase() === value.toLowerCase());
+        fail(field, near
+          ? `${dir}/${value} does not exist: did you mean ${near}? (capitals must match exactly)`
+          : `${dir}/${value} does not exist`);
       } else if (field === 'audio' && statSync(target).size > MAX_AUDIO_BYTES) {
-        error(file, field, `${dir}/${value} is over 25 MiB, the most a static file can be (SPEC §9.2)`);
+        fail(field, `${dir}/${value} is over 25 MiB, the most a static file can be (SPEC §9.2)`);
+      }
+      if (field in filesUsed) {
+        if (!filesUsed[field].has(value)) filesUsed[field].set(value, []);
+        filesUsed[field].get(value).push({ row, id, placeholder, fail });
+      }
+      // A video on YouTube has its own soundtrack and its own handout, which
+      // carries its narration (SPEC §9.2, §9.3), never the stand-ins.
+      if (!placeholder && value === PLACEHOLDER_FILES[field]) {
+        fail(field, `a video on YouTube needs its own ${field === 'audio' ? 'audio-only version' : 'handout'}, not the shared ${value}`);
       }
     }
 
-    for (const problem of transcriptProblems(body)) error(file, 'transcript', problem);
-    // A real video can't keep a placeholder's [bracketed] stand-in, as with
-    // its duration: the search would index it. Deleting it is fine, since a
-    // transcript is optional.
-    const lines = body.split(/\r?\n/).filter((line) => line.trim() !== '');
-    if (!placeholder && lines.length > 0 && lines.every((line) => STAND_IN_LINE.test(line))) {
-      error(file, 'transcript', 'is still the [bracketed] stand-in: put in the real transcript, or delete it until there is one');
-    }
+    videos.set(id, { file: VIDEOS_FILE, row, data: toVideo(record), transcript: '' });
 
     if (placeholder) {
-      if (launch) error(file, 'placeholder', 'placeholder videos are not allowed at launch');
-      else warn('placeholder-video', file, id);
+      if (launch) fail('youtube_url', 'blank: placeholder videos (no YouTube link yet) are not allowed at launch');
+      else warn('placeholder-video', VIDEOS_FILE, id);
     }
+  }
 
-    // Every video is to have a handout, which carries its full narration (the
-    // text alternative, SPEC §9.3), and an audio-only version (SPEC §9.2).
-    // Placeholders are left out of the warnings (they are already listed),
-    // but not out of the launch check. A transcript isn't required: the site
-    // doesn't show one (SPEC §9.3).
-    for (const [field, present, missing, needs] of [
-      ['handout', isGiven(data.handout), 'missing-handout', 'a handout (SPEC §9.3)'],
-      ['audio', isGiven(data.audio), 'missing-audio', 'an audio-only version (SPEC §9.2)'],
-    ]) {
-      if (present) continue;
-      if (launch) error(file, field, `required at launch: every video has ${needs}`);
-      else if (!placeholder) warn(missing, file, id);
+  // A video on YouTube shares its audio and handout files with no other row
+  // (the shared placeholder files are refused above).
+  for (const [field, used] of Object.entries(filesUsed)) {
+    for (const [value, rows] of used) {
+      if (rows.length < 2 || value === PLACEHOLDER_FILES[field]) continue;
+      for (const { row, placeholder, fail } of rows) {
+        if (placeholder) continue;
+        const others = rows.filter((r) => r.row !== row).map((r) => `row ${r.row} (${r.id})`);
+        fail(field, `${value} is also the ${field} of ${others.join(', ')}; each video on YouTube has its own`);
+      }
     }
+  }
+
+  // Each row is a different YouTube video. Compared by the ID taken from the
+  // link, so a Share link, a watch link and an embed link to one video count
+  // as the same video.
+  for (const [youtubeId, rows] of youtubeIdsUsed) {
+    if (rows.length < 2) continue;
+    for (const { row, fail } of rows) {
+      const others = rows.filter((r) => r.row !== row).map((r) => `row ${r.row} (${r.id})`);
+      fail('youtube_url', `the same YouTube video (${youtubeId}) as ${others.join(', ')}; each video has its own link`);
+    }
+  }
+
+  // ---- Transcripts (data/transcripts/<video_id>.txt, SPEC §7.1) ------------
+  // Optional plain text, never shown; the search index reads it (SPEC §8.3).
+  for (const { name, id } of transcriptFiles(at(TRANSCRIPTS_DIR))) {
+    const file = `${TRANSCRIPTS_DIR}/${name}`;
+    if (!id) {
+      error(file, '', 'a transcript is a plain-text file named after its video, <video_id>.txt, e.g. sleep-drive.txt');
+      continue;
+    }
+    if (!videoLibraryRead) continue; // the data/videos.csv error is the cause
+    const video = videos.get(id);
+    if (!video) {
+      error(file, '', `no video "${id}" in ${VIDEOS_FILE}: name the file after its video_id, or delete it`);
+      continue;
+    }
+    const text = readTranscript(at(TRANSCRIPTS_DIR, name));
+    if (text.includes(NOT_UTF8)) error(file, '', 'has characters that aren\'t UTF-8: save it as UTF-8 plain text');
+    else if (MOJIBAKE.test(text)) {
+      error(file, '', 'has garbled characters (for example â€œ in place of “): it was opened in the wrong encoding and saved again. Undo, or open it again as UTF-8, and save it as UTF-8 plain text');
+    }
+    // A real video can't keep a [bracketed] stand-in, as with its duration:
+    // the search would index it. An empty file is harmless.
+    const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+    if (!video.data.placeholder && lines.length > 0 && lines.every((line) => STAND_IN_LINE.test(line))) {
+      error(file, '', 'is still a [bracketed] stand-in: put in the real transcript, or delete the file until there is one');
+    }
+    video.transcript = text;
   }
 
   const used = new Set();
   const checkVideoRef = (file, field, id) => {
     if (!isText(id)) {
-      error(file, field, 'required: a video_id (a file name in content/videos/, without .md)');
+      error(file, field, `required: a video_id from ${VIDEOS_FILE}`);
       return false;
     }
+    if (!videoLibraryRead) return false; // the data/videos.csv error is the cause
     if (!videos.has(id)) {
-      error(file, field, `unknown video "${id}" (no content/videos/${id}.md)`);
+      error(file, field, `unknown video "${id}" (not in ${VIDEOS_FILE})`);
       return false;
     }
     used.add(id);
@@ -402,7 +452,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       data.solutions.forEach((solution, i) => {
         const field = `solutions[${i + 1}]`;
         if (!isObject(solution)) {
-          error(file, field, 'must have tier, video and blurb');
+          error(file, field, 'must have tier and video (and, if you like, a blurb)');
           return;
         }
         for (const key of Object.keys(solution)) {
@@ -411,7 +461,11 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
         if (!(solution.tier in counts)) error(file, `${field}.tier`, 'must be "main" or "extra"');
         else counts[solution.tier] += 1;
         if (checkVideoRef(file, `${field}.video`, solution.video)) onPage.push([`${field}.video`, solution.video]);
-        if (!isText(solution.blurb)) error(file, `${field}.blurb`, 'required: one or two sentences, "Try this if ..."');
+        // Optional: shown instead of the video's description on this page
+        // only (SPEC §7.2).
+        if (solution.blurb !== undefined && solution.blurb !== null && !isText(solution.blurb)) {
+          error(file, `${field}.blurb`, 'leave it out to show the video\'s description, or write one or two sentences, "Try this if ..."');
+        }
       });
       for (const [tier, [min, max]] of Object.entries(SOLUTION_LIMITS)) {
         if (counts[tier] < min || counts[tier] > max) {
@@ -452,23 +506,28 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       start = { file, data: parsed.data };
       const chapters = parsed.data.chapters;
       if (!Array.isArray(chapters) || chapters.length === 0) {
-        error(file, 'chapters', 'required: a list of intro videos, each with video and description');
+        error(file, 'chapters', 'required: a list of intro videos, each with a video');
       } else {
         const seen = new Set();
         chapters.forEach((chapter, i) => {
           const field = `chapters[${i + 1}]`;
           if (!isObject(chapter)) {
-            error(file, field, 'must have video and description');
+            error(file, field, 'must have a video');
             return;
           }
+          // The title, description, duration and formats are the video's,
+          // from data/videos.csv (SPEC §7.3).
           for (const key of Object.keys(chapter)) {
-            if (!['video', 'description'].includes(key)) error(file, `${field}.${key}`, 'unknown field; use video and description');
+            if (key === 'description') {
+              error(file, `${field}.description`, `a chapter has only a video: its description is the video's, in the description column of ${VIDEOS_FILE}`);
+            } else if (key !== 'video') {
+              error(file, `${field}.${key}`, `unknown field; a chapter has only a video (its title, description and duration come from ${VIDEOS_FILE})`);
+            }
           }
           if (checkVideoRef(file, `${field}.video`, chapter.video)) {
             if (seen.has(chapter.video)) error(file, `${field}.video`, `video "${chapter.video}" is already listed`);
             seen.add(chapter.video);
           }
-          if (!isText(chapter.description)) error(file, `${field}.description`, 'required: one line');
         });
       }
     }
@@ -476,8 +535,10 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     error('content/start.md', '', 'missing');
   }
 
-  for (const [id, { file }] of videos) {
-    if (!used.has(id)) warn('unused-video', file, id);
+  if (videoLibraryRead) {
+    for (const id of videos.keys()) {
+      if (!used.has(id)) warn('unused-video', VIDEOS_FILE, id);
+    }
   }
 
   // ---- Search keywords (data/keywords.csv, SPEC §8.2) ---------------------
@@ -510,6 +571,8 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   const rowFor = new Set();
   keywords.forEach((row, i) => {
     const line = `row ${i + 2}`;
+    const garbled = garbledFields(row);
+    if (garbled.length) error(keywordsFile, `${line}: ${garbled.join(', ')}`, GARBLED_CSV);
     const id = String(row.page_id ?? '').trim();
     if (!id) return error(keywordsFile, line, 'page_id is empty');
     if (notSearched.has(id)) {

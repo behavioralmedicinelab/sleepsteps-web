@@ -15,29 +15,29 @@ layout: layouts/base.njk
 
   Front matter read here (plus everything base.njk reads):
     eyebrow, heading, summary  the title band ("Start here", the H1, the lede)
-    chapters                   [{ video, description }] (SPEC §7.3): one
-                               chapter per intro video, #v1, #v2, ..., with
-                               the title, duration and formats from the video
-                               file (introChapters filter)
+    chapters                   [{ video }] (SPEC §7.3): one chapter per
+                               intro video, #v1, #v2, ..., with the title,
+                               description, duration and formats from the
+                               video's row in data/videos.csv
+                               (introChapters filter)
 
-  Each chapter: a large faint number, "Video n of N · duration", the title
-  (H2) and description, the video facade (partials/video.njk), then the
-  row of controls under every video
-  (partials/video-controls.njk): "Audio only", the handout and, while
-  site.features.ratings is exactly true, "Was this helpful?" with its stars
-  (SPEC §12). As on problem pages, it is a plain row, not the board's white
-  bar (SPEC §7.5). It is left out when it would be empty; holding only the
-  rating, it ships hidden for rating.js to reveal. No transcripts (SPEC
-  §9.3) and no per-video feedback (SPEC §7.5, §13). Then the end card to the
-  Sleep problems page, and the page's YouTube note (notices/video.njk),
-  once, last.
+  Each chapter is the video template (partials/video-block.njk), as every
+  video on the site is (project lead, 2026-11-09): the label, a step chip
+  with the chapter's number and "of N" ("1 of 3": Intro-B's eyebrow "Video
+  n of 3 · duration" in the solution cards' pill; the frame beside it shows
+  the duration), the title (h2) and description, the video, then "Audio
+  only", "Handout" and, while site.features.ratings is exactly true, "Was
+  this helpful?" with its stars (SPEC §12). Intro-B's large faint number
+  and its white bar under the video are not built, so every video looks
+  the same (SPEC §7.5). No transcripts (SPEC §9.3) and no per-video
+  feedback (SPEC §7.5, §13). Then the end card to the Sleep problems page,
+  and the page's YouTube note (notices/video.njk), once, last.
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
-{%- from "partials/video.njk" import videoEmbed -%}
+{%- from "partials/video-block.njk" import videoBlock -%}
 {%- from "notices/video.njk" import youtubeNote -%}
-{%- from "partials/video-controls.njk" import videoControls -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
-{%- set introVideos = chapters | introChapters(collections.videos) -%}
+{%- set introVideos = chapters | introChapters(videos) -%}
 {%- set chapterCount = introVideos | length -%}
 <main id="main">
   <div class="band on-dark start-band">
@@ -62,19 +62,8 @@ layout: layouts/base.njk
     </div>
     <div class="with-sidebar__main start-flow">
       {%- for chapter in introVideos %}
-      {%- set video = chapter.video %}
-      {%- set spoken = video.duration | spokenDuration %}
-      <article class="start-chapter" id="{{ chapter.id }}" aria-labelledby="{{ chapter.id }}-title">
-        <div class="start-chapter__head">
-          <span class="start-chapter__num" aria-hidden="true">{{ chapter.n }}</span>
-          <div class="start-chapter__heading">
-            <p class="eyebrow start-chapter__eyebrow">Video {{ chapter.n }} of {{ chapterCount }}<span aria-hidden="true"> · {{ video.duration }}</span><span class="visually-hidden">, {{ spoken or video.duration }}</span></p>
-            <h2 class="section-heading start-chapter__title" id="{{ chapter.id }}-title">{{ chapter.title }}</h2>
-            <p class="start-chapter__desc">{{ chapter.description }}</p>
-          </div>
-        </div>
-        {{ videoEmbed(video, bleed='page', arc=true, size='lg') }}
-        {{- videoControls(video, site.features.ratings === true) }}
+      <article class="start-chapter" id="{{ chapter.id }}" aria-labelledby="video-{{ chapter.video_id }}-title">
+        {{ videoBlock(chapter.video, heading=2, label={ num: chapter.n, text: 'of ' + chapterCount }, ratings=site.features.ratings === true) }}
       </article>
       {%- endfor %}
       <section class="start-next on-dark">

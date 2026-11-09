@@ -2,8 +2,8 @@
  * Problem page (SPEC §7.2, §7.5; HANDOFF §6.4 design A; boards
  * Problem-A.dc.html and Problem-Phone.dc.html). Loaded by
  * layouts/problem.njk through `styles` front matter, after site.css and
- * components.css (video facade, the row of controls under each video, step
- * chip, section heading, topic card).
+ * components.css (the video template every video uses, step chip, section
+ * heading, topic card).
  *
  * Values come from tokens.css (no colour literals: a test enforces it).
  * Mobile first: the base rules are the phone board; `min-width: 37.5em`
@@ -12,7 +12,7 @@
  *
  * Contents
  *   1. Page and top (back link, breadcrumb, "On this page" chips)
- *   2. Problem block ("Is this you?")
+ *   2. The problem video and "Is this you?"
  *   3. Solutions sections and grid
  *   4. Solution card: closed
  *   5. Solution card: open
@@ -29,19 +29,16 @@
   gap: var(--space-8);
 }
 
-/* The size container for the problem block (section 2), whose own width
-   decides its layout. */
 .problem__top {
   display: flex;
   flex-direction: column;
-  container: problem-top / inline-size;
 }
 
-/* Jump targets clear the top of the window a little. */
-.problem-block,
+/* Jump targets clear the top of the window a little (the video template's
+   title does too, components.css). */
+.problem-video,
 .solutions,
-.solution,
-.solution__heading {
+.solution {
   scroll-margin-top: var(--space-5);
 }
 
@@ -116,14 +113,14 @@
   margin-top: var(--space-5);
 }
 
-.problem-block {
+.problem-video {
   margin-top: var(--space-4);
 }
 
 /* A stand-alone problem has no chips (SPEC §7.2, layouts/problem.njk): its
    video keeps the chips' 16px gap under the statement. */
 @media not all and (min-width: 37.5em) {
-  .problem__head + .problem-block {
+  .problem__head + .problem-video {
     margin-top: var(--space-5);
   }
 }
@@ -193,7 +190,7 @@
   }
 
   .problem__head,
-  .problem-block {
+  .problem-video {
     margin-top: 0;
   }
 
@@ -208,25 +205,17 @@
   }
 }
 
-/* 2. Problem block --------------------------------------------------------- */
+/* 2. The problem video and "Is this you?" --------------------------------- */
 
-/* In the page's order below 784px: the video, 12px, its row of controls
-   (.problem-block__controls), 16px, "Is this you?". */
-.problem-block {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  row-gap: var(--space-4);
-}
-
-.problem-block__video {
-  min-width: 0;
-}
-
-/* Shown in full on phones too (the phone board shows only the summary), so
-   nothing is hidden. A div, not an <aside>: it isn't complementary. */
+/* The problem's own video is the video template (components.css), as every
+   video is. "Is this you?" is its own section directly below it (project
+   lead, 2026-11-09; on Problem-A it sits beside the video). Shown in full
+   on phones too (the phone board shows only the summary), so nothing is
+   hidden. Its text keeps the reading measure, and the panel ends with it
+   (the measure plus its padding), as a panel of text does on the
+   information pages. */
 .is-this-you {
-  margin-top: var(--space-1);
+  margin-top: var(--space-5);
   padding: var(--space-5);
   border: var(--border-width) solid transparent;
 }
@@ -267,38 +256,10 @@
   min-height: var(--target-min);
 }
 
-/* From 784px (the board's 460 + 24 + 300, not tokens): the video (3fr,
-   about 60%) and "Is this you?" (2fr) side by side, as on the board, and
-   the row of controls under both, across the block, so "Audio only", the
-   handout and the rating share one line (the video's column alone is too
-   narrow for them), as in a wide open solution card. The row comes before
-   "Is this you?" in the page, so it is read and tabbed to with its video.
-   It goes in an implicit row, so a row that ships hidden (only the rating,
-   without JavaScript) leaves no gap. A problem without "Is this you?" keeps
-   the one column. */
-@container problem-top (min-width: 784px) {
-  .problem-block:has(> .is-this-you) {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    grid-template-areas: "video thisis";
-    column-gap: var(--space-7);
-  }
-
-  .problem-block:has(> .is-this-you) > .problem-block__video {
-    grid-area: video;
-  }
-
-  .problem-block:has(> .is-this-you) > .is-this-you {
-    grid-area: thisis;
-    margin-top: 0;
-  }
-
-  .problem-block:has(> .is-this-you) > .problem-block__controls {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (min-width: 37.5em) {
   .is-this-you {
+    max-width: calc(var(--measure) + 2 * (var(--space-7) + var(--border-width)));
+    margin-top: 0;
     padding: var(--space-7);
   }
 
@@ -371,12 +332,6 @@
 
 .solution:hover {
   box-shadow: var(--shadow-hover);
-}
-
-/* The <details> (or, with JavaScript, its <div>) is the size container for
-   the open card's two-column layout (section 5). */
-.solution__disclosure {
-  container: solution / inline-size;
 }
 
 /* The face: the <summary> without JavaScript, an <h3><button> with it. The
@@ -472,24 +427,10 @@ button.solution__face {
   transform: rotate(180deg);
 }
 
-/* Under the closed card (600px and up): a quick "Handout" link, when the
-   video has a handout. On phones the handout is in the open card's row of
-   controls. */
-.solution__meta {
-  display: none;
-}
-
-.solution__quick a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--target-min);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-weight: var(--weight-semibold);
-}
-
 @media (min-width: 37.5em) {
-  /* The board's card: a thumbnail band, then the title and blurb. */
+  /* The board's card: a thumbnail band, then the title and description,
+     and nothing else on any card (no quick links or rating summary;
+     project lead, 2026-11-06 and 2026-11-09). */
   .solution__face-inner {
     flex-direction: column;
     align-items: stretch;
@@ -550,13 +491,7 @@ button.solution__face {
 
   .solution__text {
     gap: var(--space-2);
-    padding: var(--space-5) var(--space-6) var(--space-3);
-  }
-
-  .solution__meta {
-    display: flex;
-    margin-top: auto;
-    padding: 0 var(--space-6) var(--space-3);
+    padding: var(--space-5) var(--space-6) var(--space-6);
   }
 }
 
@@ -583,74 +518,36 @@ button.solution__face {
   box-shadow: none;
 }
 
-/* Phones: the face stays on screen above the panel (an accordion), so the
-   panel's own header is hidden. Its video runs to the card's edges, and the
-   row of controls (.solution__tools) follows it inside the gutters. */
+/* The panel holds the video template (components.css), as every video
+   does: the step chip with Close at its right, the title and description,
+   the video and its row of controls. With JavaScript the open card's face
+   is hidden at every width (the template's header names the card and
+   Close closes it; project lead, 2026-11-09), and focus moves to the
+   title. Below 600px the video runs to the card's edges, over the panel's
+   padding (--card-pad). */
 .solution__panel {
-  display: grid;
-  row-gap: var(--space-4);
-  padding-bottom: var(--space-5);
+  --card-pad: var(--space-4);
+  padding: var(--card-pad);
 }
 
-.solution__header {
+.solution.is-open .solution__face-heading {
   display: none;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
-.solution__tools {
-  padding-inline: var(--space-4);
-}
-
-.solution__header-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.solution__close {
-  min-height: var(--target-min);
-  margin: 0;
-  padding: 0 var(--space-5);
-  border: var(--border-width) solid var(--slate-grey);
-  border-radius: var(--radius-sm);
-  background: var(--white);
-  color: var(--ink);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-}
-
-.solution__close:hover {
-  background: var(--teal-wash);
-}
-
-/* Board 26px, snapped to the 24px title size at weight 400. */
-.solution__heading {
-  font-size: var(--fs-title);
-  line-height: var(--lh-title);
-  color: var(--night-teal);
+/* Without JavaScript the open <details>'s <summary> stays above the panel,
+   with its own padding. */
+.solution__disclosure[open] > .solution__panel {
+  padding-top: 0;
 }
 
 @media (min-width: 37.5em) {
-  /* With JavaScript the panel's header (chip, Close, heading, blurb)
-     replaces the face. Without it the header stays [hidden] and the face
-     turns into the compact row below, the card's only close control. */
-  .solution__header {
-    display: flex;
+  .solution__panel {
+    --card-pad: var(--space-6);
   }
 
-  .solution.is-open .solution__face-heading,
-  .solution.is-open > .solution__meta {
-    display: none;
-  }
-
-  .solution:has(> .solution__disclosure[open]) > .solution__meta {
-    display: none;
-  }
-
+  /* Without JavaScript the template's header stays [hidden] and the face
+     turns into a compact row above the video (number disc, title,
+     description, chevron), the card's only close control. */
   .solution:has(> .solution__disclosure[open]) .solution__face-inner {
     flex-direction: row;
     align-items: center;
@@ -668,45 +565,6 @@ button.solution__face {
 
   .solution:has(> .solution__disclosure[open]) .solution__text {
     padding: 0;
-  }
-
-  .solution__panel {
-    row-gap: var(--space-5);
-    padding: var(--space-6);
-  }
-
-  .solution__tools {
-    padding-inline: 0;
-  }
-}
-
-/* A wide open card (with JavaScript): the video on the left (3fr) and the
-   header on the right (2fr), as on the board (420 + 24 + 280 = 724px, not
-   tokens), then the row of controls under the video across the card's
-   width, so "Audio only", the handout and the rating share one line. The
-   header comes first in the DOM, so Tab goes heading -> Play -> controls.
-   Without JavaScript the header stays hidden and the panel is one column:
-   the video, then its controls. */
-@container solution (min-width: 724px) {
-  [data-enhanced] > .solution__panel {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    grid-template-areas:
-      "video header"
-      "tools tools";
-    align-items: start;
-    column-gap: var(--space-7);
-  }
-
-  [data-enhanced] > .solution__panel > .solution__header {
-    grid-area: header;
-  }
-
-  [data-enhanced] > .solution__panel > .solution__video {
-    grid-area: video;
-  }
-
-  [data-enhanced] > .solution__panel > .solution__tools {
-    grid-area: tools;
   }
 }
 
@@ -862,8 +720,7 @@ button.solution__face {
 
 @media print {
   .problem__back,
-  .on-this-page,
-  .solution__meta {
+  .on-this-page {
     display: none;
   }
 }

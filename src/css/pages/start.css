@@ -6,8 +6,8 @@
  *
  * Values come from tokens.css; board spacing off the token scale snaps up to
  * the next step (SPEC §7.5). Shared pieces come from site.css (title band,
- * .on-dark, .with-sidebar, TopicNav, .eyebrow) and components.css (VideoEmbed,
- * the row of controls under each video, .button, .section-heading).
+ * .on-dark, .with-sidebar, TopicNav, .eyebrow) and components.css (the video
+ * template every video uses, .button, .section-heading).
  *
  * Contents
  *   1. Title band and chapter pills
@@ -110,57 +110,15 @@
   gap: var(--space-8); /* phone board 28 */
 }
 
+/* Each chapter is the video template (components.css), as every video is:
+   no styles of its own beyond the jump target's margin. */
 .start-chapter {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
   scroll-margin-top: var(--space-5);
-}
-
-.start-chapter__head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-4);
-}
-
-/* Decorative (teal-200 carries no text): aria-hidden, and the eyebrow says
-   "Video n of N". */
-.start-chapter__num {
-  flex: none;
-  font-family: var(--font-heading);
-  font-size: var(--fs-display-phone);
-  line-height: 1;
-  color: var(--teal-200);
-}
-
-.start-chapter__heading {
-  min-width: 0;
-}
-
-.start-chapter__eyebrow {
-  margin-bottom: var(--space-1);
-}
-
-.start-chapter__title {
-  overflow-wrap: break-word;
-}
-
-.start-chapter__desc {
-  margin-top: var(--space-2);
-  color: var(--slate-grey);
 }
 
 @media (min-width: 37.5em) {
   .start-flow {
     gap: var(--space-9);
-  }
-
-  .start-chapter__head {
-    gap: var(--space-5);
-  }
-
-  .start-chapter__num {
-    font-size: var(--fs-display);
   }
 }
 

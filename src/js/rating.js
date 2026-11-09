@@ -1,14 +1,14 @@
 // The ratings widget (SPEC §11, §12): "Was this helpful?" and five radio
 // stars in the row of controls under each video on the problem pages and
-// Start here. Markup: src/_includes/partials/rating.njk, inside
-// partials/video-controls.njk. base.njk loads this module only on those
+// Start here. Markup: src/_includes/partials/rating.njk, inside the video
+// template (partials/video-block.njk). base.njk loads this module only on those
 // pages, and only while site.config.json's features.ratings is exactly true.
 //
-// Without JavaScript, or if this module fails, nothing shows: the widget and
-// a row of controls that would hold only the widget ([data-rating-reveal])
-// ship `hidden`. This module reveals the widgets once its listeners are in
-// place, and makes each status line a live region (role="status"), so
-// nothing is announced on load.
+// Without JavaScript, or if this module fails, nothing shows: the widget
+// ships `hidden` (the row it ends always holds "Audio only" and "Handout",
+// so the row itself never waits for this module). This module reveals the
+// widgets once its listeners are in place, and makes each status line a
+// live region (role="status"), so nothing is announced on load.
 //
 // Sending: POST /api/rate { page_id, video_id, stars } through api.js, with
 // keepalive, so a rating made just before leaving still gets out.
@@ -313,8 +313,6 @@ function init() {
   for (const state of widgets.values()) {
     state.status.textContent = READY_TEXT;
     state.status.setAttribute('role', 'status');
-    const wrapper = state.root.parentElement?.closest('[data-rating-reveal]');
-    if (wrapper) wrapper.hidden = false;
     state.root.hidden = false;
   }
 }

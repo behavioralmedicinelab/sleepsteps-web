@@ -6,13 +6,15 @@
 //
 // - the <summary> becomes <h3><button aria-expanded aria-controls>, so a
 //   closed card has a heading. The button is named by the solution's title;
-//   the blurb and length are its description;
-// - the panel becomes a region labelled by the open card's heading;
-// - the open card's header (step chip, Close, heading, blurb) is shown;
+//   the card's description and length describe it (aria-describedby);
+// - the panel becomes a region labelled by the title of the video template
+//   it holds (src/_includes/partials/video-block.njk);
+// - the template's header (step chip, Close, title, description), which
+//   ships hidden, is shown: while a card is open its face is hidden at every
+//   width (problem.css), so the header names it and Close closes it;
 // - one card is open at a time across both sections. Opening one closes the
 //   other and pauses its media (players.js), and moves focus to the opened
-//   card's heading, or keeps it on the card's button on phones, where that
-//   button stays on screen above the panel and the header is hidden;
+//   card's title (or to its button, should the title not be rendered);
 // - Close returns focus to the card's button.
 //
 // Escape doesn't close a card: that isn't a disclosure convention, and the
@@ -45,7 +47,7 @@ function openCard(card) {
     if (other !== card) closeCard(other);
   }
   setOpen(card, true);
-  // The heading shows from 600px; below that the face stays visible.
+  // The title, unless something keeps it from rendering (then the face).
   const target = card.heading.getClientRects().length ? card.heading : card.face;
   target.focus({ preventScroll: true });
   // Closing a card above this one may have moved it out of view.
@@ -56,9 +58,9 @@ function enhance(li) {
   const details = li.querySelector(':scope > details.solution__disclosure');
   const summary = details?.querySelector(':scope > summary.solution__face');
   const panel = details?.querySelector(':scope > .solution__panel');
-  const header = panel?.querySelector(':scope > .solution__header');
-  const heading = header?.querySelector('.solution__heading');
-  const close = header?.querySelector('.solution__close');
+  const header = panel?.querySelector('.video-block__header');
+  const heading = header?.querySelector('.video-block__title');
+  const close = header?.querySelector('.video-block__close');
   if (!summary || !panel?.id || !heading?.id || !close) return null;
 
   const wasOpen = details.open;

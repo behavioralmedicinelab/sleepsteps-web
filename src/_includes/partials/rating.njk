@@ -1,7 +1,7 @@
 {#-
   The ratings widget (SPEC §12): "Was this helpful?", five stars and a
-  status line. It sits in the row of controls under a video, after "Audio
-  only" and the handout (partials/video-controls.njk, which renders it
+  status line. It ends the row of controls of the video template, after
+  "Audio only" and the handout (partials/video-block.njk, which renders it
   only while site.features.ratings is exactly true), so templates don't call
   it themselves:
 
@@ -13,8 +13,7 @@
 
   It ships `hidden`: without JavaScript there is nothing to show (a form
   POST can't reach the API, which takes JSON), and rating.js reveals it once
-  it is listening, with the row of controls if that holds nothing else
-  (`hidden data-rating-reveal`).
+  it is listening.
 
   The root <div> is `display: contents` (components.css), so its two parts
   are items of the row: a <fieldset> whose legend is "Was this helpful?"

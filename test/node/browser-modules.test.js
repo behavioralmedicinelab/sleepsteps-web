@@ -6,7 +6,7 @@
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from 'vitest';
 import configure from '../../eleventy.config.js';
-import { pageAt } from './helpers.js';
+import { pageAt, videoRow } from './helpers.js';
 import { installDom } from './mini-dom.js';
 
 const require = createRequire(import.meta.url);
@@ -27,18 +27,13 @@ configure({
 const env = new nunjucks.Environment(new nunjucks.FileSystemLoader('src/_includes'), { autoescape: true });
 for (const [name, fn] of Object.entries(filters)) env.addFilter(name, fn);
 const videos = [
-  {
-    page: { fileSlug: 'full' },
-    data: { title: 'Settling your body', youtube_id: 'AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' },
-    rawInput: 'Words.',
-    templateContent: '<p>Words.</p>\n',
-  },
+  videoRow('full', { title: 'Settling your body', youtube_url: 'https://youtu.be/AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' }),
 ];
 const videoPage = env.renderString(
   '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
-    '{% from "partials/video.njk" import videoEmbed %}{% from "partials/video-controls.njk" import videoControls %}' +
+    '{% from "partials/video-block.njk" import videoBlock %}' +
     '{% from "notices/video.njk" import youtubeNote %}' +
-    '{{ videoEmbed(v) }}{{ videoControls(v) }}<a id="elsewhere" href="/about/">Elsewhere</a>{{ youtubeNote() }}</main></body></html>',
+    '{{ videoBlock(v) }}<a id="elsewhere" href="/about/">Elsewhere</a>{{ youtubeNote() }}</main></body></html>',
   { v: filters.videoById('full', videos) },
 );
 
@@ -378,12 +373,13 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
       expect(panel(card).id).toBe(`${id}-panel`);
       expect(panel(card).hidden).toBe(true);
       expect(panel(card).getAttribute('role')).toBe('region');
-      expect(panel(card).getAttribute('aria-labelledby')).toBe(`${id}-heading`);
-      expect(card.querySelector('.solution__header').hidden).toBe(false);
+      // Labelled by the video template's title, whose header is now shown.
+      expect(panel(card).getAttribute('aria-labelledby')).toBe(`video-${id.replace(/^solution-/, '')}-title`);
+      expect(card.querySelector('.video-block__header').hidden).toBe(false);
     }
   });
 
-  it('opens one card at a time across both sections, moving focus to its heading; Close returns it', async () => {
+  it('opens one card at a time across both sections, moving focus to its title; Close returns it', async () => {
     await load(html, ['players', 'solutions']);
     const { document } = dom;
     const [first, , , firstExtra] = cards();
@@ -393,7 +389,7 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
     expect(face(first).getAttribute('aria-expanded')).toBe('true');
     expect(panel(first).hidden).toBe(false);
     expect(first.classList.contains('is-open')).toBe(true);
-    expect(document.activeElement).toBe(first.querySelector('.solution__heading'));
+    expect(document.activeElement).toBe(first.querySelector('.video-block__title'));
 
     face(firstExtra).click();
     expect(face(first).getAttribute('aria-expanded')).toBe('false');
@@ -401,15 +397,15 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
     expect(face(firstExtra).getAttribute('aria-expanded')).toBe('true');
     expect(cards().filter((c) => c.classList.contains('is-open'))).toEqual([firstExtra]);
 
-    firstExtra.querySelector('.solution__close').click();
+    firstExtra.querySelector('.video-block__close').click();
     expect(face(firstExtra).getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(face(firstExtra));
   });
 
-  it('keeps focus on the card button on phones, where the panel header is not shown', async () => {
+  it('keeps focus on the card button should the title not be rendered', async () => {
     await load(html, ['players', 'solutions']);
     const { document } = dom;
-    document.isRendered = (el) => !el.classList.contains('solution__header');
+    document.isRendered = (el) => !el.classList.contains('video-block__header');
     const [first] = cards();
     face(first).focus();
     face(first).click();

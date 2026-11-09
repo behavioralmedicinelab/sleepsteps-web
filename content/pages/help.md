@@ -1,5 +1,5 @@
 ---
-title: Get more help
+title: Referral info
 summary: This program can help with many sleep problems, but not all. Here is when to talk to someone, and who.
 styles: ["pages/help.css"]
 # "Seeing a sleep specialist": the numbered steps, in order.
@@ -24,7 +24,7 @@ services:
   - name: "[Carer support]"
     details: "[Phone · hours]"
 ---
-{#- Get more help (SPEC §7.4; HANDOFF §6.5; board Info-Help.dc.html, without its GP summary line: there is no GP summary or sleep diary for now, SPEC §7.5, §21). Styles: src/css/pages/help.css. Keep the HTML free of blank lines inside each section: a blank line ends Markdown's HTML block. -#}
+{#- Referral info (SPEC §7.4; HANDOFF §6.5; board Info-Help.dc.html, without its GP summary line: there is no GP summary or sleep diary for now, SPEC §7.5, §21). Styles: src/css/pages/help.css. Keep the HTML free of blank lines inside each section: a blank line ends Markdown's HTML block. -#}
 <section>
 <h2>When to talk to your doctor</h2>
 <p>Talk to your GP or treating team if:</p>

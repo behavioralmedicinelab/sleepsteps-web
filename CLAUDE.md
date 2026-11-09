@@ -43,6 +43,6 @@ Use Turnstile's published test keys in local development.
 
 ## Content editing (for reference)
 
-Problems are `content/problems/<slug>.md`, videos are a shared library in `content/videos/<video_id>.md`, areas are in `data/areas.csv`, and search synonyms are in `data/keywords.csv` (SPEC §7, §8.2). The build fails on unknown references and on missing media files. Never rename a `page_id` or `video_id` without adding a redirect (for pages) and updating every reference and `keywords.csv`.
+Problems are `content/problems/<slug>.md`, videos are rows of `data/videos.csv` (one row per video, edited in Excel and saved as CSV UTF-8; columns video_id, title, description, youtube_url, duration, audio, handout, thumbnail; SPEC §7.1), with optional plain-text transcripts in `data/transcripts/<video_id>.txt`, areas are in `data/areas.csv`, and search synonyms are in `data/keywords.csv` (SPEC §7, §8.2). The build fails on unknown references and on missing media files. Never rename a `page_id` or `video_id` without adding a redirect (for pages) and updating every reference and `keywords.csv`.
 
 Visual design comes from the Claude Design handoff in `docs/design/` (read `HANDOFF.md` first; the boards give exact spacing and copy). SPEC §7.5 and §22 list where the build deliberately differs from the handoff; the spec wins.

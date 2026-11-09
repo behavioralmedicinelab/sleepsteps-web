@@ -1,7 +1,8 @@
 /*
  * Shared components used on more than one page (SPEC §7.5; HANDOFF §4, §5):
- * VideoEmbed, the row of controls under each video ("Audio only", the
- * handout and the ratings widget), step chips, buttons, section headings and topic
+ * VideoEmbed, the video template every video uses (its label, title and
+ * description, and the row of controls under it: "Audio only", the handout
+ * and the ratings widget), step chips, buttons, section headings and topic
  * cards. Loaded on every page, after site.css. Page layouts stay in site.css
  * and src/css/pages/.
  *
@@ -12,7 +13,7 @@
  *
  * Contents
  *   1. VideoEmbed (partials/video.njk)
- *   2. Video controls (partials/video-controls.njk)
+ *   2. Video template and its row of controls (partials/video-block.njk)
  *   3. Step chip (partials/step-chip.njk)
  *   4. Buttons
  *   5. Section heading, topic card
@@ -23,8 +24,8 @@
 /* 1. VideoEmbed -------------------------------------------------------------- */
 
 .video {
-  /* Inset of the title plate and duration badge from the frame's edge
-     (boards: 12px on phones and in cards, 14px -> 16px otherwise). */
+  /* Inset of the duration badge from the frame's edge (boards: 12px on
+     phones, 14px -> 16px from 600px), the same on every frame. */
   --video-inset: var(--space-4);
   --disc: var(--play-disc-phone);
   display: flex;
@@ -32,21 +33,12 @@
   gap: var(--space-4);
 }
 
-.video--lg {
-  --disc: var(--play-disc-lg-phone);
-}
-
-.video--lg .video__frame {
-  --arc-height: 18%;
-}
-
 /* The 16:9 frame. A grid, so the error message (in the flow) fills it and
    can make it taller rather than overflow; everything else is positioned. */
 .video__frame {
-  /* The settling arc, when shown (the boards' 960x120 video path), in
-     deep-teal over the night-teal frame: 27% of the frame's height (90 of
-     338px on Problem-A.dc.html), 18% on a large frame (.video--lg: 100 of
-     551px on Intro-B.dc.html). */
+  /* The settling arc (the boards' 960x120 video path), in deep-teal over
+     the night-teal frame: 27% of the frame's height (90 of 338px on
+     Problem-A.dc.html). */
   --arc-fill: var(--deep-teal);
   --arc-height: 27%;
   position: relative;
@@ -111,22 +103,6 @@ button.video__facade {
 
 button.video__facade[aria-disabled="true"] {
   cursor: progress;
-}
-
-/* Title plate (showTitle): ink with paper text, readable on any thumbnail. */
-.video__title:not(.visually-hidden) {
-  position: absolute;
-  top: var(--video-inset);
-  left: var(--video-inset);
-  max-width: calc(100% - 2 * var(--video-inset));
-  padding: var(--space-1) var(--space-2);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-xs);
-  background: var(--ink);
-  color: var(--paper);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-weight: var(--weight-semibold);
 }
 
 /* The play button's disc. Its size comes from --disc (set by .video, or by
@@ -251,12 +227,18 @@ button.video__facade[aria-disabled="true"] {
   border: 0;
 }
 
-/* Below 600px a 'page' frame runs to the screen edges and a 'card' frame
-   fills its card: square corners, and the focus ring drawn inside the frame
-   in paper (its sides would otherwise be off-screen or clipped). */
+/* Below 600px a 'page' frame runs to the screen edges (over the page
+   gutter) and a 'card' frame to its card's edges (over the card's padding,
+   --card-pad, set by the card): square corners, and the focus ring drawn
+   inside the frame in paper (its sides would otherwise be off-screen or
+   clipped). */
 @media not all and (min-width: 37.5em) {
   .video--page .video__frame {
     margin-inline: calc(-1 * var(--gutter));
+  }
+
+  .video--card .video__frame {
+    margin-inline: calc(-1 * var(--card-pad, 0px));
   }
 
   .video--page .video__frame,
@@ -278,26 +260,127 @@ button.video__facade[aria-disabled="true"] {
     --disc: var(--play-disc);
   }
 
-  .video--lg {
-    --disc: var(--play-disc-lg);
-  }
-
-  .video--card {
-    --video-inset: var(--space-4);
-  }
-
   .video__media .arc {
     display: block;
   }
 }
 
-/* 2. Video controls --------------------------------------------------------- */
+/* 2. Video template ---------------------------------------------------------- */
 
-/* One row under every video (partials/video-controls.njk): "Audio only",
-   the handout, then "Was this helpful?" with its stars. They share one
-   line where there is room and wrap, each whole, where there isn't (the
-   stars drop below the buttons on phones and in narrow columns).
-   Left-aligned at every width (SPEC §7.5). */
+/* Every video on the site (partials/video-block.njk; project lead,
+   2026-11-09): the label (a step chip, where the context has one) with a
+   solution card's Close at its right, the title and the description; the
+   video; then the row of controls. One layout everywhere, decided by the
+   width of the page's main column (.with-sidebar__main in site.css, the one
+   query container for every video on the page), so the problem video and
+   an open card below it always switch together: narrower than 768px, one
+   column in the DOM's order (the label, title and description above the
+   video); from 768px the video (3fr) and the label, title and description
+   (2fr) side by side, and the row under both, across the block, so "Audio
+   only", the handout and the rating share one line. 768 is the Problem-A
+   open card's 420 + 24 + 280 = 724 (not tokens) plus an open card's 2px
+   border and 20px panel padding on each side, so the narrowest template,
+   the open card's, still has 724px when it goes to two columns. */
+.video-block__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  row-gap: var(--space-4);
+}
+
+.video-block__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The label and a solution card's Close, which keeps to the right even
+   when there is no label. */
+.video-block__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.video-block__top > .step-chip {
+  align-self: center;
+}
+
+.video-block__close {
+  margin: 0 0 0 auto;
+  min-height: var(--target-min);
+  padding: 0 var(--space-5);
+  border: var(--border-width) solid var(--slate-grey);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.video-block__close:hover {
+  background: var(--teal-wash);
+}
+
+/* The open card's heading on Problem-A (26px, snapped to the 24px title
+   size at weight 400), for every video. A jump to it (a solution card
+   opening) clears the top of the window a little. */
+.video-block__title {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  color: var(--night-teal);
+  overflow-wrap: break-word;
+  scroll-margin-top: var(--space-5);
+}
+
+.video-block__desc {
+  color: var(--ink);
+}
+
+.video-block__video {
+  min-width: 0;
+}
+
+@container video-context (min-width: 768px) {
+  .video-block__grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-areas:
+      "video header"
+      "controls controls";
+    column-gap: var(--space-7);
+    row-gap: var(--space-5);
+  }
+
+  .video-block__header {
+    grid-area: header;
+  }
+
+  .video-block__video {
+    grid-area: video;
+  }
+
+  .video-block__grid > .video-controls {
+    grid-area: controls;
+  }
+
+  /* A header that ships hidden (a solution card without JavaScript, whose
+     <summary> names it): the video and its row take the whole width. */
+  .video-block__header[hidden] ~ * {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The row of controls under every video: "Audio only", the handout, then
+   "Was this helpful?" with its stars. They share one line where there is
+   room and wrap, each whole, where there isn't (the stars drop below the
+   buttons on phones and in narrow columns). Left-aligned at every width
+   (SPEC §7.5). */
 .video-controls {
   display: flex;
   flex-wrap: wrap;
@@ -646,7 +729,15 @@ a.format-button:hover,
   fill: var(--warm-clay);
 }
 
-/* The radio is visually hidden, so its star carries the ring. */
+/* The radio is visually hidden, so its star carries the ring. The radio is
+   a 1px box at the top of the stars' row, so focus would scroll only that
+   on screen: its scroll margin reaches past the 44px star and its ring, so
+   the whole star comes on screen (SPEC §7.5; it beats site.css's
+   :focus-visible margin, which loads first). */
+.rating__input {
+  scroll-margin-block: var(--space-3) calc(var(--target-min) + var(--space-3));
+}
+
 .rating__input:focus-visible + .rating__star {
   outline: var(--focus-width) solid var(--focus-colour);
   outline-offset: var(--focus-offset);
