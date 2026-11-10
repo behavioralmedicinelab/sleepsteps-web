@@ -472,11 +472,11 @@ describe('host check (SPEC §18.2, §20 M3)', () => {
   const PROD_WORKERS_DEV = 'https://sleepsteps.zq-sub.workers.dev/api/event';
   const PREVIEWS = '*-sleepsteps.*.workers.dev';
 
-  it('with production settings ("<DOMAIN>"), answers 404 on a version URL and on workers.dev, even with a matching or forged Origin', async () => {
-    const env = { ...ENV(), API_HOSTS: '<DOMAIN>' };
+  it('with production\'s setting ("sleepsteps.org"), answers 404 on a version URL and on workers.dev, even with a matching or forged Origin', async () => {
+    const env = { ...ENV(), API_HOSTS: 'sleepsteps.org' };
     for (const url of [VERSION_URL, PROD_WORKERS_DEV]) {
       await expectNotFound(await send(valid.page_view(), { url }, env));
-      await expectNotFound(await send(valid.page_view(), { url, headers: { Origin: 'https://<DOMAIN>' } }, env));
+      await expectNotFound(await send(valid.page_view(), { url, headers: { Origin: 'https://sleepsteps.org' } }, env));
     }
     await expectNotFound(await send(valid.page_view(), {}, env));
     expect(await rows()).toEqual([]);
@@ -617,7 +617,7 @@ describe('the Worker as deployed: the real pages.json and site.config.json', () 
     else expect(res.status).toBe(404);
   });
 
-  it('answers 404 with the vars in wrangler.jsonc (collection off, no host)', async () => {
+  it('answers 404 with the vars in wrangler.jsonc (example.com isn\'t in API_HOSTS)', async () => {
     const res = await worker.fetch(request(valid.page_view()), testEnv, createExecutionContext());
     await expectNotFound(res);
     expect(await rows()).toEqual([]);

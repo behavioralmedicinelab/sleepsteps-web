@@ -17,7 +17,7 @@
 //   Cloudflare. Siteverify is answered as Cloudflare's always-pass test
 //   secret answers (success: true) for the same reason.
 // - `control` lets the runner bend the run per state: apiOff (collection off,
-//   so every /api/* answers 404, as production does before the go-ahead),
+//   so every /api/* answers 404, as `npm run dev` and previews do),
 //   noDb (no D1 binding, so the admin pages show their database error) and
 //   fail (paths that answer 500, a test's deliberate failure).
 import { readFileSync, statSync } from 'node:fs';

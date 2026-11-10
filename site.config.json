@@ -1,6 +1,6 @@
 {
   "siteName": "SleepSteps",
-  "siteUrl": "https://<DOMAIN>",
+  "siteUrl": "https://sleepsteps.org",
   "features": { "ratings": true, "feedback": true, "events": true },
   "turnstileSiteKey": "<PUBLIC_SITE_KEY>",
   "footer": {

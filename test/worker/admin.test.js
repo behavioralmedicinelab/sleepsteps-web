@@ -571,7 +571,7 @@ describe('the summary page', () => {
     expect(body).toContain(`read ${thousands(rowsRead)} rows`);
   });
 
-  it('works before the go-ahead: collection off, empty tables, 200 with the notice', async () => {
+  it('works with collection off (as in previews): empty tables, 200 with the notice', async () => {
     const res = await get('/admin/', { env: ENV({ DATA_COLLECTION: 'off' }) });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('Data collection is off');

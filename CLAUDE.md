@@ -11,7 +11,7 @@ Website for a clinical trial of a stepped-care sleep intervention: static educat
 - If you change a decision, update `SPEC.md` (the relevant section plus the decision log, §22) in the same change.
 - Keep dependencies to those in SPEC §5. Ask before adding any package.
 - Browser JS: plain ES modules, no framework, no bundler. Every dynamic feature must fail gracefully (SPEC §11). The page must work with the API down or JavaScript disabled (one exception: the staff-only admin download page needs JavaScript for exports too large for one request, SPEC §11, §14.4).
-- Never add cookies or persistent identifiers set by SleepSteps, third-party scripts beyond SPEC §16.2, or storage of IP addresses or user agents (SPEC §2, §14.1, §16.2). Any storage on a visitor's device, ours or a provider's, needs a SPEC §15.4 row, a mention in the privacy page's "Cookies and browser storage" section and a §22 entry.
+- Never add cookies or persistent identifiers set by SleepSteps, third-party scripts beyond SPEC §16.2, or storage of IP addresses or user agents (SPEC §2, §14.1, §16.2). Any storage on a visitor's device, ours or a provider's, needs a SPEC §15.4 row, a mention in the privacy page's "Cookies and browser storage" section and a §22 entry. The cookies Cloudflare Access sets after someone signs in reach only the team and stay off the privacy page (SPEC §15.4).
 - Don't over-use the name "SleepSteps" (one word) in user-facing copy: another organisation has trademarked a "Sleep Steps" program. Prefer "this program", "we", "us", "our" or "this website" (SPEC §7.5). The name is in the header logo and the footer heading, and may appear in a few places the team chooses, such as About. Technical names (repo, Worker, databases, storage keys, events, files) keep `sleepsteps`.
 - Never log feedback text or search queries to the console or Workers Logs.
 - D1: parameterised queries only; schema changes only through new migration files.
@@ -21,7 +21,7 @@ Website for a clinical trial of a stepped-care sleep intervention: static educat
 ## Human-only tasks
 
 Do not attempt these. Tell the user when one is needed, referring to SPEC §18.4:
-Cloudflare dashboard settings, account or domain setup, creating Turnstile widgets or Access applications, setting production secrets, applying remote migrations (`--remote`), and deploying to production.
+Cloudflare dashboard settings, account or domain setup, creating Turnstile widgets or Access applications, setting production secrets, applying remote migrations or any other write to a remote database (`--remote`, such as deleting the test data before launch, SPEC §18.3), and deploying to production.
 
 You may run local commands: `npm run build`, `npm run dev`, `npm run dev:collect`, `npm test`, `npm run test:features`, `npm run test:a11y`, `npm run a11y:serve`, `npm run db:migrate:local`, and `wrangler dev`.
 

@@ -725,7 +725,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
 
     it.each([
       ['a preview', 'pr-12-sleepsteps.team.workers.dev', '&lt;PUBLIC_SITE_KEY&gt;', TEST_SITEKEY],
-      ['production, with a real key', 'sleepsteps.team.workers.dev', REAL_KEY, REAL_KEY],
+      ['production, with a real key', 'sleepsteps.org', REAL_KEY, REAL_KEY],
     ])('on %s host, renders with the right key', async (name, hostname, key, expected) => {
       const html = pageAt(site, PROBLEM).replace(/data-sitekey="[^"]*"/, `data-sitekey="${key}"`);
       await open(PROBLEM, { html, hostname });
@@ -1058,7 +1058,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
 
     it.each([
       ['403 (Turnstile refused)', 403],
-      ['404 (before the go-ahead)', 404],
+      ['404 (collection off, as in previews)', 404],
       ['429', 429],
       ['500', 500],
       ['a network error', 'reject'],

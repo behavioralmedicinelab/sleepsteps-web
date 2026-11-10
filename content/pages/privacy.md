@@ -127,6 +127,11 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
     production's responses. #}
 <tr><th scope="row">HTTPS-only setting (HSTS)</th><td>This website</td><td>Tells your browser to always use a secure (HTTPS) connection to this website. It holds no code and nothing about you.</td><td>One year after your last visit</td></tr>
 <tr><th scope="row"><code>cf_clearance</code></th><td>Cloudflare, our hosting provider</td><td>Only if Cloudflare asks your browser to do a quick check that you're a person, not an automated program. It remembers that you passed, so you aren't asked again straight away.</td><td>30 minutes</td></tr>
+{#- The staff sign-in (Cloudflare Access, SPEC §15.4): only the cookies set
+    before signing in, which anyone who opens the sign-in page gets. The
+    cookies set after signing in reach only the team and aren't listed
+    (project lead, 2026-11-10). #}
+<tr><th scope="row"><code>CF_AppSession</code> and <code>CF_Session</code></th><td>Cloudflare, our hosting provider</td><td>Only if you open the sign-in page for our research staff. Cloudflare sets them, on this website and on its own sign-in page, so the sign-in works.</td><td>24 hours on this website; 4 hours on the sign-in page</td></tr>
 {%- if site.features.feedback === true %}
 <tr><th scope="row"><code>cf.turnstile.u</code></th><td>Cloudflare</td><td>Part of the check on the feedback form that stops automated spam. It is only stored if you open the form.</td><td>Cloudflare doesn't say. In our tests it stayed until browser data was cleared.</td></tr>
 {%- endif %}
@@ -164,8 +169,6 @@ This website isn't collecting usage statistics at the moment, so there is nothin
 {% endif %}
 
 ### Blocking cookies
-
-Research staff who sign in to the site's admin area, and people we invite to sign in to review a test copy of the site, also get sign-in cookies from Cloudflare Access. Visitors to this website don't get them.
 
 You can block or delete cookies and browser storage in your browser's settings. Our own pages don't need them. {% if site.features.feedback === true %}YouTube videos and the spam check on the feedback form come from other services and may not work if you block their storage.{% else %}YouTube videos come from another service and may not work if you block its storage.{% endif %} If Cloudflare asks your browser to do a check while cookies are blocked, the check may not work.
 

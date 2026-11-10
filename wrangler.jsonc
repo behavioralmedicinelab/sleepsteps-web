@@ -17,10 +17,11 @@
   // Workers Logs off: invocation logs record request metadata, which the API
   // must not store (SPEC §14.1). `wrangler tail` still shows live logs.
   "observability": { "enabled": false },
-  // Until launch, production answers on sleepsteps.<subdomain>.workers.dev,
-  // with noindex from dist/_headers (SPEC §16.1, §18.3). The launch PR sets
-  // workers_dev to false and keeps preview_urls on (SPEC §18.2).
-  "workers_dev": true,
+  // Production answers only on its custom domain, sleepsteps.org, since
+  // 2026-11-10 (SPEC §18.2, §18.3). preview_urls stays on: version URLs keep
+  // noindex from dist/_headers (SPEC §16.1), and the API and admin pages
+  // refuse them (API_HOSTS below).
+  "workers_dev": false,
   "preview_urls": true,
   // Production. Never add "remote": true to a binding: local development and
   // tests must not reach the real database.
@@ -35,22 +36,23 @@
   "vars": {
     // Cloudflare Access, for the Worker's own check of the admin pages' token
     // (worker/lib/access-jwt.js, SPEC §14.4): the team's domain with no
-    // scheme, and the /admin application's AUD tag (64 hex characters). The
-    // AUD stays the placeholder, which refuses every admin request and
-    // fetches nothing, until the /admin application is created at launch and
-    // a PR puts its AUD here (SPEC §18.4 step 6c).
+    // scheme, and the AUD tag (64 hex characters) of the self-hosted
+    // application on sleepsteps.org, whose only policy is "data access"
+    // (SPEC §18.4 step 6d). While the AUD is the placeholder, every admin
+    // request is refused and nothing is fetched.
     "ACCESS_TEAM_DOMAIN": "hidden-bird-3278.cloudflareaccess.com",
     "ACCESS_AUD": "<AUD_TAG>",
-    // The API stores nothing unless this is exactly "on" (SPEC §11). Off in
-    // production until the privacy officer's go-ahead (SPEC §18.3).
-    "DATA_COLLECTION": "off",
+    // The API stores nothing unless this is exactly "on" (SPEC §11). On in
+    // production since 2026-11-10, for the team's testing while the whole
+    // domain is behind Cloudflare Access; the test rows are deleted before
+    // the site goes public, after the privacy officer's go-ahead (SPEC §18.3).
+    "DATA_COLLECTION": "on",
     // The hosts the API and the admin pages answer on, comma-separated; `*`
-    // matches within one DNS label (worker/lib/hosts.js). "<DOMAIN>" matches
-    // no host, so production's API and admin answer nowhere, version URLs
-    // included, until the launch PR sets this to the domain together with
-    // siteUrl (SPEC §14.1, §14.4, §18.2, §18.3). Every host listed here must
-    // be behind an Access application covering /admin and /admin/*.
-    "API_HOSTS": "<DOMAIN>"
+    // matches within one DNS label (worker/lib/hosts.js). Only the custom
+    // domain, siteUrl's host, so version URLs never match (SPEC §14.1, §14.4,
+    // §18.2, §18.3). Every host listed here must be behind an Access
+    // application covering /admin and /admin/*.
+    "API_HOSTS": "sleepsteps.org"
   },
   // Secrets (set with `wrangler secret put`, never committed): TURNSTILE_SECRET,
   // for /api/feedback's Turnstile check (SPEC §14.3). Without it, feedback
@@ -84,9 +86,8 @@
       // 2026-11-07, "Previews only" with the "preview reviewers" policy).
       "ACCESS_TEAM_DOMAIN": "hidden-bird-3278.cloudflareaccess.com",
       "ACCESS_AUD": "d8932384b2963f4439782139eff4a0222999d5abf671e52600139308bd9991ea",
-      // Off too: preview URLs are public (and posted on pull requests), and
-      // preview writes share the account's D1 limits with production. Turn
-      // it on only once previews are behind Cloudflare Access (SPEC §21).
+      // Off in previews: preview writes share the account's D1 limits with
+      // production, and turning it on is a separate decision (SPEC §21).
       "DATA_COLLECTION": "off",
       // Every preview URL, <branch>-sleepsteps.<subdomain>.workers.dev
       // (SPEC §18.3), for the API and the admin pages. Only previews read

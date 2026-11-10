@@ -45,7 +45,8 @@ const TEST_SECRETS = Object.freeze({
   spent: '3x0000000000000000000000000000000AA',
 });
 
-// The API's hosts (SPEC §14.1, §18.2): production's placeholder until launch,
+// The API's hosts (SPEC §14.1, §18.2): production's custom domain
+// (sleepsteps.org since 2026-11-10; the "<DOMAIN>" placeholder before that),
 // and every preview URL. Version URLs look like preview URLs but run with
 // production's vars, so production must never match them.
 const PREVIEW_HOSTS = '*-sleepsteps.*.workers.dev';
@@ -57,8 +58,8 @@ describe('wrangler.jsonc', () => {
     expect(config.account_id).toBeUndefined();
   });
 
-  it('answers on workers.dev until launch, with preview URLs on (SPEC §18.2, §18.3)', () => {
-    expect(config.workers_dev).toBe(true);
+  it('answers on workers.dev only until siteUrl is the custom domain, with preview URLs on (SPEC §18.2, §18.3)', () => {
+    expect(config.workers_dev).toBe(siteConfig.siteUrl.includes('<'));
     expect(config.preview_urls).toBe(true);
   });
 
@@ -79,9 +80,16 @@ describe('wrangler.jsonc', () => {
     expect(Object.keys(config.previews.vars).sort()).toEqual(Object.keys(config.vars).sort());
   });
 
-  it('keeps data collection off in production and in previews (SPEC §11, §18.3, §21)', () => {
-    expect(config.vars.DATA_COLLECTION).toBe('off');
+  it('keeps data collection off in previews, and on in production only on the custom domain (SPEC §11, §18.3, §21)', () => {
     expect(config.previews.vars.DATA_COLLECTION).toBe('off');
+    expect(['on', 'off']).toContain(config.vars.DATA_COLLECTION);
+    if (config.vars.DATA_COLLECTION === 'on') {
+      // Production collects only on siteUrl's host, behind the self-hosted
+      // Access application there, never on workers.dev (SPEC §18.3).
+      expect(siteConfig.siteUrl).not.toContain('<');
+      expect(config.vars.API_HOSTS).toBe(new URL(siteConfig.siteUrl).host);
+      expect(config.workers_dev).toBe(false);
+    }
   });
 
   it('runs the Worker first for /api/*, /admin and /admin/*, so they answer even where a file matches (SPEC §14.4, §18.2)', () => {
@@ -126,7 +134,7 @@ describe('wrangler.jsonc', () => {
       const allowed = entry === '<DOMAIN>' || entry === siteHost || /^sleepsteps\.[a-z0-9-]+\.workers\.dev$/.test(entry);
       expect(allowed, `API_HOSTS entry "${entry}"`).toBe(true);
     }
-    // Once siteUrl is real, the launch PR sets API_HOSTS to its host too (SPEC §18.3).
+    // Once siteUrl is real, API_HOSTS holds its host too (SPEC §18.3).
     if (siteHost) expect(entries).toContain(siteHost);
     for (const host of VERSION_HOSTS) expect(hostAllowed(host, hosts), host).toBe(false);
   });
@@ -164,12 +172,13 @@ describe('migrations/ (SPEC §17)', () => {
 // migration is pinned here; a schema change is a new NNNN_name.sql file
 // (add its hash below, at the latest once it is applied anywhere remote).
 const APPLIED_MIGRATIONS = {
-  // Applied to the local and preview databases (2026-11-06, 2026-11-07).
+  // Applied to the local and preview databases (2026-11-06, 2026-11-07) and
+  // to production's (2026-11-10).
   '0001_init.sql': 'aa5201b2ccadc89219a58fce2d79c4992331c70e748b5e75b4f499f97e9e2ccb',
   // Feedback without page_title (project lead, 2026-11-07). Pinned before
   // its first remote apply: a person runs `npm run db:migrate:preview` after
-  // this merges (SPEC §17), and production gets it with 0001 at its first
-  // `npm run db:migrate:remote`. It must not change once applied anywhere.
+  // this merges (SPEC §17); production got it with 0001 at its first
+  // `npm run db:migrate:remote` (2026-11-10). It must not change once applied anywhere.
   '0002_feedback_drop_page_title.sql': 'ab705000414d47bf26598b4d4133243cd3adb8f59ea944ae7c34eaf319baeeb0',
 };
 
@@ -205,7 +214,9 @@ describe('package.json and .node-version (SPEC §18.1, §18.3)', () => {
     expect(script).toContain('--var DATA_COLLECTION:on');
     expect(script).toContain('--var API_HOSTS:localhost:8787,127.0.0.1:8787');
     expect(script).not.toMatch(/--remote|\bdeploy\b/);
-    expect(pkg.scripts.dev).not.toContain('DATA_COLLECTION');
+    // Production's value at the top level is "on" (SPEC §18.3), so dev turns
+    // collection off for its run; localhost isn't in API_HOSTS either.
+    expect(pkg.scripts.dev).toMatch(/ wrangler dev --var DATA_COLLECTION:off$/);
     // None of these is committed, but wrangler dev and the Worker tests read
     // them if they exist (.env and .env.local when there is no .dev.vars).
     for (const file of ['.dev.vars', '.env', '.env.local', '.env.development', '.env.test']) {
@@ -329,7 +340,7 @@ describe('dist/_headers (SPEC §16.1, §18.3)', () => {
     }
   });
 
-  it('marks every workers.dev address noindex: production before launch, and preview and version URLs', () => {
+  it("marks every workers.dev address noindex: preview and version URLs, and production's should workers_dev ever be on", () => {
     const rule = rules.find((r) => r.url === 'https://:version.:subdomain.workers.dev/*');
     expect(rule?.headers['x-robots-tag']).toBe('noindex');
   });

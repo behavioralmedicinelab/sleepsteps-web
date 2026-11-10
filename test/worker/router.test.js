@@ -19,13 +19,13 @@ const post = (url, headers = {}) =>
   });
 
 describe('Worker router', () => {
-  it.each(['/api/event', '/api/rate'])('returns 404 for %s with the settings in wrangler.jsonc (collection off)', async (path) => {
+  it.each(['/api/event', '/api/rate'])('returns 404 for %s with the settings in wrangler.jsonc (example.com isn\'t in API_HOSTS)', async (path) => {
     const res = await exports.default.fetch(`https://example.com${path}`, { method: 'POST' });
     expect(res.status).toBe(404);
   });
 
-  // The admin pages answer 403 before anything else, on every host the
-  // placeholder API_HOSTS doesn't list (SPEC §14.4); admin.test.js has the rest.
+  // The admin pages answer 403 before anything else, on every host
+  // API_HOSTS doesn't list, such as example.com here (SPEC §14.4); admin.test.js has the rest.
   it.each(['/admin/', '/admin', '/admin/export', '/admin/x'])(
     'returns 403 for %s with the settings in wrangler.jsonc, whatever the method',
     async (path) => {
@@ -74,7 +74,7 @@ describe('Worker router', () => {
 
   it.each([
     ['missing', undefined],
-    ['the production placeholder', '<DOMAIN>'],
+    ['the placeholder', '<DOMAIN>'],
     ['another host', 'example.org'],
     ['the previews pattern', '*-sleepsteps.*.workers.dev'],
   ])('answers no API route, with collection on, when API_HOSTS is %s', async (_, hosts) => {
@@ -156,7 +156,7 @@ describe('API response headers', () => {
     }
   });
 
-  it('gives the deployed Worker\'s API 404 the same headers (collection off in wrangler.jsonc)', async () => {
+  it('gives the deployed Worker\'s API 404 the same headers (example.com isn\'t in wrangler.jsonc\'s API_HOSTS)', async () => {
     const res = await exports.default.fetch('https://example.com/api/event', { method: 'POST' });
     expect(res.status).toBe(404);
     for (const [name, value] of Object.entries(API_HEADERS)) expect(res.headers.get(name), name).toBe(value);

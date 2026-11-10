@@ -4,8 +4,8 @@
 // Every request, whatever its path or method, first passes two gates, and
 // each failure answers the same plain 403, reveals nothing and touches no D1:
 //   1. the host is in API_HOSTS (lib/hosts.js). Those are exactly the hosts
-//      behind an Access application: the domain from launch, and every
-//      preview URL. Production's version URLs, which run production's code
+//      behind an Access application: the custom domain (since 2026-11-10),
+//      and every preview URL. Production's version URLs, which run production's code
 //      on production's database, never match, so a token copied from a
 //      staff member's browser can't be replayed there;
 //   2. a valid Access token (lib/access-jwt.js).
