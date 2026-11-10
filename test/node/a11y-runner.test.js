@@ -8,7 +8,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { findChrome, MAC_CHROME } from '../../scripts/a11y/chrome.js';
 import { createD1, seedD1 } from '../../scripts/a11y/d1-sqlite.js';
-import { headersFor, parseHeadersFile, startServer } from '../../scripts/a11y/server.js';
+import { headersFor, parseHeadersFile, startServer, withPlaceholderKey } from '../../scripts/a11y/server.js';
 import { SUMMARY_QUERIES } from '../../worker/lib/admin-queries.js';
 import { ADMIN_HEADERS } from '../../worker/routes/admin.js';
 
@@ -67,6 +67,16 @@ describe('the local server (scripts/a11y/server.js)', () => {
     }
     expect((await get('/404')).status).toBe(200);
     expect((await get('/favicon.ico')).headers.get('content-type')).toBe('image/vnd.microsoft.icon');
+  });
+
+  it("serves pages with the placeholder site key, so the real key never loads off production's domain (decision A1 on other hosts)", async () => {
+    const built = readFileSync(path.join(inject('builtSiteOn'), 'problems/pain/index.html'), 'utf8');
+    expect(built).toContain(`data-sitekey="${site.turnstileSiteKey.replace(/</g, '&lt;').replace(/>/g, '&gt;')}"`);
+    const res = await get('/problems/pain/');
+    const html = await res.text();
+    expect(html.match(/data-sitekey="[^"]*"/g)).toEqual(['data-sitekey="&lt;PUBLIC_SITE_KEY&gt;"']);
+    expect(Number(res.headers.get('content-length'))).toBe(Buffer.byteLength(html));
+    expect(withPlaceholderKey('<dialog data-sitekey="0xabc"></dialog>')).toBe('<dialog data-sitekey="&lt;PUBLIC_SITE_KEY&gt;"></dialog>');
   });
 
   it("answers /admin through the real router and Access verifier with a throwaway token", async () => {

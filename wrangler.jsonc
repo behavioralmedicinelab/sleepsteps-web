@@ -38,10 +38,10 @@
     // (worker/lib/access-jwt.js, SPEC §14.4): the team's domain with no
     // scheme, and the AUD tag (64 hex characters) of the self-hosted
     // application on sleepsteps.org, whose only policy is "data access"
-    // (SPEC §18.4 step 6d). While the AUD is the placeholder, every admin
-    // request is refused and nothing is fetched.
+    // (SPEC §18.4 step 6d, set 2026-11-10). The "<AUD_TAG>" placeholder
+    // would refuse every admin request and fetch nothing.
     "ACCESS_TEAM_DOMAIN": "hidden-bird-3278.cloudflareaccess.com",
-    "ACCESS_AUD": "<AUD_TAG>",
+    "ACCESS_AUD": "38a47652fa0686b23bf88e04009c11112088c06a70401615bebc4275f9c92242",
     // The API stores nothing unless this is exactly "on" (SPEC §11). On in
     // production since 2026-11-10, for the team's testing while the whole
     // domain is behind Cloudflare Access; the test rows are deleted before
