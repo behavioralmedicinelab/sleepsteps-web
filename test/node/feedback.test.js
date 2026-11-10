@@ -569,6 +569,12 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       else if (mode === 'reject' || mode === 'redirect') request.fail();
     });
 
+  /** The problem page with the dialog's site key set to `key` (as the build escapes it). */
+  const withKey = (key) => pageAt(site, PROBLEM).replace(/data-sitekey="[^"]*"/, `data-sitekey="${key}"`);
+  // site.config.json has the real key since 2026-11-10, so decision A1's
+  // tests set the placeholder themselves.
+  const PLACEHOLDER_KEY = '&lt;PUBLIC_SITE_KEY&gt;';
+
   /** Open a built page (or `html`) and run feedback.js on it, freshly imported. */
   async function open(url = PROBLEM, { answer = 204, html, hostname = 'localhost', dialog = true, layoutWidth, innerHeight, visualViewport, before } = {}) {
     dom?.restore();
@@ -724,11 +730,10 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
     });
 
     it.each([
-      ['a preview', 'pr-12-sleepsteps.team.workers.dev', '&lt;PUBLIC_SITE_KEY&gt;', TEST_SITEKEY],
-      ['production, with a real key', 'sleepsteps.team.workers.dev', REAL_KEY, REAL_KEY],
+      ['a preview', 'pr-12-sleepsteps.team.workers.dev', PLACEHOLDER_KEY, TEST_SITEKEY],
+      ['production, with a real key', 'sleepsteps.org', REAL_KEY, REAL_KEY],
     ])('on %s host, renders with the right key', async (name, hostname, key, expected) => {
-      const html = pageAt(site, PROBLEM).replace(/data-sitekey="[^"]*"/, `data-sitekey="${key}"`);
-      await open(PROBLEM, { html, hostname });
+      await open(PROBLEM, { html: withKey(key), hostname });
       trigger().click();
       loadTurnstile();
       expect(turnstile.last.options.sitekey).toBe(expected);
@@ -771,7 +776,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
     it.each(['sleepsteps.team.workers.dev', 'sleepsteps.example.org'])(
       'on %s, offers only Close and the Contact page, says why once open, and loads nothing from Cloudflare',
       async (hostname) => {
-        await open(PROBLEM, { hostname });
+        await open(PROBLEM, { hostname, html: withKey(PLACEHOLDER_KEY) });
         expect(trigger().localName).toBe('button');
         // Nothing to write in and nothing to send, so nobody writes a message
         // that can't go; the status line comes straight after Close.
@@ -1058,7 +1063,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
 
     it.each([
       ['403 (Turnstile refused)', 403],
-      ['404 (before the go-ahead)', 404],
+      ['404 (collection off, as in previews)', 404],
       ['429', 429],
       ['500', 500],
       ['a network error', 'reject'],
@@ -1345,7 +1350,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
     });
 
     it('leaves the A1 layout as it is: no field, box or Send, and Close above the spam-check message', async () => {
-      const viewport = await onPhone({ hostname: 'sleepsteps.example.org' });
+      const viewport = await onPhone({ hostname: 'sleepsteps.example.org', html: withKey(PLACEHOLDER_KEY) });
       const hidden = () => [$('[data-feedback-field]').hidden, check().hidden, send().hidden, cancel().hidden];
       trigger().click();
       await afterOpening();

@@ -8,7 +8,8 @@
 // character, such as the "<DOMAIN>" placeholder, matches nothing, so a
 // missing or placeholder value closes the API.
 //
-//   production   "<DOMAIN>" until launch (no host), then the custom domain
+//   production   "sleepsteps.org", the custom domain (2026-11-10; "<DOMAIN>",
+//                no host, before that)
 //   previews     "*-sleepsteps.*.workers.dev"
 //   local        "localhost:8787,127.0.0.1:8787" (npm run dev:collect)
 //

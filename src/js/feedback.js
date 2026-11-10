@@ -47,7 +47,7 @@
 // widget is reset. Success (decision A2 = B): the status line thanks the
 // visitor, the textarea is cleared and Cancel becomes Close; the dialog
 // stays open and focus stays where it is. Any other answer (403, the 404
-// production gives before the go-ahead, 429, 5xx, no answer): SEND_FAILED,
+// an API with collection off gives, 429, 5xx, no answer): SEND_FAILED,
 // a line offering the Contact page, and the text kept. An answer that
 // arrives after the dialog was closed still applies, and is shown when it
 // next opens.

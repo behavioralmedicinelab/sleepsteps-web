@@ -9,6 +9,12 @@
 //   does), so pages load under the real Content-Security-Policy. Rules for a
 //   host (the workers.dev noindex rule) never match a local address.
 //   _headers itself is never served.
+// - Pages carry the "<PUBLIC_SITE_KEY>" placeholder as the feedback dialog's
+//   site key (withPlaceholderKey), as production did before its real key
+//   (SPEC §18.4 step 5). So the dialog uses Cloudflare's test key on
+//   localhost and 127.0.0.1 and shows decision A1's state on any other
+//   host (a1.localhost, or a LAN address with --host), and the real key,
+//   whose widget allows only sleepsteps.org, never loads from this server.
 // - /api/*, /admin and /admin/* go to the repo's real router
 //   (worker/router.js), as run_worker_first sends them (SPEC §18.2), with
 //   the D1 stand-in (d1-sqlite.js). Each /admin request gets a freshly
@@ -17,7 +23,7 @@
 //   Cloudflare. Siteverify is answered as Cloudflare's always-pass test
 //   secret answers (success: true) for the same reason.
 // - `control` lets the runner bend the run per state: apiOff (collection off,
-//   so every /api/* answers 404, as production does before the go-ahead),
+//   so every /api/* answers 404, as `npm run dev` and previews do),
 //   noDb (no D1 binding, so the admin pages show their database error) and
 //   fail (paths that answer 500, a test's deliberate failure).
 import { readFileSync, statSync } from 'node:fs';
@@ -85,6 +91,14 @@ export function headersFor(rules, pathname) {
 }
 
 /**
+ * The page with every feedback dialog's site key set to the placeholder,
+ * escaped as the build writes it.
+ * @param {string} html
+ * @returns {string}
+ */
+export const withPlaceholderKey = (html) => html.replace(/data-sitekey="[^"]*"/g, 'data-sitekey="&lt;PUBLIC_SITE_KEY&gt;"');
+
+/**
  * Starts the server, on 127.0.0.1 and an ephemeral port unless told otherwise.
  * @param {object} options
  * @param {string} options.dist   the built site
@@ -126,7 +140,8 @@ export async function startServer({ dist, pages, site, db, pageRows, port: wante
   });
 
   function sendFile(res, method, status, file, pathname) {
-    const body = readFileSync(file);
+    const raw = readFileSync(file);
+    const body = path.extname(file).toLowerCase() === '.html' ? Buffer.from(withPlaceholderKey(raw.toString('utf8'))) : raw;
     res.statusCode = status;
     for (const [name, value] of headersFor(rules, pathname).values()) res.setHeader(name, value);
     res.setHeader('Content-Type', TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream');

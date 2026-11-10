@@ -12,7 +12,7 @@
   "scripts": {
     "build": "node scripts/validate-content.js && eleventy",
     "predev": "npm run build",
-    "dev": "eleventy --watch --quiet & wrangler dev",
+    "dev": "eleventy --watch --quiet & wrangler dev --var DATA_COLLECTION:off",
     "dev:collect": "npm run build && (eleventy --watch --quiet & wrangler dev --var DATA_COLLECTION:on --var API_HOSTS:localhost:8787,127.0.0.1:8787 --var TURNSTILE_SECRET:1x0000000000000000000000000000000AA)",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -4,11 +4,12 @@
 # deploy, so test/node/deploy-config.test.js does. Rules never apply to
 # responses the Worker builds itself (/api/*, /admin).
 
-# Keep every workers.dev address out of search results (SPEC §18.3): before
-# launch production's sleepsteps.<subdomain>.workers.dev, and always the
+# Keep every workers.dev address out of search results (SPEC §18.3): the
 # preview and version URLs there (version URLs run on production's database;
-# Cloudflare marks only preview URLs noindex itself). It never matches the
-# custom domain. Keep it after launch: preview_urls stays on (SPEC §18.2).
+# Cloudflare marks only preview URLs noindex itself), and production's own
+# workers.dev address should workers_dev ever be on (off since 2026-11-10).
+# It never matches the custom domain. Keep it after launch: preview_urls
+# stays on (SPEC §18.2).
 https://:version.:subdomain.workers.dev/*
   X-Robots-Tag: noindex
 

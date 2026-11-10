@@ -623,8 +623,8 @@ describe('request format and origin (SPEC §14.1)', () => {
 });
 
 describe('host check (SPEC §18.2, §20 M3)', () => {
-  it('with production settings ("<DOMAIN>"), answers 404 on a version URL, even with a matching Origin', async () => {
-    const env = { ...ENV(), API_HOSTS: '<DOMAIN>' };
+  it('with production\'s setting ("sleepsteps.org"), answers 404 on a version URL, even with a matching Origin', async () => {
+    const env = { ...ENV(), API_HOSTS: 'sleepsteps.org' };
     await expectNotFound(await send(feedback(), { url: 'https://abc12345-sleepsteps.zq-sub.workers.dev/api/feedback' }, env));
     await expectNotFound(await send(feedback(), {}, env));
     await expectUntouched();
@@ -819,7 +819,7 @@ describe('the Worker as deployed: the real pages.json and site.config.json', () 
     await expectUntouched();
   });
 
-  it('answers 404 with the vars in wrangler.jsonc (collection off, no host, no secret)', async () => {
+  it('answers 404 with the vars in wrangler.jsonc (example.com isn\'t in API_HOSTS; no secret)', async () => {
     const res = await worker.fetch(request(feedback()), testEnv, createExecutionContext());
     await expectNotFound(res);
     await expectUntouched();

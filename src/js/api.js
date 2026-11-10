@@ -8,8 +8,8 @@
 // network error, no answer within TIMEOUT_MS (the request is then aborted),
 // or no window.fetch. It never rejects or throws, makes one attempt (no
 // retries), never reads the answer's body and logs nothing. Only a 2xx status
-// counts as sent (succeeded()); 404 (the API is off, as in production before
-// the privacy go-ahead), 429 and 5xx are failures like a timeout. Credentials
+// counts as sent (succeeded()); 404 (the API is off, as in local `npm run dev`
+// and previews), 429 and 5xx are failures like a timeout. Credentials
 // stay at fetch's default, so a preview behind Cloudflare Access keeps its
 // sign-in cookie. The widget shows SEND_FAILED on any failure.
 
