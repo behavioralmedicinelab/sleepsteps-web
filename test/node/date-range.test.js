@@ -13,6 +13,7 @@ import {
   formatHour,
   formatMonth,
   formatSpan,
+  formatSpanLong,
   formatTime,
   MAX_EXPORT_DAYS,
   MAX_SUMMARY_DAYS,
@@ -183,6 +184,9 @@ describe('formatting (always UTC, no locale data)', () => {
     expect(formatSpan('2026-10-09', '2026-10-09')).toBe('9 Oct 2026');
     expect(formatSpan('2026-10-09', '2026-11-05')).toBe('9 Oct to 5 Nov 2026');
     expect(formatSpan('2026-12-28', '2027-01-03')).toBe('28 Dec 2026 to 3 Jan 2027');
+    expect(formatSpanLong('2026-10-09', '2026-10-09')).toBe('9 October 2026');
+    expect(formatSpanLong('2026-10-09', '2026-11-05')).toBe('9 October 2026 to 5 November 2026');
+    expect(formatSpanLong('2026-12-28', '2027-01-03')).toBe('28 December 2026 to 3 January 2027');
   });
 
   it('formats a stored hour and a time, saying UTC', () => {

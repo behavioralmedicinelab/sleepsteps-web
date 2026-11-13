@@ -218,6 +218,11 @@ export function formatSpan(from, to) {
   return `${formatDay(from).replace(/ \d{4}$/, '')} to ${formatDay(to)}`;
 }
 
+/** Two days, `from` <= `to` -> "9 October 2026 to 5 November 2026", or "9 October 2026" (one day). */
+export function formatSpanLong(from, to) {
+  return from === to ? formatDayLong(from) : `${formatDayLong(from)} to ${formatDayLong(to)}`;
+}
+
 /** "2026-10-01" (any day of the month) -> "October 2026". */
 export function formatMonth(day) {
   const [year, month] = parts(day);

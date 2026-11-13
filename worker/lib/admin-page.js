@@ -18,7 +18,7 @@
 
 import { TS_RE, thousands } from './admin-data.js';
 import { html } from './html.js';
-import { formatDayLong, formatHour, formatMonth, formatSpan, formatTime, MIN_DAY, SUMMARY_DEFAULT_DAYS } from './date-range.js';
+import { formatDayLong, formatHour, formatMonth, formatSpan, formatSpanLong, formatTime, MIN_DAY, SUMMARY_DEFAULT_DAYS } from './date-range.js';
 
 /** The tables the page offers to download, in link order, with their names in the copy. */
 export const DOWNLOAD_TABLES = Object.freeze([
@@ -195,9 +195,7 @@ ${dateField(view, 'to', 'To')}
 
 function currentRange(view) {
   const { range } = view;
-  const span = range.from === range.to
-    ? formatDayLong(range.from)
-    : `${formatDayLong(range.from)} to ${formatDayLong(range.to)}`;
+  const span = formatSpanLong(range.from, range.to);
   const lead = range.isDefault ? `Showing the last ${plural(range.days, 'day', 'days')}: ${span}` : `Showing ${span}`;
   const today = range.to === view.today ? ' Today is still under way, so its numbers can still grow.' : '';
   const reset = range.isDefault ? '' : html` <a class="range-current__reset" href="/admin/">Show the last ${SUMMARY_DEFAULT_DAYS} days</a>`;
@@ -540,7 +538,7 @@ export function renderDownloadPage(view) {
   const name = entry ? entry.name : view.table;
   const lower = name.toLowerCase();
   const parts = Math.max(1, Math.ceil(view.rows / view.pageRows));
-  const span = view.from === view.to ? formatDayLong(view.from) : `${formatDayLong(view.from)} to ${formatDayLong(view.to)}`;
+  const span = formatSpanLong(view.from, view.to);
   return html`${head(`Download ${lower}, ${formatSpan(view.from, view.to)} (UTC)`, { script: true })}
 ${header(view.host)}
 <main id="main" class="admin-container admin-main">

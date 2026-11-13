@@ -46,11 +46,12 @@ const count = (value) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const compareCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 /** Text order for titles: en-AU collation, then code units, so it is total. */
 function compareText(a, b) {
-  return a.localeCompare(b, 'en-AU') || (a < b ? -1 : a > b ? 1 : 0);
+  return a.localeCompare(b, 'en-AU') || compareCode(a, b);
 }
-const compareCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** A page id -> how the page shows it: its title from pages.json, or the id when it is no longer on the site. */
 function pageOf(index, id) {
