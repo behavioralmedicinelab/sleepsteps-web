@@ -271,16 +271,11 @@
 
 /* 4. Print ------------------------------------------------------------------------ */
 
-/* Backgrounds don't print, so the hero's paper text would vanish. */
+/* The hero's paper text turns ink and its arc goes with every teal
+   ground's (site.css). */
 @media print {
-  .home-hero {
-    background: none;
-    color: var(--ink);
-  }
-
   .home-hero__photo,
-  .home-hero__actions,
-  .home-hero .arc {
+  .home-hero__actions {
     display: none;
   }
 }

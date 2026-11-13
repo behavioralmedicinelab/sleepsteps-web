@@ -365,10 +365,41 @@ describe('the worksheets of an open solution card (pages/problem.css)', () => {
   it('hides the section in print, as the row of controls is hidden', () => {
     const print = (sheet) => (sheet.match(/@media print \{([\s\S]*?)\n\}/)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
     const hidden = (sheet) => [...print(sheet).matchAll(/\n {2}([^{}]+) \{\s*display: none;\s*\}/g)].flatMap((m) => m[1].split(/,\s*/).map((x) => x.trim()));
-    expect(hidden(components)).toEqual(['.video', '.video-controls']);
+    expect(hidden(components)).toEqual(['.video', '.video-block__top', '.video-controls']);
     expect(hidden(css)).toEqual(['.problem__back', '.on-this-page', '.worksheets']);
     // One print block in each sheet, so nothing shows the section again.
     expect(css.match(/@media print/g)).toHaveLength(1);
+  });
+});
+
+// On paper: backgrounds don't print, so paper text on a teal or ink ground
+// comes out pale grey or not at all, and a control that can't be used on
+// paper has no place there.
+describe('print', () => {
+  /** A sheet's `@media print` block, without comments. */
+  const printOf = (file) => (sheets.find((s) => s.file === file).css.match(/@media print \{([\s\S]*?)\n\}/)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+  /** The selectors of the block's `display: none` rules. */
+  const hidden = (print) => [...print.matchAll(/\n {2}([^{}]+) \{\s*display: none;\s*\}/g)].flatMap((m) => m[1].split(/,\s*/).map((sel) => sel.trim()));
+
+  it('turns every teal ground\'s paper text to ink, on every page (site.css)', () => {
+    const print = printOf('site.css');
+    // .on-dark is the one class that gives a ground paper text: every title
+    // band, Home's hero and Start here's band and end card.
+    expect(print).toMatch(/\n {2}\.on-dark \{\s*background: none;\s*color: var\(--ink\);\s*\}/);
+    expect(hidden(print)).toContain('.arc');
+    // The pages don't each repeat it.
+    for (const file of ['pages/home.css', 'pages/start.css']) expect(printOf(file), file).not.toMatch(/background: none|color: var\(--ink\)|\.arc\b/);
+  });
+
+  it('prints Getting urgent help\'s call cards, their numbers included, in ink with an ink edge (urgent-help.css)', () => {
+    const print = printOf('pages/urgent-help.css');
+    // Both grounds go (the first card's ink and the others' deep-teal), in
+    // case the reader prints backgrounds: ink text on either would be lost.
+    expect(print).toMatch(/\n {2}\.call-card a,\s*\.call-card a:hover,\s*\.call-card--first a \{\s*border-color: var\(--ink\);\s*background: none;\s*color: var\(--ink\);\s*\}/);
+  });
+
+  it('prints no Close button or label chip above a video\'s title (components.css)', () => {
+    expect(hidden(printOf('components.css'))).toEqual(['.video', '.video-block__top', '.video-controls']);
   });
 });
 

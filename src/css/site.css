@@ -1367,4 +1367,16 @@ button.site-footer__feedback {
   .with-sidebar__side {
     display: none;
   }
+
+  /* Backgrounds don't print, so paper text on a teal ground (every title
+     band, Home's hero) would come out pale grey or not at all: ink on the
+     page instead, and no arc. */
+  .on-dark {
+    background: none;
+    color: var(--ink);
+  }
+
+  .arc {
+    display: none;
+  }
 }

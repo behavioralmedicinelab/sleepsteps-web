@@ -176,3 +176,16 @@ a.contact-card__number:hover {
     padding: var(--space-8); /* board 28 x 32 */
   }
 }
+
+/* Backgrounds don't print, so the call cards' paper text, the numbers
+   included, would come out pale grey or not at all: ink text and an ink
+   edge instead. Both grounds go, in case the reader prints backgrounds. */
+@media print {
+  .call-card a,
+  .call-card a:hover,
+  .call-card--first a {
+    border-color: var(--ink);
+    background: none;
+    color: var(--ink);
+  }
+}

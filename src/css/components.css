@@ -797,9 +797,12 @@ button.format-button {
   }
 }
 
-/* A video can't play on paper, nor a handout open, nor a rating be given. */
+/* A video can't play on paper, nor a handout open, nor a rating be given,
+   nor a solution card be closed: the title and description stay, without
+   the label chip and Close above them. */
 @media print {
   .video,
+  .video-block__top,
   .video-controls {
     display: none;
   }
