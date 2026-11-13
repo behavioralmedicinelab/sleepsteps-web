@@ -108,12 +108,25 @@ function pauseOthers(except) {
   });
 }
 
-/** Pause every video and audio inside `root` (e.g. a card being closed). */
+/**
+ * Pause every video and audio inside `root` (e.g. a card being closed). A
+ * video that is still loading isn't playing yet, so there is nothing to
+ * pause: outOfReach() keeps it from starting once it is ready.
+ */
 export function pauseWithin(root) {
   players.forEach((entry, wrapper) => {
     if (root.contains(wrapper)) pausePlayer(entry);
   });
   root.querySelectorAll('audio').forEach((audio) => audio.pause());
+}
+
+/**
+ * Whether the visitor can't get to this video: it is inside something
+ * hidden, as when its solution card was closed while it loaded
+ * (solutions.js). A video there must not start playing.
+ */
+function outOfReach(wrapper) {
+  return wrapper.closest('[hidden]') !== null;
 }
 
 // ---- YouTube player --------------------------------------------------------------
@@ -185,6 +198,18 @@ function onStateChange(wrapper, state) {
   const entry = players.get(wrapper);
   const states = window.YT?.PlayerState;
   if (!entry || !states) return;
+  // Starting where the visitor can't get to it (`autoplay: 1` starts a video
+  // that was still loading when its card closed): pause it, pause nothing
+  // else and report no play.
+  if ((state === states.PLAYING || state === states.BUFFERING) && outOfReach(wrapper)) {
+    clearInterval(entry.poll);
+    try {
+      entry.player.pauseVideo();
+    } catch {
+      // Mid-teardown; nothing to pause.
+    }
+    return;
+  }
   // video_play is reported from here and from the 5-second poll.
   if (state === states.PLAYING) {
     pauseOthers(wrapper);
@@ -243,7 +268,8 @@ function play(wrapper, button) {
             wrapper.classList.add('is-playing');
             // Autoplay may be blocked (iOS); YouTube then shows its own play
             // button, which the focused iframe makes the next thing to press.
-            player.playVideo();
+            // Not if the visitor has closed its card meanwhile.
+            if (!outOfReach(wrapper)) player.playVideo();
             if (moveFocus) iframe.focus();
           },
           onStateChange: (event) => onStateChange(wrapper, event.data),

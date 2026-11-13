@@ -69,6 +69,8 @@ describe('players.js', () => {
           this.options = options;
           this.iframe = document.createElement('iframe');
           target.replaceWith(this.iframe);
+          this.calls = []; // 'play' and 'pause', in the order they were asked for
+          this.state = -1; // unstarted
           created.push(this);
         }
 
@@ -76,10 +78,30 @@ describe('players.js', () => {
           return this.iframe;
         }
 
-        playVideo() {}
+        playVideo() {
+          this.calls.push('play');
+        }
+
+        pauseVideo() {
+          this.calls.push('pause');
+        }
 
         getPlayerState() {
-          return -1;
+          return this.state;
+        }
+
+        getDuration() {
+          return 400;
+        }
+
+        getCurrentTime() {
+          return 0;
+        }
+
+        /** The player reports a new state, as YouTube does. */
+        becomes(state) {
+          this.state = state;
+          this.options.events.onStateChange({ data: state });
         }
 
         destroy() {
@@ -387,6 +409,75 @@ describe('players.js', () => {
     audio.dispatchEvent(new Event('timeupdate'));
     window.dispatchEvent(new Event('pagehide'));
     expect(reported).toEqual([{ type: 'audio_play', detail: { media: 'a-talk', furthest: 75 } }]);
+  });
+
+  // Two solution cards with playable videos (the site's own are placeholders,
+  // SPEC §7): closing a card pauses its media (SPEC §7.5), and a video that
+  // was still loading then must not start in the closed card.
+  const cardsPage = env.renderString(
+    '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
+      '{% from "problem/solutions.njk" import solutionsSection %}' +
+      '{{ solutionsSection("main", items, "a-page") }}</main></body></html>',
+    {
+      items: filters.solutionsByTier(
+        [
+          { tier: 'main', video: 'full', blurb: 'Try this.' },
+          { tier: 'main', video: 'other', blurb: 'Or this.' },
+        ],
+        [...videos, videoRow('other', { title: 'Another idea', youtube_url: 'https://youtu.be/ZyXwVuTsRqP', duration: '2:10', handout: 'other.pdf', audio: 'other.mp3' })],
+      ).main,
+    },
+  );
+  const PLAYING = 1;
+  const PAUSED = 2;
+  const BUFFERING = 3;
+
+  it.each([
+    ['the IFrame API', false],
+    ['the player', true],
+  ])('does not start a video whose card was closed while %s loaded, or pause what plays in the open card', async (_, apiLoaded) => {
+    await load(cardsPage, ['players', 'solutions']);
+    const { document, window } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const [first, second] = document.querySelectorAll('.solution');
+    const apiArrives = async () => {
+      window.YT = fakeYouTube(document);
+      window.onYouTubeIframeAPIReady();
+      await settle();
+    };
+
+    first.querySelector('.solution__face').click();
+    first.querySelector('button.video__facade').click();
+    if (apiLoaded) await apiArrives();
+    // Close, before the video is ready; then the next card's audio plays.
+    first.querySelector('.video-block__close').click();
+    expect(first.querySelector('.solution__panel').hidden).toBe(true);
+    second.querySelector('.solution__face').click();
+    const audio = second.querySelector('audio');
+    audio.paused = false;
+    audio.dispatchEvent(new Event('play'));
+    if (!apiLoaded) await apiArrives();
+
+    const [player] = created;
+    player.options.events.onReady();
+    expect(player.calls).toEqual([]);
+    // `autoplay: 1` may start it all the same: it is paused, and the audio plays on.
+    player.becomes(BUFFERING);
+    player.becomes(PLAYING);
+    expect(player.calls).toEqual(['pause', 'pause']);
+    expect(audio.paused).toBe(false);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported.filter((r) => r.type === 'video_play')).toEqual([]);
+
+    // Opened again, the video plays when the visitor starts it, and that is a play.
+    first.querySelector('.solution__face').click();
+    player.calls.length = 0;
+    player.becomes(PLAYING);
+    player.becomes(PAUSED);
+    expect(player.calls).toEqual([]);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported.filter((r) => r.type === 'video_play')).toEqual([{ type: 'video_play', detail: { media: 'full', furthest: 0 } }]);
   });
 });
 
