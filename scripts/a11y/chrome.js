@@ -234,8 +234,14 @@ export async function openTab(browser) {
     return result.result.value;
   };
 
-  const once = (event, timeout = 15000) =>
-    new Promise((resolve, reject) => {
+  /**
+   * Resolves with the next `event`, or rejects after `timeout` ms. Its
+   * `cancel()` drops the wait, for a caller that will never await it: a
+   * rejection nobody handles ends the whole run.
+   */
+  const once = (event, timeout = 15000) => {
+    let cancel;
+    const promise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         waiters.delete(waiter);
         reject(new Error(`timed out waiting for ${event}`));
@@ -247,7 +253,13 @@ export async function openTab(browser) {
         resolve(params);
       };
       waiters.add(waiter);
+      cancel = () => {
+        clearTimeout(timer);
+        waiters.delete(waiter);
+      };
     });
+    return Object.assign(promise, { cancel });
+  };
 
   async function navigate(url, { width = 1280, height = 900, js = true } = {}) {
     await send('Emulation.setScriptExecutionDisabled', { value: !js });
@@ -256,8 +268,14 @@ export async function openTab(browser) {
     // colour half-way through a transition.
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     const loaded = once('Page.loadEventFired');
-    const { errorText } = await send('Page.navigate', { url });
-    if (errorText) throw new Error(`navigate ${url}: ${errorText}`);
+    try {
+      const { errorText } = await send('Page.navigate', { url });
+      if (errorText) throw new Error(`navigate ${url}: ${errorText}`);
+    } catch (error) {
+      // No page will load, and nothing below awaits `loaded` now.
+      loaded.cancel();
+      throw error;
+    }
     await loaded;
     await sleep(300);
   }

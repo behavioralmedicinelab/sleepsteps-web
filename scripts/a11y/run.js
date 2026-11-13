@@ -33,9 +33,10 @@
 //    purpose.
 // It fails (exit 1) on any WCAG violation, keyboard failure or error of the
 // site's own; best-practice findings and axe's "incomplete" items are listed
-// for a person to check. Exit 2: it couldn't run (no Chrome, no build). A
-// state that needs a feature switched off in site.config.json is skipped,
-// and the output says so.
+// for a person to check. Exit 2: it couldn't run (no Chrome, no build, an
+// option without its value) or checked nothing (an --only that matches no
+// state or walk, or only skipped ones). A state that needs a feature
+// switched off in site.config.json is skipped, and the output says so.
 //
 // Options: --only <regex> runs the states and walks whose names match;
 // --report <file> writes every result as JSON.
@@ -66,7 +67,24 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 const args = process.argv.slice(2);
 const option = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const only = option('--only') ? new RegExp(option('--only'), 'i') : null;
+// An option given without its value (last on the line, empty, or followed by
+// another option) stops the run: dropped without a word, --only would run
+// every check and --report would write nothing.
+const OPTION_VALUES = { '--only': 'a regular expression, such as "feedback"', '--report': 'a file name', '--port': 'a port number', '--host': 'an address' };
+/** --only's pattern (null without one), or why the options can't be used. */
+function readOptions() {
+  for (const [name, what] of Object.entries(OPTION_VALUES)) {
+    const value = option(name);
+    if (args.includes(name) && (!value || value.startsWith('--'))) return { problem: `${name} needs a value: ${what}.` };
+  }
+  if (!args.includes('--only')) return { only: null };
+  try {
+    return { only: new RegExp(option('--only'), 'i') };
+  } catch (error) {
+    return { problem: `--only "${option('--only')}" isn't a regular expression: ${error.message}` };
+  }
+}
+const { only = null, problem: optionProblem = null } = readOptions();
 const reportFile = option('--report');
 const serveOnly = args.includes('--serve');
 const SERVE_PORT = 8790;
@@ -102,9 +120,13 @@ const textSpacing = async (tab) => {
   await tab.sleep(150);
 };
 
+// Each of these fails its state unless the part really opened: a state
+// checked on the closed page would otherwise be reported "ok".
 const openMenu = async (tab) => {
   await tab.click('.mobile-menu__toggle');
-  await tab.waitFor(`document.querySelector('.mobile-menu__toggle[aria-expanded="true"]')`, 2000);
+  if (!(await tab.waitFor(`document.querySelector('.mobile-menu__toggle[aria-expanded="true"]')`, 2000))) {
+    throw new Error("the phone menu didn't open");
+  }
 };
 // The enhanced face (solutions.js), never "any button in the card": the
 // template's Close always carries aria-expanded="true" and stays in the DOM
@@ -140,14 +162,15 @@ const FOOTER_TRIGGER = '.site-footer [data-feedback-trigger]';
 const VIDEO_TRIGGER = '.problem-video button[data-feedback-video]';
 // The same button in the open solution card.
 const CARD_TRIGGER = '.solution.is-open button[data-feedback-video]';
+const DIALOG_OPEN = `document.querySelector('[data-feedback-dialog]')?.open`;
 const openDialog = async (tab) => {
   await tab.click(FOOTER_TRIGGER);
-  await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
+  if (!(await tab.waitFor(DIALOG_OPEN, 3000))) throw new Error('"Send feedback" didn\'t open the dialog');
 };
 /** Opens the dialog from the problem video's button, and fails unless it says which video it is about. */
 const openDialogFromVideo = async (tab) => {
   await tab.click(VIDEO_TRIGGER);
-  await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
+  if (!(await tab.waitFor(DIALOG_OPEN, 3000))) throw new Error("the video's Feedback button didn't open the dialog");
   const about = await js(tab, `(() => { const el = document.querySelector('[data-feedback-about]'); return el && !el.hidden && el.getClientRects().length ? el.textContent : ''; })()`);
   if (!/^Video: \S/.test(about)) throw new Error(`the dialog didn't say which video it is about ("${about}")`);
 };
@@ -649,7 +672,7 @@ function walks() {
         // From the footer the same dialog names no video, and keeps the draft.
         await js(tab, `document.querySelector(${JSON.stringify(FOOTER_TRIGGER)}).focus()`);
         await tab.key('Enter');
-        await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
+        if (!(await tab.waitFor(DIALOG_OPEN, 3000))) problems.push('Enter on "Send feedback" didn\'t open the dialog afterwards');
         const footer = await js(tab, `(() => { const about = document.querySelector('[data-feedback-about]'); return { hidden: about.hidden, text: about.textContent, draft: document.querySelector('[data-feedback-dialog] textarea').value }; })()`);
         if (!footer.hidden || footer.text !== '' || footer.draft !== 'A draft') problems.push(`Opened from the footer afterwards, the dialog still names the video or lost the draft (${JSON.stringify(footer)})`);
         await tab.key('Escape');
@@ -708,7 +731,7 @@ function walks() {
       run: async (tab) => {
         await js(tab, `document.querySelector(${JSON.stringify(FOOTER_TRIGGER)}).focus()`);
         await tab.key('Enter');
-        await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
+        if (!(await tab.waitFor(DIALOG_OPEN, 3000))) return { problems: ["Enter didn't open the dialog"] };
         await tab.sleep(400);
         return tabWalk(tab, { max: 40, inside: true });
       },
@@ -780,6 +803,10 @@ async function serve() {
 }
 
 async function main() {
+  if (optionProblem) {
+    console.error(optionProblem);
+    return 2;
+  }
   if (serveOnly) return serve();
   const chrome = findChrome();
   if (!chrome) {
@@ -796,6 +823,10 @@ async function main() {
     return 2;
   }
   const { pages, site } = build;
+  if (only && ![...states(), ...walks()].some((item) => only.test(item.name))) {
+    console.error(`--only ${option('--only')} matches no state or walk, so there is nothing to check. Their names start each line of a full run: "page /help/", "feedback: open", "walk /start/".`);
+    return 2;
+  }
   const db = createD1(path.join(ROOT, 'migrations'));
   await seedD1(db, pages, Date.now());
   const results = [];
@@ -942,6 +973,11 @@ async function main() {
   }
   if (reportFile) writeFileSync(reportFile, JSON.stringify({ chrome: version, axe: axeVersion, results, incomplete: Object.fromEntries(incomplete), advisories: Object.fromEntries(advisories) }, null, 1));
   const checked = results.length;
+  if (checked === 0) {
+    // Everything --only matched was skipped (its feature is switched off).
+    console.log('\nNo checks ran: every state and walk that matches --only was skipped.');
+    return 2;
+  }
   console.log(failures ? `\n${failures} of ${checked} checks failed.` : `\nAll ${checked} checks passed.`);
   return failures ? 1 : 0;
 }

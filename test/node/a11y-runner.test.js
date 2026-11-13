@@ -3,10 +3,12 @@
 // the D1 stand-in, and finding Chrome. The browser run itself is on the
 // project lead's Mac only; these keep it from drifting from the code it
 // serves (dist/_headers, the router, the schema) between runs.
+import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { findChrome, MAC_CHROME } from '../../scripts/a11y/chrome.js';
+import { promisify } from 'node:util';
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
+import { findChrome, MAC_CHROME, openTab } from '../../scripts/a11y/chrome.js';
 import { createD1, seedD1 } from '../../scripts/a11y/d1-sqlite.js';
 import { headersFor, parseHeadersFile, parseRedirectsFile, startServer, withPlaceholderKey } from '../../scripts/a11y/server.js';
 import { SUMMARY_QUERIES } from '../../worker/lib/admin-queries.js';
@@ -188,6 +190,65 @@ describe('the D1 stand-in (scripts/a11y/d1-sqlite.js)', () => {
     without.close();
     db.close();
   });
+});
+
+describe('a tab (scripts/a11y/chrome.js)', () => {
+  // A stand-in for the DevTools connection: every command answers at once,
+  // and Page.navigate answers as Chrome does when nothing listens at the address.
+  const refusing = () => ({
+    listeners: new Set(),
+    send: async (method) => {
+      if (method === 'Target.createTarget') return { targetId: 't1' };
+      if (method === 'Target.attachToTarget') return { sessionId: 's1' };
+      if (method === 'Page.navigate') return { errorText: 'net::ERR_CONNECTION_REFUSED' };
+      return {};
+    },
+  });
+
+  it('fails a navigation Chrome refuses once, to its caller: no timer is left to reject 15 seconds later and end the run', async () => {
+    const unhandled = [];
+    const onUnhandled = (reason) => unhandled.push(String(reason?.message ?? reason));
+    process.on('unhandledRejection', onUnhandled);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const tab = await openTab(refusing());
+      await expect(tab.navigate('http://127.0.0.1:9/')).rejects.toThrow('navigate http://127.0.0.1:9/: net::ERR_CONNECTION_REFUSED');
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(20000);
+      // Node reports an unhandled rejection after the microtasks have run.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+});
+
+// These stop before the script looks for Chrome or a build, so they run
+// anywhere. Without the check, "--only" as the last word ran every state.
+describe('the runner\'s options (scripts/a11y/run.js)', () => {
+  const exec = promisify(execFile);
+  const runner = (...args) => exec(process.execPath, [path.resolve('scripts/a11y/run.js'), ...args], { timeout: 8000 }).catch((e) => e);
+
+  it.each([
+    ['--only as the last word', ['--only'], '--only'],
+    ['--only followed by another option', ['--only', '--report', 'out.json'], '--only'],
+    ['--only with an empty value', ['--only', ''], '--only'],
+    ['--report without a file', ['--only', 'page', '--report'], '--report'],
+    ['--port without a number', ['--serve', '--port'], '--port'],
+    ['--host without an address', ['--serve', '--host'], '--host'],
+  ])('stops with exit code 2 on %s', async (name, args, option) => {
+    const result = await runner(...args);
+    expect([result.code, result.stdout]).toEqual([2, '']);
+    expect(result.stderr).toContain(`${option} needs a value`);
+  }, 15000);
+
+  it('stops with exit code 2 on an --only that is not a regular expression', async () => {
+    const result = await runner('--only', 'page (');
+    expect([result.code, result.stdout]).toEqual([2, '']);
+    expect(result.stderr).toMatch(/^--only "page \(" isn't a regular expression: /);
+  }, 15000);
 });
 
 describe('finding Chrome (scripts/a11y/chrome.js)', () => {
