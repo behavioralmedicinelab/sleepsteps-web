@@ -234,15 +234,14 @@ export default function (eleventyConfig) {
   });
 
   // "6:40" -> "6 minutes 40 seconds", for screen readers next to a visible
-  // duration. Anything that isn't m:ss or h:mm:ss (a "[mm:ss]" placeholder)
-  // gives "".
+  // duration. Anything that isn't m:ss (a "[mm:ss]" placeholder) gives "".
+  // There are no hours: the content check refuses h:mm:ss (SPEC §7.1).
   eleventyConfig.addFilter('spokenDuration', (duration) => {
-    const m = String(duration ?? '').trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):([0-5]\d)$/);
+    const m = String(duration ?? '').trim().match(/^(\d{1,2}):([0-5]\d)$/);
     if (!m) return '';
     const parts = [
-      [Number(m[1] ?? 0), 'hour'],
-      [Number(m[2]), 'minute'],
-      [Number(m[3]), 'second'],
+      [Number(m[1]), 'minute'],
+      [Number(m[2]), 'second'],
     ]
       .filter(([n]) => n > 0)
       .map(([n, unit]) => `${n} ${unit}${n === 1 ? '' : 's'}`);

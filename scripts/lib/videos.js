@@ -14,6 +14,13 @@ import path from 'node:path';
  */
 export const TRANSCRIPTS_DIR = 'data/transcripts';
 
+/**
+ * An id (SPEC §7): a video_id, a page_id and an area_id are each lowercase
+ * words joined by hyphens. The one pattern for the content check, the
+ * transcripts' file names and pages.json (scripts/build-data.js).
+ */
+export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /** data/videos.csv's columns, in order (SPEC §7.1). */
 export const VIDEO_COLUMNS = ['video_id', 'title', 'description', 'youtube_url', 'duration', 'audio', 'handout', 'thumbnail'];
 
@@ -90,8 +97,8 @@ export function toVideo(row) {
   };
 }
 
-/** A transcript's file name: <video_id>.txt. */
-export const TRANSCRIPT_FILE = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.txt$/;
+/** The video_id in a transcript's file name, <video_id>.txt, or null. */
+const transcriptId = (name) => (name.endsWith('.txt') && SLUG.test(name.slice(0, -4)) ? name.slice(0, -4) : null);
 
 /**
  * The files in a transcripts folder (data/transcripts/), sorted, without
@@ -106,7 +113,7 @@ export function transcriptFiles(dir) {
     .sort()
     .map((name) => ({
       name,
-      id: statSync(path.join(dir, name)).isFile() ? name.match(TRANSCRIPT_FILE)?.[1] ?? null : null,
+      id: statSync(path.join(dir, name)).isFile() ? transcriptId(name) : null,
     }));
 }
 

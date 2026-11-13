@@ -30,6 +30,7 @@
 // and writes the result with writeIfChanged().
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { SLUG } from './lib/videos.js';
 import { worksheetsByVideo } from './lib/worksheets.js';
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -137,7 +138,6 @@ export function searchIndex({ problems = [], videos = [], transcripts = new Map(
 
 // ---- worker/generated/pages.json (SPEC §8.3) ----------------------------------
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // The attributes that name a video in the HTML, each holding its video_id:
 // the facade (data-video), the handout links (data-handout), the
 // audio-only player (data-media), SPEC §9.4, the ratings widget

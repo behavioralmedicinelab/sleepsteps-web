@@ -177,10 +177,11 @@ describe('eleventy.config.js', () => {
     expect(f.spokenDuration('1:05')).toBe('1 minute 5 seconds');
     expect(f.spokenDuration('0:45')).toBe('45 seconds');
     expect(f.spokenDuration('10:00')).toBe('10 minutes');
-    expect(f.spokenDuration('1:02:03')).toBe('1 hour 2 minutes 3 seconds');
-    expect(f.spokenDuration('2:00:01')).toBe('2 hours 1 second');
+    expect(f.spokenDuration('75:09')).toBe('75 minutes 9 seconds');
     expect(f.spokenDuration('0:00')).toBe('0 seconds');
-    for (const other of ['[mm:ss]', '', undefined, '6:4', '6:60', 'six']) expect(f.spokenDuration(other)).toBe('');
+    // No hours: data/videos.csv takes m:ss only, and the content check
+    // refuses h:mm:ss, which Excel writes for a time (SPEC §7.1).
+    for (const other of ['[mm:ss]', '', undefined, '6:4', '6:60', 'six', '1:02:03', '6:40:00']) expect(f.spokenDuration(other)).toBe('');
   });
 
   it('numberWord spells out 0-20 and leaves larger numbers as digits', () => {

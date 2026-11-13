@@ -40,7 +40,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isMain } from './lib/cli.js';
 import { parseCsvTable } from './lib/csv.js';
-import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, VIDEO_COLUMNS, readTranscript, toVideo, transcriptFiles, youtubeIdFromUrl } from './lib/videos.js';
+import { PLACEHOLDER_FILES, SLUG, TRANSCRIPTS_DIR, VIDEO_COLUMNS, readTranscript, toVideo, transcriptFiles, youtubeIdFromUrl } from './lib/videos.js';
 import { PLACEHOLDER_WORKSHEET, WORKSHEET_COLUMNS, WORKSHEETS_DIR, WORKSHEETS_FILE, toWorksheet } from './lib/worksheets.js';
 
 const require = createRequire(import.meta.url);
@@ -49,9 +49,8 @@ const matter = fromEleventy('gray-matter');
 const yaml = fromEleventy('js-yaml');
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024; // the static asset limit, for every file the site serves (SPEC §9.2)
-export const SOLUTION_LIMITS = { main: [1, 3], extra: [0, 3] };
+const SOLUTION_LIMITS = { main: [1, 3], extra: [0, 3] };
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // m:ss, as YouTube Studio shows a length (no video runs an hour: the audio
 // limit is about 36 minutes, SPEC §9.2). Refusing h:mm:ss also catches
 // Excel turning "6:40" into the time "6:40:00".
@@ -80,10 +79,6 @@ const NOT_UTF8_CSV = 'has characters that aren\'t UTF-8: in Excel, save the file
 const GARBLED_CSV = 'has garbled characters (for example â€œ in place of “): Excel opened the file in the wrong encoding. Undo, open it through Data > From Text/CSV with "65001: Unicode (UTF-8)", then save as "CSV UTF-8 (Comma delimited)"';
 
 const VIDEOS_FILE = 'data/videos.csv';
-const AREAS_FILE = 'data/areas.csv';
-/** data/areas.csv's columns, in order (SPEC §7.2). */
-const AREA_COLUMNS = ['area_id', 'name', 'description', 'source_name', 'order'];
-const AREA_ORDER = /^\d+(?:\.\d+)?$/;
 const PROBLEM_KEYS = [
   'title', 'statement', 'source_title', 'area', 'order',
   'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
@@ -95,7 +90,7 @@ const MEDIA = {
 };
 
 // Warning codes, with the heading the CLI prints above each group.
-export const WARNINGS = {
+const WARNINGS = {
   'placeholder-video': 'Placeholder videos (no YouTube link yet; SPEC §20 M8 requires none)',
   'placeholder-worksheet': `Placeholder worksheets (the shared ${PLACEHOLDER_WORKSHEET}; the launch check allows none, SPEC §7.6)`,
   'related-few': 'Problems with fewer than 2 related topics (SPEC §7.2 asks for 2-3)',
@@ -188,6 +183,9 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   // One row per area, edited in Excel; messages name the row as for
   // data/videos.csv. An area_id is each problem's `area` and, on Home, the
   // id of the area's group (/#<area_id>), so it is a slug, on one row only.
+  const AREAS_FILE = 'data/areas.csv';
+  const AREA_COLUMNS = ['area_id', 'name', 'description', 'source_name', 'order'];
+  const AREA_ORDER = /^\d+(?:\.\d+)?$/;
   const areas = [];
   // False while the file is missing or unreadable: then no problem's `area`
   // is looked up, so one spreadsheet mistake is one error, not one per problem.
