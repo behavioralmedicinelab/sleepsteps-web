@@ -149,7 +149,7 @@ const openDialogFromVideo = async (tab) => {
   await tab.click(VIDEO_TRIGGER);
   await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
   const about = await js(tab, `(() => { const el = document.querySelector('[data-feedback-about]'); return el && !el.hidden && el.getClientRects().length ? el.textContent : ''; })()`);
-  if (!/^About the video: \S/.test(about)) throw new Error(`the dialog didn't say which video it is about ("${about}")`);
+  if (!/^Video: \S/.test(about)) throw new Error(`the dialog didn't say which video it is about ("${about}")`);
 };
 /**
  * Waits for Turnstile's frame (inside a closed shadow root, and in a process
@@ -617,7 +617,7 @@ function walks() {
             onButton: document.activeElement.matches(${JSON.stringify(VIDEO_TRIGGER)}),
             onFooter: document.activeElement.matches(${JSON.stringify(FOOTER_TRIGGER)}),
             about: about.hidden ? null : about.textContent,
-            expected: 'About the video: ' + heading.textContent.trim(),
+            expected: 'Video: ' + heading.textContent.trim(),
             draft: document.querySelector('[data-feedback-dialog] textarea').value,
           };
         })()`;
@@ -682,7 +682,7 @@ function walks() {
             open: document.querySelector('[data-feedback-dialog]').open,
             onButton: Boolean(button) && document.activeElement === button,
             about: about.hidden ? null : about.textContent,
-            expected: 'About the video: ' + (document.querySelector('.solution.is-open .video-block__title')?.textContent.trim() ?? ''),
+            expected: 'Video: ' + (document.querySelector('.solution.is-open .video-block__title')?.textContent.trim() ?? ''),
           };
         })()`;
         if (!(await js(tab, state)).shown) return { problems: ["feedback.js didn't show the open card's Feedback button"] };

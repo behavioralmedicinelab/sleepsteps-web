@@ -384,7 +384,8 @@ describe('feedback.js source (SPEC §13, §15.4, §16.2)', () => {
   it('writes the line for a video, and everything else it shows, as text', () => {
     expect(code).toMatch(/about\.textContent = video \? `\$\{MESSAGES\.ABOUT\}\$\{video\.title\}` : '';/);
     expect(code).toMatch(/about\.hidden = !video;/);
-    expect(MESSAGES.ABOUT).toBe('About the video: ');
+    // Not "About the video: ": a problem's own video is titled "About: …" (2026-11-13).
+    expect(MESSAGES.ABOUT).toBe('Video: ');
     // Never markup built from a title (the next test forbids innerHTML and its kin).
     expect(code.match(/\babout\.[a-zA-Z]+/g)).toEqual(['about.textContent', 'about.hidden']);
   });
@@ -487,7 +488,7 @@ describe('the dialog\'s messages and the SPEC §13 table (decision A5)', () => {
     expect(row(state)).toContain(`"${MESSAGES[key]}"`);
   });
 
-  it('gives the line for a video as §13 does: "About the video: " and the video\'s title', () => {
+  it('gives the line for a video as §13 does: "Video: " and the video\'s title', () => {
     expect(section).toContain(`"${MESSAGES.ABOUT}<title>"`);
     expect(MESSAGES.ABOUT.endsWith(': ')).toBe(true);
   });
@@ -1686,7 +1687,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
         expect([dialog().open, dialog().modal]).toEqual([true, true]);
         expect(active()).toBe(title());
         expect([about().hidden, about().textContent]).toEqual([false, ABOUT(FIRST)]);
-        expect(about().textContent).toBe(`About the video: ${titleOf(FIRST)}`);
+        expect(about().textContent).toBe(`Video: ${titleOf(FIRST)}`);
         expect(titleOf(FIRST).length).toBeGreaterThan(3);
         const scripts = dom.document.querySelectorAll('script').filter((s) => !before.includes(s));
         expect(scripts.map((s) => s.getAttribute('src'))).toEqual([TURNSTILE_URL]);
@@ -1737,7 +1738,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
         await open(PROBLEM, { html });
         expect(titleOf(FIRST)).toBe(hostile);
         videoButton(FIRST).click();
-        expect(about().textContent).toBe(`About the video: ${hostile}`);
+        expect(about().textContent).toBe(`Video: ${hostile}`);
         expect(about().children).toEqual([]);
         expect(dialog().querySelectorAll('b, img')).toEqual([]);
       });

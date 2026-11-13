@@ -16,7 +16,7 @@
 // same dialog about that video. The buttons ship `hidden`, since they need
 // this module, which shows each one once it opens the dialog; a button that
 // can't name its video (no video_id, or no title heading on the page) stays
-// hidden. Opened from one, the dialog says "About the video: <title>" in
+// hidden. Opened from one, the dialog says "Video: <title>" in
 // the line under its heading (the title is the text of the video's heading,
 // id video-<video_id>-title, set with textContent), and that line is read
 // with the notice as the dialog's description. Opened from the footer, the
@@ -169,7 +169,8 @@ export const MESSAGES = Object.freeze({
   CANCEL: 'Cancel',
   CLOSE: 'Close',
   // The line under the heading when a video's button opened the dialog: this, then the video's title.
-  ABOUT: 'About the video: ',
+  // Not "About the video: ": a problem's own video is titled "About: …".
+  ABOUT: 'Video: ',
 });
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);

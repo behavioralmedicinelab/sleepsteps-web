@@ -822,7 +822,7 @@ button.site-footer__feedback {
   letter-spacing: var(--tracking-heading);
 }
 
-/* "About the video: <title>", under the heading when a video's "Feedback"
+/* "Video: <title>", under the heading when a video's "Feedback"
    button opened the dialog (feedback.js); [hidden] and empty otherwise. A
    long title wraps. */
 .feedback__about {
