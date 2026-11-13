@@ -39,7 +39,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseCsvRecords, parseCsvTable } from './lib/csv.js';
+import { parseCsvTable } from './lib/csv.js';
 import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, VIDEO_COLUMNS, readTranscript, toVideo, transcriptFiles, youtubeIdFromUrl } from './lib/videos.js';
 import { PLACEHOLDER_WORKSHEET, WORKSHEET_COLUMNS, WORKSHEETS_DIR, WORKSHEETS_FILE, toWorksheet } from './lib/worksheets.js';
 
@@ -77,9 +77,14 @@ const NOT_UTF8 = '\uFFFD';
 const CP1252_HIGH = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
 const MAC_HIGH = 'ÄÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø';
 const MOJIBAKE = new RegExp(`[\\u0080-\\u009F]|â€|Ã[\\u00A0-\\u00BF${CP1252_HIGH}]|Â[\\u00A0-\\u00BF]|‚Ä|[√¬][${MAC_HIGH}]`);
+const NOT_UTF8_CSV = 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"';
 const GARBLED_CSV = 'has garbled characters (for example â€œ in place of “): Excel opened the file in the wrong encoding. Undo, open it through Data > From Text/CSV with "65001: Unicode (UTF-8)", then save as "CSV UTF-8 (Comma delimited)"';
 
 const VIDEOS_FILE = 'data/videos.csv';
+const AREAS_FILE = 'data/areas.csv';
+/** data/areas.csv's columns, in order (SPEC §7.2). */
+const AREA_COLUMNS = ['area_id', 'name', 'description', 'source_name', 'order'];
+const AREA_ORDER = /^\d+(?:\.\d+)?$/;
 const PROBLEM_KEYS = [
   'title', 'statement', 'source_title', 'area', 'order',
   'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
@@ -152,12 +157,51 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     }
   };
 
-  // ---- Areas (data/areas.csv) -------------------------------------------
-  let areas = [];
-  try {
-    areas = parseCsvRecords(readFileSync(at('data/areas.csv'), 'utf8'));
-  } catch (e) {
-    error('data/areas.csv', '', e.message);
+  // Both encoding checks (SPEC §7.1) on one row of any of the team's CSVs;
+  // `where` is the row as its messages name it ("row 12").
+  const checkEncoding = (file, where, record) => {
+    if (Object.values(record).some((value) => String(value ?? '').includes(NOT_UTF8))) error(file, where, NOT_UTF8_CSV);
+    const garbled = garbledFields(record);
+    if (garbled.length) error(file, `${where}: ${garbled.join(', ')}`, GARBLED_CSV);
+  };
+
+  // ---- Areas (data/areas.csv, SPEC §7.2) ----------------------------------
+  // One row per area, edited in Excel; messages name the row as for
+  // data/videos.csv. An area_id is each problem's `area` and, on Home, the
+  // id of the area's group (/#<area_id>), so it is a slug, on one row only.
+  const areas = [];
+  // False while the file is missing or unreadable: then no problem's `area`
+  // is looked up, so one spreadsheet mistake is one error, not one per problem.
+  let areasRead = false;
+  if (!existsSync(at(AREAS_FILE))) {
+    error(AREAS_FILE, '', `missing: the problem areas, one row per area with the columns ${AREA_COLUMNS.join(',')}`);
+  } else {
+    try {
+      const table = parseCsvTable(readFileSync(at(AREAS_FILE), 'utf8'));
+      if (table.columns.join(',') !== AREA_COLUMNS.join(',')) {
+        error(AREAS_FILE, '', `the columns must be ${AREA_COLUMNS.join(',')}, in that order (found ${table.columns.join(',') || 'none'})`);
+      } else {
+        areasRead = true;
+        const rowOf = new Map();
+        for (const { row, record } of table.rows) {
+          areas.push(record);
+          const id = record.area_id;
+          const where = isText(id) ? `row ${row} (${id})` : `row ${row}`;
+          const fail = (field, message) => error(AREAS_FILE, `${where}: ${field}`, message);
+          checkEncoding(AREAS_FILE, where, record);
+          if (!isText(id)) fail('area_id', 'required: lowercase words joined by hyphens, e.g. body-clock');
+          else if (!SLUG.test(id)) fail('area_id', `"${id}" must be lowercase words joined by hyphens, e.g. body-clock`);
+          else if (rowOf.has(id)) fail('area_id', `"${id}" is already on row ${rowOf.get(id)}; each area has one row`);
+          else rowOf.set(id, row);
+          if (!isText(record.name)) fail('name', 'required');
+          if (!isText(record.order)) fail('order', 'required: a number, e.g. 20 (the areas are listed from the lowest)');
+          else if (!AREA_ORDER.test(record.order)) fail('order', `"${record.order}" must be a number, e.g. 20 (the areas are listed from the lowest)`);
+        }
+      }
+    } catch (e) {
+      error(AREAS_FILE, '', e.message);
+    }
+    if (!areasRead) error(AREAS_FILE, '', "each problem's area was not checked: fix this file first");
   }
   const areaIds = new Set(areas.map((a) => a.area_id));
 
@@ -165,22 +209,22 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   // Optional file: columns name, role, organisation; name and role required.
   const teamFile = 'data/team.csv';
   if (existsSync(at(teamFile))) {
+    // Rows are numbered as Excel shows them (a blank row counts).
     let team = [];
+    let columns = [];
     try {
-      team = parseCsvRecords(readFileSync(at(teamFile), 'utf8'));
+      ({ columns, rows: team } = parseCsvTable(readFileSync(at(teamFile), 'utf8')));
     } catch (e) {
       error(teamFile, '', e.message);
     }
-    const columns = Object.keys(team[0] ?? {});
     if (team.length && columns.join(',') !== 'name,role,organisation') {
       error(teamFile, '', `the columns must be name,role,organisation (found ${columns.join(',')})`);
     } else {
-      team.forEach((person, i) => {
-        const garbled = garbledFields(person);
-        if (garbled.length) error(teamFile, `row ${i + 2}: ${garbled.join(', ')}`, GARBLED_CSV);
-        if (!isText(person.name)) error(teamFile, `row ${i + 2}`, 'name is empty');
-        if (!isText(person.role)) error(teamFile, `row ${i + 2}`, 'role is empty');
-      });
+      for (const { row, record: person } of team) {
+        checkEncoding(teamFile, `row ${row}`, person);
+        if (!isText(person.name)) error(teamFile, `row ${row}`, 'name is empty');
+        if (!isText(person.role)) error(teamFile, `row ${row}`, 'role is empty');
+      }
     }
   }
 
@@ -231,11 +275,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     const where = isText(id) ? `row ${row} (${id})` : `row ${row}`;
     const fail = (field, message) => error(VIDEOS_FILE, field ? `${where}: ${field}` : where, message);
 
-    if (Object.values(record).some((value) => value.includes(NOT_UTF8))) {
-      fail('', 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"');
-    }
-    const garbled = garbledFields(record);
-    if (garbled.length) fail(garbled.join(', '), GARBLED_CSV);
+    checkEncoding(VIDEOS_FILE, where, record);
     if (!isText(id)) {
       fail('video_id', 'required: lowercase words joined by hyphens, e.g. sleep-drive');
       continue;
@@ -404,13 +444,9 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   for (const { row, record } of worksheetRows) {
     const id = record.worksheet_id;
     const where = isText(id) ? `row ${row} (${id})` : `row ${row}`;
-    const fail = (field, message) => error(WORKSHEETS_FILE, field ? `${where}: ${field}` : where, message);
+    const fail = (field, message) => error(WORKSHEETS_FILE, `${where}: ${field}`, message);
 
-    if (Object.values(record).some((value) => value.includes(NOT_UTF8))) {
-      fail('', 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"');
-    }
-    const garbled = garbledFields(record);
-    if (garbled.length) fail(garbled.join(', '), GARBLED_CSV);
+    checkEncoding(WORKSHEETS_FILE, where, record);
     if (!isText(id)) {
       fail('worksheet_id', 'required: lowercase words joined by hyphens, e.g. sleep-drive-worksheet-1');
       continue;
@@ -513,7 +549,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       error(file, 'source_title', 'must be text');
     }
     if (!isText(data.area)) error(file, 'area', `required: one of ${listOf([...areaIds])}`);
-    else if (!areaIds.has(data.area)) error(file, 'area', `unknown area "${data.area}" (not in data/areas.csv)`);
+    else if (areasRead && !areaIds.has(data.area)) error(file, 'area', `unknown area "${data.area}" (not in data/areas.csv)`);
     if (typeof data.order !== 'number' || !Number.isFinite(data.order)) {
       error(file, 'order', 'required: a number (the order within the area)');
     }
@@ -689,14 +725,15 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     else if (parsed) notSearched.add(name.slice(0, -3));
   }
   const keywordsFile = 'data/keywords.csv';
+  // Its rows, each with its number as Excel shows it (a blank row counts).
   let keywords = [];
   if (existsSync(at(keywordsFile))) {
     try {
-      keywords = parseCsvRecords(readFileSync(at(keywordsFile), 'utf8'));
+      keywords = parseCsvTable(readFileSync(at(keywordsFile), 'utf8')).rows;
     } catch (e) {
       error(keywordsFile, '', e.message);
     }
-    const columns = Object.keys(keywords[0] ?? {});
+    const columns = Object.keys(keywords[0]?.record ?? {});
     if (keywords.length && (!columns.includes('page_id') || !columns.includes('keywords') || columns.length !== 2)) {
       error(keywordsFile, '', `the columns must be page_id,keywords (found ${columns.join(',')})`);
       keywords = [];
@@ -704,10 +741,9 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   }
   const withKeywords = new Set();
   const rowFor = new Set();
-  keywords.forEach((row, i) => {
-    const line = `row ${i + 2}`;
-    const garbled = garbledFields(row);
-    if (garbled.length) error(keywordsFile, `${line}: ${garbled.join(', ')}`, GARBLED_CSV);
+  keywords.forEach(({ row: number, record: row }) => {
+    const line = `row ${number}`;
+    checkEncoding(keywordsFile, line, row);
     const id = String(row.page_id ?? '').trim();
     if (!id) return error(keywordsFile, line, 'page_id is empty');
     if (notSearched.has(id)) {
@@ -722,7 +758,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   });
   for (const id of searchable) if (!withKeywords.has(id)) warn('keywords-missing', keywordsFile, id);
 
-  return { errors, warnings, model: { areas, videos, worksheets, problems, start, keywords } };
+  return { errors, warnings, model: { areas, videos, worksheets, problems, start, keywords: keywords.map(({ record }) => record) } };
 }
 
 /** Group warnings by code for printing: [[heading, [names...]], ...]. */

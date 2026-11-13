@@ -567,11 +567,73 @@ describe('solution blurbs are optional (SPEC §7.2)', () => {
   });
 });
 
+// What each of the team's CSVs says about a file saved as "CSV" (not "CSV
+// UTF-8"), and about one opened in the wrong encoding (SPEC §7.1).
+const NOT_UTF8_MESSAGE = 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"';
+const GARBLED_MESSAGE = 'has garbled characters (for example â€œ in place of “): Excel opened the file in the wrong encoding. Undo, open it through Data > From Text/CSV with "65001: Unicode (UTF-8)", then save as "CSV UTF-8 (Comma delimited)"';
+
+describe('data/areas.csv (SPEC §7.2)', () => {
+  const AREAS = 'data/areas.csv';
+  const HEADER = 'area_id,name,description,source_name,order';
+  const csv = (...rows) => [HEADER, ...rows].join('\n') + '\n';
+  const base = ['core,Core,Desc,Source,10', 'day,Day,Desc,Source,20'];
+
+  it('reads a "CSV UTF-8" file: a byte-order mark, CRLF line endings, a blank row and a decimal order', () => {
+    const result = run({ [AREAS]: `﻿${csv(base[0], ',,,,', 'day,Day,,,15.5').replace(/\n/g, '\r\n')}` });
+    expect(messages(result)).toEqual([]);
+    expect(result.model.areas.map((a) => [a.area_id, a.order])).toEqual([['core', '10'], ['day', '15.5']]);
+  });
+
+  // [description, the file, the messages]
+  it.each([
+    ['an area_id on two rows', csv(...base, 'core,Again,Desc,Source,30'), ['data/areas.csv: row 4 (core): area_id: "core" is already on row 2; each area has one row']],
+    ['an area_id that is not lowercase-hyphenated', csv(...base, 'New Area!,New,Desc,Source,30'), ['data/areas.csv: row 4 (New Area!): area_id: "New Area!" must be lowercase words joined by hyphens, e.g. body-clock']],
+    ['a row without an area_id', csv(...base, ',New,Desc,Source,30'), ['data/areas.csv: row 4: area_id: required: lowercase words joined by hyphens, e.g. body-clock']],
+    ['a row without a name', csv(...base, 'new,,Desc,Source,30'), ['data/areas.csv: row 4 (new): name: required']],
+    ['a row without an order', csv(...base, 'new,New,Desc,Source,'), ['data/areas.csv: row 4 (new): order: required: a number, e.g. 20 (the areas are listed from the lowest)']],
+    ['an order that is not a number', csv(...base, 'new,New,Desc,Source,third'), ['data/areas.csv: row 4 (new): order: "third" must be a number, e.g. 20 (the areas are listed from the lowest)']],
+    ['several problems on one row, each once, counting a blank row as Excel does', csv(base[0], '', base[1], 'New Area!,,x,,'), [
+      'data/areas.csv: row 5 (New Area!): area_id: "New Area!" must be lowercase words joined by hyphens, e.g. body-clock',
+      'data/areas.csv: row 5 (New Area!): name: required',
+      'data/areas.csv: row 5 (New Area!): order: required: a number, e.g. 20 (the areas are listed from the lowest)',
+    ]],
+    ['text that is not UTF-8 (saved as "CSV", not "CSV UTF-8")', Buffer.from(csv(base[0], 'day,Caf\xe9 days,Desc,Source,20'), 'latin1'), [`data/areas.csv: row 3 (day): ${NOT_UTF8_MESSAGE}`]],
+    ['a description garbled by opening the file as Windows-1252', csv(base[0], `day,Day,${misread('When you’re awake.', 'windows-1252')},Source,20`), [`data/areas.csv: row 3 (day): description: ${GARBLED_MESSAGE}`]],
+  ])('fails on %s', (name, file, expected) => {
+    expect(messages(run({ [AREAS]: file }))).toEqual(expected);
+  });
+
+  // One spreadsheet mistake is one error, not one per problem that names an area.
+  it("fails on a file that can't be read, once, without an error for each problem's area", () => {
+    const notChecked = "data/areas.csv: each problem's area was not checked: fix this file first";
+    expect(messages(run({ [AREAS]: null }))).toEqual([`data/areas.csv: missing: the problem areas, one row per area with the columns ${HEADER}`]);
+    expect(messages(run({ [AREAS]: '' }))).toEqual([`data/areas.csv: the columns must be ${HEADER}, in that order (found none)`, notChecked]);
+    expect(messages(run({ [AREAS]: 'id,name,description,source_name,order\ncore,Core,Desc,Source,10\n' }))).toEqual([
+      `data/areas.csv: the columns must be ${HEADER}, in that order (found id,name,description,source_name,order)`,
+      notChecked,
+    ]);
+    // The parser names the line the file ended on, as for data/videos.csv.
+    expect(messages(run({ [AREAS]: csv(...base, 'new,"New,Desc,Source,30') }))).toEqual(['data/areas.csv: Unterminated quoted field (line 5)', notChecked]);
+  });
+});
+
 describe('data/team.csv (SPEC §7.4)', () => {
   const TEAM = 'data/team.csv';
 
   it('passes with name, role and an optional organisation', () => {
     expect(messages(run({ [TEAM]: 'name,role,organisation\nA Person,Researcher,Uni\nB Person,Lived experience expert,\n' }))).toEqual([]);
+  });
+
+  it('fails on text that is not UTF-8 (saved as "CSV", not "CSV UTF-8")', () => {
+    expect(messages(run({ [TEAM]: Buffer.from('name,role,organisation\nJos\xe9 N\xfa\xf1ez,Researcher,Uni\n', 'latin1') }))).toEqual([
+      `data/team.csv: row 2: ${NOT_UTF8_MESSAGE}`,
+    ]);
+  });
+
+  it('numbers rows as Excel does: a blank row counts', () => {
+    expect(messages(run({ [TEAM]: 'name,role,organisation\nA Person,Researcher,Uni\n,,\n\nB Person,,Uni\n' }))).toEqual([
+      'data/team.csv: row 5: role is empty',
+    ]);
   });
 
   it('fails on a garbled name (the file opened in the wrong encoding)', () => {
@@ -607,6 +669,18 @@ describe('data/keywords.csv (SPEC §8.2)', () => {
   it('fails on garbled keywords (the file opened in the wrong encoding)', () => {
     expect(messages(run({ [KEYWORDS]: csv(...base.slice(0, -1), `help,"GP; ${misread('naïve; “doctor”', 'macintosh')}"`) }))).toEqual([
       'data/keywords.csv: row 6: keywords: has garbled characters (for example â€œ in place of “): Excel opened the file in the wrong encoding. Undo, open it through Data > From Text/CSV with "65001: Unicode (UTF-8)", then save as "CSV UTF-8 (Comma delimited)"',
+    ]);
+  });
+
+  it('fails on text that is not UTF-8 (saved as "CSV", not "CSV UTF-8")', () => {
+    expect(messages(run({ [KEYWORDS]: Buffer.from(csv(...base.slice(0, -1), 'help,"GP; na\xefve"'), 'latin1') }))).toEqual([
+      `data/keywords.csv: row 6: ${NOT_UTF8_MESSAGE}`,
+    ]);
+  });
+
+  it('numbers rows as Excel does: a blank row counts', () => {
+    expect(messages(run({ [KEYWORDS]: csv('one,uno', ',', 'two,dos', '', 'three,tres', 'nope,x', 'start,intro', 'help,GP') }))).toEqual([
+      'data/keywords.csv: row 7: unknown page "nope" (use a problem\'s file name, start, or an information page\'s file name)',
     ]);
   });
 
