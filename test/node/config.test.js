@@ -23,12 +23,25 @@ describe('eleventy.config.js', () => {
     expect(registered.passthrough).toContainEqual({ 'src/img': 'img' });
   });
 
-  it('ariaCurrent marks the page and, in section mode, pages below it', () => {
+  it('ariaCurrent marks the page itself, and nothing else (no "section" mode since the nav lost Sleep problems)', () => {
     expect(f.ariaCurrent('/about/', '/about/')).toBe(' aria-current="page"');
-    expect(f.ariaCurrent('/problems/pain/', '/problems/', 'section')).toBe(' aria-current="true"');
     expect(f.ariaCurrent('/problems/pain/', '/problems/')).toBe('');
-    expect(f.ariaCurrent('/', '/start/', 'section')).toBe('');
+    expect(f.ariaCurrent('/problems/pain/', '/problems/', 'section')).toBe('');
+    expect(f.ariaCurrent('/', '/start/')).toBe('');
+    expect(f.ariaCurrent('/', '/#sleep-problems')).toBe('');
     expect(f.ariaCurrent(undefined, '/start/')).toBe('');
+    expect(f.ariaCurrent.length).toBe(2);
+  });
+
+  it('copies src/_headers and src/_redirects to the site root, where Workers reads them (SPEC §16.1, §18.2)', () => {
+    expect(registered.passthrough).toContainEqual({ 'src/_headers': '_headers' });
+    expect(registered.passthrough).toContainEqual({ 'src/_redirects': '_redirects' });
+  });
+
+  it('registers no filter that only the old Home used', () => {
+    expect(Object.keys(f)).not.toContain('videoFormats');
+    // Start here's end card still spells out the number of areas.
+    expect(Object.keys(f)).toContain('numberWord');
   });
 
   it('telHref keeps digits and a leading +', () => {
@@ -221,11 +234,6 @@ describe('eleventy.config.js', () => {
       expect(chapters[0].video).toBe(f.videoById('intro', videos));
       expect(f.introChapters(undefined, videos)).toEqual([]);
       expect(() => f.introChapters([{ video: 'nope' }], videos)).toThrow(/unknown video/);
-    });
-
-    it('videoFormats says which formats any video has', () => {
-      expect(f.videoFormats(videos)).toEqual({ handout: true, audio: true });
-      expect(f.videoFormats(videos.slice(2))).toEqual({ handout: false, audio: false });
     });
   });
 

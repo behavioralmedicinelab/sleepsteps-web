@@ -8,7 +8,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { findChrome, MAC_CHROME } from '../../scripts/a11y/chrome.js';
 import { createD1, seedD1 } from '../../scripts/a11y/d1-sqlite.js';
-import { headersFor, parseHeadersFile, startServer, withPlaceholderKey } from '../../scripts/a11y/server.js';
+import { headersFor, parseHeadersFile, parseRedirectsFile, startServer, withPlaceholderKey } from '../../scripts/a11y/server.js';
 import { SUMMARY_QUERIES } from '../../worker/lib/admin-queries.js';
 import { ADMIN_HEADERS } from '../../worker/routes/admin.js';
 
@@ -37,6 +37,24 @@ describe('the _headers port (scripts/a11y/server.js)', () => {
   });
 });
 
+describe('the _redirects port (scripts/a11y/server.js)', () => {
+  it('reads the rules for one exact path, and leaves out what it does not follow', () => {
+    const rules = parseRedirectsFile(['# a comment', '/old /new 301', '/temp /there   # why', '/blog/* /news/:splat 301', '/u/:id /users/:id', 'bad', '/a /b 404', '/old /other 301'].join('\n'));
+    expect([...rules]).toEqual([
+      ['/old', { to: '/new', status: 301 }],
+      ['/temp', { to: '/there', status: 302 }],
+    ]);
+  });
+
+  it("reads the built site's rules: the old Sleep problems address goes to Home (SPEC §7.2)", () => {
+    const rules = parseRedirectsFile(readFileSync(path.join(inject('builtSite'), '_redirects'), 'utf8'));
+    expect([...rules]).toEqual([
+      ['/problems', { to: '/', status: 301 }],
+      ['/problems/', { to: '/', status: 301 }],
+    ]);
+  });
+});
+
 describe('the local server (scripts/a11y/server.js)', () => {
   let server;
   let db;
@@ -55,18 +73,31 @@ describe('the local server (scripts/a11y/server.js)', () => {
     db?.close();
   });
 
-  it('serves pages under the real CSP, the 404 page for a missing one, and never _headers', async () => {
+  it('serves pages under the real CSP, the 404 page for a missing one, and never _headers or _redirects', async () => {
     const home = await get('/');
     expect([home.status, home.headers.get('content-type')]).toEqual([200, 'text/html; charset=utf-8']);
     expect(home.headers.get('content-security-policy')).toMatch(/frame-ancestors 'none'$/);
     expect((await get('/about')).headers.get('location')).toBe('/about/');
-    for (const missing of ['/does-not-exist/', '/_headers', '/../site.config.json']) {
+    for (const missing of ['/does-not-exist/', '/_headers', '/_redirects', '/../site.config.json']) {
       const res = await get(missing);
       expect(res.status, missing).toBe(404);
       expect(await res.text(), missing).toContain('<title>Page not found</title>');
     }
     expect((await get('/404')).status).toBe(200);
     expect((await get('/favicon.ico')).headers.get('content-type')).toBe('image/vnd.microsoft.icon');
+  });
+
+  it('follows dist/_redirects: the old Sleep problems address goes to Home with a 301, and problem pages are served (SPEC §7.2)', async () => {
+    for (const [address, location] of [['/problems/', '/'], ['/problems', '/'], ['/problems/?x=1', '/?x=1']]) {
+      const res = await get(address);
+      expect([res.status, res.headers.get('location')], address).toEqual([301, location]);
+    }
+    expect((await get('/problems/pain/')).status).toBe(200);
+    expect((await get('/problems/pain')).headers.get('location')).toBe('/problems/pain/');
+    // Followed, the old address is Home, with its list of sleep problems.
+    const followed = await fetch(`${server.origin}/problems/`);
+    expect([followed.status, new URL(followed.url).pathname]).toEqual([200, '/']);
+    expect(await followed.text()).toContain('id="sleep-problems"');
   });
 
   it("serves pages with the placeholder site key, so the real key never loads off production's domain (decision A1 on other hosts)", async () => {

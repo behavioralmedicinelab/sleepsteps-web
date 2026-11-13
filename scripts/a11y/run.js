@@ -166,6 +166,7 @@ function states() {
   };
   list.push(
     { name: 'text spacing: menu open (a problem page)', path: '/problems/pain/', widths: [320], setup: spaced(openMenu) },
+    { name: 'text spacing: an area of sleep problems open (Home)', path: '/', widths: [320], setup: spaced((tab) => tab.click('[data-problems] button[aria-expanded]')) },
     { name: 'text spacing: a solution card and its audio open', path: '/problems/tired-but-wired/', widths: [320], setup: spaced(openCardAndAudio) },
     {
       name: 'text spacing: feedback open',
@@ -191,11 +192,13 @@ function states() {
         await js(tab, `document.querySelector('.topic-nav details')?.setAttribute('open', '')`);
       },
     },
-    { name: 'problems: an area open', path: '/problems/', setup: (tab) => tab.click('[data-problems] button[aria-expanded]') },
-    { name: 'problems: area named in the address', path: '/problems/#mind' },
+    // Home's list of sleep problems (SPEC §7.2; the Sleep problems page until 2026-11-13).
+    { name: 'problems: an area open', path: '/', setup: (tab) => tab.click('[data-problems] button[aria-expanded]') },
+    { name: 'problems: area named in the address', path: '/#mind' },
+    { name: 'problems: the list named in the address', path: '/#sleep-problems' },
     {
       name: 'problems: the filter matches',
-      path: '/problems/',
+      path: '/',
       setup: async (tab) => {
         await js(tab, `document.querySelector('#problem-filter').focus()`);
         await tab.type('night');
@@ -204,7 +207,7 @@ function states() {
     },
     {
       name: 'problems: the filter matches nothing',
-      path: '/problems/',
+      path: '/',
       setup: async (tab) => {
         await js(tab, `document.querySelector('#problem-filter').focus()`);
         await tab.type('xyzzyq');
@@ -305,8 +308,7 @@ function states() {
         await tab.sleep(400);
       },
     },
-    { name: 'no JavaScript: Home', path: '/', js: false },
-    { name: 'no JavaScript: Sleep problems', path: '/problems/', js: false },
+    { name: 'no JavaScript: Home, with every area of sleep problems open', path: '/', js: false },
     { name: 'no JavaScript: a problem page', path: '/problems/tired-but-wired/', js: false },
     { name: 'no JavaScript: a solution card open', path: '/problems/tired-but-wired/', js: false, noJs: `document.querySelector('details.solution__disclosure').open = true` },
     { name: 'no JavaScript: search', path: '/search/?q=sleep', js: false },
@@ -467,7 +469,7 @@ async function tabWalk(tab, { max = 300, inside = null } = {}) {
 function walks() {
   const from = dayIso(-30);
   const to = dayIso(-1);
-  const pages = ['/', '/start/', '/problems/', '/problems/tired-but-wired/', '/problems/sharing-a-bed/', '/search/?q=sleep', '/help/', '/about/', '/contact/', '/privacy/', '/urgent-help/', '/404', '/admin/', `/admin/?from=${to}&to=${from}`, `/admin/export?table=feedback&from=${from}&to=${to}`];
+  const pages = ['/', '/start/', '/problems/tired-but-wired/', '/problems/sharing-a-bed/', '/search/?q=sleep', '/help/', '/about/', '/contact/', '/privacy/', '/urgent-help/', '/404', '/admin/', `/admin/?from=${to}&to=${from}`, `/admin/export?table=feedback&from=${from}&to=${to}`];
   const list = pages.map((p) => ({ name: `walk ${p}`, path: p, status: p.includes(`from=${to}`) ? 400 : undefined, run: (tab) => tabWalk(tab) }));
   list.push(
     {

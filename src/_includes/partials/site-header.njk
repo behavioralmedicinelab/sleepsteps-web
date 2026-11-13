@@ -4,12 +4,14 @@
   desktop bar from 600px and the phone bar below it, so only one copy of each
   landmark is ever exposed.
 
-  The current nav item comes from page.url (aria-current="page", or "true" on
-  pages inside the Sleep problems section).
+  The current nav item comes from page.url (aria-current="page").
 
-  The items are Start here, Sleep problems, Referral info and Contact
-  (project lead, 2026-11-07; the boards have About where Referral info
-  is). About is in the footer only (SPEC §7.5).
+  The items are Start here, Referral info and Contact (project lead,
+  2026-11-13: "Sleep problems" went when that page became part of Home,
+  and the logo is the way home; the boards have Sleep problems second and
+  About where Referral info is). About is in the footer only (SPEC §7.5).
+  In the phone menu "Start here" is the first, full-width item, filled as
+  the board's "Sleep problems" was; the other two share the row under it.
 
   Phone menu: a native <details>/<summary>, so it opens with JavaScript off.
   src/js/menu.js upgrades it to a <button aria-expanded aria-controls> with
@@ -30,11 +32,10 @@
         <ul class="site-nav__list" role="list">
           {%- for item in [
             { href: '/start/', label: 'Start here' },
-            { href: '/problems/', label: 'Sleep problems' },
             { href: '/help/', label: 'Referral info' },
             { href: '/contact/', label: 'Contact' }
           ] %}
-          <li><a class="site-nav__link" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href, 'section') | safe }}>{{ item.label }}</a></li>
+          <li><a class="site-nav__link" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href) | safe }}>{{ item.label }}</a></li>
           {%- endfor %}
         </ul>
       </nav>
@@ -67,12 +68,11 @@
         <nav class="mobile-nav" aria-label="Main">
           <ul class="mobile-nav__grid" role="list">
             {%- for item in [
-              { href: '/problems/', label: 'Sleep problems', primary: true },
-              { href: '/start/', label: 'Start here' },
+              { href: '/start/', label: 'Start here', primary: true },
               { href: '/help/', label: 'Referral info' },
               { href: '/contact/', label: 'Contact' }
             ] %}
-            <li><a class="mobile-nav__link{% if item.primary %} mobile-nav__link--primary{% endif %}" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href, 'section') | safe }}>{{ item.label }}</a></li>
+            <li{% if item.primary %} class="mobile-nav__item--primary"{% endif %}><a class="mobile-nav__link{% if item.primary %} mobile-nav__link--primary{% endif %}" href="{{ item.href }}"{{ page.url | ariaCurrent(item.href) | safe }}>{{ item.label }}</a></li>
             {%- endfor %}
           </ul>
         </nav>

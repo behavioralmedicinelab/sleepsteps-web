@@ -30,8 +30,8 @@ layout: layouts/base.njk
   this helpful?" with its stars (SPEC §12). Intro-B's large faint number
   and its white bar under the video are not built, so every video looks
   the same (SPEC §7.5). No transcripts (SPEC §9.3) and no per-video
-  feedback (SPEC §7.5, §13). Then the end card to the Sleep problems page,
-  and the page's YouTube note (notices/video.njk), once, last.
+  feedback (SPEC §7.5, §13). Then the end card to Home's list of sleep
+  problems, and the page's YouTube note (notices/video.njk), once, last.
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- from "partials/video-block.njk" import videoBlock -%}
@@ -72,7 +72,7 @@ layout: layouts/base.njk
           <h2 class="section-heading start-next__title">Choose what's keeping you up</h2>
           <p class="start-next__body">{{ collections.problems | length }} sleep problems, grouped into {{ topicAreas | length | numberWord }} areas. Pick as many as sound like you.</p>
         </div>
-        <a class="button button--light start-next__action" href="/problems/">See sleep problems</a>
+        <a class="button button--light start-next__action" href="/#sleep-problems">See sleep problems</a>
       </section>
       {#- The page's YouTube note, once, last (SPEC §15.1). #}
       {{ youtubeNote() }}

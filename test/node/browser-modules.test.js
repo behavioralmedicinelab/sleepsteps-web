@@ -437,8 +437,10 @@ describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => 
   });
 });
 
-describe('problems.js on /problems/', () => {
-  const html = pageAt(site, '/problems/');
+// Home holds the list of sleep problems (project lead, 2026-11-13; it was
+// the Sleep problems page, /problems/).
+describe('problems.js on Home (/)', () => {
+  const html = pageAt(site, '/');
   const areaSections = () => dom.document.querySelectorAll('[data-problems] section.group-list__group');
   const button = (section) => section.querySelector('button.group-list__header');
   const expanded = () => areaSections().map((s) => button(s).getAttribute('aria-expanded'));
@@ -478,7 +480,8 @@ describe('problems.js on /problems/', () => {
   // The page with an area that has no topics yet, second in the list: a
   // copy of the first area, renamed, with its list emptied.
   const withEmptyArea = (source) => {
-    const first = source.indexOf('<section', source.indexOf('data-problems'));
+    const first = source.indexOf('<section class="group-list__group"');
+    expect(first).toBeGreaterThan(-1);
     const end = source.indexOf('</section>', first) + '</section>'.length;
     const empty = source
       .slice(first, end)
@@ -515,7 +518,7 @@ describe('problems.js on /problems/', () => {
     for (const section of sections) {
       const list = section.querySelector('[data-group-list]');
       const header = button(section);
-      expect(header.parentNode.tagName.toLowerCase()).toBe('h2');
+      expect(header.parentNode.tagName.toLowerCase()).toBe('h3');
       expect(header.getAttribute('type')).toBe('button');
       expect(header.getAttribute('aria-controls')).toBe(list.id);
       expect(header.getAttribute('aria-expanded')).toBe('false');
@@ -539,6 +542,28 @@ describe('problems.js on /problems/', () => {
     const open = areaSections().filter((s) => button(s).getAttribute('aria-expanded') === 'true');
     expect(open.map((s) => s.id)).toEqual(['mind']);
     expect(expanded().filter((value) => value === 'false')).toHaveLength(9);
+  });
+
+  // Links from other pages arrive at /#sleep-problems (the section) or at
+  // /#<area_id> (an area in it); the skip link is #main.
+  it.each(['#sleep-problems', '#main', '#nowhere'])('leaves every area closed when the URL names %s, on load and on hashchange', async (hash) => {
+    await load(html, ['problems'], { hash });
+    expect(expanded()).toEqual(Array(10).fill('false'));
+    expect(dom.document.querySelector('[data-problems-tools]').hidden).toBe(false);
+    button(areaSections()[0]).click();
+    dom.window.dispatchEvent(new Event('hashchange'));
+    expect(expanded()).toEqual(['true', ...Array(9).fill('false')]);
+    expect(dom.document.getElementById('sleep-problems').hidden).toBe(false);
+  });
+
+  it('leaves the rest of Home as it was: the hero, the trial band and the disclaimer', async () => {
+    const before = installDom(html);
+    const outside = (document) => ['.home-hero', '.home-trial', '.home-disclaimer'].map((selector) => document.querySelector(selector).textContent);
+    const expected = outside(before.document);
+    before.restore();
+    await load(html, ['problems']);
+    expect(outside(dom.document)).toEqual(expected);
+    expect(dom.document.querySelectorAll('main button').every((b) => b.closest('#sleep-problems') !== null)).toBe(true);
   });
 
   it('filters as you type: hides areas without matches, opens the rest, and announces the count once typing pauses', async () => {

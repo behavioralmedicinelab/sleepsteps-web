@@ -1,14 +1,22 @@
 ---
-# Home page (SPEC §6, §20 M1b; HANDOFF §6.1; boards Main.dc.html and
-# Landing-Phone.dc.html). The copy below can be edited here; keep values that
-# start with "[" in quotes. Home sends no page_view (SPEC §10.2) and loads no
-# page JavaScript.
+# Home page (SPEC §6, §7.2, §8.1, §20 M1b; HANDOFF §6.1, §6.3; boards
+# Main.dc.html, Landing-Phone.dc.html, Problems-A.dc.html and
+# Problems-Phone.dc.html, with the changes in SPEC §7.5). Home is also the
+# Sleep problems page (project lead, 2026-11-13): the hero, then the list of
+# sleep problems with its filter, then the trial band and the disclaimer.
+# The copy below can be edited here; keep values that start with "[" in
+# quotes.
+#
+# Analytics: Home sends no page_view (SPEC §10.2) and the filter sends
+# nothing (§8.1), so there is no track_page_view here.
 layout: layouts/home.njk
 page_id: home
 # The browser tab title only: Home shows no title band, and its H1 is
 # hero.heading below.
 title: Sleep during and after cancer
-styles: ["pages/home.css"]
+styles: ["pages/home.css", "pages/problems.css"]
+# problems.js: the list's filter and its area buttons (SPEC §7.2, §8.1).
+scripts: ["problems.js"]
 # The hero subline under the H1; also the page's meta description.
 summary: Short videos and practical ideas for the sleep problems people often have during and after cancer. Watch, listen or read, whichever suits you.
 hero:
@@ -20,22 +28,21 @@ hero:
   # photo: "home-hero.jpg". It is decorative (alt=""), so choose mood
   # imagery: the H1 carries the message.
   photo: ""
-# "Watch, listen or read": the line beside the format tiles. Each tile
-# shows only if some video has that format (SPEC §7.5). Every video is to
-# have an audio-only version and a handout by launch (SPEC §7.1, §9.2,
-# §9.3). There are no transcripts on the site: the handout carries what the
-# video says.
-formats_intro: Video comes first, but every video also has an audio-only version and a handout you can read or print.
+# The Sleep problems section, under the hero. `lede_tools` describes the
+# filter and the area buttons, which need JavaScript, so it shows only once
+# problems.js has shown them; `lede` is true either way.
+sleep_problems:
+  eyebrow: Sleep problems
+  heading: What's keeping you up?
+  lede_tools: Open an area to see its topics, or search in your own words.
+  lede: Choose as many as sound like you.
 # The "About the trial" band. Drafted from the trial's concept note (version
 # 0.3, July 2026) for the team to confirm (SPEC §22).
 trial_text: "We're testing this program in a research trial run by a team at Monash University. The trial is for adults with cancer who have trouble sleeping. It tests whether this self-help program helps people sleep better, and whether extra help from a therapist, then a sleep specialist, helps those who need more. You don't need to be in the trial to use this website."
 ---
 {%- from "partials/icons.njk" import icon -%}
-{%- from "partials/step-chip.njk" import stepChip -%}
+{%- from "partials/problem-list.njk" import problemList -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
-{%- set problemCount = collections.problems | length -%}
-{%- set areaWord = topicAreas | length | numberWord -%}
-{%- set formats = videos | videoFormats -%}
 
 <section class="home-hero on-dark">
   <div class="home-hero__inner container">
@@ -45,7 +52,6 @@ trial_text: "We're testing this program in a research trial run by a team at Mon
       <p class="home-hero__lede">{{ summary }}</p>
       <div class="home-hero__actions">
         <a class="button button--light" href="/start/">{{ icon('play', 16, 'button__icon') }}Start with the introduction</a>
-        <a class="button button--ghost" href="/problems/">Browse sleep problems</a>
       </div>
     </div>
     <div class="home-hero__photo" aria-hidden="true">
@@ -59,77 +65,34 @@ trial_text: "We're testing this program in a research trial run by a team at Mon
   {% include "partials/arc.njk" %}
 </section>
 
-<section class="home-steps container">
-  <p class="eyebrow home-section__eyebrow">How it works</p>
-  <h2 class="section-heading home-steps__heading">Three small steps</h2>
-  <ol class="home-steps__list" role="list">
-    <li class="card home-step home-step--1">
-      {{ stepChip(1, 'Step 1', tag='p', hideNum=true) }}
-      <div class="home-step__body">
-        <h3 class="home-step__title">Watch the introduction</h3>
-        <p class="home-step__text">Two short videos on how sleep works and why cancer can change it. Everyone starts here.</p>
-        <p class="home-step__more link-standalone"><a href="/start/">Go to the introduction</a></p>
-      </div>
-    </li>
-    <li class="card home-step home-step--2">
-      {{ stepChip(2, 'Step 2', tag='p', hideNum=true) }}
-      <div class="home-step__body">
-        <h3 class="home-step__title">Choose what's keeping you up</h3>
-        <p class="home-step__text">Pick the sleep problems that sound like you. There are {{ problemCount }}, grouped into {{ areaWord }} areas.</p>
-        <p class="home-step__more link-standalone"><a href="/problems/">See sleep problems</a></p>
-      </div>
-    </li>
-    <li class="card home-step home-step--3">
-      {{ stepChip(3, 'Step 3', tag='p', hideNum=true) }}
-      <div class="home-step__body">
-        <h3 class="home-step__title">Try what fits you</h3>
-        <p class="home-step__text">Each problem has a short video, and most have a few things to try. Watch a video, listen to it, or read its handout.</p>
-        {#- The board's note (Main.dc.html; SPEC §7.5, §11, §12), only while the ratings widgets render. It ships hidden, and menu.js shows it ([data-js-only]): without JavaScript no stars show, so neither does the note. #}
-        {%- if site.features.ratings === true %}
-        <p class="home-step__note" hidden data-js-only>Rate each video to help us improve</p>
-        {%- endif %}
-      </div>
-    </li>
-  </ol>
-</section>
+{#-
+  Sleep problems: what the Sleep problems page held until 2026-11-13, on
+  the page's paper ground (SPEC §7.2, §7.5). Links elsewhere point here as
+  /#sleep-problems, and to an area as /#<area_id>.
 
-<section class="home-areas container">
-  <div class="home-areas__head">
-    <div>
-      <p class="eyebrow home-section__eyebrow">Sleep problems</p>
-      <h2 class="section-heading">What's getting in the way of your sleep?</h2>
-    </div>
-    <p class="home-areas__all link-standalone"><a href="/problems/">See all {{ problemCount }} sleep problems</a></p>
+  Without JavaScript (SPEC §2, §11) every area is open under a plain
+  heading, and the toolbar (the filter) and the lede's sentence about it
+  carry `hidden`, so no dead control is ever shown or described; the result
+  line ("36 topics in 10 areas") stays, because it is true either way.
+  src/js/problems.js shows the toolbar and runs the filter.
+#}
+<section class="problems-section container" id="sleep-problems" aria-labelledby="sleep-problems-title">
+  <p class="eyebrow problems-section__eyebrow">{{ sleep_problems.eyebrow }}</p>
+  <h2 class="section-heading" id="sleep-problems-title">{{ sleep_problems.heading }}</h2>
+  <p class="problems-section__lede"><span data-problems-hint hidden>{{ sleep_problems.lede_tools }} </span>{{ sleep_problems.lede }}</p>
+  {#- Shown by problems.js once its handlers are attached. No <form> and no
+      name: nothing is submitted, stored or sent (SPEC §8.1).
+      autocomplete="off" keeps typed health terms out of the browser's form
+      history and stops a stale value being restored. #}
+  <div class="problems-tools" data-problems-tools hidden>
+    {#- Not "Search sleep problems": that is the header's site search, which
+        leaves the page. This field only narrows the list here. #}
+    <label class="problems-search__label" for="problem-filter">Find a sleep problem on this page</label>
+    <input class="problems-search__input" id="problem-filter" type="search" placeholder="Try: night sweats, 3am, partner" autocomplete="off" spellcheck="false" aria-describedby="problem-filter-status" data-problem-filter>
   </div>
-  {#- One link per area (data/areas.csv, in its order), to that area on the Sleep problems page. Spans, not headings, inside each link, with spaces between them, so it reads as one name. #}
-  <ul class="home-areas__list" role="list">
-    {%- for area in topicAreas %}
-    {%- set n = area.problems | length %}
-    <li><a class="home-area" href="/problems/#{{ area.area_id }}"><span class="home-area__name">{{ area.name }}</span> <span class="home-area__desc">{{ area.description }}</span> <span class="home-area__count">{{ n }} {{ 'topic' if n == 1 else 'topics' }}{{ icon('chevron-right', 16, 'home-area__chevron') }}</span></a></li>
-    {%- endfor %}
-  </ul>
+  <p class="problems-status" id="problem-filter-status" aria-live="polite" data-filter-status>{{ collections.problems.length }} topics in {{ topicAreas.length }} areas</p>
+  {{ problemList(topicAreas, keywords) }}
 </section>
-
-{%- if formats.handout or formats.audio %}
-<section class="home-formats container">
-  <div class="panel panel--wash home-formats__panel">
-    <div class="home-formats__intro">
-      <h2 class="home-formats__heading">Watch, listen or read</h2>
-      <p>{{ formats_intro }}</p>
-    </div>
-    <ul class="home-formats__list" role="list">
-      {#- In the heading's order: watch, listen, read. The board's tiles are Video, Transcript and Handout; here Audio takes the Transcript's place, since there are no transcripts on the site (SPEC §7.5). #}
-      <li class="home-format"><strong class="home-format__name">Video</strong> Short, with captions</li>
-      {%- if formats.audio %}
-      <li class="home-format"><strong class="home-format__name">Audio</strong> Listen without watching</li>
-      {%- endif %}
-      {%- if formats.handout %}
-      <li class="home-format"><strong class="home-format__name">Handout</strong> Read, print or keep</li>
-      {%- endif %}
-    </ul>
-  </div>
-</section>
-{%- endif %}
 
 <div class="home-trial">
   <div class="home-trial__inner container">

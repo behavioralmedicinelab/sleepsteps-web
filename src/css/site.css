@@ -15,8 +15,8 @@
  *   3. Desktop header  7. Title band, arc    11. Urgent help shell
  *   4. Phone header    8. Page layouts       12. Motion, forced colours, print
  *
- * The problem page, Sleep problems, Start here and Home have their own
- * stylesheets in pages/ (SPEC §7.5).
+ * The problem page, Start here and Home (with its list of sleep problems)
+ * have their own stylesheets in pages/ (SPEC §7.5).
  */
 
 /* 1. Base ------------------------------------------------------------------ */
@@ -209,9 +209,10 @@ a:hover {
 }
 
 /* The board's 32px gaps between the header's parts and between its links
-   from 1100px; 24px below, so with "Referral info" in place of "About" the
-   bar still fits one row from 1000px and two rows from 600px, as it did
-   (SPEC §7.5, project lead, 2026-11-07; measured in headless Chrome). */
+   from 1100px; 24px below (SPEC §7.5, project lead, 2026-11-07, when the nav
+   had four items and needed it to fit one row from 1000px). With three items
+   the bar fits one row from about 850px and two rows from 600px (measured in
+   headless Chrome, 2026-11-13). */
 .site-header__inner {
   display: flex;
   flex-wrap: wrap;
@@ -476,7 +477,12 @@ details.mobile-menu[open] > summary .when-closed,
   color: var(--deep-teal);
 }
 
-/* "Sleep problems" is always filled: emphasis, not the current page. */
+/* "Start here" has the first row to itself and is always filled: emphasis,
+   not the current page. */
+.mobile-nav__item--primary {
+  grid-column: 1 / -1;
+}
+
 .mobile-nav__link--primary {
   background: var(--deep-teal);
   color: var(--paper);

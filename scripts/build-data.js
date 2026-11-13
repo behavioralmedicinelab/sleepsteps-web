@@ -4,8 +4,8 @@
 // build have it too); this module only shapes the data.
 //
 // Entries: every sleep problem, Start here, and every information page
-// (content/pages/) without `search: false` in its front matter. Home, the
-// Sleep problems page and the search page are not entries.
+// (content/pages/) without `search: false` in its front matter. Home (with
+// its list of sleep problems) and the search page are not entries.
 //
 //   { id, url, title, summary, keywords, transcript, type }
 //

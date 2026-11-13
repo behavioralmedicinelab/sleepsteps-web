@@ -680,7 +680,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
     });
 
     it('works on every kind of page with the dialog, the search page included (decision A4)', async () => {
-      for (const url of ['/', '/search/', '/start/', '/privacy/', '/problems/']) {
+      for (const url of ['/', '/search/', '/start/', '/privacy/']) {
         await open(url);
         expect(trigger().localName, url).toBe('button');
         dom.restore();

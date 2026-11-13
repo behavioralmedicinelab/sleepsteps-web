@@ -19,7 +19,9 @@ const built = readHtmlPages(site);
 const builtOn = readHtmlPages(inject('builtSiteOn'));
 const problemIds = [...model.problems.keys()];
 const TRACKED = [...problemIds, 'start', 'urgent-help'].sort();
-const UNTRACKED = ['about', 'contact', 'help', 'home', 'privacy', 'problems', 'search'];
+// No `problems`: the Sleep problems page is part of Home since 2026-11-13
+// (SPEC §7, §22), so that page_id no longer exists.
+const UNTRACKED = ['about', 'contact', 'help', 'home', 'privacy', 'search'];
 
 /** A rendered page as Eleventy passes it to eleventy.after. */
 const result = (url, body, head = '<title>T</title>', extra = '') => ({
@@ -117,9 +119,11 @@ describe('worker/generated/pages.json, as the build wrote it', () => {
     expect(pages).toEqual(fromBuild);
   });
 
-  it('lists every page with a page_id, and no 404 page', () => {
+  it('lists every page with a page_id, and no 404 page or Sleep problems page', () => {
     expect(Object.keys(pages).sort()).toEqual([...TRACKED, ...UNTRACKED].sort());
     expect(Object.values(pages).some((p) => p.url.includes('404'))).toBe(false);
+    expect(pages.problems).toBeUndefined();
+    expect(Object.values(pages).map((p) => p.url)).not.toContain('/problems/');
   });
 
   it('marks problem pages, Start here and Getting urgent help, and no other page, as sending page views (SPEC §10.2)', () => {
@@ -140,7 +144,7 @@ describe('worker/generated/pages.json, as the build wrote it', () => {
 
   it('takes each title from the page’s front matter', () => {
     const source = (id) =>
-      ({ home: 'content/index.njk', problems: 'content/problems.njk', search: 'content/search.njk', start: 'content/start.md' })[id] ??
+      ({ home: 'content/index.njk', search: 'content/search.njk', start: 'content/start.md' })[id] ??
       (model.problems.has(id) ? `content/problems/${id}.md` : `content/pages/${id}.md`);
     for (const id of Object.keys(pages)) {
       expect(pages[id].title, id).toBe(parseFrontMatter(readFileSync(source(id), 'utf8')).data.title);

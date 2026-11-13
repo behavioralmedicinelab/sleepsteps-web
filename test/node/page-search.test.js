@@ -52,10 +52,10 @@ describe('the built search page', () => {
     expect(html).toMatch(/<\/form>\s*<p class="notice--urgent search-urgent">If you feel unsafe or need help right now, go to <a href="\/urgent-help\/">Getting urgent help<\/a>\.<\/p>/);
   });
 
-  it('shows the no-JavaScript route to Sleep problems by default', () => {
+  it('shows the no-JavaScript route to Sleep problems, on the home page, by default', () => {
     const fallback = opening('div', 'search-fallback');
     expect(attr(fallback, 'hidden')).toBeUndefined();
-    expect(html).toMatch(/Search results need JavaScript\. Without it, you can find every topic on the <a href="\/problems\/">Sleep problems<\/a> page\./);
+    expect(html).toMatch(/Search results need JavaScript\. Without it, you can find every topic under <a href="\/#sleep-problems">Sleep problems<\/a> on the home page\./);
   });
 
   it('loads only menu.js, events.js (before search.js, which it sends for) and search.js, and points at files that are built', () => {
@@ -165,7 +165,8 @@ describe('src/js/search.js', () => {
     expect(page.status).toBe('No results for “zzqxv”.');
     expect(page.results).toEqual([]);
     expect(page.$('[data-search-empty]').hidden).toBe(false);
-    expect(page.$('[data-search-empty] a').getAttribute('href')).toBe('/problems/');
+    expect(page.$('[data-search-empty] a').getAttribute('href')).toBe('/#sleep-problems');
+    expect(page.$('[data-search-empty]').textContent.trim()).toBe('Try other words, or fewer of them. You can also see every topic under Sleep problems on the home page.');
     expect(page.events).toEqual([{ type: 'search', detail: { q: 'zzqxv', results: 0 } }]);
   });
 
@@ -193,7 +194,8 @@ describe('src/js/search.js', () => {
     const page = await search('pain', { fetchImpl });
     expect(page.status).toBe("Search isn't working right now.");
     expect(page.$('[data-search-error]').hidden).toBe(false);
-    expect(page.$('[data-search-error] a').getAttribute('href')).toBe('/problems/');
+    expect(page.$('[data-search-error] a').getAttribute('href')).toBe('/#sleep-problems');
+    expect(page.$('[data-search-error]').textContent.trim()).toBe('You can still find every topic under Sleep problems on the home page.');
     expect(page.results).toEqual([]);
     expect(page.events).toEqual([]);
   });

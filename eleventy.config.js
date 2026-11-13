@@ -62,6 +62,9 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ media: 'media' });
   // Response headers for static assets, read by Workers (SPEC §16.1).
   eleventyConfig.addPassthroughCopy({ 'src/_headers': '_headers' });
+  // Redirects for addresses that have moved, read by Workers the same way
+  // (SPEC §7.2, §18.2): /problems/ is now part of Home.
+  eleventyConfig.addPassthroughCopy({ 'src/_redirects': '_redirects' });
   // The site icons (the steps motif, from the project lead's files), served
   // from the site root (SPEC §7.5). src/ holds the only copy. base.njk and the
   // admin pages link all three; /favicon.ico is also where a browser looks
@@ -102,8 +105,9 @@ export default function (eleventyConfig) {
   });
 
   // Areas in display order, each with its problems: the shape TopicNav and
-  // the Sleep problems page use. Fails the build on a problem whose `area` is
-  // not in areas.csv. Cached per collection, since every page renders it.
+  // Home's list of sleep problems use. Fails the build on a problem whose
+  // `area` is not in areas.csv. Cached per collection, since every page
+  // renders it.
   const grouped = new WeakMap();
   eleventyConfig.addFilter('groupByArea', (problems, areas) => {
     if (!Array.isArray(problems) || !Array.isArray(areas)) {
@@ -194,15 +198,6 @@ export default function (eleventyConfig) {
     }),
   );
 
-  // Which formats any video in the library has: { handout, audio }.
-  eleventyConfig.addFilter('videoFormats', (videos) => {
-    const all = (videos ?? []).map(toVideo);
-    return {
-      handout: all.some((v) => Boolean(v.handout)),
-      audio: all.some((v) => Boolean(v.audio)),
-    };
-  });
-
   // "cant-get-back-to-sleep" | problemBySlug(collections.problems) ->
   // { slug, title, statement, url, area }. Unknown slugs fail the build.
   eleventyConfig.addFilter('problemBySlug', (slug, problems) => {
@@ -237,14 +232,10 @@ export default function (eleventyConfig) {
 
   // aria-current for navigation links, derived from the page URL so styling
   // and semantics can't drift (styles key off the attribute). Returns
-  // ' aria-current="page"' for the page itself and, with mode 'section',
-  // ' aria-current="true"' for pages below it. Use with `| safe`.
-  eleventyConfig.addFilter('ariaCurrent', (pageUrl, href, mode) => {
-    if (typeof pageUrl !== 'string') return '';
-    if (pageUrl === href) return ' aria-current="page"';
-    if (mode === 'section' && pageUrl.startsWith(href)) return ' aria-current="true"';
-    return '';
-  });
+  // ' aria-current="page"' for the page itself. Use with `| safe`.
+  eleventyConfig.addFilter('ariaCurrent', (pageUrl, href) =>
+    typeof pageUrl === 'string' && pageUrl === href ? ' aria-current="page"' : '',
+  );
 
   // "13 11 14" -> "tel:131114". Keeps digits and a leading +.
   eleventyConfig.addFilter('telHref', (value) => {

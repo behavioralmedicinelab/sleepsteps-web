@@ -1,7 +1,10 @@
 /*
- * Sleep problems (/problems/): SPEC §7.2, §7.5, §8.1; HANDOFF §6.3; boards
- * Problems-A.dc.html and Problems-Phone.dc.html. Loaded through `styles`
- * front matter in content/problems.njk.
+ * The Sleep problems section of Home (/#sleep-problems): SPEC §7.2, §7.5,
+ * §8.1; HANDOFF §6.3; boards Problems-A.dc.html and Problems-Phone.dc.html.
+ * Loaded through `styles` front matter in content/index.njk, after
+ * home.css; the markup is that file's section and
+ * src/_includes/partials/problem-list.njk. Until 2026-11-13 this was the
+ * Sleep problems page's stylesheet (SPEC §22).
  *
  * Values come from tokens.css; board spacing off the token scale snaps up to
  * the next step, and the boards' 14-15px running text (descriptions,
@@ -13,37 +16,61 @@
  * The problems are listed by area, in an accordion (.group-list): one group
  * per area (SPEC §7.2, §7.5).
  *
- * Reused from elsewhere: the title band (.band, .on-dark: site.css §7),
- * .container, .page-body, .panel, .link-standalone (site.css) and
- * .topic-card (components.css §5), which this page extends with a row
- * variant.
+ * Reused from elsewhere: .container and .eyebrow (site.css),
+ * .section-heading and .topic-card (components.css §5), which this section
+ * extends with a row variant.
  *
  * Contents
- *   1. Page values        3. Group accordion    5. Nudge and spacing
- *   2. Band toolbar       4. Topic cards        6. Motion and print
+ *   1. Section            3. Group accordion    5. Motion and print
+ *   2. Filter             4. Topic cards
  */
 
-/* 1. Page values ------------------------------------------------------------- */
+/* 1. Section ----------------------------------------------------------------- */
 
-/* Sizes from the boards that only this page uses. */
-.problems-page {
-  --problems-column: 1000px;        /* band, accordion and nudge column (board) */
+/* On the page's paper ground, under the hero (the boards' teal title band
+   is not carried over: the hero above is already teal). The heading, the
+   filter and the accordion share one 1000px column (board), inside Home's
+   1200px page. The sizes are the boards', used only here. */
+.problems-section {
+  --content-max: 1000px;            /* the section's column (board) */
   --fs-topic-row: calc(19rem / 16); /* topic card titles; phone group names (HANDOFF §6.3) */
   --chevron-disc: 36px;             /* a group's chevron disc (board) */
+  padding-block: var(--space-8) var(--space-9);
 }
 
-/* The band's content sits in the 1000px column, inside the 1280px page. */
-.problems-band .band__inner {
-  --content-max: var(--problems-column);
+.problems-section__eyebrow {
+  margin-bottom: var(--space-2);
 }
 
-/* 2. Band toolbar ------------------------------------------------------------ */
+/* ink on paper, at the lede's line length. */
+.problems-section__lede {
+  max-width: var(--measure);
+  margin-top: var(--space-3);
+}
 
-/* The filter: its label over the field, the width of the band's column. */
+@media (min-width: 37.5em) {
+  .problems-section {
+    padding-block: var(--space-11) var(--space-12);
+  }
+
+  .problems-section__eyebrow {
+    margin-bottom: var(--space-3);
+  }
+
+  .problems-section__lede {
+    margin-top: var(--space-4);
+  }
+}
+
+/* 2. Filter ------------------------------------------------------------------ */
+
+/* The filter: its label over the field, the width of the section's column.
+   On paper the ring is the page's deep-teal (site.css). */
 .problems-tools {
-  margin-top: var(--space-7);
+  margin-top: var(--space-6);
 }
 
+/* The site's form-label size, as on the search page. */
 .problems-search__label {
   display: block;
   margin-bottom: var(--space-2);
@@ -52,8 +79,8 @@
   font-weight: var(--weight-semibold);
 }
 
-/* Paper on deep-teal is 5.9:1, so the field's edge needs no border. The
-   transparent one keeps an edge in forced colours. */
+/* A white field with a slate-grey edge (5.4:1 on paper), as the site's
+   other fields on light grounds. */
 .problems-search__input {
   -webkit-appearance: none;
   appearance: none;
@@ -62,9 +89,9 @@
   min-height: var(--target-xl);
   margin: 0;
   padding: 0 var(--space-5);
-  border: var(--border-width) solid transparent;
+  border: var(--border-width) solid var(--slate-grey);
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background: var(--white);
   color: var(--ink);
 }
 
@@ -73,21 +100,16 @@
   margin-top: var(--space-4);
 }
 
-@media (min-width: 37.5em) {
-  .problems-tools {
-    margin-top: var(--space-8);
-  }
-}
-
 /* 3. Group accordion ------------------------------------------------------------ */
+
+.problems {
+  margin-top: var(--space-5);
+}
 
 .group-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  width: 100%;
-  max-width: var(--problems-column);
-  margin-inline: auto;
 }
 
 .group-list__group {
@@ -218,6 +240,10 @@ button.group-list__header[aria-expanded="true"] {
 }
 
 @media (min-width: 37.5em) {
+  .problems {
+    margin-top: var(--space-6);
+  }
+
   .group-list {
     gap: var(--space-4);
   }
@@ -337,47 +363,7 @@ button.group-list__header[aria-expanded="true"] {
   }
 }
 
-/* 5. Nudge and spacing ---------------------------------------------------------- */
-
-.problems {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-9);
-}
-
-.problems-nudge {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-8);
-  width: 100%;
-  max-width: var(--problems-column);
-  margin-inline: auto;
-  padding: var(--space-6);
-}
-
-.problems-nudge__text {
-  flex: 1 1 420px;
-}
-
-/* ink on panel: tokens.json lists ink, not deep-teal, on that ground. */
-.problems-nudge a,
-.problems-nudge a:hover {
-  color: var(--ink);
-}
-
-.problems-nudge a:hover {
-  text-decoration-thickness: 2px;
-}
-
-@media (min-width: 37.5em) {
-  .problems-nudge {
-    padding: var(--space-7) var(--space-8);
-  }
-}
-
-/* 6. Motion and print ----------------------------------------------------------- */
+/* 5. Motion and print ----------------------------------------------------------- */
 
 /* Colour fades and the chevron turn, when motion is allowed (HANDOFF §10).
    Panels open and close at once: no height animation. */
@@ -405,9 +391,5 @@ button.group-list__header[aria-expanded="true"] {
 
   .group-list__problems[hidden] {
     display: block !important;
-  }
-
-  .problems-nudge {
-    display: none;
   }
 }

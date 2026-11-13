@@ -8,7 +8,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
-import { attr, readHtmlPages, tags, text } from './helpers.js';
+import { attr, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
 const site = inject('builtSiteOn');
 const pages = readHtmlPages(site);
@@ -27,21 +27,62 @@ const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommo
 describe('build output', () => {
   it('builds every expected page', () => {
     const files = pages.map((p) => p.file);
-    for (const file of [
+    const expected = [
       'index.html',
       '404.html',
       'start/index.html',
-      'problems/index.html',
       'search/index.html',
       'help/index.html',
       'about/index.html',
       'contact/index.html',
       'privacy/index.html',
       'urgent-help/index.html',
-    ]) {
+    ];
+    for (const file of expected) {
       expect(files).toContain(file);
     }
-    expect(files.filter((f) => /^problems\/[^/]+\/index\.html$/.test(f))).toHaveLength(36);
+    const problemPages = files.filter((f) => /^problems\/[^/]+\/index\.html$/.test(f));
+    expect(problemPages).toHaveLength(36);
+    // And no other page: 9 pages and the 36 problems.
+    expect(files).toHaveLength(expected.length + problemPages.length);
+  });
+});
+
+// The Sleep problems page is part of Home (project lead, 2026-11-13; SPEC
+// §7.2, §22). Its old address, /problems/, redirects to Home (dist/_redirects,
+// checked in deploy-config.test.js), so nothing may be built there and no
+// page may still link to it; each problem keeps /problems/<slug>/.
+describe('the old Sleep problems page (/problems/)', () => {
+  /** Every href on every built page: [file, href]. */
+  const hrefs = pages.flatMap(({ file, html }) => tags(html, 'a').map((tag) => [file, attr(tag, 'href') ?? '']));
+
+  it('is not built: no dist/problems/index.html, though every problem page is', () => {
+    expect(existsSync(path.join(site, 'problems/index.html'))).toBe(false);
+    expect(pages.map((p) => p.file)).not.toContain('problems/index.html');
+    expect(statSync(path.join(site, 'problems')).isDirectory()).toBe(true);
+    expect(statSync(path.join(site, 'problems/pain/index.html')).isFile()).toBe(true);
+  });
+
+  it('is linked from no built page, with or without a fragment or the final slash', () => {
+    const old = hrefs.filter(([, href]) => /^\/problems\/?(?:[?#].*)?$/.test(href));
+    expect(old).toEqual([]);
+    // No page names it in any other attribute or in a script's address either.
+    for (const { file, html } of pages) expect(html, file).not.toMatch(/["'=]\/problems\/?["'#?]/);
+  });
+
+  it("links to Home's list as /#sleep-problems and to an area as /#<area_id>, each an id on Home", () => {
+    const home = pageAt(site, '/');
+    const ids = new Set([...home.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+    const toHome = hrefs.filter(([, href]) => href.startsWith('/#'));
+    expect(toHome.length).toBeGreaterThan(0);
+    for (const [file, href] of toHome) expect(ids.has(href.slice(2)), `${file}: ${href}`).toBe(true);
+    const targets = new Set(toHome.map(([, href]) => href));
+    expect(targets.has('/#sleep-problems')).toBe(true);
+    // Every page reaches the list: the footer's "Sleep problems" link.
+    for (const { file } of pages) expect(toHome.some(([f, href]) => f === file && href === '/#sleep-problems'), file).toBe(true);
+    // Each problem page links to its own area on Home (breadcrumb and back link).
+    const areaLinks = [...targets].filter((href) => href !== '/#sleep-problems');
+    expect(areaLinks.length).toBe(10);
   });
 });
 
@@ -122,7 +163,6 @@ function pageTitle(file) {
     'index.html': 'content/index.njk',
     '404.html': 'content/404.njk',
     'start/index.html': 'content/start.md',
-    'problems/index.html': 'content/problems.njk',
     'search/index.html': 'content/search.njk',
   };
   const problem = file.match(/^problems\/([^/]+)\/index\.html$/);

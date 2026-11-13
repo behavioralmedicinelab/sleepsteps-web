@@ -1,9 +1,9 @@
 /*
  * Search (/search/): SPEC §8.1, §7.5. There is no board for this page, so it
- * uses the site's existing parts: the label and field of the Sleep problems
- * filter (on a light ground here), the primary button, and the card-title
- * size for result titles. Loaded through `styles` front matter in
- * content/search.njk. Values come from tokens.css.
+ * uses the site's existing parts: the label and field of the sleep problems
+ * filter on Home, the primary button, and the card-title size for result
+ * titles. Loaded through `styles` front matter in content/search.njk. Values
+ * come from tokens.css.
  */
 
 .search-page {

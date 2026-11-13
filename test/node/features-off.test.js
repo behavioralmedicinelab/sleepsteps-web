@@ -53,10 +53,11 @@ const ALL_ON = {
   'stand-alone problem': ['menu', 'events', 'rating', 'players', 'feedback'],
   'Start here': ['menu', 'events', 'players', 'rating', 'feedback'],
   Search: ['menu', 'events', 'search', 'feedback'],
-  'Sleep problems': ['menu', 'problems', 'feedback'],
+  // Home holds the list of sleep problems (project lead, 2026-11-13).
+  Home: ['menu', 'problems', 'feedback'],
   Privacy: ['menu', 'stats-switch', 'feedback'],
   'Getting urgent help': ['events', 'feedback'],
-  'Home, About, Contact, Referral info': ['menu', 'feedback'],
+  'About, Contact, Referral info': ['menu', 'feedback'],
   '404 page': ['menu'],
 };
 
@@ -64,13 +65,13 @@ function kindOf(file) {
   const slug = file.match(/^problems\/([^/]+)\/index\.html$/)?.[1];
   if (slug) return (model.problems.get(slug).data.solutions ?? []).length ? 'problem with solutions' : 'stand-alone problem';
   return {
+    'index.html': 'Home',
     'start/index.html': 'Start here',
     'search/index.html': 'Search',
-    'problems/index.html': 'Sleep problems',
     'privacy/index.html': 'Privacy',
     'urgent-help/index.html': 'Getting urgent help',
     '404.html': '404 page',
-  }[file] ?? 'Home, About, Contact, Referral info';
+  }[file] ?? 'About, Contact, Referral info';
 }
 
 const allOn = builds.find((b) => b.name === 'all on');
@@ -187,10 +188,22 @@ describe.each(builds)('$name', ({ features, dir }) => {
     expect(pages.filter((p) => p.html.includes('class="video-controls')).length).toBeGreaterThan(0);
   });
 
-  it(`${on('ratings') ? 'keeps' : 'drops'} Home's ratings note, the only text that needs JavaScript`, () => {
+  // Home's "Rate each video to help us improve" went with its step cards
+  // (2026-11-13), and with it the [data-js-only] hook that menu.js used to
+  // show: text marked that way would now stay hidden for good.
+  it('says nothing about ratings on Home, and marks no text [data-js-only]', () => {
     const home = pageAt(dir, '/');
-    expect(count(home, 'class="home-step__note"')).toBe(on('ratings') ? 1 : 0);
-    expect(pages.filter((p) => /\sdata-js-only[\s>=]/.test(p.html)).map((p) => p.file)).toEqual(on('ratings') ? ['index.html'] : []);
+    expect(home).not.toMatch(/home-step__note|Rate each video/);
+    expect(pages.filter((p) => /\sdata-js-only[\s>=]/.test(p.html)).map((p) => p.file)).toEqual([]);
+    expect(readFileSync('src/js/menu.js', 'utf8')).not.toMatch(/data-js-only/);
+  });
+
+  // Home is the Sleep problems page (SPEC §7.2): the list and its script
+  // are there whatever the switches say, and the old page isn't built.
+  it('has the list of sleep problems on Home, loads problems.js there alone, and builds no /problems/ page', () => {
+    expect(pages.filter((p) => scriptsOf(p.html).includes('/js/problems.js')).map((p) => p.file)).toEqual(['index.html']);
+    expect(pages.filter((p) => /\sdata-problems[\s>=]/.test(p.html)).map((p) => p.file)).toEqual(['index.html']);
+    expect(pages.map((p) => p.file)).not.toContain('problems/index.html');
   });
 
   // ---- features.feedback ----
@@ -312,7 +325,6 @@ describe.each(builds)('$name', ({ features, dir }) => {
 
     const SAMPLES = [
       ['/', ''],
-      ['/problems/', ''],
       ['/problems/tired-but-wired/', ''],
       ['/problems/restless-legs/', ''],
       ['/start/', ''],
@@ -360,7 +372,7 @@ describe.each(builds)('$name', ({ features, dir }) => {
       if (on('events') && search) expected.push(['/api/event', 'search']);
       expect(sent).toEqual(expected);
       // Without the switch's module, its widgets aren't there to send anything.
-      expect(dom.document.querySelectorAll('[data-rating]').length > 0).toBe(on('ratings') && /problems\/|start/.test(url) && url !== '/problems/');
+      expect(dom.document.querySelectorAll('[data-rating]').length > 0).toBe(on('ratings') && /problems\/|start/.test(url));
       expect(dom.document.querySelector('dialog') !== null).toBe(on('feedback') && url !== '/404.html');
     });
   });
@@ -371,9 +383,10 @@ describe.each(builds)('$name', ({ features, dir }) => {
 describe('all off', () => {
   const { dir } = builds.find((b) => b.name === 'all off');
 
-  it('loads no script on Getting urgent help, and only menu.js on the plain pages', () => {
+  it('loads no script on Getting urgent help, only menu.js on the plain pages, and problems.js too on Home', () => {
     expect(scriptsOf(pageAt(dir, '/urgent-help/'))).toEqual([]);
-    for (const url of ['/', '/about/', '/contact/', '/help/', '/privacy/', '/404.html']) expect(scriptsOf(pageAt(dir, url)), url).toEqual(['/js/menu.js']);
+    for (const url of ['/about/', '/contact/', '/help/', '/privacy/', '/404.html']) expect(scriptsOf(pageAt(dir, url)), url).toEqual(['/js/menu.js']);
+    expect(scriptsOf(pageAt(dir, '/'))).toEqual(['/js/menu.js', '/js/problems.js']);
   });
 
   it('loads no module that can call the API on any page', () => {

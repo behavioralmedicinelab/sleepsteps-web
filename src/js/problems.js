@@ -1,15 +1,16 @@
-// Sleep problems page (/problems/): the accordion of areas and the live
-// filter (SPEC §7.2, §8.1; HANDOFF §6.3).
+// The list of sleep problems on Home (/#sleep-problems): the accordion of
+// areas and the live filter (SPEC §7.2, §8.1; HANDOFF §6.3). Until
+// 2026-11-13 the list was a page of its own, /problems/.
 //
-// The page lists the problems by area: one group per area, each a heading
+// Home lists the problems by area: one group per area, each a heading
 // over its list of problems. The HTML works without this module: every area
 // is open under a plain heading, the toolbar carries `hidden`, and the
 // result line is static. This module:
 //
 // - turns each area heading's <span> into a <button aria-expanded
 //   aria-controls> (as menu.js does for the Menu) and closes every area,
-//   except the one named in the URL (/problems/#mind), which it opens, also
-//   on hashchange;
+//   except the one named in the URL (/#mind), which it opens, also on
+//   hashchange;
 // - shows the toolbar (the filter) and the lede's sentence about it
 //   (data-problems-hint);
 // - filters as you type, over each problem's short title, statement, area
@@ -32,7 +33,7 @@
 // leaves the no-JavaScript page as it was.
 //
 // The pure functions below are exported for the unit tests
-// (test/node/page-problems.test.js); nothing touches the DOM until init().
+// (test/node/page-home-start.test.js); nothing touches the DOM until init().
 
 /** Milliseconds without typing before the result line is updated. */
 export const STATUS_DELAY = 400;
@@ -254,7 +255,7 @@ function init(doc, win) {
 
   // An area link on this page, or Back/Forward between them, opens that
   // area, clearing a filter that hides it. Other fragments (such as the
-  // skip link's #main) are left alone.
+  // skip link's #main, or #sleep-problems) are left alone.
   win.addEventListener('hashchange', () => {
     const area = areaFromHash();
     if (!area) return;

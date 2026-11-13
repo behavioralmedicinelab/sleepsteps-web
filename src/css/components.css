@@ -562,18 +562,6 @@ a.format-button:hover,
   color: var(--deep-teal);
 }
 
-/* Ghost, on teal: a paper outline with paper text. */
-.button.button--ghost {
-  border-color: var(--paper);
-  background: transparent;
-  color: var(--paper);
-}
-
-.button.button--ghost:hover {
-  background: var(--night-teal);
-  color: var(--paper);
-}
-
 /* Outline, on light grounds (the feedback dialog's Cancel): paper with a
    deep-teal border and text (5.9:1; 5.4:1 on the teal-wash hover). */
 .button.button--outline {
@@ -612,8 +600,8 @@ a.format-button:hover,
   }
 }
 
-/* A link to a problem: its short title and first-person line (the Sleep
-   problems page, Related topics). Spans inside the link, with a space between
+/* A link to a problem: its short title and first-person line (Home's list of
+   sleep problems, Related topics). Spans inside the link, with a space between
    them, so the link reads as one name. */
 .topic-card {
   display: block;

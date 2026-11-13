@@ -252,12 +252,12 @@ describe('videoBlock (the video template, SPEC §7.5, §9.2, §9.3, §12)', () =
 });
 
 describe('stepChip', () => {
-  it('renders a step chip, hiding the disc when the label repeats the number', () => {
+  it('renders a step chip: a numbered disc and its label, with its variants as classes', () => {
     expect(render("{{ stepChip(2, 'Main', variant='sm paper') }}")).toBe(
       '<span class="step-chip step-chip--sm step-chip--paper"><span class="step-chip__num">2</span> <span class="step-chip__label">Main</span></span>',
     );
-    expect(render("{{ stepChip(1, 'Step 1', tag='p', hideNum=true) }}")).toBe(
-      '<p class="step-chip"><span class="step-chip__num" aria-hidden="true">1</span> <span class="step-chip__label">Step 1</span></p>',
+    expect(render("{{ stepChip(1, 'of 2') }}")).toBe(
+      '<span class="step-chip"><span class="step-chip__num">1</span> <span class="step-chip__label">of 2</span></span>',
     );
   });
 

@@ -1,0 +1,72 @@
+{#-
+  The list of sleep problems on Home (SPEC §7.2, §8.1; HANDOFF §6.3; boards
+  Problems-A.dc.html and Problems-Phone.dc.html, with the changes in SPEC
+  §7.5): the problems by area, and only by area, one group per area
+  (data/areas.csv, in its order). Each group is a plain heading with the
+  area's name, description and a count, over the list of its problems.
+
+    {% from "partials/problem-list.njk" import problemList %}
+    {{ problemList(collections.problems | groupByArea(areas), keywords) }}
+
+  Arguments:
+    areas     the `collections.problems | groupByArea(areas)` list
+    keywords  the rows of data/keywords.csv (SPEC §8.2), or nothing while
+              the file doesn't exist. A problem's row is written to its list
+              item's data-keywords, where problems.js reads it for the
+              filter
+
+  Without JavaScript (SPEC §2, §11) every area is open, so the problem
+  links are always reachable. src/js/problems.js turns each area heading's
+  <span> into a <button aria-expanded aria-controls> and closes the areas.
+  Hooks for it are data-* attributes; classes are for styling only.
+
+  The area headings are <h3>: the list sits under Home's <h2> "What's
+  keeping you up?". Each group's id is its area_id, so /#core links to an
+  area (SPEC §7.2).
+-#}
+{%- from "partials/icons.njk" import icon -%}
+
+{#- A problem's keywords from data/keywords.csv, or nothing. -#}
+{%- macro keywordsFor(slug, keywords) -%}
+{%- for row in keywords -%}{%- if row.page_id == slug -%}{{ row.keywords }}{%- endif -%}{%- endfor -%}
+{%- endmacro -%}
+
+{#- A link to a problem: short title, first-person line and an arrow, the
+    same on every card (no "New" pill, SPEC §7.5). Built on .topic-card
+    (components.css). The spaces between the spans keep the link's
+    accessible name readable ("Tired but wired I'm tired, ..."). -#}
+{%- macro topicCard(p) -%}
+<a class="topic-card topic-card--row" href="{{ p.url }}">
+  <span class="topic-card__text">
+    <span class="topic-card__title" data-topic-title>{{ p.title }}</span>
+    <span class="topic-card__statement" data-topic-statement>{{ p.statement }}</span>
+  </span>
+  {{ icon('arrow-right', 20, 'topic-card__arrow') }}
+</a>
+{%- endmacro -%}
+
+{%- macro problemList(areas, keywords) -%}
+<div class="problems" data-problems>
+  <div class="group-list">
+    {%- for area in areas %}{% set n = area.problems.length %}
+    <section class="group-list__group" id="{{ area.area_id }}">
+      <h3 class="group-list__heading">
+        <span class="group-list__header" data-group-header>
+          <span class="group-list__text">
+            <span class="group-list__name" data-group-name>{{ area.name }}</span>
+            <span class="group-list__description">{{ area.description }}</span>
+          </span>
+          <span class="group-list__count"><span data-group-count data-total="{{ n }}">{{ n }}</span><span class="group-list__count-unit"> {{ 'topic' if n == 1 else 'topics' }}</span></span>
+          <span class="group-list__chevron" aria-hidden="true">{{ icon('chevron-down', 18) }}</span>
+        </span>
+      </h3>
+      <ul class="group-list__problems" id="area-{{ area.area_id }}-problems" role="list" data-group-list>
+        {%- for p in area.problems %}{% set kw = keywordsFor(p.slug, keywords) | trim %}
+        <li data-slug="{{ p.slug }}"{% if kw | length %} data-keywords="{{ kw }}"{% endif %}>{{ topicCard(p) }}</li>
+        {%- endfor %}
+      </ul>
+    </section>
+    {%- endfor %}
+  </div>
+</div>
+{%- endmacro -%}

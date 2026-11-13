@@ -60,12 +60,12 @@ scripts:
   <div class="problem__top">
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <ol role="list">
-        <li><a href="/problems/">Sleep problems</a></li>
-        <li><span class="breadcrumb__sep" aria-hidden="true">›</span><a href="/problems/#{{ area }}">{{ problemArea.name }}</a></li>
+        <li><a href="/#sleep-problems">Sleep problems</a></li>
+        <li><span class="breadcrumb__sep" aria-hidden="true">›</span><a href="/#{{ area }}">{{ problemArea.name }}</a></li>
         <li><span class="breadcrumb__sep" aria-hidden="true">›</span><span aria-current="page">{{ title }}</span></li>
       </ol>
     </nav>
-    <a class="problem__back" href="/problems/#{{ area }}">{{ icon('chevron-left', 16) }}<span class="visually-hidden">Back to </span>{{ problemArea.name }}</a>
+    <a class="problem__back" href="/#{{ area }}">{{ icon('chevron-left', 16) }}<span class="visually-hidden">Back to </span>{{ problemArea.name }}</a>
     <div class="problem__head">
       <h1 class="problem__title">{{ title }}</h1>
       <p class="problem__statement">“{{ statement | sentence }}”</p>
@@ -128,7 +128,7 @@ scripts:
       </ul>
     </section>
     {%- endif %}
-    <p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>
+    <p class="problem__all"><a href="/#sleep-problems">Back to all sleep problems</a></p>
     {#- The page's YouTube note, once, last (SPEC §15.1). #}
     {{ youtubeNote() }}
   </div>

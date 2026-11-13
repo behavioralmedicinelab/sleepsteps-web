@@ -63,7 +63,8 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
 
   it('shows the phone back link to the area and, with solutions, the "On this page" chips', () => {
     const back = tags(main, 'a').find((t) => attr(t, 'class') === 'problem__back');
-    expect(attr(back, 'href')).toBe(`/problems/#${data.area}`);
+    // The problem's area in Home's list of sleep problems.
+    expect(attr(back, 'href')).toBe(`/#${data.area}`);
     const chips = elementByClass(main, 'on-this-page', 'nav');
     if (!solutions.length) {
       // A stand-alone page: nothing below the problem block to jump to.
@@ -253,7 +254,7 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       expect(related).toBeUndefined();
     }
     const all = elementByClass(main, 'problem__all', 'p');
-    expect(all).toBe('<p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>');
+    expect(all).toBe('<p class="problem__all"><a href="/#sleep-problems">Back to all sleep problems</a></p>');
     expect(main.lastIndexOf('problem__all')).toBeGreaterThan(main.lastIndexOf('solution-grid'));
   });
 
@@ -359,7 +360,7 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     const hidden = [...main.matchAll(/<([a-z0-9]+)\b[^>]*\shidden(?=[\s>])[^>]*>/g)].map((m) => [m[1], attr(m[0], 'class')]);
     // The ratings widget (SPEC §12) needs JavaScript; nothing else does.
     expect(hidden).toEqual([['div', 'rating']]);
-    expect(elementByClass(main, 'problem__all', 'p')).toBe('<p class="problem__all"><a href="/problems/">Back to all sleep problems</a></p>');
+    expect(elementByClass(main, 'problem__all', 'p')).toBe('<p class="problem__all"><a href="/#sleep-problems">Back to all sleep problems</a></p>');
   });
 
   it('is still in the site search index, with its video title in its text (SPEC §8.3)', () => {

@@ -200,6 +200,34 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect(api).toEqual([]);
   });
 
+  // Home holds the list of sleep problems (SPEC §7.2, §11): without
+  // problems.js it stays the no-JavaScript list, every area open.
+  it('problems.js: Home keeps every area of sleep problems open under a plain heading, with no filter shown; the menu and feedback still work', async () => {
+    const { ran, failed } = await open('/', 'problems.js');
+    expect(failed).toEqual(['problems.js']);
+    expect(ran).toEqual(['menu.js', 'feedback.js']);
+    expect($('[data-problems-tools]').hidden).toBe(true);
+    expect($('[data-problems-hint]').hidden).toBe(true);
+    expect($$('[data-problems] button')).toEqual([]);
+    expect($$('[data-group-list]')).toHaveLength(10);
+    for (const list of $$('[data-group-list]')) expect(list.hidden).toBe(false);
+    expect($$('[data-problems] li[data-slug] a')).toHaveLength(36);
+    expect($('[data-filter-status]').textContent).toBe('36 topics in 10 areas');
+    expect($('[data-feedback-trigger]').localName).toBe('button');
+    expect($('.mobile-menu__toggle').localName).toBe('button');
+    expect(api).toEqual([]);
+  });
+
+  it("menu.js on Home: the list of sleep problems still gets its filter and area buttons", async () => {
+    const { ran, failed } = await open('/', 'menu.js');
+    expect(failed).toEqual(['menu.js']);
+    expect(ran).toEqual(['problems.js', 'feedback.js']);
+    expect($('details[data-mobile-menu]')).not.toBeNull();
+    expect($('[data-problems-tools]').hidden).toBe(false);
+    expect($$('[data-problems] button[aria-expanded="false"]')).toHaveLength(10);
+    expect(api).toEqual([]);
+  });
+
   it('menu.js: the other modules still run, and the page keeps its no-JavaScript menu', async () => {
     const { ran, failed } = await open('/problems/tired-but-wired/', 'menu.js');
     expect(failed).toEqual(['menu.js']);
