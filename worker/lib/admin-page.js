@@ -18,7 +18,7 @@
 
 import { TS_RE, thousands } from './admin-data.js';
 import { html } from './html.js';
-import { formatDayLong, formatHour, formatMonth, formatSpan, formatTime, MIN_DAY } from './date-range.js';
+import { formatDayLong, formatHour, formatMonth, formatSpan, formatTime, MIN_DAY, SUMMARY_DEFAULT_DAYS } from './date-range.js';
 
 /** The tables the page offers to download, in link order, with their names in the copy. */
 export const DOWNLOAD_TABLES = Object.freeze([
@@ -181,7 +181,7 @@ function rangeForm(view) {
   return html`<form class="range" method="get" action="/admin/" novalidate>
 <fieldset>
 <legend>Date range</legend>
-<p class="hint" id="range-hint">UTC days, both included. Leave both empty for the last 30 days. Up to ${view.limits.maxSummaryDays} days.</p>
+<p class="hint" id="range-hint">UTC days, both included. Leave both empty for the last ${SUMMARY_DEFAULT_DAYS} days. Up to ${view.limits.maxSummaryDays} days.</p>
 <div class="range__fields">
 ${dateField(view, 'from', 'From')}
 ${dateField(view, 'to', 'To')}
@@ -200,7 +200,7 @@ function currentRange(view) {
     : `${formatDayLong(range.from)} to ${formatDayLong(range.to)}`;
   const lead = range.isDefault ? `Showing the last ${plural(range.days, 'day', 'days')}: ${span}` : `Showing ${span}`;
   const today = range.to === view.today ? ' Today is still under way, so its numbers can still grow.' : '';
-  const reset = range.isDefault ? '' : html` <a class="range-current__reset" href="/admin/">Show the last 30 days</a>`;
+  const reset = range.isDefault ? '' : html` <a class="range-current__reset" href="/admin/">Show the last ${SUMMARY_DEFAULT_DAYS} days</a>`;
   return html`<p class="range-current">${lead} (UTC days, both included).${today}${reset}</p>`;
 }
 

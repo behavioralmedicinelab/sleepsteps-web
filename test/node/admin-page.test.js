@@ -4,7 +4,7 @@
 // over a stand-in D1. The Worker tests (test/worker/admin*.test.js) run the
 // same code against a real D1; these check the markup itself: structure,
 // escaping, the absence of ids, the links and the copy for each state.
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { summaryModel, thousands } from '../../worker/lib/admin-data.js';
 import { EXPORT_TABLES, SUMMARY_QUERIES, TABLES_PRESENT_SQL } from '../../worker/lib/admin-queries.js';
 import { DOWNLOAD_TABLES, renderDownloadPage, renderSummary, ROWS_READ_NOTE, SIGN_OUT_URL } from '../../worker/lib/admin-page.js';
@@ -279,6 +279,24 @@ describe('the summary page with data', () => {
     expect(textOf(parseHtml(renderSummary(summaryView('from=2026-11-01&to=2026-11-01'))).querySelector('.range-current'))).toMatch(
       /^Showing 1 November 2026 \(UTC days/,
     );
+  });
+
+  describe('with another default range', () => {
+    afterEach(() => {
+      vi.doUnmock('../../worker/lib/date-range.js');
+      vi.resetModules();
+    });
+
+    it('takes the days it names from SUMMARY_DEFAULT_DAYS, in the hint and in the way back', async () => {
+      // Both said "30" in their own text, so a changed default would have
+      // left them naming the old one.
+      vi.resetModules();
+      vi.doMock('../../worker/lib/date-range.js', async (original) => ({ ...(await original()), SUMMARY_DEFAULT_DAYS: 14 }));
+      const page = await import('../../worker/lib/admin-page.js');
+      const other = parseHtml(page.renderSummary(summaryView('from=2026-10-01&to=2026-10-31')));
+      expect(textOf(other.querySelector('#range-hint'))).toBe('UTC days, both included. Leave both empty for the last 14 days. Up to 92 days.');
+      expect(textOf(other.querySelector('.range-current__reset'))).toBe('Show the last 14 days');
+    });
   });
 
   it("links last month's four files, then this range's, ending yesterday, every one named as UTC", () => {
