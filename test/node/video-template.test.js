@@ -19,7 +19,7 @@
 //   template is the same for every video, with or without worksheets.
 //   "No worksheets" is about the markup (the section, its links and their
 //   files; WORKSHEET_MARKUP), never the word: the team may write
-//   "worksheet" in a page's text, a blurb or a video's description.
+//   "worksheet" in a page's text or a video's title or description.
 //
 // The templates' parts are checked in detail in components.test.js,
 // page-problem.test.js and page-home-start.test.js.
@@ -253,7 +253,7 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
       'summary.solution__face[span.solution__face-inner[' +
         'span.solution__band[span.play-disc.play-disc--sm,span.step-chip.step-chip--paper[span.step-chip__num,span.step-chip__label],span.duration-badge.solution__duration],' +
         'span.solution__disc,' +
-        'span.solution__text[span.solution__title,span.solution__blurb,span.solution__length.visually-hidden],' +
+        'span.solution__text[span.solution__title,span.solution__description,span.solution__length.visually-hidden],' +
         'span.solution__chevron]]',
     ]);
   });
@@ -306,6 +306,32 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     }
   });
 
+  // Project lead, 2026-11-14 (SPEC §7.2): a video's title and description
+  // are fixed. They come from its row of data/videos.csv and nowhere else,
+  // so a video reads the same on every page, open or closed.
+  it('gives every video its own title and description, from data/videos.csv, wherever it is', () => {
+    const plain = (value) => String(value).replace(/\s+/g, ' ').trim();
+    const own = (id) => {
+      const { title, description } = model.videos.get(id).data;
+      return [plain(title), plain(description)];
+    };
+    for (const { file, html } of blocks) {
+      const id = videoIdOf(html);
+      const title = elementByClass(html, 'video-block__title');
+      expect([visibleText(title), text(elementByClass(html, 'video-block__desc', 'p'))], `${file} ${id}`).toEqual(own(id));
+    }
+    // video_id -> the different words its closed cards show, across every problem.
+    const faces = new Map();
+    for (const { file, html } of cards) {
+      const id = videoIdOf(html);
+      const summary = html.match(/<summary[\s\S]*?<\/summary>/)[0];
+      const shown = [text(elementByClass(summary, 'solution__title', 'span')), text(elementByClass(summary, 'solution__description', 'span'))];
+      expect(shown, `${file} ${id}`).toEqual(own(id));
+      faces.set(id, (faces.get(id) ?? new Set()).add(shown.join('\n')));
+    }
+    for (const [id, seen] of faces) expect(seen.size, id).toBe(1);
+  });
+
   it('shows a video\'s worksheets as the same section on every problem that has it as a solution', () => {
     // video_id -> the different sections its cards show ('' for none), and how many cards it has.
     const byVideo = new Map();
@@ -326,7 +352,7 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     expect(text(elementByClass(summary, 'step-chip', 'span'))).toMatch(/^\d (Main|Extra)$/);
     expect(text(elementByClass(summary, 'solution__duration', 'span')).length).toBeGreaterThan(0);
     expect(text(elementByClass(summary, 'solution__title', 'span')).length).toBeGreaterThan(0);
-    expect(text(elementByClass(summary, 'solution__blurb', 'span')).length).toBeGreaterThan(0);
+    expect(text(elementByClass(summary, 'solution__description', 'span')).length).toBeGreaterThan(0);
     // The card's only links and buttons are in its open template.
     const outside = html.replace(elementByClass(html, 'solution__panel', 'div'), '');
     expect(outside).not.toMatch(/<(a|button)\b|data-handout/);
@@ -375,7 +401,7 @@ describe('worksheets in the templates', () => {
 
   it('leave the video template\'s macro as it was: no worksheets argument', () => {
     const template = code(sources.find(({ file }) => file === 'partials/video-block.njk').source);
-    expect(template).toContain("{%- macro videoBlock(video, heading=2, description='', label=none, close='', bleed='page', ratings=false, feedback=false) -%}");
+    expect(template).toContain("{%- macro videoBlock(video, heading=2, label=none, close='', bleed='page', ratings=false, feedback=false) -%}");
     expect(uses(template)).toBe(false);
   });
 });

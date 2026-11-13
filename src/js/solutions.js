@@ -70,7 +70,7 @@ function enhance(li) {
   face.className = summary.className;
   face.setAttribute('aria-controls', panel.id);
   face.append(...summary.childNodes);
-  const description = [...face.querySelectorAll('.solution__blurb[id], .solution__length[id]')];
+  const description = [...face.querySelectorAll('.solution__description[id], .solution__length[id]')];
   for (const el of description) el.setAttribute('aria-hidden', 'true');
   if (description.length) face.setAttribute('aria-describedby', description.map((el) => el.id).join(' '));
 

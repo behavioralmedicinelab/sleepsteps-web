@@ -11,10 +11,9 @@
 //
 // - summary: a problem's statement, or the page's `summary`;
 // - keywords: the page's row in data/keywords.csv, as words (SPEC §8.2);
-// - transcript: plain text. For a problem, its "Is this you?" text and, for
-//   every video on the page, the video's title, its description (for a
-//   solution with a blurb, the blurb instead, as the page shows) and its
-//   transcript (data/transcripts/<video_id>.txt, which the site doesn't
+// - transcript: plain text. For a problem, for every video on the page
+//   (its own, then its solutions), the video's title, its description and
+//   its transcript (data/transcripts/<video_id>.txt, which the site doesn't
 //   show), so a match in a solution video leads to the problem page; and,
 //   after each solution video's own text, the titles of its worksheets
 //   (data/worksheets.csv, SPEC §7.6), which that video's open card lists,
@@ -109,13 +108,11 @@ export function searchIndex({ problems = [], videos = [], transcripts = new Map(
   const entries = [];
   for (const item of problems) {
     const d = item.data;
-    const parts = [d.is_this_you?.summary, ...(d.is_this_you?.bullets ?? [])];
     const about = video(d.problem_video);
-    parts.push(about.title, about.description, about.text);
+    const parts = [about.title, about.description, about.text];
     for (const s of d.solutions ?? []) {
       const v = video(s.video);
-      const blurb = typeof s.blurb === 'string' ? s.blurb.trim() : '';
-      parts.push(v.title, blurb || v.description, v.text);
+      parts.push(v.title, v.description, v.text);
       // The worksheets its open card lists, in the card's order.
       for (const sheet of sheets.get(s.video) ?? []) parts.push(sheet.title);
     }

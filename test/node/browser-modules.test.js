@@ -502,8 +502,8 @@ describe('players.js', () => {
     {
       items: filters.solutionsByTier(
         [
-          { tier: 'main', video: 'full', blurb: 'Try this.' },
-          { tier: 'main', video: 'other', blurb: 'Or this.' },
+          { tier: 'main', video: 'full' },
+          { tier: 'main', video: 'other' },
         ],
         [...videos, videoRow('other', { title: 'Another idea', youtube_url: 'https://youtu.be/ZyXwVuTsRqP', duration: '2:10', handout: 'other.pdf', audio: 'other.mp3' })],
       ).main,
@@ -666,7 +666,7 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
       expect(button.parentElement.localName).toBe('h3');
       expect(button.getAttribute('aria-expanded')).toBe('false');
       expect(button.getAttribute('aria-controls')).toBe(`${id}-panel`);
-      expect(button.getAttribute('aria-describedby')).toBe(`${id}-blurb ${id}-length`);
+      expect(button.getAttribute('aria-describedby')).toBe(`${id}-description ${id}-length`);
       expect(panel(card).id).toBe(`${id}-panel`);
       expect(panel(card).hidden).toBe(true);
       expect(panel(card).getAttribute('role')).toBe('region');

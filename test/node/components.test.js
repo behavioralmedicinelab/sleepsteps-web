@@ -176,8 +176,8 @@ describe('videoBlock (the video template, SPEC §7.5, §9.2, §9.3, §12)', () =
     expect(html).not.toMatch(/video-block__top|step-chip|<button/);
     // h3 inside a solution card.
     expect(tags(render('{{ videoBlock(v, heading=3) }}', { v: video('full') }), 'h3')).toEqual(['<h3 class="video-block__title" id="video-full-title">']);
-    // Another description (a solution's blurb) replaces the video's.
-    expect(text(elementByClass(render("{{ videoBlock(v, description='Try this.') }}", { v: video('full') }), 'video-block__desc', 'p'))).toBe('Try this.');
+    // No caller can give a video another title or description (project lead, 2026-11-14; SPEC §7.2).
+    expect(render("{{ videoBlock(v, description='Try this.', title='Another title') }}", { v: video('full') })).toBe(html);
   });
 
   it('puts the label first, and a solution card\'s Close at its right, shipping that header hidden', () => {

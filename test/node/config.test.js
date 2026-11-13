@@ -219,20 +219,25 @@ describe('eleventy.config.js', () => {
       expect(() => f.videoById('x', [videoRow('x', { youtube_url: 'https://vimeo.com/1' })])).toThrow(/video "x": youtube_url/);
     });
 
-    it('solutionsByTier splits solutions by tier, numbering each tier from 1, with the blurb or else the video\'s description', () => {
+    it('solutionsByTier splits solutions by tier, numbering each tier from 1, each with its video and no text of its own', () => {
       const tiers = f.solutionsByTier(
         [
-          { tier: 'main', video: 'intro', blurb: 'A' },
+          { tier: 'main', video: 'intro' },
           { tier: 'extra', video: 'cognitive-arousal' },
-          { tier: 'main', video: 'sleep-drive', blurb: '  ' },
+          { tier: 'main', video: 'sleep-drive' },
         ],
         videos,
       );
-      expect(tiers.main.map((s) => [s.n, s.blurb, s.description, s.video.video_id])).toEqual([
-        [1, 'A', 'A', 'intro'],
-        [2, '', '[Description of “Sleep drive”.]', 'sleep-drive'],
+      expect(tiers.main.map((s) => [s.n, s.video.video_id, s.video.description])).toEqual([
+        [1, 'intro', videos.find((v) => v.video_id === 'intro').description],
+        [2, 'sleep-drive', '[Description of “Sleep drive”.]'],
       ]);
-      expect(tiers.extra.map((s) => [s.n, s.tier, s.video.title, s.description])).toEqual([[1, 'extra', 'Cognitive arousal', 'Racing thoughts.']]);
+      expect(tiers.extra.map((s) => [s.n, s.tier, s.video.title, s.video.description])).toEqual([[1, 'extra', 'Cognitive arousal', 'Racing thoughts.']]);
+      // A solution is its number, tier, video and worksheets: a blurb, title
+      // or description on the solution itself is not carried to the page
+      // (project lead, 2026-11-14; SPEC §7.2).
+      const [only] = f.solutionsByTier([{ tier: 'main', video: 'intro', blurb: 'A', title: 'B', description: 'C' }], videos).main;
+      expect(Object.keys(only).sort()).toEqual(['n', 'tier', 'video', 'worksheets']);
       expect(f.solutionsByTier(undefined, videos)).toEqual({ main: [], extra: [] });
       expect(() => f.solutionsByTier([{ tier: 'other', video: 'intro' }], videos)).toThrow(/tier/);
     });
@@ -249,7 +254,7 @@ describe('eleventy.config.js', () => {
         row('drive-c', 'sleep-drive', 'Shares a file', 'drive-b.pdf'),
       ];
       const solutions = [
-        { tier: 'main', video: 'sleep-drive', blurb: 'A' },
+        { tier: 'main', video: 'sleep-drive' },
         { tier: 'extra', video: 'cognitive-arousal' },
         { tier: 'main', video: 'intro' },
       ];
@@ -267,8 +272,8 @@ describe('eleventy.config.js', () => {
         expect(tiers.extra.map((s) => [s.video.video_id, s.worksheets])).toEqual([['cognitive-arousal', []]]);
       });
 
-      it('gives a video the same worksheets on every problem, whatever its tier, number or blurb', () => {
-        const here = f.solutionsByTier([{ tier: 'main', video: 'sleep-drive', blurb: 'On this problem.' }], videos, worksheets).main[0];
+      it('gives a video the same worksheets on every problem, whatever its tier or number', () => {
+        const here = f.solutionsByTier([{ tier: 'main', video: 'sleep-drive' }], videos, worksheets).main[0];
         const there = f.solutionsByTier([{ tier: 'main', video: 'intro' }, { tier: 'extra', video: 'sleep-drive' }], videos, worksheets).extra[0];
         expect(there.worksheets).toEqual(here.worksheets);
         expect(here.worksheets.map((w) => w.worksheet_id)).toEqual(['drive-b', 'drive-a', 'drive-c']);

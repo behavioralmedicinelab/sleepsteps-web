@@ -3,7 +3,7 @@
 // (SPEC §7.1-§7.3, §7.6).
 //
 // These check rules, never the sample values. The team may reword a title,
-// a statement or a blurb (with or without brackets), add a problem, an area,
+// a statement or a video's description (with or without brackets), add a problem, an area,
 // a video or a worksheet, or change which solutions a problem lists (README
 // "Content editing", SPEC §19.2), and `npm test`, which Workers Builds runs
 // before every deploy, must still pass. So nothing here compares the content
@@ -116,15 +116,16 @@ describe('the problems and Start here (SPEC §7.1-§7.3)', () => {
     }
   });
 
-  // Any video in the library may be a solution, and a blurb is optional
-  // text in any wording: without one the card shows the video's description.
-  it('gives every solution a video in the library, once on its page, and a blurb only as text', () => {
+  // Any video in the library may be a solution. A solution names its tier
+  // and its video and nothing else: the card's title and description are the
+  // video's, the same on every problem (project lead, 2026-11-14; SPEC §7.2).
+  it('gives every solution a video in the library, once on its page, and no text of its own', () => {
     for (const [slug, { data }] of problems) {
       const onPage = [data.problem_video, ...(data.solutions ?? []).map((s) => s.video)];
       expect(new Set(onPage).size, slug).toBe(onPage.length);
       for (const s of data.solutions ?? []) {
         expect(model.videos.has(s.video), `${slug}: ${s.video}`).toBe(true);
-        if (s.blurb !== undefined && s.blurb !== null) expect(isText(s.blurb), `${slug}: ${s.video}`).toBe(true);
+        expect(Object.keys(s).sort(), `${slug}: ${s.video}`).toEqual(['tier', 'video']);
       }
     }
   });

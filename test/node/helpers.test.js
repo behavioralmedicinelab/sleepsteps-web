@@ -118,11 +118,11 @@ describe('WORKSHEET_MARKUP', () => {
   });
 
   // The word is the team's to use anywhere: an information page, a
-  // solution's blurb, a video's title or description (escaped by the
+  // video's title or description (escaped by the
   // template), a heading's id, another class or attribute.
   it.each([
     '<p>Each solution video comes with worksheets you can print.</p>',
-    '<span class="solution__blurb" id="s-blurb">[Try this. The worksheets below help you plan.]</span>',
+    '<span class="solution__description" id="s-description">[Try this. The worksheets below help you plan.]</span>',
     '<p class="video-block__desc">A worksheet may help: fill it in as you watch.</p>',
     '<h3 class="video-block__title" id="video-x-title" tabindex="-1">Your worksheet plan</h3>',
     '<li>Anonymous usage: videos and audio played, and handouts and worksheets opened</li>',
