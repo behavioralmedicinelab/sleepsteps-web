@@ -200,9 +200,14 @@ describe('src/js/admin-export.js', () => {
     await press();
     expect(create).not.toHaveBeenCalled();
     expect(saved).toEqual([]);
+    // Not "reload this page": the sign-in's return to /admin/export arrives
+    // cross-site, which the export refuses (SPEC §14.4 step 5). The summary
+    // accepts it, and the page has the link the message names.
     expect(status()).toBe(
-      "Couldn't download the data, so nothing was saved. If you've been signed out, reload this page to sign in again, then try again.",
+      "Couldn't download the data, so nothing was saved. If you've been signed out, choose 'Back to site data' below to sign in again, then start the download again.",
     );
+    expect(PAGE).toContain('<a href="/admin/">Back to site data</a>');
+    expect(PAGE.indexOf('Back to site data')).toBeGreaterThan(PAGE.indexOf('data-export-status'));
     expect(dom.document.querySelector('[data-export-progress]').hidden).toBe(true);
     expect(dom.document.querySelector('[data-export]').hasAttribute('aria-disabled')).toBe(false);
     expect(logged).toEqual([]);

@@ -37,8 +37,11 @@ const TABLE_RE = /^[a-z]+$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FILENAME_RE = /^[a-z]+-[a-z]+-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/;
 
+// It sends staff to the summary, not to a reload of this page: after a
+// sign-in the return to /admin/export arrives cross-site, which the export
+// refuses with a bare 403 (SPEC §14.4 step 5); the summary accepts it.
 export const FAILED =
-  "Couldn't download the data, so nothing was saved. If you've been signed out, reload this page to sign in again, then try again.";
+  "Couldn't download the data, so nothing was saved. If you've been signed out, choose 'Back to site data' below to sign in again, then start the download again.";
 
 const thousands = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const rowsText = (n) => `${thousands(n)} ${n === 1 ? 'row' : 'rows'}`;
