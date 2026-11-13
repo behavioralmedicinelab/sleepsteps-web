@@ -97,7 +97,7 @@ export function validateEvent(body, index) {
   if (typeof type !== 'string' || !SHAPES.has(type)) return { error: 'type' };
 
   const entry = typeof page === 'string' ? index.get(page) : undefined;
-  if (type === 'search' ? page !== 'search' : !entry) return { error: 'page' };
+  if (!entry || (type === 'search' && page !== 'search')) return { error: 'page' };
   if (type === 'page_view' && !entry.pageView) return { error: 'page' };
 
   if (type === 'search') {

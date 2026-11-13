@@ -474,6 +474,16 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
     });
     expect(body).toEqual(copy);
   });
+
+  it('refuses a search when pages.json has no search page, as it refuses any page it lacks', () => {
+    // SPEC §14.1: every `page` is checked against pages.json. Without this, a
+    // site built without /search/ would still store free text.
+    const { search, ...others } = PAGES;
+    expect(search).toBeDefined();
+    expect(validateEvent(valid.search(), pageIndex(others))).toEqual({ error: 'page' });
+    expect(validateEvent(valid.search(), pageIndex({}))).toEqual({ error: 'page' });
+    expect(validateEvent(valid.page_view(), pageIndex(others))).toHaveProperty('row');
+  });
 });
 
 describe('request format (SPEC §14.1)', () => {
