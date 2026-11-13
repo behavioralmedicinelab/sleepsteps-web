@@ -48,8 +48,7 @@ const fromEleventy = createRequire(require.resolve('@11ty/eleventy'));
 const matter = fromEleventy('gray-matter');
 const yaml = fromEleventy('js-yaml');
 
-export const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // the static asset limit (SPEC §9.2)
-export const MAX_WORKSHEET_BYTES = MAX_AUDIO_BYTES; // the same limit (SPEC §7.6)
+const MAX_FILE_BYTES = 25 * 1024 * 1024; // the static asset limit, for every file the site serves (SPEC §9.2)
 export const SOLUTION_LIMITS = { main: [1, 3], extra: [0, 3] };
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -102,6 +101,7 @@ export const WARNINGS = {
   'related-few': 'Problems with fewer than 2 related topics (SPEC §7.2 asks for 2-3)',
   'is-this-you-empty': 'Problems with no "Is this you?" text',
   'bullets-few': 'Problems with fewer than 2 "Is this you?" bullets (SPEC §7.2 asks for 2-4)',
+  'thumbnail-missing': 'Videos with no thumbnail, while other videos have one (their frames will look different; SPEC §7.1)',
   'unused-video': 'Videos not used on any page',
   'worksheet-not-shown': 'Worksheets no page shows: their video is not a solution on any problem (SPEC §7.6)',
   'solution-no-worksheet': `Solution videos with no worksheet in ${WORKSHEETS_FILE} (SPEC §7.6)`,
@@ -155,6 +155,25 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       error(rel, '', `can't read the front matter: ${e.reason ?? e.message}`);
       return null;
     }
+  };
+
+  // track_page_view, where a file sets it, is true or false: YAML reads
+  // `yes` and "true" as text, which base.njk would render as the page-view
+  // marker while the layout left events.js out (SPEC §7.4, §10.2).
+  const checkPageView = (file, data) => {
+    const value = data.track_page_view;
+    if (value !== undefined && typeof value !== 'boolean') {
+      error(file, 'track_page_view', `must be true or false, without quotes (found ${JSON.stringify(value)})`);
+    }
+  };
+  // Start here and each information page: a title (the tab's title, the
+  // heading and the page's name in search results) and a summary (the line
+  // under the heading and the page's description), SPEC §7.3, §7.4.
+  const checkPage = (file, data) => {
+    for (const field of ['title', 'summary']) {
+      if (!isText(data[field])) error(file, field, 'required');
+    }
+    checkPageView(file, data);
   };
 
   // Both encoding checks (SPEC §7.1) on one row of any of the team's CSVs;
@@ -339,7 +358,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
         fail(field, near
           ? `${dir}/${value} does not exist: did you mean ${near}? (capitals must match exactly)`
           : `${dir}/${value} does not exist`);
-      } else if (field === 'audio' && statSync(target).size > MAX_AUDIO_BYTES) {
+      } else if (statSync(target).size > MAX_FILE_BYTES) {
         fail(field, `${dir}/${value} is over 25 MiB, the most a static file can be (SPEC §9.2)`);
       }
       if (field in filesUsed) {
@@ -383,6 +402,13 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       const others = rows.filter((r) => r.row !== row).map((r) => `row ${r.row} (${r.id})`);
       fail('youtube_url', `the same YouTube video (${youtubeId}) as ${others.join(', ')}; each video has its own link`);
     }
+  }
+
+  // A thumbnail is optional, but a frame with one and a frame without look
+  // different (SPEC §7.1, §9.1): once any video has one, list those that
+  // don't. A warning only, at launch too.
+  if ([...videos.values()].some((video) => video.data.thumbnail !== '')) {
+    for (const [id, video] of videos) if (video.data.thumbnail === '') warn('thumbnail-missing', VIDEOS_FILE, id);
   }
 
   // ---- Transcripts (data/transcripts/<video_id>.txt, SPEC §7.1) ------------
@@ -491,7 +517,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
         fail('file', near
           ? `${WORKSHEETS_DIR}/${file} does not exist: did you mean ${near}? (capitals must match exactly)`
           : `${WORKSHEETS_DIR}/${file} does not exist`);
-      } else if (statSync(target).size > MAX_WORKSHEET_BYTES) {
+      } else if (statSync(target).size > MAX_FILE_BYTES) {
         fail('file', `${WORKSHEETS_DIR}/${file} is over 25 MiB, the most a static file can be (SPEC §7.6)`);
       }
       // The shared stand-in: a video on YouTube has its own worksheets, as
@@ -545,6 +571,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     for (const field of ['title', 'statement']) {
       if (!isText(data[field])) error(file, field, 'required');
     }
+    checkPageView(file, data);
     if (data.source_title !== undefined && typeof data.source_title !== 'string') {
       error(file, 'source_title', 'must be text');
     }
@@ -657,6 +684,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     const parsed = read(file);
     if (parsed) {
       start = { file, data: parsed.data };
+      checkPage(file, parsed.data);
       const chapters = parsed.data.chapters;
       if (!Array.isArray(chapters) || chapters.length === 0) {
         error(file, 'chapters', 'required: a list of intro videos, each with a video');
@@ -721,6 +749,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   if (start) searchable.push('start');
   for (const name of listMarkdown(at('content/pages'))) {
     const parsed = read(`content/pages/${name}`);
+    if (parsed) checkPage(`content/pages/${name}`, parsed.data);
     if (parsed && parsed.data.search !== false) searchable.push(name.slice(0, -3));
     else if (parsed) notSearched.add(name.slice(0, -3));
   }

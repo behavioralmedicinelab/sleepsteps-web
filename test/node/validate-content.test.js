@@ -50,11 +50,12 @@ const misread = (text, encoding) => (encoding === 'latin1'
 // Not on YouTube yet: a blank link, and the shared stand-in files (SPEC §7).
 const PH = { youtube_url: '', duration: '[mm:ss]', audio: 'placeholder-audio.mp3', handout: 'placeholder-handout.pdf' };
 // Rows 2-11, in this order: about is row 2, m1 row 5, m2 row 6, intro row 11.
+// No row has a thumbnail (all or none, or the build warns): THUMB adds m1's.
 const BASE_VIDEOS = [
   vid('about', 'About'),
   vid('about-two', 'About two'),
   vid('about-three', 'About three'),
-  vid('m1', 'Main one', { audio: 'a.mp3', handout: 'h.pdf', thumbnail: 't.jpg' }),
+  vid('m1', 'Main one', { audio: 'a.mp3', handout: 'h.pdf' }),
   vid('m2', 'Main two'),
   vid('m3', 'Main three'),
   vid('x1', 'Extra one'),
@@ -63,6 +64,7 @@ const BASE_VIDEOS = [
   vid('intro', 'Intro', { duration: '12:05' }),
 ];
 const PAIRED = BASE_VIDEOS.map((v) => v.video_id).filter((id) => id !== 'm1');
+const THUMB = { m1: { thumbnail: 't.jpg' } };
 
 const cell = (value) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
 /** CSV text for rows (objects), with the given columns. */
@@ -143,9 +145,9 @@ function baseTree() {
     ),
     'content/problems/two.md': md(problem('Two', { problem_video: 'about-two' })),
     'content/problems/three.md': md(problem('Three', { problem_video: 'about-three' })),
-    'content/start.md': md({ title: 'Start here', chapters: [{ video: 'intro' }] }),
+    'content/start.md': md({ title: 'Start here', summary: 'One short video.', track_page_view: true, chapters: [{ video: 'intro' }] }),
     'content/pages/help.md': md({ title: 'Referral info', summary: 'When to see someone.' }, '<p>Body.</p>\n'),
-    'content/pages/search-free.md': md({ title: 'Not searchable', search: false }),
+    'content/pages/search-free.md': md({ title: 'Not searchable', summary: 'Left out of the search.', search: false, track_page_view: false }),
     // Every searchable page has keywords (SPEC §8.2); search-free.md opts out.
     'data/keywords.csv': 'page_id,keywords\none,"one; uno"\ntwo,"two; dos"\nthree,three\nstart,"intro; start"\nhelp,"GP; doctor"\n',
     'media/audio/a.mp3': 'mp3',
@@ -190,7 +192,7 @@ describe('validateContent on a valid tree', () => {
   });
 
   it('gives each video its row number, the template shape and its transcript', () => {
-    const { model } = run();
+    const { model } = run(videosCsv(THUMB));
     expect(model.videos.get('m1')).toEqual({
       file: 'data/videos.csv',
       row: 5,
@@ -307,7 +309,7 @@ describe('validateContent fails the build on', () => {
     ['a placeholder without a handout', videosCsv({ m2: { ...PH, handout: '' } }), "row 6 (m2): handout: required: a file name in media/pdf/ (placeholder-handout.pdf until the video's own file exists)"],
     ['a missing audio file', { 'media/audio/a.mp3': null }, 'data/videos.csv: row 5 (m1): audio: media/audio/a.mp3 does not exist'],
     ['a missing handout', { 'media/pdf/h.pdf': null }, 'data/videos.csv: row 5 (m1): handout: media/pdf/h.pdf does not exist'],
-    ['a missing thumbnail', { 'media/thumbs/t.jpg': null }, 'data/videos.csv: row 5 (m1): thumbnail: media/thumbs/t.jpg does not exist'],
+    ['a missing thumbnail', { ...videosCsv(THUMB), 'media/thumbs/t.jpg': null }, 'data/videos.csv: row 5 (m1): thumbnail: media/thumbs/t.jpg does not exist'],
     ['a missing placeholder file', { ...videosCsv({ m2: PH }), 'media/audio/placeholder-audio.mp3': null }, 'row 6 (m2): audio: media/audio/placeholder-audio.mp3 does not exist'],
     ['audio that is not an MP3', videosCsv({ m2: { audio: 'm2.wav' } }), 'row 6 (m2): audio: "m2.wav" must be a .mp3 file'],
     ['a handout that is not a PDF', videosCsv({ m2: { handout: 'm2.docx' } }), 'row 6 (m2): handout: "m2.docx" must be a .pdf file'],
@@ -388,6 +390,16 @@ describe('validateContent fails the build on', () => {
     ['a Start here video listed twice', { 'content/start.md': md({ chapters: [{ video: 'intro' }, { video: 'intro' }] }) }, 'content/start.md: chapters[2].video: video "intro" is already listed'],
     ['an unknown Start here chapter field', { 'content/start.md': md({ chapters: [{ video: 'intro', title: 'Old' }] }) }, 'content/start.md: chapters[1].title: unknown field; a chapter has only a video (its title, description and duration come from data/videos.csv)'],
     ['a missing content/start.md', { 'content/start.md': null }, 'content/start.md: missing'],
+    // Every page has a title and a summary (SPEC §7.3, §7.4).
+    ['Start here without a title', { 'content/start.md': md({ summary: 'S', chapters: [{ video: 'intro' }] }) }, 'content/start.md: title: required'],
+    ['Start here without a summary', { 'content/start.md': md({ title: 'Start here', summary: ' ', chapters: [{ video: 'intro' }] }) }, 'content/start.md: summary: required'],
+    ['an information page without a title', { 'content/pages/help.md': md({ summary: 'When to see someone.' }) }, 'content/pages/help.md: title: required'],
+    ['an information page without a summary', { 'content/pages/help.md': md({ title: 'Referral info' }) }, 'content/pages/help.md: summary: required'],
+    ['an information page whose title is not text', { 'content/pages/search-free.md': md({ title: 404, summary: 'S', search: false }) }, 'content/pages/search-free.md: title: required'],
+    // track_page_view: yes is the text "yes" to Eleventy, not true (SPEC §10.2).
+    ['a track_page_view that is not true or false, on Start here', { 'content/start.md': '---\ntitle: Start here\nsummary: S\ntrack_page_view: yes\nchapters:\n  - video: intro\n---\n' }, 'content/start.md: track_page_view: must be true or false, without quotes (found "yes")'],
+    ['a track_page_view that is not true or false, on an information page', { 'content/pages/help.md': md({ title: 'Referral info', summary: 'S', track_page_view: 'true' }) }, 'content/pages/help.md: track_page_view: must be true or false, without quotes (found "true")'],
+    ['a track_page_view that is not true or false, on a problem', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', track_page_view: 'no' })) }, 'content/problems/two.md: track_page_view: must be true or false, without quotes (found "no")'],
   ];
 
   it.each(cases)('%s', (name, changes, expected) => {
@@ -395,13 +407,23 @@ describe('validateContent fails the build on', () => {
     expect(errors.some((m) => m.includes(expected)), `${expected}\nin:\n${errors.join('\n')}`).toBe(true);
   });
 
-  it('an audio file over 25 MiB', () => {
-    const { dir } = run();
-    const fd = openSync(path.join(dir, 'media/audio/a.mp3'), 'w');
-    ftruncateSync(fd, 25 * 1024 * 1024 + 1); // sparse: no real 25 MiB written
-    closeSync(fd);
+  // The limit is the host's, for every static file (SPEC §9.2), so a
+  // handout or thumbnail over it would only fail later, at the deploy.
+  it('an audio file, a handout or a thumbnail over 25 MiB, and not one of exactly 25 MiB', () => {
+    const { dir } = run(videosCsv(THUMB));
+    const resize = (file, bytes) => {
+      const fd = openSync(path.join(dir, file), 'w');
+      ftruncateSync(fd, bytes); // sparse: no real 25 MiB written
+      closeSync(fd);
+    };
+    const files = ['media/audio/a.mp3', 'media/pdf/h.pdf', 'media/thumbs/t.jpg'];
+    for (const file of files) resize(file, 25 * 1024 * 1024);
+    expect(validateContent(dir).errors.map(formatIssue)).toEqual([]);
+    for (const file of files) resize(file, 25 * 1024 * 1024 + 1);
     expect(validateContent(dir).errors.map(formatIssue)).toEqual([
       'data/videos.csv: row 5 (m1): audio: media/audio/a.mp3 is over 25 MiB, the most a static file can be (SPEC §9.2)',
+      'data/videos.csv: row 5 (m1): handout: media/pdf/h.pdf is over 25 MiB, the most a static file can be (SPEC §9.2)',
+      'data/videos.csv: row 5 (m1): thumbnail: media/thumbs/t.jpg is over 25 MiB, the most a static file can be (SPEC §9.2)',
     ]);
   });
 
@@ -730,6 +752,26 @@ describe('validateContent warns, without failing, about', () => {
       ['is-this-you-empty', 'two'],
       ['related-few', 'two'],
     ]);
+  });
+
+  // A frame with a thumbnail and one without look different (SPEC §7.1,
+  // §9.1), so the build says which videos have none once any has one. Only
+  // ever a warning: the launch check passes too.
+  it('videos with no thumbnail while other videos have one, and neither all nor none', () => {
+    const THUMBNAILS = 'Videos with no thumbnail, while other videos have one (their frames will look different; SPEC §7.1)';
+    const withThumbnail = (ids) => videosCsv(Object.fromEntries(ids.map((id) => [id, { thumbnail: 't.jpg' }])));
+    const all = BASE_VIDEOS.map((v) => v.video_id);
+    for (const launch of [false, true]) {
+      const some = run(withThumbnail(['m1', 'x2']), { launch });
+      expect(messages(some)).toEqual([]);
+      expect(some.warnings).toEqual(all.filter((id) => id !== 'm1' && id !== 'x2').map((id) => ({ code: 'thumbnail-missing', file: 'data/videos.csv', message: id })));
+      expect(groupWarnings(some.warnings)).toEqual([[THUMBNAILS, all.filter((id) => id !== 'm1' && id !== 'x2')]]);
+      for (const ids of [all, []]) {
+        const result = run(withThumbnail(ids), { launch });
+        expect(messages(result)).toEqual([]);
+        expect(result.warnings).toEqual([]);
+      }
+    }
   });
 
   it('videos used nowhere, and problem fields the templates do not read', () => {
