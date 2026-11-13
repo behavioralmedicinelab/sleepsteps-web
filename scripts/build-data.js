@@ -15,7 +15,10 @@
 //   every video on the page, the video's title, its description (for a
 //   solution with a blurb, the blurb instead, as the page shows) and its
 //   transcript (data/transcripts/<video_id>.txt, which the site doesn't
-//   show), so a match in a solution video leads to the problem page. For
+//   show), so a match in a solution video leads to the problem page; and,
+//   after each solution video's own text, the titles of its worksheets
+//   (data/worksheets.csv, SPEC §7.6), which that video's open card lists,
+//   so a search for a worksheet's name finds the problems that offer it. For
 //   Start here, each intro video's title, description and transcript. For
 //   an information page, the text of its rendered body.
 // - type: "problem", "start" or "page".
@@ -27,6 +30,7 @@
 // and writes the result with writeIfChanged().
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { worksheetsByVideo } from './lib/worksheets.js';
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 // Inline elements join their text to the words around them; any other tag
@@ -72,12 +76,17 @@ const join = (parts) => parts.map((p) => String(p ?? '').replace(/\s+/g, ' ').tr
  * @param {object[]} input.videos    data/videos.csv rows (the `videos` global data)
  * @param {Map<string, string>} [input.transcripts] video_id -> plain-text
  *   transcript (readTranscripts() in scripts/lib/videos.js)
+ * @param {object[]} [input.worksheets] data/worksheets.csv rows (the
+ *   `worksheets` global data): a solution video's worksheet titles join
+ *   its problems' text (SPEC §7.6). Only solutions: no page shows the
+ *   worksheets of a problem's own video or of an intro video.
  * @param {object} [input.start]     the Start here item (collections.all, page_id "start")
  * @param {object[]} [input.pages]   information page items, rendered (templateContent)
  * @param {object[]} [input.keywords] data/keywords.csv rows
  */
-export function searchIndex({ problems = [], videos = [], transcripts = new Map(), start, pages = [], keywords = [] }) {
+export function searchIndex({ problems = [], videos = [], transcripts = new Map(), worksheets = [], start, pages = [], keywords = [] }) {
   const kw = keywordsByPage(keywords);
+  const sheets = worksheetsByVideo(worksheets);
   const library = new Map(
     videos.map((row) => [row.video_id, { title: row.title, description: row.description, text: transcripts.get(row.video_id) ?? '' }]),
   );
@@ -106,6 +115,8 @@ export function searchIndex({ problems = [], videos = [], transcripts = new Map(
       const v = video(s.video);
       const blurb = typeof s.blurb === 'string' ? s.blurb.trim() : '';
       parts.push(v.title, blurb || v.description, v.text);
+      // The worksheets its open card lists, in the card's order.
+      for (const sheet of sheets.get(s.video) ?? []) parts.push(sheet.title);
     }
     entries.push(entry(item, 'problem', d.statement, join(parts)));
   }

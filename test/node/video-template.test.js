@@ -14,11 +14,17 @@
 // - every closed solution card is the same summary: the band (play disc,
 //   step chip, duration), the title and the description, and nothing else.
 //
+// - the template holds no worksheets (SPEC §7.6; project lead, 2026-11-13):
+//   they are a section a solution card adds after its template, so the
+//   template is the same for every video, with or without worksheets.
+//
 // The templates' parts are checked in detail in components.test.js,
 // page-problem.test.js and page-home-start.test.js.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import { validateContent } from '../../scripts/validate-content.js';
-import { attr, elementByClass, readHtmlPages, tags, text } from './helpers.js';
+import { attr, elementByClass, listFiles, readHtmlPages, tags, text } from './helpers.js';
 
 const builds = inject('featureBuilds');
 const { model } = validateContent(process.cwd());
@@ -244,6 +250,59 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     ]);
   });
 
+  // Worksheets (SPEC §7.6): a section of a solution card, after its
+  // template. They belong to the video, so the same video has the same
+  // section on every page, whatever the feature switches.
+  const worksheetsOf = (id) => [...model.worksheets.values()].map((w) => w.data).filter((w) => w.video_id === id);
+
+  it('keeps the worksheets out of every template: each section is a solution card\'s, after its template, and no other page has one', () => {
+    for (const b of blocks) expect(b.html, `${b.file} ${videoIdOf(b.html)}`).not.toMatch(/worksheet/i);
+    let sections = 0;
+    for (const { file, html, node } of cards) {
+      const id = videoIdOf(html);
+      const expected = worksheetsOf(id);
+      const panel = find(node, 'solution__panel');
+      // The panel holds the template, then the section where the video has worksheets.
+      expect(kids(panel), `${file} ${id}`).toEqual(['div.video-block', ...(expected.length ? ['section.worksheets'] : [])]);
+      expect([...html.matchAll(/\sdata-worksheet="([^"]*)"/g)].map((m) => m[1]), `${file} ${id}`).toEqual(expected.map((w) => w.worksheet_id));
+      if (!expected.length) continue;
+      sections += 1;
+      const section = find(panel, 'worksheets');
+      expect(kids(section), `${file} ${id}`).toEqual(['h4.worksheets__title', 'ul.worksheets__list']);
+      expect(kids(section.children[1]), `${file} ${id}`).toEqual(expected.map(() => 'li'));
+      for (const item of section.children[1].children) {
+        expect(kids(item), `${file} ${id}`).toEqual(['a.format-button']);
+        expect(kids(item.children[0]), `${file} ${id}`).toEqual(['span.visually-hidden']);
+      }
+    }
+    // Every section on the site is one of those.
+    const all = pages.reduce((n, { html }) => n + (html.match(/<section class="worksheets"/g) ?? []).length, 0);
+    expect(all).toBe(sections);
+    // Say so if there is nothing to check: no solution video has a worksheet.
+    const solutionVideos = new Set(cards.map(({ html }) => videoIdOf(html)));
+    expect(sections > 0).toBe([...model.worksheets.values()].some((w) => solutionVideos.has(w.data.video_id)));
+    // Pages without solution cards never mention worksheets: Start here,
+    // Home, the stand-alone problems and the rest.
+    for (const { file, html } of pages) {
+      if (!cards.some((c) => c.file === file)) expect(html, file).not.toMatch(/worksheet/i);
+    }
+  });
+
+  it('shows a video\'s worksheets as the same section on every problem that has it as a solution', () => {
+    // video_id -> the different sections its cards show ('' for none), and how many cards it has.
+    const byVideo = new Map();
+    for (const { html } of cards) {
+      const id = videoIdOf(html);
+      const seen = byVideo.get(id) ?? { sections: new Set(), cards: 0 };
+      seen.sections.add(elementByClass(html, 'worksheets', 'section') ?? '');
+      seen.cards += 1;
+      byVideo.set(id, seen);
+    }
+    for (const [id, seen] of byVideo) expect(seen.sections.size, id).toBe(1);
+    // Some video is a solution on several problems, or this checks nothing.
+    expect([...byVideo.values()].some((seen) => seen.cards > 1)).toBe(true);
+  });
+
   it.each(cards.map((c) => [`${c.file} ${attr(tags(c.html, 'li')[0], 'id')}`, c]))('%s: the closed card shows its chip, duration, title and description, and no link', (where, { html }) => {
     const summary = html.match(/<summary[\s\S]*?<\/summary>/)[0];
     expect(text(elementByClass(summary, 'step-chip', 'span'))).toMatch(/^\d (Main|Extra)$/);
@@ -253,5 +312,32 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     // The card's only links and buttons are in its open template.
     const outside = html.replace(elementByClass(html, 'solution__panel', 'div'), '');
     expect(outside).not.toMatch(/<(a|button)\b|data-handout/);
+  });
+});
+
+// The sources (SPEC §7.6): the video template doesn't change for worksheets
+// and knows nothing of them, so no video outside a solution card can gain a
+// worksheets section by accident.
+describe('worksheets in the templates', () => {
+  const INCLUDES = 'src/_includes';
+  const sources = listFiles(INCLUDES, (f) => f.endsWith('.njk')).map((file) => ({ file, source: readFileSync(path.join(INCLUDES, file), 'utf8') }));
+  const code = (source) => source.replace(/\{#[\s\S]*?#\}/g, '');
+
+  it('are rendered by the solution card alone: the video template, the facade and Start here never mention them', () => {
+    expect(sources.filter(({ source }) => /worksheet/i.test(source)).map(({ file }) => file)).toEqual(['layouts/problem.njk', 'problem/solutions.njk']);
+    // The problem layout only passes the data to solutionsByTier; the markup is the card's.
+    const layout = code(sources.find(({ file }) => file === 'layouts/problem.njk').source);
+    expect(layout.match(/worksheet\w*/gi)).toEqual(['worksheets']);
+    expect(layout).toContain('{%- set tiers = solutions | solutionsByTier(videos, worksheets) -%}');
+    const card = code(sources.find(({ file }) => file === 'problem/solutions.njk').source);
+    expect(card.match(/<section class="worksheets"/g)).toHaveLength(1);
+    // After the videoBlock call, inside the panel.
+    expect(card.indexOf('<section class="worksheets"')).toBeGreaterThan(card.indexOf('{{ videoBlock(video, heading=3,'));
+    expect(card.indexOf('<section class="worksheets"')).toBeGreaterThan(card.indexOf('<div class="solution__panel"'));
+  });
+
+  it('leave the video template\'s macro as it was: no worksheets argument', () => {
+    const template = code(sources.find(({ file }) => file === 'partials/video-block.njk').source);
+    expect(template).toContain("{%- macro videoBlock(video, heading=2, description='', label=none, close='', bleed='page', ratings=false, feedback=false) -%}");
   });
 });

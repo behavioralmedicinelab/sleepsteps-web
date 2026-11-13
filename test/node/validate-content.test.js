@@ -1,4 +1,4 @@
-// scripts/validate-content.js (SPEC §7.1-§7.3, §9.2, §9.3, §18.1), run against
+// scripts/validate-content.js (SPEC §7.1-§7.3, §7.6, §9.2, §9.3, §18.1), run against
 // small content trees in temporary directories, never the real content
 // (except one check that the real content passes).
 import { execFile } from 'node:child_process';
@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import { formatIssue, groupWarnings, validateContent } from '../../scripts/validate-content.js';
 import { VIDEO_COLUMNS, readTranscripts, transcriptFiles, youtubeIdFromUrl } from '../../scripts/lib/videos.js';
+import { PLACEHOLDER_WORKSHEET, WORKSHEET_COLUMNS, WORKSHEETS_DIR, WORKSHEETS_FILE, toWorksheet, worksheetsByVideo } from '../../scripts/lib/worksheets.js';
 
 const SCRIPT = path.resolve('scripts/validate-content.js');
 const dirs = [];
@@ -77,6 +78,33 @@ const videosCsv = (edits = {}, extra = []) => ({
   ]),
 });
 
+// ---- data/worksheets.csv -----------------------------------------------------
+// One worksheet, with a file of its own, for each solution video of the base
+// tree (problem "one" lists all six: m1-m3 and x1-x3), so a valid tree has
+// no warnings (SPEC §7.6). Rows 2-7, in this order: m1-sheet is row 2,
+// m2-sheet row 3, m3-sheet row 4.
+const WS = 'data/worksheets.csv';
+const sheet = (worksheet_id, video_id, extra = {}) => ({
+  worksheet_id,
+  video_id,
+  title: `Worksheet for ${video_id}`,
+  file: `${worksheet_id}.pdf`,
+  ...extra,
+});
+const SOLUTION_VIDEOS = ['m1', 'm2', 'm3', 'x1', 'x2', 'x3'];
+const BASE_WORKSHEETS = SOLUTION_VIDEOS.map((id) => sheet(`${id}-sheet`, id));
+/**
+ * The changes for a data/worksheets.csv made from the base rows: `edits`
+ * maps a worksheet_id to fields to change (null drops the row), and `extra`
+ * rows go at the end (row 8 on).
+ */
+const worksheetsCsv = (edits = {}, extra = []) => ({
+  [WS]: csvOf(
+    [...BASE_WORKSHEETS.filter((w) => edits[w.worksheet_id] !== null).map((w) => ({ ...w, ...edits[w.worksheet_id] })), ...extra],
+    WORKSHEET_COLUMNS,
+  ),
+});
+
 const problem = (title, extra = {}) => ({
   title,
   statement: `${title}, in the first person`,
@@ -96,6 +124,7 @@ function baseTree() {
   return {
     'data/areas.csv': 'area_id,name,description,source_name,order\ncore,Core,Desc,Source,10\nday,Day,Desc,Source,20\n',
     ...videosCsv(),
+    ...worksheetsCsv(),
     'data/transcripts/about.txt': 'A transcript.\n\nSecond paragraph.\n',
     'content/problems/one.md': md(
       problem('One', {
@@ -123,6 +152,8 @@ function baseTree() {
     'media/audio/placeholder-audio.mp3': 'mp3',
     'media/pdf/placeholder-handout.pdf': 'pdf',
     ...Object.fromEntries(PAIRED.flatMap((id) => [[`media/audio/${id}.mp3`, 'mp3'], [`media/pdf/${id}.pdf`, 'pdf']])),
+    'media/worksheets/placeholder-worksheet.pdf': 'pdf',
+    ...Object.fromEntries(BASE_WORKSHEETS.map((w) => [`media/worksheets/${w.file}`, 'pdf'])),
   };
 }
 
@@ -151,6 +182,7 @@ describe('validateContent on a valid tree', () => {
     expect(result.warnings).toEqual([]);
     expect(messages(run({}, { launch: true }))).toEqual([]);
     expect([...result.model.videos.keys()]).toEqual(BASE_VIDEOS.map((v) => v.video_id));
+    expect([...result.model.worksheets.keys()]).toEqual(BASE_WORKSHEETS.map((w) => w.worksheet_id));
     expect([...result.model.problems.keys()].sort()).toEqual(['one', 'three', 'two']);
     expect(result.model.start.data.chapters).toHaveLength(1);
   });
@@ -402,7 +434,7 @@ describe('validateContent fails the build on', () => {
   // One spreadsheet mistake is one error, not one per problem and chapter
   // that names a video (or per transcript).
   it('a data/videos.csv that can\'t be read, once, without an error for each reference to it', () => {
-    const notChecked = 'data/videos.csv: video references in problems, Start here and transcripts were not checked: fix this file first';
+    const notChecked = 'data/videos.csv: video references in problems, Start here, transcripts and worksheets were not checked: fix this file first';
     const lines = videosCsv()['data/videos.csv'].trimEnd().split('\n');
     const strayColumn = run({ 'data/videos.csv': `${lines.map((line) => `${line},`).join('\n')}\n` });
     expect(messages(strayColumn)).toEqual([
@@ -641,6 +673,351 @@ describe('validateContent warns, without failing, about', () => {
   });
 });
 
+// ---- data/worksheets.csv (SPEC §7.6) -----------------------------------------
+// A worksheet belongs to a video, whose open solution card lists it on every
+// problem where the video is a solution. Each rule on its own, with the
+// whole list of errors, so a rule can't hide behind another's message.
+describe('data/worksheets.csv (SPEC §7.6)', () => {
+  const HEADER = 'worksheet_id,video_id,title,file\n';
+  const GARBLED = 'has garbled characters (for example â€œ in place of “): Excel opened the file in the wrong encoding. Undo, open it through Data > From Text/CSV with "65001: Unicode (UTF-8)", then save as "CSV UTF-8 (Comma delimited)"';
+  const worksheetWarnings = (result) => result.warnings.filter((w) => /worksheet/.test(w.code));
+
+  it('names its file, folder, columns and stand-in once, in scripts/lib/worksheets.js', () => {
+    expect([WORKSHEETS_FILE, WORKSHEETS_DIR, PLACEHOLDER_WORKSHEET]).toEqual([WS, 'media/worksheets', 'placeholder-worksheet.pdf']);
+    expect(WORKSHEET_COLUMNS).toEqual(['worksheet_id', 'video_id', 'title', 'file']);
+  });
+
+  it('gives each worksheet its row number and the template shape, in the file\'s order', () => {
+    const { model } = run();
+    expect([...model.worksheets.keys()]).toEqual(['m1-sheet', 'm2-sheet', 'm3-sheet', 'x1-sheet', 'x2-sheet', 'x3-sheet']);
+    expect(model.worksheets.get('m2-sheet')).toEqual({
+      file: WS,
+      row: 3,
+      data: { worksheet_id: 'm2-sheet', video_id: 'm2', title: 'Worksheet for m2', file: 'm2-sheet.pdf', placeholder: false },
+    });
+  });
+
+  it('toWorksheet trims a row and marks the shared stand-in; worksheetsByVideo groups rows by video in the file\'s order', () => {
+    expect(toWorksheet({ worksheet_id: ' a ', video_id: ' v ', title: ' T ', file: ' a.pdf ' })).toEqual({ worksheet_id: 'a', video_id: 'v', title: 'T', file: 'a.pdf', placeholder: false });
+    expect(toWorksheet({ worksheet_id: 'a', video_id: 'v', title: 'T', file: PLACEHOLDER_WORKSHEET }).placeholder).toBe(true);
+    expect(toWorksheet(undefined)).toEqual({ worksheet_id: '', video_id: '', title: '', file: '', placeholder: false });
+    const rows = [sheet('b', 'v2'), sheet('a', 'v1'), sheet('c', 'v2'), sheet('d', 'v1')];
+    expect([...worksheetsByVideo(rows)].map(([video, list]) => [video, list.map((w) => w.worksheet_id)])).toEqual([['v2', ['b', 'c']], ['v1', ['a', 'd']]]);
+    expect([...worksheetsByVideo([])]).toEqual([]);
+    expect([...worksheetsByVideo(undefined)]).toEqual([]);
+  });
+
+  describe('as Excel saves it', () => {
+    it('reads a "CSV UTF-8" file: a byte-order mark, CRLF line endings and an empty row at the end', () => {
+      const result = run({ [WS]: `﻿${worksheetsCsv()[WS].replace(/\n/g, '\r\n')},,,\r\n` });
+      expect(messages(result)).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.model.worksheets.size).toBe(BASE_WORKSHEETS.length);
+    });
+
+    it('keeps commas and quotes inside a quoted title', () => {
+      const title = 'Plan, then "do": a “wind-down” sheet';
+      const result = run(worksheetsCsv({ 'm2-sheet': { title } }));
+      expect(messages(result)).toEqual([]);
+      expect(result.model.worksheets.get('m2-sheet').data.title).toBe(title);
+    });
+
+    it('counts rows as Excel numbers them: a blank row counts', () => {
+      const lines = worksheetsCsv({ 'm3-sheet': { title: '' } })[WS].split('\n');
+      lines.splice(2, 0, ''); // a blank row after row 2: m3-sheet moves from row 4 to row 5
+      expect(messages(run({ [WS]: lines.join('\n') }))).toEqual(["data/worksheets.csv: row 5 (m3-sheet): title: required: the text of the worksheet's link"]);
+    });
+  });
+
+  it('accepts a file with only its header row: no worksheets yet, and the build lists each solution video', () => {
+    const result = run({ [WS]: HEADER });
+    expect(messages(result)).toEqual([]);
+    expect(result.model.worksheets.size).toBe(0);
+    expect(result.warnings).toEqual(SOLUTION_VIDEOS.map((id) => ({ code: 'solution-no-worksheet', file: WS, message: id })));
+    // Not a placeholder, so the launch check passes too.
+    expect(messages(run({ [WS]: HEADER }, { launch: true }))).toEqual([]);
+    // With a byte-order mark and Excel's CRLF, the same.
+    expect(messages(run({ [WS]: `﻿${HEADER.trim()}\r\n` }))).toEqual([]);
+  });
+
+  // [description, changes, the whole list of errors]
+  const cases = [
+    // The file and its columns.
+    ['a missing data/worksheets.csv', { [WS]: null },
+      ['data/worksheets.csv: missing: the worksheets, one row per worksheet with the columns worksheet_id,video_id,title,file (the header row alone means there are none yet)']],
+    ['columns in another order', { [WS]: csvOf(BASE_WORKSHEETS, ['worksheet_id', 'title', 'video_id', 'file']) },
+      ['data/worksheets.csv: the columns must be worksheet_id,video_id,title,file, in that order (found worksheet_id,title,video_id,file)']],
+    ['a missing column', { [WS]: csvOf(BASE_WORKSHEETS, WORKSHEET_COLUMNS.slice(0, -1)) },
+      ['data/worksheets.csv: the columns must be worksheet_id,video_id,title,file, in that order (found worksheet_id,video_id,title)']],
+    ['an extra column', { [WS]: csvOf(BASE_WORKSHEETS, [...WORKSHEET_COLUMNS, 'notes']) },
+      ['data/worksheets.csv: the columns must be worksheet_id,video_id,title,file, in that order (found worksheet_id,video_id,title,file,notes)']],
+    ['a column under another name', { [WS]: csvOf(BASE_WORKSHEETS.map((w) => ({ ...w, id: w.worksheet_id })), ['id', 'video_id', 'title', 'file']) },
+      ['data/worksheets.csv: the columns must be worksheet_id,video_id,title,file, in that order (found id,video_id,title,file)']],
+    ['an empty file, with no header row', { [WS]: '' },
+      ['data/worksheets.csv: the columns must be worksheet_id,video_id,title,file, in that order (found none)']],
+    ['a stray empty column, as Excel writes one', { [WS]: `${worksheetsCsv()[WS].trimEnd().split('\n').map((line) => `${line},`).join('\n')}\n` },
+      ['data/worksheets.csv: Column E has no name in row 1: delete column E in Excel if it should be empty (line 1)']],
+    ['an unclosed quote', { [WS]: `${worksheetsCsv()[WS]}y,m1,"Oops,m1-sheet.pdf\n` },
+      ['data/worksheets.csv: Unterminated quoted field (line 9)']],
+    ['a row with a missing cell', { [WS]: `${worksheetsCsv()[WS]}y,m1,T\n` },
+      ['data/worksheets.csv: Expected 4 fields but found 3 in row 8 (line 8)']],
+    ['text that is not UTF-8 (saved as "CSV", not "CSV UTF-8")',
+      { [WS]: Buffer.concat([Buffer.from(worksheetsCsv()[WS]), Buffer.from('y,m1,\x93Quoted\x94,m1-sheet.pdf\n', 'latin1')]) },
+      [`data/worksheets.csv: row 8 (y): has characters that aren't UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"`]],
+    // A UTF-8 file Excel opened in another encoding and then saved as "CSV UTF-8".
+    ...[
+      ['Windows-1252', 'windows-1252'],
+      ['Latin-1', 'latin1'],
+      ['Mac Roman', 'macintosh'],
+    ].map(([name, encoding]) => [
+      `curly quotes garbled by opening the file as ${name}`,
+      worksheetsCsv({ 'm2-sheet': { title: misread('Your “wind-down” plan', encoding) } }),
+      [`data/worksheets.csv: row 3 (m2-sheet): title: ${GARBLED}`],
+    ]),
+    // worksheet_id
+    ['a row without a worksheet_id', worksheetsCsv({ 'm2-sheet': { worksheet_id: '' } }, [sheet('m2-again', 'm2', { file: 'm2-sheet.pdf' })]),
+      ['data/worksheets.csv: row 3: worksheet_id: required: lowercase words joined by hyphens, e.g. sleep-drive-worksheet-1']],
+    ['a worksheet_id that is not lowercase-hyphenated', worksheetsCsv({ 'm2-sheet': { worksheet_id: 'Sleep_Diary' } }, [sheet('m2-again', 'm2', { file: 'm2-sheet.pdf' })]),
+      ['data/worksheets.csv: row 3 (Sleep_Diary): worksheet_id: "Sleep_Diary" must be lowercase words joined by hyphens, e.g. sleep-drive-worksheet-1']],
+    ['a worksheet_id on two rows', worksheetsCsv({}, [sheet('m2-sheet', 'm3', { file: 'm3-sheet.pdf' })]),
+      ['data/worksheets.csv: row 8 (m2-sheet): worksheet_id: "m2-sheet" is already on row 3; each worksheet has one row']],
+    // video_id
+    ['a worksheet without a video_id', worksheetsCsv({ 'm2-sheet': { video_id: '' } }, [sheet('m2-again', 'm2', { file: 'm2-sheet.pdf' })]),
+      ['data/worksheets.csv: row 3 (m2-sheet): video_id: required: a video_id from data/videos.csv']],
+    ['a video_id that is not in data/videos.csv', worksheetsCsv({ 'm2-sheet': { video_id: 'gone' } }, [sheet('m2-again', 'm2', { file: 'm2-sheet.pdf' })]),
+      ['data/worksheets.csv: row 3 (m2-sheet): video_id: unknown video "gone" (not in data/videos.csv)']],
+    ['a video\'s title in place of its video_id', worksheetsCsv({ 'm2-sheet': { video_id: 'Main two' } }, [sheet('m2-again', 'm2', { file: 'm2-sheet.pdf' })]),
+      ['data/worksheets.csv: row 3 (m2-sheet): video_id: unknown video "Main two" (not in data/videos.csv)']],
+    // title
+    ['a worksheet without a title', worksheetsCsv({ 'm2-sheet': { title: '' } }), ["data/worksheets.csv: row 3 (m2-sheet): title: required: the text of the worksheet's link"]],
+    ['a title of spaces', worksheetsCsv({ 'm2-sheet': { title: '   ' } }), ["data/worksheets.csv: row 3 (m2-sheet): title: required: the text of the worksheet's link"]],
+    // file
+    ['a worksheet without a file', worksheetsCsv({ 'm2-sheet': { file: '' } }),
+      ["data/worksheets.csv: row 3 (m2-sheet): file: required: a file name in media/worksheets/, e.g. m2-sheet.pdf (placeholder-worksheet.pdf until the worksheet's own file exists)"]],
+    ['a file path outside its folder', worksheetsCsv({ 'm2-sheet': { file: '../pdf/h.pdf' } }),
+      ['data/worksheets.csv: row 3 (m2-sheet): file: "../pdf/h.pdf" must be a file name in media/worksheets/, e.g. m2-sheet.pdf']],
+    ['a file path with its folder', worksheetsCsv({ 'm2-sheet': { file: 'media/worksheets/m2-sheet.pdf' } }),
+      ['data/worksheets.csv: row 3 (m2-sheet): file: "media/worksheets/m2-sheet.pdf" must be a file name in media/worksheets/, e.g. m2-sheet.pdf']],
+    ['a link in place of a file name', worksheetsCsv({ 'm2-sheet': { file: 'https://example.org/m2-sheet.pdf' } }),
+      ['data/worksheets.csv: row 3 (m2-sheet): file: "https://example.org/m2-sheet.pdf" must be a file name in media/worksheets/, e.g. m2-sheet.pdf']],
+    ['a file name with a space', worksheetsCsv({ 'm2-sheet': { file: 'm2 sheet.pdf' } }),
+      ['data/worksheets.csv: row 3 (m2-sheet): file: "m2 sheet.pdf" must be a file name in media/worksheets/, e.g. m2-sheet.pdf']],
+    ['a file that is not a PDF', { ...worksheetsCsv({ 'm2-sheet': { file: 'm2-sheet.docx' } }), 'media/worksheets/m2-sheet.docx': 'docx' },
+      ['data/worksheets.csv: row 3 (m2-sheet): file: "m2-sheet.docx" must be a .pdf file']],
+    ['a file name without an extension', worksheetsCsv({ 'm2-sheet': { file: 'm2-sheet' } }),
+      ['data/worksheets.csv: row 3 (m2-sheet): file: "m2-sheet" must be a .pdf file']],
+    ['a missing file', { 'media/worksheets/m2-sheet.pdf': null },
+      ['data/worksheets.csv: row 3 (m2-sheet): file: media/worksheets/m2-sheet.pdf does not exist']],
+    ['a file that is in media/pdf/, not media/worksheets/', worksheetsCsv({ 'm2-sheet': { file: 'h.pdf' } }),
+      ['data/worksheets.csv: row 3 (m2-sheet): file: media/worksheets/h.pdf does not exist']],
+    ['a folder where the file should be', { ...worksheetsCsv({ 'm2-sheet': { file: 'folder.pdf' } }), 'media/worksheets/folder.pdf/': '' },
+      ['data/worksheets.csv: row 3 (m2-sheet): file: media/worksheets/folder.pdf does not exist']],
+    ['a missing media/worksheets/ folder', Object.fromEntries([['media/worksheets/placeholder-worksheet.pdf', null], ...BASE_WORKSHEETS.map((w) => [`media/worksheets/${w.file}`, null])]),
+      BASE_WORKSHEETS.map((w, i) => `data/worksheets.csv: row ${i + 2} (${w.worksheet_id}): file: media/worksheets/${w.file} does not exist`)],
+    // A video on YouTube has its own worksheets, as it has its own handout.
+    ['a video on YouTube with the placeholder worksheet', worksheetsCsv({ 'm2-sheet': { file: PLACEHOLDER_WORKSHEET } }),
+      ['data/worksheets.csv: row 3 (m2-sheet): file: a video on YouTube needs its own worksheets, not the shared placeholder-worksheet.pdf']],
+    ['a missing placeholder file', { ...videosCsv({ m2: PH }), ...worksheetsCsv({ 'm2-sheet': { file: PLACEHOLDER_WORKSHEET } }), 'media/worksheets/placeholder-worksheet.pdf': null },
+      ['data/worksheets.csv: row 3 (m2-sheet): file: media/worksheets/placeholder-worksheet.pdf does not exist']],
+  ];
+
+  it.each(cases)('fails the build on %s', (name, changes, expected) => {
+    expect(messages(run(changes))).toEqual(expected);
+  });
+
+  // macOS opens M2-Sheet.PDF as m2-sheet.pdf; the site's host doesn't.
+  it('fails on a file name whose capitals differ from the file\'s, suggesting the real name', () => {
+    expect(messages(run(worksheetsCsv({ 'm2-sheet': { file: 'M2-Sheet.PDF' }, 'm3-sheet': { file: 'Placeholder-Worksheet.pdf' } })))).toEqual([
+      'data/worksheets.csv: row 3 (m2-sheet): file: media/worksheets/M2-Sheet.PDF does not exist: did you mean m2-sheet.pdf? (capitals must match exactly)',
+      'data/worksheets.csv: row 4 (m3-sheet): file: media/worksheets/Placeholder-Worksheet.pdf does not exist: did you mean placeholder-worksheet.pdf? (capitals must match exactly)',
+    ]);
+  });
+
+  it('accepts a .PDF extension in capitals when the file has it', () => {
+    expect(messages(run({ ...worksheetsCsv({ 'm2-sheet': { file: 'Sleep-Diary.PDF' } }), 'media/worksheets/Sleep-Diary.PDF': 'pdf' }))).toEqual([]);
+  });
+
+  it('fails on a file over 25 MiB, and accepts one of exactly 25 MiB', () => {
+    const { dir } = run();
+    const size = (bytes) => {
+      const fd = openSync(path.join(dir, 'media/worksheets/m2-sheet.pdf'), 'w');
+      ftruncateSync(fd, bytes); // sparse: no real 25 MiB written
+      closeSync(fd);
+    };
+    size(25 * 1024 * 1024);
+    expect(validateContent(dir).errors.map(formatIssue)).toEqual([]);
+    size(25 * 1024 * 1024 + 1);
+    expect(validateContent(dir).errors.map(formatIssue)).toEqual([
+      'data/worksheets.csv: row 3 (m2-sheet): file: media/worksheets/m2-sheet.pdf is over 25 MiB, the most a static file can be (SPEC §7.6)',
+    ]);
+  });
+
+  it('lets two rows name one file (a worksheet used with two videos), and a video have several worksheets', () => {
+    const result = run(worksheetsCsv({ 'm3-sheet': { file: 'm2-sheet.pdf' } }, [sheet('m2-second', 'm2', { file: 'x1-sheet.pdf' }), sheet('m2-third', 'm2', { file: 'm2-sheet.pdf' })]));
+    expect(messages(result)).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect([...result.model.worksheets.values()].filter((w) => w.data.video_id === 'm2').map((w) => [w.row, w.data.worksheet_id, w.data.file])).toEqual([
+      [3, 'm2-sheet', 'm2-sheet.pdf'],
+      [8, 'm2-second', 'x1-sheet.pdf'],
+      [9, 'm2-third', 'm2-sheet.pdf'],
+    ]);
+  });
+
+  describe('placeholder worksheets: the shared placeholder-worksheet.pdf (SPEC §7)', () => {
+    const placeholders = { ...videosCsv({ m2: PH, m3: PH }), ...worksheetsCsv({ 'm2-sheet': { file: PLACEHOLDER_WORKSHEET }, 'm3-sheet': { file: PLACEHOLDER_WORKSHEET } }) };
+
+    it('build for a placeholder video, sharing the file, and are listed together', () => {
+      const result = run(placeholders);
+      expect(messages(result)).toEqual([]);
+      expect(result.warnings).toEqual([
+        ...PLACEHOLDERS_WARNING(['m2', 'm3']),
+        { code: 'placeholder-worksheet', file: WS, message: 'm2-sheet' },
+        { code: 'placeholder-worksheet', file: WS, message: 'm3-sheet' },
+      ]);
+      expect(result.model.worksheets.get('m2-sheet').data.placeholder).toBe(true);
+      expect(groupWarnings(result.warnings)).toEqual([
+        ['Placeholder videos (no YouTube link yet; SPEC §20 M8 requires none)', ['m2', 'm3']],
+        ['Placeholder worksheets (the shared placeholder-worksheet.pdf; the launch check allows none, SPEC §7.6)', ['m2-sheet', 'm3-sheet']],
+      ]);
+    });
+
+    it('fail the launch check, each once (SPEC §20 M8)', () => {
+      expect(messages(run(placeholders, { launch: true }))).toEqual([
+        'data/videos.csv: row 6 (m2): youtube_url: blank: placeholder videos (no YouTube link yet) are not allowed at launch',
+        'data/videos.csv: row 7 (m3): youtube_url: blank: placeholder videos (no YouTube link yet) are not allowed at launch',
+        'data/worksheets.csv: row 3 (m2-sheet): file: placeholder-worksheet.pdf: placeholder worksheets are not allowed at launch',
+        'data/worksheets.csv: row 4 (m3-sheet): file: placeholder-worksheet.pdf: placeholder worksheets are not allowed at launch',
+      ]);
+    });
+
+    it('fail on a video on YouTube with or without the launch check, with the one message', () => {
+      const changes = worksheetsCsv({ 'm2-sheet': { file: PLACEHOLDER_WORKSHEET } });
+      const expected = ['data/worksheets.csv: row 3 (m2-sheet): file: a video on YouTube needs its own worksheets, not the shared placeholder-worksheet.pdf'];
+      expect(messages(run(changes))).toEqual(expected);
+      expect(messages(run(changes, { launch: true }))).toEqual(expected);
+      // An error, so not also listed as a placeholder.
+      expect(worksheetWarnings(run(changes))).toEqual([]);
+    });
+
+    it('are not needed: a placeholder video may have its own worksheets already, which pass the launch check', () => {
+      const changes = videosCsv({ m2: PH });
+      const result = run(changes);
+      expect(messages(result)).toEqual([]);
+      expect(result.warnings).toEqual(PLACEHOLDERS_WARNING(['m2']));
+      expect(messages(run(changes, { launch: true }))).toEqual([
+        'data/videos.csv: row 6 (m2): youtube_url: blank: placeholder videos (no YouTube link yet) are not allowed at launch',
+      ]);
+    });
+
+    it('fail the launch check even when their video is unknown', () => {
+      expect(messages(run(worksheetsCsv({ 'm2-sheet': { video_id: 'gone', file: PLACEHOLDER_WORKSHEET } }, [sheet('m2-again', 'm2', { file: 'm2-sheet.pdf' })]), { launch: true }))).toEqual([
+        'data/worksheets.csv: row 3 (m2-sheet): video_id: unknown video "gone" (not in data/videos.csv)',
+        'data/worksheets.csv: row 3 (m2-sheet): file: placeholder-worksheet.pdf: placeholder worksheets are not allowed at launch',
+      ]);
+    });
+  });
+
+  describe('warns, without failing, about', () => {
+    it('a worksheet no page shows: its video is a problem\'s own video, an intro video or on no page', () => {
+      const changes = {
+        ...videosCsv({}, [vid('spare', 'Spare', PH)]),
+        ...worksheetsCsv({}, [
+          sheet('about-sheet', 'about', { file: 'm1-sheet.pdf' }),
+          sheet('intro-sheet', 'intro', { file: 'm1-sheet.pdf' }),
+          sheet('spare-sheet', 'spare', { file: 'm1-sheet.pdf' }),
+        ]),
+      };
+      const result = run(changes);
+      expect(messages(result)).toEqual([]);
+      expect(worksheetWarnings(result)).toEqual([
+        { code: 'worksheet-not-shown', file: WS, message: 'about-sheet (about)' },
+        { code: 'worksheet-not-shown', file: WS, message: 'intro-sheet (intro)' },
+        { code: 'worksheet-not-shown', file: WS, message: 'spare-sheet (spare)' },
+      ]);
+      expect(groupWarnings(result.warnings)).toContainEqual([
+        'Worksheets no page shows: their video is not a solution on any problem (SPEC §7.6)',
+        ['about-sheet (about)', 'intro-sheet (intro)', 'spare-sheet (spare)'],
+      ]);
+      // They still belong to the model, as rows of the file.
+      expect(result.model.worksheets.get('intro-sheet').data.video_id).toBe('intro');
+    });
+
+    it('nothing for a video that is a solution on one problem and another problem\'s own video', () => {
+      // x1 is a solution on "one" and now also "three"'s own video.
+      const result = run({ 'content/problems/three.md': md(problem('Three', { problem_video: 'x1' })) });
+      expect(messages(result)).toEqual([]);
+      expect(worksheetWarnings(result)).toEqual([]);
+    });
+
+    it('a solution video with no worksheet, in the video library\'s order', () => {
+      const result = run(worksheetsCsv({ 'x2-sheet': null, 'm1-sheet': null }));
+      expect(messages(result)).toEqual([]);
+      expect(result.warnings).toEqual([
+        { code: 'solution-no-worksheet', file: WS, message: 'm1' },
+        { code: 'solution-no-worksheet', file: WS, message: 'x2' },
+      ]);
+      expect(groupWarnings(result.warnings)).toEqual([['Solution videos with no worksheet in data/worksheets.csv (SPEC §7.6)', ['m1', 'x2']]]);
+      // Never a failure, at launch either.
+      expect(messages(run(worksheetsCsv({ 'x2-sheet': null, 'm1-sheet': null }), { launch: true }))).toEqual([]);
+    });
+
+    it('neither a problem\'s own video nor an intro video for having no worksheet', () => {
+      // The base tree gives about, about-two, about-three and intro none.
+      expect(run().warnings).toEqual([]);
+    });
+
+    it('neither while data/worksheets.csv can\'t be read: its own error is the cause', () => {
+      for (const contents of [null, '', csvOf(BASE_WORKSHEETS, ['worksheet_id', 'video', 'title', 'file'])]) {
+        const result = run({ [WS]: contents });
+        expect(messages(result)).toHaveLength(1);
+        expect(result.warnings).toEqual([]);
+      }
+    });
+  });
+
+  // One spreadsheet mistake is one error: while the video library can't be
+  // read, a worksheet's video_id isn't looked up, and neither warning is
+  // given. The rest of each row is still checked.
+  it('doesn\'t look a video_id up while data/videos.csv can\'t be read', () => {
+    const notChecked = 'data/videos.csv: video references in problems, Start here, transcripts and worksheets were not checked: fix this file first';
+    const result = run({
+      'data/videos.csv': csvOf(BASE_VIDEOS, ['video_id', 'name', ...VIDEO_COLUMNS.slice(2)]),
+      ...worksheetsCsv({ 'm2-sheet': { video_id: 'gone' }, 'm3-sheet': { title: '' }, 'x1-sheet': { video_id: '' } }),
+    });
+    expect(messages(result)).toEqual([
+      'data/videos.csv: the columns must be video_id,title,description,youtube_url,duration,audio,handout,thumbnail, in that order (found video_id,name,description,youtube_url,duration,audio,handout,thumbnail)',
+      notChecked,
+      "data/worksheets.csv: row 4 (m3-sheet): title: required: the text of the worksheet's link",
+      'data/worksheets.csv: row 5 (x1-sheet): video_id: required: a video_id from data/videos.csv',
+    ]);
+    expect(worksheetWarnings(result)).toEqual([]);
+    // A missing video library says so, and nothing else.
+    expect(messages(run({ 'data/videos.csv': null }))).toEqual([
+      'data/videos.csv: missing: the video library, one row per video with the columns video_id,title,description,youtube_url,duration,audio,handout,thumbnail',
+    ]);
+  });
+
+  it('reports several problems at once, each once, in row order and after the video library\'s', () => {
+    expect(messages(run({
+      ...videosCsv({ m3: { title: '' } }),
+      ...worksheetsCsv({ 'm1-sheet': { title: '', file: 'm1-sheet.txt' }, 'm3-sheet': { video_id: 'gone', file: 'gone.pdf' } }, [sheet('Bad Id', 'm1')]),
+    }))).toEqual([
+      'data/videos.csv: row 7 (m3): title: required',
+      "data/worksheets.csv: row 2 (m1-sheet): title: required: the text of the worksheet's link",
+      'data/worksheets.csv: row 2 (m1-sheet): file: "m1-sheet.txt" must be a .pdf file',
+      'data/worksheets.csv: row 4 (m3-sheet): video_id: unknown video "gone" (not in data/videos.csv)',
+      'data/worksheets.csv: row 4 (m3-sheet): file: media/worksheets/gone.pdf does not exist',
+      'data/worksheets.csv: row 8 (Bad Id): worksheet_id: "Bad Id" must be lowercase words joined by hyphens, e.g. sleep-drive-worksheet-1',
+    ]);
+  });
+
+  it('reads the real data/worksheets.csv without an error', () => {
+    const { errors, model } = validateContent(process.cwd());
+    expect(errors.filter((e) => e.file === WS)).toEqual([]);
+    expect(model.worksheets).toBeInstanceOf(Map);
+  });
+});
+
 describe('the CLI', () => {
   const exec = promisify(execFile);
 
@@ -658,6 +1035,30 @@ describe('the CLI', () => {
     expect(error.code).toBe(1);
     expect(error.stderr).toContain('Content check failed (1 problem):');
     expect(error.stderr).toContain('data/videos.csv: row 5 (m1): handout: media/pdf/h.pdf does not exist');
+  });
+
+  it('lists the worksheet warnings, and fails on placeholder worksheets with --no-placeholders', async () => {
+    const { dir } = run({
+      ...videosCsv({ m2: PH }),
+      ...worksheetsCsv({ 'm2-sheet': { file: PLACEHOLDER_WORKSHEET }, 'x2-sheet': null }, [sheet('intro-sheet', 'intro', { file: 'm1-sheet.pdf' })]),
+    });
+    const { stdout, stderr } = await exec(process.execPath, [SCRIPT], { cwd: dir });
+    expect(stdout).toContain('Content check passed.');
+    expect(stderr).toContain('Warning: Placeholder worksheets (the shared placeholder-worksheet.pdf; the launch check allows none, SPEC §7.6) (1): m2-sheet');
+    expect(stderr).toContain('Warning: Worksheets no page shows: their video is not a solution on any problem (SPEC §7.6) (1): intro-sheet (intro)');
+    expect(stderr).toContain('Warning: Solution videos with no worksheet in data/worksheets.csv (SPEC §7.6) (1): x2');
+    const error = await exec(process.execPath, [SCRIPT, '--no-placeholders'], { cwd: dir }).catch((e) => e);
+    expect(error.code).toBe(1);
+    expect(error.stderr).toContain('Content check failed (2 problems):');
+    expect(error.stderr).toContain('data/worksheets.csv: row 3 (m2-sheet): file: placeholder-worksheet.pdf: placeholder worksheets are not allowed at launch');
+  });
+
+  it('exits 1 on a worksheet whose file is missing, naming the row', async () => {
+    const { dir } = run({ 'media/worksheets/m2-sheet.pdf': null });
+    const error = await exec(process.execPath, [SCRIPT], { cwd: dir }).catch((e) => e);
+    expect(error.code).toBe(1);
+    expect(error.stderr).toContain('Content check failed (1 problem):');
+    expect(error.stderr).toContain('data/worksheets.csv: row 3 (m2-sheet): file: media/worksheets/m2-sheet.pdf does not exist');
   });
 
   it('fails on placeholder videos with --no-placeholders', async () => {

@@ -520,7 +520,8 @@ button.solution__face {
 
 /* The panel holds the video template (components.css), as every video
    does: the step chip with Close at its right, the title and description,
-   the video and its row of controls. With JavaScript the open card's face
+   the video and its row of controls; then the video's worksheets, where it
+   has some (below). With JavaScript the open card's face
    is hidden at every width (the template's header names the card and
    Close closes it; project lead, 2026-11-09), and focus moves to the
    title. Below 600px the video runs to the card's edges, over the panel's
@@ -566,6 +567,49 @@ button.solution__face {
   .solution:has(> .solution__disclosure[open]) .solution__text {
     padding: 0;
   }
+}
+
+/* Worksheets (SPEC §7.6; problem/solutions.njk): the solution video's
+   worksheets, a section of the open card after the video template, so
+   under its row of controls and across the card. A keyline, a heading in
+   the card's own title style (the closed card's title), then one link per
+   worksheet: the row's outlined button (.format-button, components.css),
+   so 48px tall on phones and 44px from 600px. The links wrap, each whole.
+   A long title wraps inside its button, from the left, and a long word
+   breaks, so the card never scrolls sideways (320px; WCAG 1.4.12). A video
+   with no worksheets has no section. */
+.worksheets {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: var(--border-width) solid var(--keyline);
+}
+
+.worksheets__title {
+  margin-bottom: var(--space-4);
+  font-family: var(--font-heading);
+  font-size: var(--fs-card-title);
+  line-height: var(--lh-card-title);
+  color: var(--night-teal);
+}
+
+.worksheets__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.worksheets__list > li {
+  display: flex;
+  max-width: 100%;
+}
+
+.worksheets__list .format-button {
+  justify-content: flex-start;
+  min-width: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
 }
 
 /* 6. Related topics and "Back to all sleep problems" ---------------------- */
@@ -718,9 +762,12 @@ button.solution__face {
   }
 }
 
+/* The worksheets go with the row of controls above them, which
+   components.css hides on paper: a link can't open there. */
 @media print {
   .problem__back,
-  .on-this-page {
+  .on-this-page,
+  .worksheets {
     display: none;
   }
 }

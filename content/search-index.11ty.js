@@ -28,6 +28,9 @@ export function render(data) {
       problems: collections.problems,
       videos: data.videos,
       transcripts: readTranscripts(TRANSCRIPTS),
+      // data/worksheets.csv's rows: each solution video's worksheet titles
+      // (SPEC §7.6, §8.3).
+      worksheets: data.worksheets,
       start: collections.all.find((item) => item.data.page_id === 'start'),
       pages: collections.all.filter(isInfoPage).sort((a, b) => a.page.fileSlug.localeCompare(b.page.fileSlug)),
       keywords: data.keywords,

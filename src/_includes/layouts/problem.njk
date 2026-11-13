@@ -28,7 +28,14 @@ scripts:
   Related topics (only when there are some); "Back to all sleep problems";
   then the page's YouTube note (notices/video.njk), once, last.
   Heading outline: h1, then h2 for the problem video's title, "Is this
-  you?", each solutions section and Related topics, then h3 per solution.
+  you?", each solutions section and Related topics, then h3 per solution
+  and, in an open card whose video has worksheets, an h4 over them.
+
+  Worksheets (SPEC §7.6; project lead, 2026-11-13) belong to solution videos
+  only: `solutionsByTier` gives each solution its video's rows of
+  data/worksheets.csv (the global data `worksheets`), and the card lists
+  them in a section after the video template (problem/solutions.njk). The
+  problem's own video has none.
 
   A stand-alone problem (`standalone: true`, SPEC §7.2, §7.5) has no
   solutions: its own video, made for it, is the page's main content. The
@@ -52,7 +59,7 @@ scripts:
 {%- from "problem/solutions.njk" import solutionsSection -%}
 {%- set problemArea = areas | areaById(area) -%}
 {%- set problemVideo = problem_video | videoById(videos) -%}
-{%- set tiers = solutions | solutionsByTier(videos) -%}
+{%- set tiers = solutions | solutionsByTier(videos, worksheets) -%}
 {%- set ratingsOn = site.features.ratings === true -%}
 {%- set feedbackOn = site.features.feedback === true -%}
 {%- set mainCount = tiers.main.length -%}

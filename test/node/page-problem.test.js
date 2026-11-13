@@ -1,8 +1,9 @@
 // Problem pages (SPEC §7.2, §9.1-§9.3, §12, §15.1, §20 M1b; HANDOFF §6.4):
 // the built pages for all 36 problems, a problem of each layout shape, a
 // stand-alone problem (no solutions), the solution card rendered with a
-// playable (fake) video, and solutions.js.
-import { readFileSync } from 'node:fs';
+// playable (fake) video, the worksheets in each open solution card (SPEC
+// §7.6), and solutions.js.
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
@@ -45,6 +46,27 @@ const tiersOf = (data) => ({
   main: solutionsOf(data).filter((s) => s.tier === 'main'),
   extra: solutionsOf(data).filter((s) => s.tier === 'extra'),
 });
+// A video's worksheets (SPEC §7.6): its rows of data/worksheets.csv, in the
+// file's order, as the content check read them.
+const worksheetsOf = (id) => [...model.worksheets.values()].map((w) => w.data).filter((w) => w.video_id === id);
+/** Text as Nunjucks escapes it in the built pages. */
+const esc = (value) => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Markup without the white space between tags. */
+const squeeze = (html) => html.replace(/>\s+</g, '><').trim();
+/**
+ * The worksheets section of a solution card, exactly as the template writes
+ * it (problem/solutions.njk): a region named by its heading, then one
+ * download link per worksheet, in order. `icon` is the download icon's
+ * markup, taken from the card's "Handout" link.
+ */
+const worksheetsSection = (videoId, videoTitle, sheets, icon) =>
+  `<section class="worksheets" aria-labelledby="solution-${videoId}-worksheets">` +
+  `<h4 class="worksheets__title" id="solution-${videoId}-worksheets">Worksheet${sheets.length === 1 ? '' : 's'}<span class="visually-hidden">: ${esc(videoTitle)}</span></h4>` +
+  '<ul class="worksheets__list" role="list">' +
+  sheets.map((w) => `<li><a class="format-button" href="/media/worksheets/${esc(w.file)}" type="application/pdf" data-worksheet="${esc(w.worksheet_id)}">${icon}${esc(w.title)}<span class="visually-hidden"> (PDF)</span></a></li>`).join('') +
+  '</ul></section>';
+/** The download icon of a card's "Handout" link. */
+const handoutIcon = (html) => html.match(/<a class="format-button"[^>]*\sdata-handout="[^"]*">(<svg\b[\s\S]*?<\/svg>)/)[1];
 
 describe.each(problems)('/problems/%s/', (slug, { data }) => {
   const html = pageAt(site, `/problems/${slug}/`);
@@ -125,14 +147,20 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
   });
 
   it('puts each video in the video template: header, video, then one row of "Audio only", the handout and the rating', () => {
-    // The problem video's wrapper and each card's panel hold the template
-    // and nothing else; video-template.test.js checks the template itself
-    // on every page.
+    // The problem video's wrapper holds the template and nothing else. A
+    // card's panel holds the template, then its video's worksheets where
+    // it has some (SPEC §7.6; checked below), and nothing else.
+    // video-template.test.js checks the template itself on every page.
     const holders = [elementByClass(main, 'problem-video', 'div'), ...cards.map((card) => elementByClass(card, 'solution__panel', 'div'))];
     pageVideos.forEach((id, i) => {
       const holder = holders[i];
       const block = elementByClass(holder, 'video-block', 'div');
-      expect(holder.replace(block, '').replace(/<[^>]+>/g, '').trim(), id).toBe('');
+      const sheets = elementByClass(holder, 'worksheets', 'section');
+      expect(Boolean(sheets), id).toBe(i > 0 && worksheetsOf(id).length > 0);
+      const rest = holder.replace(block, '').replace(sheets ?? '', '');
+      expect(rest.replace(/<[^>]+>/g, '').trim(), id).toBe('');
+      // Only the holder's own opening and closing tags are left.
+      expect(squeeze(rest), id).toMatch(/^<div [^<>]*><\/div>$/);
       const order = ['class="video-block__header"', 'class="video-block__title"', 'class="video-block__desc"', `data-video="${id}"`, 'class="video-controls"'].map((needle) => block.indexOf(needle));
       expect(order.every((n) => n >= 0), id).toBe(true);
       expect(order, id).toEqual([...order].sort((a, b) => a - b));
@@ -147,6 +175,109 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       expect(row.slice(row.indexOf(widget) + widget.length).trim(), id).toBe('</div>');
     });
     expect(main).not.toMatch(/data-rating-reveal|problem-block|solution__tools|solution__header|solution__heading/);
+  });
+
+  // SPEC §7.6 (project lead, 2026-11-13): "Add a section to expanded
+  // solution video boxes where worksheets can go." The worksheets belong to
+  // the video, so every problem that lists a video shows the same ones.
+  it('lists each solution video\'s worksheets in a section of its card, after the video template, with the exact markup', () => {
+    cards.forEach((card, i) => {
+      const id = solutions[i].video;
+      const sheets = worksheetsOf(id);
+      const sections = elements(card, 'worksheets', 'section');
+      // A video with no worksheets has no section at all: no empty heading.
+      expect(sections, id).toHaveLength(sheets.length ? 1 : 0);
+      expect((card.match(/\sdata-worksheet="/g) ?? []), id).toHaveLength(sheets.length);
+      if (!sheets.length) {
+        expect(card, id).not.toMatch(/worksheet/i);
+        return;
+      }
+      const [section] = sections;
+      expect(squeeze(section), id).toBe(worksheetsSection(id, video(id).data.title, sheets, handoutIcon(card)));
+      // Inside the panel, directly after the template (so under its row of
+      // controls), and the last thing in the panel; never in the closed
+      // card's face or inside the template.
+      const panel = elementByClass(card, 'solution__panel', 'div');
+      const block = elementByClass(panel, 'video-block', 'div');
+      expect(squeeze(panel).endsWith(`${squeeze(block)}${squeeze(section)}</div>`), id).toBe(true);
+      expect(block, id).not.toMatch(/worksheet/i);
+      expect(card.match(/<summary[\s\S]*?<\/summary>/)[0], id).not.toMatch(/worksheet/i);
+      expect(panel.indexOf(section), id).toBeGreaterThan(panel.indexOf('class="video-controls"'));
+    });
+  });
+
+  it('names each worksheets section by its heading: "Worksheet" for one, "Worksheets" for several, then the video\'s title for screen readers', () => {
+    cards.forEach((card, i) => {
+      const id = solutions[i].video;
+      const sheets = worksheetsOf(id);
+      if (!sheets.length) return;
+      const section = elementByClass(card, 'worksheets', 'section');
+      const heading = elementByClass(section, 'worksheets__title', 'h4');
+      expect(visibleText(heading), id).toBe(sheets.length === 1 ? 'Worksheet' : 'Worksheets');
+      expect(text(heading).replace(' :', ':'), id).toBe(`${sheets.length === 1 ? 'Worksheet' : 'Worksheets'}: ${video(id).data.title}`);
+      // The section is a region named by that heading, whose id is its own.
+      const headingId = attr(tags(heading, 'h4')[0], 'id');
+      expect([headingId, attr(tags(section, 'section')[0], 'aria-labelledby')], id).toEqual([`solution-${id}-worksheets`, `solution-${id}-worksheets`]);
+      expect(html.split(` id="${headingId}"`), id).toHaveLength(2);
+      // Under the card's own title, the template's h3.
+      expect(card.indexOf('<h3 class="video-block__title"'), id).toBeLessThan(card.indexOf(heading));
+      expect(tags(section, 'h[1-6]'), id).toHaveLength(1);
+    });
+  });
+
+  it('links each worksheet as the row\'s "Handout" is: a download link to its PDF in media/worksheets/, with its title and "(PDF)" for screen readers', () => {
+    cards.forEach((card, i) => {
+      const id = solutions[i].video;
+      const sheets = worksheetsOf(id);
+      if (!sheets.length) return;
+      const section = elementByClass(card, 'worksheets', 'section');
+      const list = elementByClass(section, 'worksheets__list', 'ul');
+      expect(tags(list, 'ul')[0], id).toBe('<ul class="worksheets__list" role="list">');
+      const items = [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+      expect(items, id).toHaveLength(sheets.length);
+      items.forEach((item, n) => {
+        const sheet = sheets[n];
+        // One link, and nothing else, in each item.
+        expect(item, sheet.worksheet_id).toMatch(/^<a class="format-button" [^>]*>[\s\S]*<\/a>$/);
+        const link = tags(item, 'a');
+        expect(link, sheet.worksheet_id).toHaveLength(1);
+        expect([attr(link[0], 'class'), attr(link[0], 'href'), attr(link[0], 'type'), attr(link[0], 'data-worksheet')], sheet.worksheet_id).toEqual([
+          'format-button', `/media/worksheets/${sheet.file}`, 'application/pdf', sheet.worksheet_id,
+        ]);
+        // A plain link: it opens in the same tab, like the handout, and needs no JavaScript.
+        expect(link[0], sheet.worksheet_id).not.toMatch(/\s(?:target|download|rel|hidden|role|tabindex|aria-[a-z]+)[\s=>]/);
+        expect(visibleText(item), sheet.worksheet_id).toBe(sheet.title);
+        expect(text(item), sheet.worksheet_id).toBe(`${sheet.title} (PDF)`);
+        // The handout's download icon, decorative.
+        expect(item.match(/<svg\b[\s\S]*?<\/svg>/g), sheet.worksheet_id).toEqual([handoutIcon(card)]);
+        expect(handoutIcon(card), sheet.worksheet_id).toMatch(/^<svg class="icon format-button__icon" width="18" height="18" [^>]*aria-hidden="true" focusable="false">/);
+        // The file is in the built site, under the address the link names.
+        expect(existsSync(path.join(site, 'media/worksheets', sheet.file)), sheet.file).toBe(true);
+      });
+    });
+  });
+
+  it('shows worksheets only in solution cards: none on the problem\'s own video, and each worksheet once on the page', () => {
+    const named = [...html.matchAll(/\sdata-worksheet="([^"]*)"/g)].map((m) => m[1]);
+    expect(named).toEqual(solutions.flatMap((s) => worksheetsOf(s.video).map((w) => w.worksheet_id)));
+    expect(new Set(named).size).toBe(named.length);
+    expect(html.match(/<section class="worksheets"/g) ?? []).toHaveLength(solutions.filter((s) => worksheetsOf(s.video).length).length);
+    // The problem's own video has none, whatever data/worksheets.csv says of it.
+    expect(elementByClass(main, 'problem-video', 'div')).not.toMatch(/worksheet/i);
+    // Nothing outside the cards' panels mentions them.
+    const outside = cards.reduce((rest, card) => rest.replace(elementByClass(card, 'solution__panel', 'div'), ''), html);
+    expect(outside).not.toMatch(/worksheet/i);
+    expect(html.match(/\/media\/worksheets\//g) ?? []).toHaveLength(named.length);
+  });
+
+  it('shows the worksheets without JavaScript: plain links inside the card\'s <details>, nothing hidden', () => {
+    for (const card of cards) {
+      const section = elementByClass(card, 'worksheets', 'section');
+      if (!section) continue;
+      expect(section).not.toMatch(/\shidden[\s=>]|<button\b|<script\b|\sdata-(?!worksheet=)[a-z-]+/);
+      const details = card.match(/<details class="solution__disclosure" name="solution">[\s\S]*<\/details>/)[0];
+      expect(details).toContain(section);
+    }
   });
 
   it('puts "Is this you?" in its own section directly below the problem video', () => {
@@ -277,6 +408,13 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     });
     // Each card's title is an h3 in the template (and, with JavaScript, its face too).
     expect(levels.filter((l) => l === 3)).toHaveLength(solutions.length);
+    // The only h4s are the worksheets headings (SPEC §7.6), each straight
+    // after its card's h3; nothing is deeper.
+    expect(levels.filter((l) => l === 4)).toHaveLength(solutions.filter((s) => worksheetsOf(s.video).length).length);
+    levels.forEach((level, i) => {
+      if (level === 4) expect(levels[i - 1], `heading ${i + 1}`).toBe(3);
+    });
+    expect(Math.max(...levels)).toBeLessThanOrEqual(4);
     const headings = [...main.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => [Number(m[1]), text(m[2])]);
     expect(headings.slice(0, 3)).toEqual([[1, data.title], [2, video(data.problem_video).data.title], [2, 'Is this you?']]);
     expect(main.slice(main.indexOf('>') + 1)).not.toMatch(/\sid="main"/);
@@ -484,6 +622,103 @@ describe('solutionsSection with a playable video', () => {
   it('renders nothing for a tier with no solutions (a stand-alone problem has none, SPEC §7.2)', () => {
     expect(render([]).trim()).toBe('');
     expect(env.renderString('{% from "problem/solutions.njk" import solutionsSection %}[{{ solutionsSection("extra", items, "a-page") }}]', { items: [] })).toBe('[]');
+  });
+
+  // SPEC §7.6: the section a solution card adds after the video template.
+  describe('with worksheets (data/worksheets.csv rows, SPEC §7.6)', () => {
+    const row = (worksheet_id, video_id, title, file = `${worksheet_id}.pdf`) => ({ worksheet_id, video_id, title, file });
+    const worksheets = [
+      row('full-two', 'full', 'Second in the file'),
+      row('bare-one', 'bare', 'The only one'),
+      row('full-one', 'full', 'Plan & "do" <now>', 'Shared-File.PDF'),
+      row('elsewhere', 'not-on-this-page', 'Another video'),
+      row('full-three', 'full', 'It’s the third', 'Shared-File.PDF'),
+    ];
+    const solutions = [{ tier: 'main', video: 'full', blurb: 'Try this.' }, { tier: 'main', video: 'bare', blurb: 'Or this.' }];
+    const renderWith = (rows, { ratings = false, feedback = false, list = solutions } = {}) =>
+      env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page", ratings, feedback) }}', {
+        items: filters.solutionsByTier(list, videos, rows).main,
+        ratings,
+        feedback,
+      });
+    const withSheets = renderWith(worksheets);
+    const [sheetsFull, sheetsBare] = elements(withSheets, 'solution', 'li');
+    const sectionOf = (card) => elementByClass(card, 'worksheets', 'section');
+
+    it('lists a video\'s worksheets in the file\'s order, under "Worksheets", and one under "Worksheet"', () => {
+      const icon = handoutIcon(sheetsFull);
+      expect(squeeze(sectionOf(sheetsFull))).toBe(
+        worksheetsSection('full', 'Settling your body', [
+          { worksheet_id: 'full-two', title: 'Second in the file', file: 'full-two.pdf' },
+          { worksheet_id: 'full-one', title: 'Plan & "do" <now>', file: 'Shared-File.PDF' },
+          { worksheet_id: 'full-three', title: 'It’s the third', file: 'Shared-File.PDF' },
+        ], icon),
+      );
+      expect(squeeze(sectionOf(sheetsBare))).toBe(worksheetsSection('bare', 'Bare', [{ worksheet_id: 'bare-one', title: 'The only one', file: 'bare-one.pdf' }], icon));
+      expect(visibleText(elementByClass(sheetsFull, 'worksheets__title', 'h4'))).toBe('Worksheets');
+      expect(visibleText(elementByClass(sheetsBare, 'worksheets__title', 'h4'))).toBe('Worksheet');
+      // Another video's worksheet is on neither card.
+      expect(withSheets).not.toMatch(/elsewhere|Another video/);
+    });
+
+    it('escapes a worksheet\'s title, and the video\'s title in the heading', () => {
+      const section = sectionOf(sheetsFull);
+      expect(section).toContain('Plan &amp; &quot;do&quot; &lt;now&gt;<span class="visually-hidden"> (PDF)</span>');
+      expect(section).not.toMatch(/<now>|"do"/);
+      const quoted = [videoRow('q', { title: 'Settling "your" <body>', description: 'D.', youtube_url: 'https://youtu.be/AbCdEfGhIj1', duration: '2:00', handout: 'q.pdf', audio: 'q.mp3' })];
+      const html = env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page") }}', {
+        items: filters.solutionsByTier([{ tier: 'main', video: 'q' }], quoted, [row('q-one', 'q', 'One')]).main,
+      });
+      expect(elementByClass(html, 'worksheets__title', 'h4')).toBe(
+        '<h4 class="worksheets__title" id="solution-q-worksheets">Worksheet<span class="visually-hidden">: Settling &quot;your&quot; &lt;body&gt;</span></h4>',
+      );
+    });
+
+    it('adds the section after the video template and changes nothing else in the card', () => {
+      const without = renderWith([]);
+      // Take the sections out, and the cards are as they are without worksheets.
+      const stripped = elements(withSheets, 'worksheets', 'section').reduce((html, section) => html.replace(section, ''), withSheets);
+      expect(squeeze(stripped)).toBe(squeeze(without));
+      expect(without).not.toMatch(/worksheet/i);
+      for (const card of [sheetsFull, sheetsBare]) {
+        const panel = elementByClass(card, 'solution__panel', 'div');
+        const block = elementByClass(panel, 'video-block', 'div');
+        expect(squeeze(panel).endsWith(`${squeeze(block)}${squeeze(sectionOf(card))}</div>`)).toBe(true);
+        expect(block).not.toMatch(/worksheet/i);
+        expect(card.match(/<summary[\s\S]*?<\/summary>/)[0]).not.toMatch(/worksheet/i);
+      }
+    });
+
+    it('renders no section, and no heading, for a video with no worksheets', () => {
+      for (const rows of [[], undefined, [row('elsewhere', 'not-on-this-page', 'Another video')]]) {
+        const html = renderWith(rows);
+        expect(html).not.toMatch(/worksheet|<h4\b|<section class="worksheets"/i);
+        expect(html).toBe(renderWith([]));
+      }
+      // One card with, one without: only the first has the section.
+      const [first, second] = elements(renderWith([row('full-one', 'full', 'One')]), 'solution', 'li');
+      expect(elements(first, 'worksheets', 'section')).toHaveLength(1);
+      expect(second).not.toMatch(/worksheet/i);
+    });
+
+    it('is the same section whatever the ratings and feedback switches say', () => {
+      const sections = (html) => elements(html, 'worksheets', 'section');
+      for (const options of [{ ratings: true }, { feedback: true }, { ratings: true, feedback: true }]) {
+        expect(sections(renderWith(worksheets, options))).toEqual(sections(withSheets));
+        // Still after the whole row of controls, the stars included.
+        const [card] = elements(renderWith(worksheets, options), 'solution', 'li');
+        const panel = elementByClass(card, 'solution__panel', 'div');
+        const rowOfControls = elementByClass(panel, 'video-controls', 'div');
+        expect(panel.indexOf(sectionOf(card))).toBeGreaterThan(panel.indexOf(rowOfControls) + rowOfControls.length);
+      }
+    });
+
+    it('gives a video the same section on another problem, whatever its tier and number', () => {
+      const elsewhere = env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("extra", items, "another-page") }}', {
+        items: filters.solutionsByTier([{ tier: 'main', video: 'bare' }, { tier: 'extra', video: 'full' }], videos, worksheets).extra,
+      });
+      expect(sectionOf(elsewhere)).toBe(sectionOf(sheetsFull));
+    });
   });
 
   describe('with ratings on (SPEC §12)', () => {

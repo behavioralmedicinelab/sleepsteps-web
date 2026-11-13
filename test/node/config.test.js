@@ -23,6 +23,17 @@ describe('eleventy.config.js', () => {
     expect(registered.passthrough).toContainEqual({ 'src/img': 'img' });
   });
 
+  // The worksheets (SPEC §7.6): data/worksheets.csv is global data through
+  // the same CSV extension, byte-order mark and all, and the whole media/
+  // folder is copied, media/worksheets/ with it.
+  it('reads data/worksheets.csv as the global data `worksheets`, and copies media/ (so media/worksheets/) as it is', () => {
+    const rows = registered.dataExtensions.csv.parser(readFileSync('data/worksheets.csv', 'utf8'));
+    expect(Array.isArray(rows)).toBe(true);
+    for (const row of rows) expect(Object.keys(row)).toEqual(['worksheet_id', 'video_id', 'title', 'file']);
+    expect(registered.dataExtensions.csv.parser('\uFEFFworksheet_id,video_id,title,file\r\n')).toEqual([]);
+    expect(registered.passthrough).toContainEqual({ media: 'media' });
+  });
+
   it('ariaCurrent marks the page itself, and nothing else (no "section" mode since the nav lost Sleep problems)', () => {
     expect(f.ariaCurrent('/about/', '/about/')).toBe(' aria-current="page"');
     expect(f.ariaCurrent('/problems/pain/', '/problems/')).toBe('');
@@ -223,6 +234,67 @@ describe('eleventy.config.js', () => {
       expect(tiers.extra.map((s) => [s.n, s.tier, s.video.title, s.description])).toEqual([[1, 'extra', 'Cognitive arousal', 'Racing thoughts.']]);
       expect(f.solutionsByTier(undefined, videos)).toEqual({ main: [], extra: [] });
       expect(() => f.solutionsByTier([{ tier: 'other', video: 'intro' }], videos)).toThrow(/tier/);
+    });
+
+    // SPEC §7.6: worksheets belong to the video, so a solution gets its
+    // video's rows of data/worksheets.csv whatever the problem.
+    describe('solutionsByTier and the worksheets (data/worksheets.csv rows, SPEC §7.6)', () => {
+      const row = (worksheet_id, video_id, title, file = `${worksheet_id}.pdf`) => ({ worksheet_id, video_id, title, file });
+      const worksheets = [
+        row('drive-b', 'sleep-drive', 'Second in the file'),
+        row('intro-a', 'intro', 'For the intro', 'placeholder-worksheet.pdf'),
+        row('drive-a', 'sleep-drive', ' Third in the file '),
+        row('other', 'not-on-this-page', 'Another video'),
+        row('drive-c', 'sleep-drive', 'Shares a file', 'drive-b.pdf'),
+      ];
+      const solutions = [
+        { tier: 'main', video: 'sleep-drive', blurb: 'A' },
+        { tier: 'extra', video: 'cognitive-arousal' },
+        { tier: 'main', video: 'intro' },
+      ];
+
+      it('gives each solution its video\'s worksheets in the file\'s order, and [] to a video with none', () => {
+        const tiers = f.solutionsByTier(solutions, videos, worksheets);
+        expect(tiers.main.map((s) => [s.video.video_id, s.worksheets])).toEqual([
+          ['sleep-drive', [
+            { worksheet_id: 'drive-b', video_id: 'sleep-drive', title: 'Second in the file', file: 'drive-b.pdf', placeholder: false },
+            { worksheet_id: 'drive-a', video_id: 'sleep-drive', title: 'Third in the file', file: 'drive-a.pdf', placeholder: false },
+            { worksheet_id: 'drive-c', video_id: 'sleep-drive', title: 'Shares a file', file: 'drive-b.pdf', placeholder: false },
+          ]],
+          ['intro', [{ worksheet_id: 'intro-a', video_id: 'intro', title: 'For the intro', file: 'placeholder-worksheet.pdf', placeholder: true }]],
+        ]);
+        expect(tiers.extra.map((s) => [s.video.video_id, s.worksheets])).toEqual([['cognitive-arousal', []]]);
+      });
+
+      it('gives a video the same worksheets on every problem, whatever its tier, number or blurb', () => {
+        const here = f.solutionsByTier([{ tier: 'main', video: 'sleep-drive', blurb: 'On this problem.' }], videos, worksheets).main[0];
+        const there = f.solutionsByTier([{ tier: 'main', video: 'intro' }, { tier: 'extra', video: 'sleep-drive' }], videos, worksheets).extra[0];
+        expect(there.worksheets).toEqual(here.worksheets);
+        expect(here.worksheets.map((w) => w.worksheet_id)).toEqual(['drive-b', 'drive-a', 'drive-c']);
+      });
+
+      it('gives every solution [] for an empty file (the header row alone), and when the worksheets aren\'t passed', () => {
+        for (const data of [[], undefined, null]) {
+          const tiers = f.solutionsByTier(solutions, videos, data);
+          expect([...tiers.main, ...tiers.extra].map((s) => s.worksheets)).toEqual([[], [], []]);
+        }
+        expect(f.solutionsByTier(solutions, videos).main[0].worksheets).toEqual([]);
+        // The rest of each solution is as it was.
+        expect(f.solutionsByTier(solutions, videos, worksheets).main.map(({ worksheets: _, ...rest }) => rest)).toEqual(
+          f.solutionsByTier(solutions, videos).main.map(({ worksheets: _, ...rest }) => rest),
+        );
+      });
+
+      it('fails the build on worksheets data that isn\'t the file\'s rows', () => {
+        expect(() => f.solutionsByTier(solutions, videos, 'data/worksheets.csv')).toThrow(/solutionsByTier\(videos, worksheets\)/);
+        expect(() => f.solutionsByTier(solutions, videos, { rows: [] })).toThrow(/data\/worksheets\.csv/);
+      });
+
+      it('gives no worksheets to videoById or introChapters: only solutions have them', () => {
+        expect(Object.keys(f.videoById('sleep-drive', videos))).not.toContain('worksheets');
+        expect(Object.keys(f.introChapters([{ video: 'intro' }], videos)[0])).not.toContain('worksheets');
+        expect(Object.keys(f.introChapters([{ video: 'intro' }], videos)[0].video)).not.toContain('worksheets');
+      });
     });
 
     it('introChapters resolves Start here chapters from the videos\' rows, and gives [] without any', () => {

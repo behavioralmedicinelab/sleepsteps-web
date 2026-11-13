@@ -12,7 +12,8 @@
 //    axe-core, which it injects from node_modules;
 // 3. runs axe-core with the WCAG 2.0, 2.1 and 2.2 A and AA tags on every
 //    built page and the main states (menus, groups, the filter, an open
-//    solution card, ratings sent and failed, search results, none and
+//    solution card with its worksheets, ratings sent and failed, search
+//    results, none and
 //    failed, the statistics switch, the feedback dialog's states (opened
 //    from the footer and from a video's "Feedback" button), pages
 //    without JavaScript, the admin summary, error and download pages) at 320
@@ -110,10 +111,22 @@ const openMenu = async (tab) => {
 // inside the hidden panel, so a looser selector matches before any card
 // opens. If solutions.js didn't enhance the cards, the click finds nothing
 // and throws.
+//
+// The open card must show worksheets (SPEC §7.6), so every state that opens
+// one checks that section too: the first solution of the page these states
+// use, /problems/tired-but-wired/, has three. If the content changes and it
+// has none, this says so rather than letting the section go unchecked.
+const WORKSHEET_SHOWN = `(() => {
+  const link = document.querySelector('.solution.is-open .worksheets a[data-worksheet]');
+  return !!link && link.getClientRects().length > 0;
+})()`;
 const openFirstCard = async (tab) => {
   await tab.click('.solution button.solution__face[aria-expanded]');
   if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) {
     throw new Error("the first solution card didn't open");
+  }
+  if (!(await js(tab, WORKSHEET_SHOWN))) {
+    throw new Error("the open solution card shows no worksheets: this page's first solution needs at least one in data/worksheets.csv (SPEC §7.6)");
   }
 };
 const openCardAndAudio = async (tab) => {
@@ -362,7 +375,18 @@ function states() {
     },
     { name: 'no JavaScript: Home, with every area of sleep problems open', path: '/', js: false },
     { name: 'no JavaScript: a problem page', path: '/problems/tired-but-wired/', js: false },
-    { name: 'no JavaScript: a solution card open', path: '/problems/tired-but-wired/', js: false, noJs: `document.querySelector('details.solution__disclosure').open = true` },
+    {
+      // The open <details> shows the video, its row and its worksheets
+      // (SPEC §7.6), plain links that need no JavaScript.
+      name: 'no JavaScript: a solution card open',
+      path: '/problems/tired-but-wired/',
+      js: false,
+      noJs: `(() => {
+        const card = document.querySelector('details.solution__disclosure');
+        card.open = true;
+        if (!card.querySelector('.worksheets a[data-worksheet]')?.getClientRects().length) throw new Error("the open solution card shows no worksheets: this page's first solution needs at least one in data/worksheets.csv (SPEC §7.6)");
+      })()`,
+    },
     { name: 'no JavaScript: search', path: '/search/?q=sleep', js: false },
     { name: 'no JavaScript: privacy', path: '/privacy/', js: false },
     { name: 'no JavaScript: the menu open', path: '/', js: false, widths: [320], noJs: `document.querySelector('[data-mobile-menu]').open = true` },
@@ -551,6 +575,8 @@ function walks() {
         await tab.key('Enter');
         if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) problems.push("Enter didn't open the card");
         else if (!(await js(tab, `document.activeElement.matches('.solution.is-open .video-block__title')`))) problems.push("Opening the card didn't move focus to its title");
+        // The walk then stops at each worksheet link (SPEC §7.6): its ring and 44px target are checked with the rest.
+        if (!(await js(tab, WORKSHEET_SHOWN))) problems.push("The open card shows no worksheets: this page's first solution needs at least one in data/worksheets.csv (SPEC §7.6)");
         const walk = await tabWalk(tab);
         return { stops: walk.stops, problems: [...problems, ...walk.problems] };
       },

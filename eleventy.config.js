@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { pagesIndex, writeIfChanged } from './scripts/build-data.js';
 import { parseCsvRecords } from './scripts/lib/csv.js';
 import { toVideo } from './scripts/lib/videos.js';
+import { worksheetsByVideo } from './scripts/lib/worksheets.js';
 import { formatIssue, validateContent } from './scripts/validate-content.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -50,7 +51,7 @@ export default function (eleventyConfig) {
 
   // Team-edited CSV files in data/ become global data, one array of row
   // objects per file: data/areas.csv -> `areas` (SPEC §7.2), data/videos.csv
-  // -> `videos` (SPEC §7.1).
+  // -> `videos` (SPEC §7.1), data/worksheets.csv -> `worksheets` (SPEC §7.6).
   eleventyConfig.addDataExtension('csv', {
     parser: (contents) => parseCsvRecords(contents),
   });
@@ -163,19 +164,45 @@ export default function (eleventyConfig) {
   //   thumbnail, placeholder }. Unknown ids fail the build.
   eleventyConfig.addFilter('videoById', lookupVideo);
 
+  // Each video's worksheets (SPEC §7.6), from the global data `worksheets`
+  // (data/worksheets.csv's rows), grouped once per data array.
+  const worksheetIndexes = new WeakMap();
+  const worksheetsOf = (videoId, worksheets) => {
+    if (worksheets === undefined || worksheets === null) return [];
+    if (!Array.isArray(worksheets)) throw new Error('pass the worksheets data (data/worksheets.csv), e.g. solutions | solutionsByTier(videos, worksheets)');
+    let index = worksheetIndexes.get(worksheets);
+    if (!index) {
+      index = worksheetsByVideo(worksheets);
+      worksheetIndexes.set(worksheets, index);
+    }
+    return index.get(videoId) ?? [];
+  };
+
   // A problem's `solutions` split by tier, each with its video resolved:
-  // { main: [{ n, tier, blurb, description, video }], extra: [...] }; n
-  // counts from 1 within each tier (the step chip number). `description` is
-  // the solution's own blurb where it has one, otherwise the video's
-  // description (SPEC §7.2).
-  eleventyConfig.addFilter('solutionsByTier', (solutions, videos) => {
+  // { main: [{ n, tier, blurb, description, video, worksheets }], extra:
+  // [...] }; n counts from 1 within each tier (the step chip number).
+  // `description` is the solution's own blurb where it has one, otherwise
+  // the video's description (SPEC §7.2). `worksheets` are the video's rows
+  // of data/worksheets.csv, in the file's order, each { worksheet_id,
+  // video_id, title, file, placeholder } (toWorksheet() in
+  // scripts/lib/worksheets.js); [] for a video with none, and for every
+  // video when the worksheets data isn't passed. They belong to the video,
+  // so a video has the same worksheets on every problem (SPEC §7.6).
+  eleventyConfig.addFilter('solutionsByTier', (solutions, videos, worksheets) => {
     const tiers = { main: [], extra: [] };
     for (const solution of solutions ?? []) {
       const list = tiers[solution.tier];
       if (!list) throw new Error(`solution tier must be "main" or "extra", not "${solution.tier}"`);
       const video = lookupVideo(solution.video, videos);
       const blurb = typeof solution.blurb === 'string' ? solution.blurb.trim() : '';
-      list.push({ n: list.length + 1, tier: solution.tier, blurb, description: blurb || video.description, video });
+      list.push({
+        n: list.length + 1,
+        tier: solution.tier,
+        blurb,
+        description: blurb || video.description,
+        video,
+        worksheets: worksheetsOf(video.video_id, worksheets),
+      });
     }
     return tiers;
   });

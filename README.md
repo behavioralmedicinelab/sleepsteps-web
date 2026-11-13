@@ -86,7 +86,7 @@ Every column but `youtube_url` and `thumbnail` needs something in it. The build 
 
 The rows can be in any order; the pages follow the problem files and `content/start.md`, not the spreadsheet. To use a video on a page, name its `video_id` there (below).
 
-**Every video looks the same** wherever it is (the problem's own video, an open solution card, a Start here chapter): its label where it has one ("1 Main", "2 Extra" on a solution, "1 of 2" on Start here), its title and description, the video, then one row: "Audio only", "Handout" and "Was this helpful?" with its stars. A closed solution card shows its label, length, title and description (on a phone, its number, title and description). All of it comes from the video's row (a solution's `blurb` can replace the description, below); the layout is one template, `src/_includes/partials/video-block.njk`, and a test checks that every video on the site matches it (`SPEC.md` §7.5).
+**Every video looks the same** wherever it is (the problem's own video, an open solution card, a Start here chapter): its label where it has one ("1 Main", "2 Extra" on a solution, "1 of 2" on Start here), its title and description, the video, then one row: "Audio only", "Handout" and "Was this helpful?" with its stars. A closed solution card shows its label, length, title and description (on a phone, its number, title and description). An open solution card adds the video's worksheets under that row, where it has some ("Worksheets", below). All of it comes from the video's row (a solution's `blurb` can replace the description, below); the layout is one template, `src/_includes/partials/video-block.njk`, and a test checks that every video on the site matches it (`SPEC.md` §7.5).
 
 **The handout carries the narration.** There are no transcripts on the site: the handout is each video's text version (the text alternative for people who can't hear the audio), so it has the video's full narration, word for word, naming the speakers, plus anything that matters on screen. The "Handout" button under each video links to it. Make it accessible: for a PDF, export it from Word as a tagged PDF and check it (`SPEC.md` §9.3). The handout's format (PDF, Word or a web page) is still being decided; until then it is a PDF.
 
@@ -194,6 +194,31 @@ standalone: true
 
 A video can appear on several pages, but only once on each page. Leave the lines above `problem_video` (title, statement, area and so on) as they are unless the wording changes.
 
+### Worksheets
+
+A solution video can have worksheets: one, a few, or none. They show in a "Worksheets" section at the bottom of the video's open solution card, under "Audio only", "Handout", "Feedback" and the stars, as download buttons. A worksheet belongs to its **video**, so the same worksheets show on every problem page where that video is a solution; you list them once. Only solution videos show worksheets: a problem's own video and the Start here videos don't (`SPEC.md` §7.6).
+
+All the worksheets are in one spreadsheet, `data/worksheets.csv`: one row per worksheet. Edit it in Excel and save it as **CSV UTF-8 (Comma delimited)**, like `data/videos.csv`. The columns, in this order:
+
+| Column | What goes in it |
+|---|---|
+| `worksheet_id` | The worksheet's permanent name: lowercase words joined by hyphens, such as `sleep-drive-worksheet-1`. Each row has its own. **Never change it** once the worksheet is on the site. |
+| `video_id` | The video it goes with: a `video_id` from `data/videos.csv`. |
+| `title` | The words on the worksheet's button. |
+| `file` | The worksheet's file: a PDF's file name in `media/worksheets/` (25 MiB at most). |
+
+```csv
+worksheet_id,video_id,title,file
+sleep-drive-worksheet-1,sleep-drive,Planning your time in bed,sleep-drive-time-in-bed.pdf
+sleep-drive-worksheet-2,sleep-drive,Sleep diary,sleep-diary.pdf
+```
+
+To add a worksheet, put its PDF in `media/worksheets/` and add a row. A video's worksheets show in the order of their rows. For a video with several, add a row for each; for one worksheet that goes with two videos, add two rows that name the same file. To remove one, delete its row. Nothing changes in the problem files.
+
+The build checks every row and stops, naming the row as Excel numbers it, on a missing cell, a `worksheet_id` used twice, a `video_id` that isn't in `data/videos.csv`, or a file that isn't a PDF in `media/worksheets/` (the name must match exactly, capitals included, as for the videos' files). It only warns, without stopping, about a worksheet whose video isn't a solution on any problem (nobody would see it) and about a solution video with no worksheet.
+
+**Placeholder worksheets.** For now the eight solution videos have sample rows with `[bracketed]` titles, which all name the stand-in file `placeholder-worksheet.pdf`. Replace each with a real one by changing its `title` and `file` (keep its `worksheet_id`), and delete the sample rows a video doesn't need. Once a video has its YouTube link, the build stops if one of its worksheets still names the stand-in, and there must be none at launch (`node scripts/validate-content.js --no-placeholders` checks). The worksheets are PDFs for now; whether another format would suit worksheets people fill in is still being decided (`SPEC.md` §21). Make a PDF accessible as you would a handout (`SPEC.md` §9.3).
+
 ### Start here
 
 The intro videos are `chapters` in `content/start.md`, in order, each a `video` (a `video_id`). There are two: `sleep-and-cancer` (how sleep works and why cancer can change it) and `how-to-use-this-program`. Their titles, descriptions and durations come from their rows in `data/videos.csv`, so change an intro video's description there: a chapter has only its `video`, and the build stops on a `description` line in `content/start.md`. The labels "1 of 2" and "2 of 2" are counted for you, but the `summary` line in `content/start.md` ("Two short videos everyone watches first…") is typed by hand, so change its number if you add or remove an intro video.
@@ -234,7 +259,7 @@ To look for problems by hand, run `npm run dev` and open http://localhost:8787 (
 
 `npm run test:a11y` builds the site, serves it locally under the real headers (and the admin pages through the real Worker code with sample data and a throwaway sign-in), and drives Google Chrome to check it with axe-core:
 
-- every page, and the main states (menus, groups, the filter, an open solution card, a rating sent or failed, search results, none and failed, the statistics switch, the feedback dialog's states, pages without JavaScript, the admin summary, error and download pages), at 320 and 1280px wide;
+- every page, and the main states (menus, groups, the filter, an open solution card with its worksheets, a rating sent or failed, search results, none and failed, the statistics switch, the feedback dialog's states, pages without JavaScript, the admin summary, error and download pages), at 320 and 1280px wide;
 - at 320px with WCAG 1.4.12's wider text spacing, every page and the open phone menu, solution card and feedback dialog and the admin summary and download pages, where nothing may scroll sideways or be cut off by a box that clips (text that overlaps other content without being clipped still needs a person's eye);
 - a keyboard walk of each page type, the phone menu, a solution card and the feedback dialog: every stop shows a 2px ring, is at least 44px, and comes fully on screen, Tab and Shift+Tab give the same order, and nothing traps focus;
 - in every state, the site's own errors: Content Security Policy violations, script errors, console messages from our scripts and failed requests to the site.

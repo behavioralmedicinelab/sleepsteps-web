@@ -2,13 +2,15 @@
 // (SPEC §7.2; HANDOFF §8), and the M1b content is in place: a problem video
 // for every problem, solutions from the team's planning sheet (or none, for
 // the 13 stand-alone problems), the eight mechanism videos, the Start here
-// chapters and the problems that exercise each layout. Full validation is in
+// chapters and the problems that exercise each layout; and the worksheets of
+// the solution videos (SPEC §7.6). Full validation is in
 // validate-content.test.js.
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseCsvRecords, parseCsvTable } from '../../scripts/lib/csv.js';
 import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, readTranscripts } from '../../scripts/lib/videos.js';
+import { PLACEHOLDER_WORKSHEET, WORKSHEETS_DIR, WORKSHEETS_FILE } from '../../scripts/lib/worksheets.js';
 import { validateContent } from '../../scripts/validate-content.js';
 import { listFiles } from './helpers.js';
 
@@ -239,6 +241,138 @@ describe('data/videos.csv', () => {
 
   it('gives every transcript in data/transcripts/ a video in the library', () => {
     for (const id of readTranscripts(TRANSCRIPTS_DIR).keys()) expect(model.videos.has(id), id).toBe(true);
+  });
+});
+
+// The worksheets of the solution videos (project lead, 2026-11-13; SPEC
+// §7.6). The team edits the file in Excel, so, as for data/videos.csv, these
+// check rules, not the sample rows, except while every row is still a
+// placeholder: then the samples must show each layout (one, two and three
+// worksheets in a card).
+describe('data/worksheets.csv', () => {
+  const { model, warnings } = validateContent(process.cwd());
+  const bytes = readFileSync(WORKSHEETS_FILE);
+  const { columns, rows } = parseCsvTable(bytes.toString('utf8'));
+  const solutionVideos = new Set([...model.problems.values()].flatMap(({ data }) => (data.solutions ?? []).map((s) => s.video)));
+  const countFor = (video) => rows.filter((r) => r.record.video_id === video).length;
+
+  it('is data/worksheets.csv, with the SPEC §7.6 columns, in order', () => {
+    expect(WORKSHEETS_FILE).toBe('data/worksheets.csv');
+    expect(columns).toEqual(['worksheet_id', 'video_id', 'title', 'file']);
+  });
+
+  // As data/videos.csv (SPEC §7.1): without the mark, Excel opens a
+  // double-clicked CSV as Windows-1252 and garbles the curly quotes.
+  it('starts with a UTF-8 byte-order mark, so Excel opens it as UTF-8', () => {
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    // The same mark as the video library, and no second one.
+    expect([...readFileSync('data/videos.csv').subarray(0, 3)]).toEqual([...bytes.subarray(0, 3)]);
+    expect(bytes.subarray(3).includes(Buffer.from([0xef, 0xbb, 0xbf]))).toBe(false);
+  });
+
+  // No test of its line endings: the committed file has data/videos.csv's
+  // (LF), and Excel's "CSV UTF-8" save writes CRLF, which the parser reads
+  // as well (validate-content.test.js).
+
+  // worksheet_ids are permanent, like video_ids (SPEC §7.6): the links carry them.
+  it('gives every row its own lowercase-hyphenated worksheet_id, and the model holds each row in the file\'s order', () => {
+    const ids = rows.map((r) => r.record.worksheet_id);
+    for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...model.worksheets.keys()]).toEqual(ids);
+    expect([...model.worksheets.values()].map((w) => w.row)).toEqual(rows.map((r) => r.row));
+  });
+
+  it('names a video in the library, a title and a PDF in media/worksheets/ of 25 MiB at most on every row', () => {
+    // No folder is no worksheets: git keeps no empty folder.
+    const names = new Set(existsSync(WORKSHEETS_DIR) ? readdirSync(WORKSHEETS_DIR) : []);
+    for (const { record } of rows) {
+      expect(model.videos.has(record.video_id), record.worksheet_id).toBe(true);
+      expect(record.title, record.worksheet_id).toMatch(/\S/);
+      expect(record.file, record.worksheet_id).toMatch(/^[A-Za-z0-9][A-Za-z0-9._-]*\.pdf$/i);
+      // The exact name, capitals included (the host is case-sensitive).
+      expect(names.has(record.file), record.worksheet_id).toBe(true);
+      expect(statSync(`${WORKSHEETS_DIR}/${record.file}`).size, record.worksheet_id).toBeLessThanOrEqual(25 * 1024 * 1024);
+    }
+  });
+
+  // The stand-in may be deleted once no row names it.
+  it('has the placeholder worksheet while a row names it: a small one-page PDF that says what it is', () => {
+    expect(PLACEHOLDER_WORKSHEET).toBe('placeholder-worksheet.pdf');
+    if (!existsSync(`${WORKSHEETS_DIR}/${PLACEHOLDER_WORKSHEET}`)) {
+      expect(rows.filter((r) => r.record.file === PLACEHOLDER_WORKSHEET)).toEqual([]);
+      return;
+    }
+    const pdf = readFileSync(`${WORKSHEETS_DIR}/${PLACEHOLDER_WORKSHEET}`).toString('latin1');
+    expect(pdf.startsWith('%PDF-1.')).toBe(true);
+    expect(pdf.trimEnd().endsWith('%%EOF')).toBe(true);
+    expect(pdf).toMatch(/\/Type \/Pages \/Kids \[3 0 R\] \/Count 1\b/);
+    expect(pdf).toContain('([Placeholder worksheet]) Tj');
+    expect(pdf.length).toBeLessThan(2048);
+    // Made as media/pdf/placeholder-handout.pdf was: the same file but for its words.
+    if (existsSync(`media/pdf/${PLACEHOLDER_FILES.handout}`)) {
+      const handout = readFileSync(`media/pdf/${PLACEHOLDER_FILES.handout}`).toString('latin1');
+      const frame = (text) => text.replace(/\/Length \d+/, '/Length N').replace(/stream\n[\s\S]*?endstream/, 'stream').replace(/startxref\n\d+/, 'startxref');
+      expect(frame(pdf)).toBe(frame(handout));
+    }
+    // Its cross-reference table points at its objects, and its stream is as long as it says.
+    const offsets = [...pdf.matchAll(/(\d{10}) 00000 n /g)].map((m) => Number(m[1]));
+    expect(offsets).toHaveLength(5);
+    offsets.forEach((offset, i) => expect(pdf.slice(offset, offset + `${i + 1} 0 obj`.length), `object ${i + 1}`).toBe(`${i + 1} 0 obj`));
+    expect(pdf.slice(Number(pdf.match(/startxref\n(\d+)/)[1])).startsWith('xref')).toBe(true);
+    const stream = pdf.match(/stream\n([\s\S]*?)\nendstream/)[1];
+    expect(stream.length).toBe(Number(pdf.match(/\/Length (\d+)/)[1]));
+  });
+
+  it('marks each row that names the placeholder file as a placeholder, with a [bracketed] title, and the build lists them', () => {
+    const placeholders = rows.filter((r) => r.record.file === PLACEHOLDER_WORKSHEET).map((r) => r.record.worksheet_id);
+    for (const { record } of rows) {
+      expect(model.worksheets.get(record.worksheet_id).data.placeholder, record.worksheet_id).toBe(record.file === PLACEHOLDER_WORKSHEET);
+      if (record.file === PLACEHOLDER_WORKSHEET) expect(record.title, record.worksheet_id).toMatch(/^\[.+\]$/);
+    }
+    expect(warnings.filter((w) => w.code === 'placeholder-worksheet').map((w) => w.message)).toEqual(placeholders);
+  });
+
+  // A video on YouTube has its own worksheets, as it has its own handout.
+  it('gives no video with a YouTube link a placeholder worksheet', () => {
+    for (const { record } of rows.filter((r) => r.record.file === PLACEHOLDER_WORKSHEET)) {
+      expect(model.videos.get(record.video_id).data.placeholder, record.worksheet_id).toBe(true);
+    }
+  });
+
+  it('lists a worksheet no page shows and a solution video with none as warnings, and nothing else', () => {
+    const notShown = rows.filter((r) => !solutionVideos.has(r.record.video_id)).map((r) => `${r.record.worksheet_id} (${r.record.video_id})`);
+    expect(warnings.filter((w) => w.code === 'worksheet-not-shown').map((w) => w.message)).toEqual(notShown);
+    const none = [...model.videos.keys()].filter((id) => solutionVideos.has(id) && countFor(id) === 0);
+    expect(warnings.filter((w) => w.code === 'solution-no-worksheet').map((w) => w.message)).toEqual(none);
+  });
+
+  // The sample rows (SPEC §7): different counts, so every layout of the
+  // section shows. Checked only while every row is still a placeholder; the
+  // team's real worksheets decide the counts after that.
+  it('shows one, two and three worksheets in a card while every worksheet is still a placeholder', () => {
+    if (!rows.length || rows.some((r) => r.record.file !== PLACEHOLDER_WORKSHEET)) return;
+    expect(Object.fromEntries(MECHANISMS.map((id) => [id, countFor(id)]))).toEqual({
+      'sleep-drive': 2,
+      'circadian-rhythm': 1,
+      conditioning: 3,
+      'cognitive-arousal': 2,
+      'physiological-arousal': 1,
+      'sleep-effort-and-control': 1,
+      'treatment-symptoms-and-sleep': 2,
+      'daytime-rhythms-and-sleep': 1,
+    });
+    expect(rows).toHaveLength(13);
+    // Only the mechanism videos, the solution library, have worksheets.
+    expect(rows.every((r) => MECHANISMS.includes(r.record.video_id))).toBe(true);
+    for (const { record } of rows) {
+      const n = rows.filter((r) => r.record.video_id === record.video_id).findIndex((r) => r.record.worksheet_id === record.worksheet_id) + 1;
+      const title = model.videos.get(record.video_id).data.title.replace(/^\[(.*)\]$/, '$1');
+      expect([record.worksheet_id, record.title]).toEqual([`${record.video_id}-worksheet-${n}`, `[Worksheet ${n} for “${title}”]`]);
+    }
+    // tired-but-wired, the page the screenshots and the accessibility check
+    // open, has all three counts: conditioning, cognitive arousal, physiological arousal.
+    expect(model.problems.get('tired-but-wired').data.solutions.slice(0, 3).map((s) => countFor(s.video))).toEqual([3, 2, 1]);
   });
 });
 

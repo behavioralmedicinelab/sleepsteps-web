@@ -229,6 +229,71 @@ describe('the row of controls under each video (components.css)', () => {
   });
 });
 
+// The worksheets section of an open solution card (SPEC §7.5, §7.6): a
+// keyline, a heading in the card's title style, then the links, which are
+// the row's outlined buttons, so nothing sizes or colours them again.
+describe('the worksheets of an open solution card (pages/problem.css)', () => {
+  const css = sheets.find((s) => s.file === 'pages/problem.css').css;
+  const components = sheets.find((s) => s.file === 'components.css').css;
+  /** The declarations of the first top-level rule with exactly this selector, on one line. */
+  const rule = (sheet, selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/,\s*/g, ',\\s*');
+    return (sheet.match(new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`))?.[1] ?? '').replace(/\s+/g, ' ').trim();
+  };
+
+  it('sets the section off with a keyline above it, spaced by tokens', () => {
+    expect(rule(css, '.worksheets')).toBe('margin-top: var(--space-5); padding-top: var(--space-5); border-top: var(--border-width) solid var(--keyline);');
+  });
+
+  it('gives the heading the card\'s own title style: the closed card\'s title', () => {
+    const title = rule(css, '.worksheets__title');
+    expect(title).toBe('margin-bottom: var(--space-4); font-family: var(--font-heading); font-size: var(--fs-card-title); line-height: var(--lh-card-title); color: var(--night-teal);');
+    expect(title.replace('margin-bottom: var(--space-4); ', '')).toBe(rule(css, '.solution__title'));
+  });
+
+  it('wraps the links, each whole, in a list without markers', () => {
+    expect(rule(css, '.worksheets__list')).toBe('display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); padding: 0; list-style: none;');
+    // The same gaps as the row of controls above it.
+    expect(rule(components, '.video-controls')).toMatch(/flex-wrap: wrap;[\s\S]*gap: var\(--space-3\) var\(--space-4\);/);
+    expect(rule(css, '.worksheets__list > li')).toBe('display: flex; max-width: 100%;');
+  });
+
+  it('lets a long title wrap inside its button, and a long word break, so the card never scrolls sideways', () => {
+    expect(rule(css, '.worksheets__list .format-button')).toBe('justify-content: flex-start; min-width: 0; text-align: start; overflow-wrap: anywhere;');
+  });
+
+  it('leaves the links\' size and colours to .format-button: 48px tall on phones, 44px from 600px', () => {
+    const all = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    // Every rule that styles the section or anything in it.
+    const rules = [...all.matchAll(/(?:^|\n)\s*([^{}@\n][^{}]*?) \{([^}]*)\}/g)].filter(([, selector]) => /\.worksheets/.test(selector));
+    expect(rules.map(([, selector]) => selector.replace(/\s+/g, ' ').trim())).toEqual([
+      '.worksheets', '.worksheets__title', '.worksheets__list', '.worksheets__list > li', '.worksheets__list .format-button', '.problem__back, .on-this-page, .worksheets',
+    ]);
+    for (const [, selector, body] of rules) {
+      if (/format-button|__list/.test(selector)) expect(body, selector).not.toMatch(/(?:min-|max-)?height|font-size|line-height|color|background|border|padding: (?!0;)/);
+    }
+    expect(rule(components, '.format-button')).toMatch(/min-height: var\(--target-lg\);/);
+    expect(components).toMatch(/@media \(min-width: 37\.5em\) \{\s*\.format-button \{\s*min-height: var\(--target-min\);/);
+  });
+
+  it('is styled by the problem page\'s stylesheet alone', () => {
+    for (const s of sheets) {
+      if (s.file !== 'pages/problem.css') expect(s.css.replace(/\/\*[\s\S]*?\*\//g, ''), s.file).not.toMatch(/worksheet/i);
+    }
+  });
+
+  // On paper a link can't open: the section goes wherever the row of
+  // controls above it goes.
+  it('hides the section in print, as the row of controls is hidden', () => {
+    const print = (sheet) => (sheet.match(/@media print \{([\s\S]*?)\n\}/)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+    const hidden = (sheet) => [...print(sheet).matchAll(/\n {2}([^{}]+) \{\s*display: none;\s*\}/g)].flatMap((m) => m[1].split(/,\s*/).map((x) => x.trim()));
+    expect(hidden(components)).toEqual(['.video', '.video-controls']);
+    expect(hidden(css)).toEqual(['.problem__back', '.on-this-page', '.worksheets']);
+    // One print block in each sheet, so nothing shows the section again.
+    expect(css.match(/@media print/g)).toHaveLength(1);
+  });
+});
+
 // The staff pages' stylesheet (SPEC §14.4): loaded after tokens.css alone,
 // and printable as a report: no controls, downloads or contents list on
 // paper, and table headers repeated on each page.
