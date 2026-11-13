@@ -10,7 +10,7 @@ Requires Node 22.13 or later (`npm test` and the accessibility check use Node's 
 
 ```sh
 npm install
-npm run build   # build the site into dist/
+npm run build   # build the site into dist/ (emptied first, so nothing from an older build is left)
 npm run dev     # local site + Worker at http://localhost:8787
 npm test        # run tests
 npm run db:migrate:local && npm run dev:collect   # the same, storing usage statistics, ratings and feedback locally (below)
