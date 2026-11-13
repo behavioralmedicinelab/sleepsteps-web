@@ -80,7 +80,6 @@ function enhance(li) {
 
   const wrapper = document.createElement('div');
   wrapper.className = details.className;
-  wrapper.dataset.enhanced = '';
 
   panel.setAttribute('role', 'region');
   panel.setAttribute('aria-labelledby', heading.id);

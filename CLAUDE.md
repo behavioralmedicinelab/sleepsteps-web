@@ -29,7 +29,7 @@ You may run local commands: `npm run build`, `npm run dev`, `npm run dev:collect
 
 ```
 npm install
-npm run build          # validate content → Eleventy (search-index.json, worker/generated/pages.json) → dist/
+npm run build          # validate content → empty dist/ → Eleventy (search-index.json, worker/generated/pages.json) → dist/
 npm run dev            # local site + Worker + local D1; collection is off, so /api/* answers 404
 npm run dev:collect    # the same with collection on, for this run only (run db:migrate:local first)
 npm test               # Vitest
@@ -43,6 +43,6 @@ Use Turnstile's published test keys in local development.
 
 ## Content editing (for reference)
 
-Problems are `content/problems/<slug>.md`, videos are rows of `data/videos.csv` (one row per video, edited in Excel and saved as CSV UTF-8; columns video_id, title, description, youtube_url, duration, audio, handout, thumbnail; SPEC §7.1), with optional plain-text transcripts in `data/transcripts/<video_id>.txt`, areas are in `data/areas.csv`, and search synonyms are in `data/keywords.csv` (SPEC §7, §8.2). The build fails on unknown references and on missing media files. Never rename a `page_id` or `video_id` without adding a redirect (for pages) and updating every reference and `keywords.csv`.
+Problems are `content/problems/<slug>.md`, videos are rows of `data/videos.csv` (one row per video, edited in Excel and saved as CSV UTF-8; columns video_id, title, description, youtube_url, duration, audio, handout, thumbnail; SPEC §7.1), with optional plain-text transcripts in `data/transcripts/<video_id>.txt`, a solution video's worksheets are rows of `data/worksheets.csv` (one row per worksheet; columns worksheet_id, video_id, title, file; SPEC §7.6) with their PDFs in `media/worksheets/`, areas are in `data/areas.csv`, and search synonyms are in `data/keywords.csv` (SPEC §7, §8.2). The build fails on unknown references and on missing media files. Never rename a `page_id` or `video_id` without adding a redirect (for pages) and updating every reference and `keywords.csv`, and never rename a `worksheet_id`.
 
 Visual design comes from the Claude Design handoff in `docs/design/` (read `HANDOFF.md` first; the boards give exact spacing and copy). SPEC §7.5 and §22 list where the build deliberately differs from the handoff; the spec wins.

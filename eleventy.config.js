@@ -208,8 +208,9 @@ export default function (eleventyConfig) {
   });
 
   // Start here chapters (SPEC §7.3) with their videos resolved:
-  // [{ n, id: 'v1', video_id, title, duration, description, video }], all
-  // from the video's row. No chapters (any other page) gives [].
+  // [{ n, id: 'v1', video_id, title, video }], all from the video's row (the
+  // template reads the rest from `video`). No chapters (any other page)
+  // gives [].
   eleventyConfig.addFilter('introChapters', (chapters, videos) =>
     (chapters ?? []).map((chapter, i) => {
       const video = lookupVideo(chapter.video, videos);
@@ -218,8 +219,6 @@ export default function (eleventyConfig) {
         id: `v${i + 1}`,
         video_id: video.video_id,
         title: video.title,
-        duration: video.duration,
-        description: video.description,
         video,
       };
     }),

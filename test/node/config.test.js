@@ -301,8 +301,8 @@ describe('eleventy.config.js', () => {
     it('introChapters resolves Start here chapters from the videos\' rows, and gives [] without any', () => {
       const chapters = f.introChapters([{ video: 'intro' }, { video: 'cognitive-arousal' }], videos);
       expect(chapters.map(({ video, ...rest }) => rest)).toEqual([
-        { n: 1, id: 'v1', video_id: 'intro', title: 'Intro', duration: '6:40', description: 'What it covers.' },
-        { n: 2, id: 'v2', video_id: 'cognitive-arousal', title: 'Cognitive arousal', duration: '3:05', description: 'Racing thoughts.' },
+        { n: 1, id: 'v1', video_id: 'intro', title: 'Intro' },
+        { n: 2, id: 'v2', video_id: 'cognitive-arousal', title: 'Cognitive arousal' },
       ]);
       expect(chapters[0].video).toBe(f.videoById('intro', videos));
       expect(f.introChapters(undefined, videos)).toEqual([]);
