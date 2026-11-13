@@ -367,8 +367,34 @@ describe('players.js', () => {
     // The handout beside it is still a handout_open, and nothing else.
     document.querySelector('.video-controls a[data-handout]').click();
     expect(reported.slice(3)).toEqual([{ type: 'handout_open', detail: { media: 'full' } }]);
+    // A middle click (auxclick, button 1) counts as it does for a handout;
+    // the right button, which opens the context menu, doesn't.
+    const aux = (button) => document.getElementById('sheet').dispatchEvent(Object.assign(new Event('auxclick', { bubbles: true, cancelable: true }), { button }));
+    aux(2);
+    expect(reported).toHaveLength(4);
+    aux(1);
+    expect(reported.slice(4)).toEqual([{ type: 'worksheet_open', detail: { worksheet: 'settling-worksheet-1' } }]);
     // players.js sends and stores nothing itself.
     expect(scripts()).toEqual([]);
+  });
+
+  it('counts a handout opened in a new tab with a middle click, which fires auxclick and no click (SPEC §9.4)', async () => {
+    await load(videoPage, ['players']);
+    const { document } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const handout = document.querySelector('.video-controls a[data-handout]');
+    const press = (target, button) => {
+      const event = Object.assign(new Event('auxclick', { bubbles: true, cancelable: true }), { button });
+      target.dispatchEvent(event);
+      return event;
+    };
+    // The right button opens the context menu; what is chosen there can't be seen.
+    press(handout, 2);
+    press(document.getElementById('elsewhere'), 1);
+    expect(reported).toEqual([]);
+    expect(press(handout, 1).defaultPrevented).toBe(false);
+    expect(reported).toEqual([{ type: 'handout_open', detail: { media: 'full' } }]);
   });
 
   it('has no transcripts to open, print or report (SPEC §9.3): nothing but the native "Audio only" disclosure', async () => {

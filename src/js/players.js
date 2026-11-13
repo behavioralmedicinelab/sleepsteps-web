@@ -339,6 +339,10 @@ function init() {
   document.querySelectorAll('a.video__facade').forEach(upgradeFacade);
   document.querySelectorAll('audio[data-media]').forEach(setUpAudio);
   document.addEventListener('click', onClick);
+  // A middle click opens the link in a new tab, and fires auxclick, not click.
+  document.addEventListener('auxclick', (event) => {
+    if (event.button === 1) onClick(event);
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushAll();
   });
