@@ -1216,9 +1216,12 @@ describe('the CLI', () => {
       unlinkSync(link); // the link, never the checkout it points to
       rmSync(linkDir, { recursive: true, force: true });
     });
+    // Named by what they are, not by their paths: test names must be the
+    // same in every run (npm run test:features compares them).
     const spellings = [path.join(link, 'scripts/validate-content.js'), SCRIPT.replace(/\.js$/, '')];
+    const cases = [['through a symlink to the checkout', spellings[0]], ['named without .js', spellings[1]]];
 
-    it.each(spellings)('still runs the launch check: %s', async (script) => {
+    it.each(cases)('still runs the launch check, started %s', async (name, script) => {
       const { dir } = run(videosCsv({ m2: PH }));
       const error = await exec(process.execPath, [script, '--no-placeholders'], { cwd: dir }).catch((e) => e);
       expect(error.code).toBe(1);
