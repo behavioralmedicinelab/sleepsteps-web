@@ -341,9 +341,16 @@ ${table}`,
   );
 }
 
-/** A stored hour as <time>, only when it is exactly toISOString() output; otherwise its text, escaped. */
+/**
+ * A stored hour as <time>, only when it is exactly toISOString() output for
+ * a real time; otherwise its text, escaped. TS_RE checks only where the
+ * digits are, so a hand-written row's month 13 passes it, and formatHour
+ * would throw on that and fail the whole page.
+ */
 function hourOf(ts) {
-  return TS_RE.test(ts) ? html`<time datetime="${ts}">${formatHour(ts)}</time>` : ts;
+  const ms = TS_RE.test(ts) ? Date.parse(ts) : NaN;
+  const exact = Number.isFinite(ms) && new Date(ms).toISOString() === ts;
+  return exact ? html`<time datetime="${ts}">${formatHour(ts)}</time>` : ts;
 }
 
 /**

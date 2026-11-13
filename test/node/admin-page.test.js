@@ -600,6 +600,17 @@ describe('escaping', () => {
     expect(page).toContain('2026-11-01 03:00&quot;&gt;&lt;b&gt;');
   });
 
+  it('shows a stored time with the right digits that names no real time as text too, and still renders the page', () => {
+    // A hand-written row: TS_RE checks only where the digits are. Month 13
+    // made the whole summary a 500; 31 November would have shown as 1 December.
+    for (const ts of ['2026-13-45T99:99:99.000Z', '2026-11-07T23:60:00.000Z', '2026-11-31T10:00:00.000Z', '2026-11-07T24:00:00.000Z']) {
+      const results = { ...emptyResults(), feedbackCount: [{ n: 1 }], recentFeedback: [{ ts, page: 'pain', message: 'x' }] };
+      const page = renderSummary(summaryView('', { results }));
+      expect(page, ts).not.toContain('<time');
+      expect(page, ts).toContain(`, ${ts}</h3>`);
+    }
+  });
+
   it('shows control characters other than tab and line breaks as U+FFFD', () => {
     const results = { ...emptyResults(), searchTotals: [{ searches: 1, zero: 1 }], zeroSearches: [{ q: 'a\u0000b\u001bc\u0085d', n: 1 }] };
     expect(renderSummary(summaryView('', { results }))).toContain('>a\uFFFDb\uFFFDc\uFFFDd</th>');
