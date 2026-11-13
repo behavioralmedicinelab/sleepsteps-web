@@ -118,12 +118,12 @@ scripts:
 
   {%- if mainCount %}
 
-  {{ solutionsSection('main', tiers.main, page_id, ratingsOn, feedbackOn) }}
+  {{ solutionsSection('main', tiers.main, ratingsOn, feedbackOn) }}
   {%- endif %}
 
   {%- if extraCount %}
 
-  {{ solutionsSection('extra', tiers.extra, page_id, ratingsOn, feedbackOn) }}
+  {{ solutionsSection('extra', tiers.extra, ratingsOn, feedbackOn) }}
   {%- endif %}
 
   <div class="problem__end">

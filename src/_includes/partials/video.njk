@@ -9,10 +9,10 @@
 
   Arguments:
     video   a video from `videoById` (or `introChapters`/`solutionsByTier`)
-    bleed   'inset' (default): rounded frame inside the column.
-            'page': below 600px the frame runs to the screen edges
-            (cancels the page gutter). 'card': below 600px it runs to the
-            card's edges (cancels the card's padding), with square corners.
+    bleed   'page' (default): below 600px the frame runs to the screen
+            edges (cancels the page gutter). 'card': below 600px it runs to
+            the card's edges (cancels the card's padding). Both with square
+            corners there; from 600px the frame is rounded, inside its column.
 
   Every facade is the same (project lead, 2026-11-09): the 72px play disc
   (56px below 600px), the duration badge, and the settling arc at the
@@ -36,7 +36,7 @@
   shown, so the page reads as it will at launch.
 -#}
 {%- from "partials/icons.njk" import icon -%}
-{%- macro videoEmbed(video, bleed='inset') -%}
+{%- macro videoEmbed(video, bleed='page') -%}
 {%- set spoken = video.duration | spokenDuration -%}
 <div class="video video--{{ bleed }}{% if video.placeholder %} video--placeholder{% endif %}" data-video="{{ video.video_id }}"{% if not video.placeholder %} data-youtube-id="{{ video.youtube_id }}"{% endif %} data-title="{{ video.title }}">
   <div class="video__frame">

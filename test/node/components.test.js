@@ -64,7 +64,7 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
   it('carries what players.js needs, and never a title plate: the template\'s heading names the video', () => {
     const wrapper = tags(html, 'div')[0];
     expect([attr(wrapper, 'class'), attr(wrapper, 'data-video'), attr(wrapper, 'data-youtube-id'), attr(wrapper, 'data-title')]).toEqual([
-      'video video--inset', 'full', 'AbCdEfGhIjK', 'Settling &quot;your&quot; body',
+      'video video--page', 'full', 'AbCdEfGhIjK', 'Settling &quot;your&quot; body',
     ]);
     expect(html).toContain('<span class="video__title visually-hidden">Settling &quot;your&quot; body</span>');
     for (const v of videos) {
@@ -121,6 +121,10 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
     const wrapper = (out) => attr(tags(out, 'div')[0], 'class');
     expect(wrapper(render("{{ videoEmbed(v, bleed='page') }}", { v: video('bare') }))).toBe('video video--page');
     expect(wrapper(render("{{ videoEmbed(v, bleed='card') }}", { v: video('bare') }))).toBe('video video--card');
+    // 'page' is the default, as it is the video template's: every bleed has styles (no 'inset').
+    expect(wrapper(render('{{ videoEmbed(v) }}', { v: video('bare') }))).toBe('video video--page');
+    expect(readFileSync('src/_includes/partials/video.njk', 'utf8')).not.toMatch(/inset/);
+    expect(readFileSync('src/css/components.css', 'utf8')).toMatch(/\.video--page \.video__frame \{/);
     expect(readFileSync('src/_includes/partials/video.njk', 'utf8')).not.toMatch(/showTitle|video--lg|size=/);
   });
 
@@ -128,7 +132,7 @@ describe('videoEmbed (VideoEmbed, SPEC §9.1)', () => {
     const out = render('{{ videoEmbed(v) }}', { v: video('soon') });
     expect(out).not.toMatch(/<a class="video__facade|<button|data-youtube-id|youtube\.com\/watch|PLACEHOLDER/);
     expect(text(elementByClass(out, 'video__facade', 'div'))).toBe('[Coming] [Video coming soon] [mm:ss]');
-    expect(attr(tags(out, 'div')[0], 'class')).toBe('video video--inset video--placeholder');
+    expect(attr(tags(out, 'div')[0], 'class')).toBe('video video--page video--placeholder');
     // The page's YouTube note still shows (from the layout), so the page reads as it will at launch.
     expect(out).not.toContain('[Words.]');
   });

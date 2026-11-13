@@ -552,7 +552,7 @@ describe('solutionsSection with a playable video', () => {
     videoRow('bare', { title: 'Bare', description: 'The bare video.', youtube_url: 'https://www.youtube.com/watch?v=Zz_-9yXwVu0', duration: '1:05', handout: 'bare.pdf', audio: 'bare.mp3' }),
   ];
   const render = (solutions, ratings = false) =>
-    env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page", ratings) }}', {
+    env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, ratings) }}', {
       items: filters.solutionsByTier(solutions, videos).main,
       ratings,
     });
@@ -624,7 +624,7 @@ describe('solutionsSection with a playable video', () => {
 
   it('renders nothing for a tier with no solutions (a stand-alone problem has none, SPEC §7.2)', () => {
     expect(render([]).trim()).toBe('');
-    expect(env.renderString('{% from "problem/solutions.njk" import solutionsSection %}[{{ solutionsSection("extra", items, "a-page") }}]', { items: [] })).toBe('[]');
+    expect(env.renderString('{% from "problem/solutions.njk" import solutionsSection %}[{{ solutionsSection("extra", items) }}]', { items: [] })).toBe('[]');
   });
 
   // SPEC §7.6: the section a solution card adds after the video template.
