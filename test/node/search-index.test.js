@@ -13,7 +13,7 @@ import { videoRow } from './helpers.js';
 // data/videos.csv rows, and plain-text transcripts by video_id (data/transcripts/).
 const videos = [
   videoRow('a', { title: 'About it', description: 'What it is.' }),
-  videoRow('m', { title: 'Main idea', description: 'Not shown here: the blurb replaces it.' }),
+  videoRow('m', { title: 'Main idea', description: 'Main description.' }),
   videoRow('x', { title: 'Extra idea', description: 'Extra description.' }),
   videoRow('i', { title: 'Intro one', description: 'First.' }),
 ];
@@ -24,9 +24,8 @@ const problem = {
     page_id: 'pain',
     title: 'Pain',
     statement: 'Pain is affecting my sleep',
-    is_this_you: { summary: 'You hurt.', bullets: ['at night', 'in the morning'] },
     problem_video: 'a',
-    solutions: [{ tier: 'main', video: 'm', blurb: 'Try this.' }, { tier: 'extra', video: 'x' }],
+    solutions: [{ tier: 'main', video: 'm' }, { tier: 'extra', video: 'x' }],
   },
 };
 const start = { url: '/start/', data: { page_id: 'start', title: 'Start here', summary: 'Watch first.', chapters: [{ video: 'i' }] } };
@@ -59,8 +58,8 @@ describe('scripts/build-data.js', () => {
         title: 'Pain',
         summary: 'Pain is affecting my sleep',
         keywords: 'ache sore',
-        // Each video's title, its description (or the solution's blurb) and its transcript, as plain text on one line.
-        transcript: 'You hurt. at night in the morning About it What it is. The *about* words. Main idea Try this. Main words. Extra idea Extra description.',
+        // Each video's title, its description and its transcript, as plain text on one line.
+        transcript: 'About it What it is. The *about* words. Main idea Main description. Main words. Extra idea Extra description.',
         type: 'problem',
       },
       { id: 'start', url: '/start/', title: 'Start here', summary: 'Watch first.', keywords: '', transcript: 'Intro one First.', type: 'start' },
@@ -70,7 +69,7 @@ describe('scripts/build-data.js', () => {
 
   it('indexes no transcripts when there are none', () => {
     const [entry] = searchIndex({ problems: [problem], videos });
-    expect(entry.transcript).toBe('You hurt. at night in the morning About it What it is. Main idea Try this. Extra idea Extra description.');
+    expect(entry.transcript).toBe('About it What it is. Main idea Main description. Extra idea Extra description.');
   });
 
   // SPEC §7.6, §8.3: a solution video's worksheets are listed in its open
@@ -89,7 +88,7 @@ describe('scripts/build-data.js', () => {
     it('adds each solution video\'s worksheet titles after that video\'s text, in the file\'s order, on one line', () => {
       const [entry] = searchIndex({ problems: [problem], videos, transcripts, worksheets });
       expect(entry.transcript).toBe(
-        'You hurt. at night in the morning About it What it is. The *about* words. Main idea Try this. Main words. Wind-down planner Thought record Extra idea Extra description. Sleep diary',
+        'About it What it is. The *about* words. Main idea Main description. Main words. Wind-down planner Thought record Extra idea Extra description. Sleep diary',
       );
     });
 
@@ -99,14 +98,14 @@ describe('scripts/build-data.js', () => {
       expect(startEntry.transcript).toBe('Intro one First.');
       // A stand-alone problem has no solutions, so no worksheets.
       const alone = { ...problem, data: { ...problem.data, solutions: undefined, standalone: true } };
-      expect(searchIndex({ problems: [alone], videos, worksheets })[0].transcript).toBe('You hurt. at night in the morning About it What it is.');
+      expect(searchIndex({ problems: [alone], videos, worksheets })[0].transcript).toBe('About it What it is.');
     });
 
     it('gives a video\'s worksheets to every problem that lists it as a solution', () => {
-      const other = { url: '/problems/other/', data: { ...problem.data, page_id: 'other', problem_video: 'i', solutions: [{ tier: 'main', video: 'x', blurb: 'Here too.' }] } };
+      const other = { url: '/problems/other/', data: { ...problem.data, page_id: 'other', problem_video: 'i', solutions: [{ tier: 'main', video: 'x' }] } };
       const entries = searchIndex({ problems: [problem, other], videos, worksheets });
       expect(entries.map((e) => /\bSleep diary$/.test(e.transcript))).toEqual([true, true]);
-      expect(entries[1].transcript).toBe('You hurt. at night in the morning Intro one First. Extra idea Here too. Sleep diary');
+      expect(entries[1].transcript).toBe('Intro one First. Extra idea Extra description. Sleep diary');
     });
 
     it('changes nothing else: the other fields, the other entries, and the index without worksheets', () => {
@@ -164,7 +163,7 @@ describe('content/search-index.11ty.js and the worksheets (SPEC §7.6, §8.3)', 
     const data = { collections: { problems: [problem], all: [start] }, videos, keywords: [] };
     const worksheets = [{ worksheet_id: 'm-one', video_id: 'm', title: 'Unmistakable worksheet title', file: 'm-one.pdf' }];
     const byId = (json) => new Map(JSON.parse(json).map((e) => [e.id, e]));
-    expect(byId(template.render({ ...data, worksheets })).get('pain').transcript).toContain('Main idea Try this. Unmistakable worksheet title Extra idea');
+    expect(byId(template.render({ ...data, worksheets })).get('pain').transcript).toContain('Main idea Main description. Unmistakable worksheet title Extra idea');
     expect(byId(template.render({ ...data, worksheets })).get('start').transcript).not.toContain('Unmistakable');
     expect(byId(template.render(data)).get('pain').transcript).not.toContain('Unmistakable');
   });
@@ -211,11 +210,11 @@ describe('/search-index.json, built from the real content', () => {
     }
   });
 
-  it('indexes each video\'s description (or the solution\'s blurb) with its title (SPEC §8.3)', () => {
+  it('indexes each video\'s description with its title (SPEC §8.3)', () => {
     for (const [slug, { data }] of model.problems) {
       const e = byId.get(slug);
       expect(e.transcript, slug).toContain(model.videos.get(data.problem_video).data.description);
-      for (const s of data.solutions ?? []) expect(e.transcript, `${slug}: ${s.video}`).toContain(s.blurb ?? model.videos.get(s.video).data.description);
+      for (const s of data.solutions ?? []) expect(e.transcript, `${slug}: ${s.video}`).toContain(model.videos.get(s.video).data.description);
     }
     for (const { video } of model.start.data.chapters) {
       const { title, description } = model.videos.get(video).data;
@@ -231,7 +230,7 @@ describe('/search-index.json, built from the real content', () => {
     // text for a problem and for Start here is exactly what the index
     // builder makes of the content as the content check read it, with the
     // worksheets and (to compare) without them. A title may be words the
-    // site also uses elsewhere ("Sleep diary" in a blurb, a transcript or
+    // site also uses elsewhere ("Sleep diary" in a description, a transcript or
     // an information page), so "this page's text doesn't hold another
     // video's worksheet title" would stop the team's edits, not a bug.
     const transcripts = readTranscripts(TRANSCRIPTS_DIR);
@@ -255,10 +254,10 @@ describe('/search-index.json, built from the real content', () => {
       for (const s of data.solutions ?? []) {
         const v = model.videos.get(s.video).data;
         const titles = titlesOf(s.video);
-        // The video's title, its description or blurb, its transcript (none
+        // The video's title, its description, its transcript (none
         // yet for these), then its worksheets, in the file's order.
         if (titles.length && !model.videos.get(s.video).transcript.trim()) {
-          expect(e.transcript, `${slug}: ${s.video}`).toContain([v.title, s.blurb ?? v.description, ...titles].join(' '));
+          expect(e.transcript, `${slug}: ${s.video}`).toContain([v.title, v.description, ...titles].join(' '));
         }
         for (const title of titles) {
           expect(e.transcript, `${slug}: ${title}`).toContain(title);

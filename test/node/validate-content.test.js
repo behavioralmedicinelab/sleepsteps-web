@@ -116,8 +116,7 @@ const problem = (title, extra = {}) => ({
   area: 'core',
   order: 10,
   problem_video: 'about',
-  is_this_you: { summary: 'One sentence.', bullets: ['one', 'two'] },
-  solutions: [{ tier: 'main', video: 'm1', blurb: 'Try this if...' }],
+  solutions: [{ tier: 'main', video: 'm1' }],
   // The two other problems in the base tree.
   related: ['one', 'two', 'three'].filter((slug) => slug !== title.toLowerCase()),
   ...extra,
@@ -133,12 +132,11 @@ function baseTree() {
     'content/problems/one.md': md(
       problem('One', {
         solutions: [
-          { tier: 'main', video: 'm1', blurb: 'A' },
-          { tier: 'main', video: 'm2', blurb: 'B' },
-          { tier: 'main', video: 'm3', blurb: 'C' },
-          { tier: 'extra', video: 'x1', blurb: 'D' },
-          { tier: 'extra', video: 'x2', blurb: 'E' },
-          // No blurb: the card shows the video's description (SPEC §7.2).
+          { tier: 'main', video: 'm1' },
+          { tier: 'main', video: 'm2' },
+          { tier: 'main', video: 'm3' },
+          { tier: 'extra', video: 'x1' },
+          { tier: 'extra', video: 'x2' },
           { tier: 'extra', video: 'x3' },
         ],
       }),
@@ -336,8 +334,8 @@ describe('validateContent fails the build on', () => {
     ['a missing order', { 'content/problems/two.md': md(problem('Two', { order: 'first', problem_video: 'about-two' })) }, 'two.md: order: required'],
     ['a missing problem_video', { 'content/problems/two.md': md(problem('Two', { problem_video: undefined })) }, 'two.md: problem_video: required'],
     ['an unknown problem_video', { 'content/problems/two.md': md(problem('Two', { problem_video: 'gone' })) }, 'two.md: problem_video: unknown video "gone" (not in data/videos.csv)'],
-    ['an unknown solution video', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'gone', blurb: 'A' }] })) }, 'two.md: solutions[1].video: unknown video "gone"'],
-    ['no main solution', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'extra', video: 'x1', blurb: 'A' }] })) }, 'two.md: solutions: has 0 main solutions; allowed 1-3'],
+    ['an unknown solution video', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'gone' }] })) }, 'two.md: solutions[1].video: unknown video "gone"'],
+    ['no main solution', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'extra', video: 'x1' }] })) }, 'two.md: solutions: has 0 main solutions; allowed 1-3'],
     ['no solutions at all', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: undefined })) }, 'two.md: solutions: required'],
     // SPEC §7.2: only a stand-alone problem has no solutions, and it has none.
     [
@@ -355,7 +353,7 @@ describe('validateContent fails the build on', () => {
     ['solutions that are not a list', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: 'm1' })) }, 'two.md: solutions: must be a list of 1-3 main and 0-3 extra solutions'],
     [
       '4 main solutions',
-      { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: ['m1', 'm2', 'm3', 'x1'].map((v) => ({ tier: 'main', video: v, blurb: 'A' })) })) },
+      { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: ['m1', 'm2', 'm3', 'x1'].map((v) => ({ tier: 'main', video: v })) })) },
       'two.md: solutions: has 4 main solutions; allowed 1-3',
     ],
     [
@@ -364,24 +362,23 @@ describe('validateContent fails the build on', () => {
         'content/problems/two.md': md(
           problem('Two', {
             problem_video: 'about-two',
-            solutions: [{ tier: 'main', video: 'm1', blurb: 'A' }, ...['m2', 'x1', 'x2', 'x3'].map((v) => ({ tier: 'extra', video: v, blurb: 'B' }))],
+            solutions: [{ tier: 'main', video: 'm1' }, ...['m2', 'x1', 'x2', 'x3'].map((v) => ({ tier: 'extra', video: v }))],
           }),
         ),
       },
       'two.md: solutions: has 4 extra solutions; allowed 0-3',
     ],
-    ['a solution tier other than main or extra', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', blurb: 'A' }, { tier: 'bonus', video: 'm2', blurb: 'B' }] })) }, 'two.md: solutions[2].tier: must be "main" or "extra"'],
-    ['an unknown solution field', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', blurb: 'A', blrub: 'x' }] })) }, 'two.md: solutions[1].blrub: unknown field'],
-    ['a video used twice on one page', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', blurb: 'A' }, { tier: 'extra', video: 'm1', blurb: 'B' }] })) }, 'two.md: solutions[2].video: video "m1" is already on this page (solutions[1].video)'],
+    ['a solution tier other than main or extra', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1' }, { tier: 'bonus', video: 'm2' }] })) }, 'two.md: solutions[2].tier: must be "main" or "extra"'],
+    ['an unknown solution field', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', note: 'x' }] })) }, 'two.md: solutions[1].note: unknown field; use tier and video'],
+    ['a video used twice on one page', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1' }, { tier: 'extra', video: 'm1' }] })) }, 'two.md: solutions[2].video: video "m1" is already on this page (solutions[1].video)'],
     ['the problem video also used as a solution', { 'content/problems/two.md': md(problem('Two', { problem_video: 'm1' })) }, 'video "m1" is already on this page (problem_video)'],
     ['an unknown related problem', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', related: ['one', 'nine'] })) }, 'two.md: related[2]: unknown problem "nine"'],
     ['a problem listing itself as related', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', related: ['one', 'two'] })) }, "two.md: related[2]: a problem can't list itself"],
     ['a related problem listed twice', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', related: ['one', 'one'] })) }, 'two.md: related[2]: "one" is listed twice'],
-    ['more than 3 related problems', { 'content/problems/four.md': md(problem('Four', { problem_video: 'm2', solutions: [{ tier: 'main', video: 'm3', blurb: 'A' }], related: ['one', 'two', 'three', 'four'] })) }, 'four.md: related: has 4 topics; the most is 3'],
-    ['more than 4 bullets', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', is_this_you: { summary: 'S', bullets: ['a', 'b', 'c', 'd', 'e'] } })) }, 'two.md: is_this_you.bullets: has 5 items; the most is 4'],
-    ['an unknown "Is this you?" field', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', is_this_you: { sumary: 'S', bullets: ['a', 'b'] } })) }, 'two.md: is_this_you.sumary: unknown field'],
-    ['a solution blurb that is empty', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', blurb: '' }] })) }, `two.md: solutions[1].blurb: leave it out to show the video's description, or write one or two sentences`],
-    ['a solution blurb that is not text', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', blurb: ['A'] }] })) }, 'two.md: solutions[1].blurb: leave it out'],
+    ['more than 3 related problems', { 'content/problems/four.md': md(problem('Four', { problem_video: 'm2', solutions: [{ tier: 'main', video: 'm3' }], related: ['one', 'two', 'three', 'four'] })) }, 'four.md: related: has 4 topics; the most is 3'],
+    ['"Is this you?" text, which the page no longer shows (2026-11-14)', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', is_this_you: { summary: 'S', bullets: ['a', 'b'] } })) }, 'two.md: is_this_you: the page has no "Is this you?" since 2026-11-14 (SPEC §7.2): delete `is_this_you` and the lines under it'],
+    ['a solution with a blurb: a video reads the same on every page since 2026-11-14', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', blurb: 'Try this if...' }] })) }, "two.md: solutions[1].blurb: a solution has no blurb since 2026-11-14 (SPEC §7.2): a video's title and description are the same on every page. Delete this line; to change the words, edit the video's description in data/videos.csv"],
+    ['an empty blurb, too', { 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1', blurb: '' }] })) }, 'two.md: solutions[1].blurb: a solution has no blurb since 2026-11-14'],
     ['no Start here chapters', { 'content/start.md': md({ title: 'Start here', chapters: [] }) }, 'content/start.md: chapters: required: a list of intro videos, each with a video'],
     ['an unknown Start here video', { 'content/start.md': md({ chapters: [{ video: 'gone' }] }) }, 'content/start.md: chapters[1].video: unknown video "gone" (not in data/videos.csv)'],
     ['a Start here chapter without a video', { 'content/start.md': md({ chapters: [{}] }) }, 'content/start.md: chapters[1].video: required: a video_id from data/videos.csv'],
@@ -583,14 +580,6 @@ describe('transcripts: data/transcripts/<video_id>.txt, optional plain text (SPE
   });
 });
 
-describe('solution blurbs are optional (SPEC §7.2)', () => {
-  it('accepts a solution without a blurb: the card shows the video\'s description', () => {
-    const result = run({ 'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', solutions: [{ tier: 'main', video: 'm1' }] })) });
-    expect(messages(result)).toEqual([]);
-    expect(result.warnings).toEqual([]);
-  });
-});
-
 // What each of the team's CSVs says about a file saved as "CSV" (not "CSV
 // UTF-8"), and about one opened in the wrong encoding (SPEC §7.1).
 const NOT_UTF8_MESSAGE = 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"';
@@ -740,16 +729,14 @@ describe('validateContent warns, without failing, about', () => {
     expect(groupWarnings(result.warnings)).toEqual([['Placeholder videos (no YouTube link yet; SPEC §20 M8 requires none)', ['m2']]]);
   });
 
-  it('fewer than 2 related problems, and an empty or short "Is this you?"', () => {
+  it('fewer than 2 related problems', () => {
     const result = run({
-      'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', related: ['one'], is_this_you: undefined })),
-      'content/problems/three.md': md(problem('Three', { problem_video: 'about-three', related: [], is_this_you: { summary: 'S', bullets: ['one'] } })),
+      'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', related: ['one'] })),
+      'content/problems/three.md': md(problem('Three', { problem_video: 'about-three', related: [] })),
     });
     expect(messages(result)).toEqual([]);
     expect(result.warnings.map((w) => [w.code, w.message])).toEqual([
-      ['bullets-few', 'three'],
       ['related-few', 'three'],
-      ['is-this-you-empty', 'two'],
       ['related-few', 'two'],
     ]);
   });

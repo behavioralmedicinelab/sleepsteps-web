@@ -47,11 +47,13 @@ const CONTACT_LINE = "You can also contact the team by email or phone, but that 
 const DUMMY_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
 const REAL_KEY = '0x4AAAAAAAexampleKEY_-9';
 
-/** The §15.1 notice for the dialog, from SPEC.md: its two paragraphs. */
-const NOTICE = spec
+/** The §15.1 notice for the dialog, from SPEC.md: its two paragraphs, as written there (links in Markdown). */
+const NOTICE_SOURCE = spec
   .match(/In the feedback dialog:\n((?:>.*\n)+)/)[1]
   .split(/\n>\n/)
   .map((p) => p.replace(/^> ?/gm, '').trim());
+/** The same as the page's text: a link is its words. */
+const NOTICE = NOTICE_SOURCE.map((p) => p.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'));
 
 const pageIdOf = (html) => attr(tags(html, 'body')[0], 'data-page-id');
 /** The page's videos, in page order (each facade names its video once). */
@@ -175,11 +177,22 @@ describe('built pages and the feedback dialog (SPEC §13)', () => {
     it('gives the SPEC §15.1 notice word for word, with the crisis numbers of site.config.json', () => {
       const notice = elementByClass(html, 'feedback__notice', 'div');
       expect(attr(tags(notice, 'div')[0], 'id')).toBe('feedback-notice');
-      const paragraphs = [...notice.matchAll(/<p class="notice-text">([\s\S]*?)<\/p>/g)].map((m) => text(m[1]));
+      // A link is its words (text() would put a space where each tag was).
+      const paragraphs = [...notice.matchAll(/<p class="notice-text">([\s\S]*?)<\/p>/g)].map((m) => text(m[1].replace(/<\/?a\b[^>]*>/g, '')));
       expect(NOTICE).toHaveLength(2);
       expect(paragraphs).toEqual(NOTICE);
       const numbers = Object.fromEntries(config.crisisContacts.map((c) => [c.label, c.value]));
       expect(paragraphs[0]).toContain(`call Lifeline on ${numbers.Lifeline}, or call ${numbers.Emergency} in an emergency`);
+    });
+
+    it('offers the Contact page to anyone who wants a reply, and says nothing about the spam check (project lead, 2026-11-14)', () => {
+      const notice = elementByClass(html, 'feedback__notice', 'div');
+      expect(NOTICE[1]).toBe('Want a reply? Contact us by email or phone.');
+      expect(NOTICE_SOURCE[1]).toBe('Want a reply? [Contact us by email or phone](/contact/).');
+      // One link in the notice, in its second paragraph, to the Contact page.
+      expect(tags(notice, 'a')).toEqual(['<a href="/contact/">']);
+      expect(notice).toContain('<p class="notice-text">Want a reply? <a href="/contact/">Contact us by email or phone</a>.</p>');
+      expect(text(notice)).not.toMatch(/Cloudflare|spam|IP address|browser/i);
     });
 
     it('is a form that never goes anywhere: method="dialog", novalidate, no action and an unnamed textarea', () => {

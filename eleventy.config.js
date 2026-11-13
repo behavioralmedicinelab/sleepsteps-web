@@ -179,10 +179,11 @@ export default function (eleventyConfig) {
   };
 
   // A problem's `solutions` split by tier, each with its video resolved:
-  // { main: [{ n, tier, blurb, description, video, worksheets }], extra:
-  // [...] }; n counts from 1 within each tier (the step chip number).
-  // `description` is the solution's own blurb where it has one, otherwise
-  // the video's description (SPEC §7.2). `worksheets` are the video's rows
+  // { main: [{ n, tier, video, worksheets }], extra: [...] }; n counts from
+  // 1 within each tier (the step chip number). The card's title and
+  // description are the video's own (video.title, video.description): a
+  // video reads the same on every problem (project lead, 2026-11-14; SPEC
+  // §7.2), so a solution has no text of its own. `worksheets` are the video's rows
   // of data/worksheets.csv, in the file's order, each { worksheet_id,
   // video_id, title, file, placeholder } (toWorksheet() in
   // scripts/lib/worksheets.js); [] for a video with none, and for every
@@ -194,12 +195,9 @@ export default function (eleventyConfig) {
       const list = tiers[solution.tier];
       if (!list) throw new Error(`solution tier must be "main" or "extra", not "${solution.tier}"`);
       const video = lookupVideo(solution.video, videos);
-      const blurb = typeof solution.blurb === 'string' ? solution.blurb.trim() : '';
       list.push({
         n: list.length + 1,
         tier: solution.tier,
-        blurb,
-        description: blurb || video.description,
         video,
         worksheets: worksheetsOf(video.video_id, worksheets),
       });

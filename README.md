@@ -86,7 +86,7 @@ Every column but `youtube_url` and `thumbnail` needs something in it. The build 
 
 The rows can be in any order; the pages follow the problem files and `content/start.md`, not the spreadsheet. To use a video on a page, name its `video_id` there (below).
 
-**Every video looks the same** wherever it is (the problem's own video, an open solution card, a Start here chapter): its label where it has one ("1 Main", "2 Extra" on a solution, "1 of 2" on Start here), its title and description, the video, then one row: "Audio only", "Handout", "Feedback" and "Was this helpful?" with its stars. A closed solution card shows its label, length, title and description (on a phone, its number, title and description). An open solution card adds the video's worksheets under that row, where it has some ("Worksheets", below). All of it comes from the video's row (a solution's `blurb` can replace the description, below); the layout is one template, `src/_includes/partials/video-block.njk`, and a test checks that every video on the site matches it (`SPEC.md` §7.5).
+**Every video looks the same** wherever it is (the problem's own video, an open solution card, a Start here chapter): its label where it has one ("1 Main", "2 Extra" on a solution, "1 of 2" on Start here), its title and description, the video, then one row: "Audio only", "Handout", "Feedback" and "Was this helpful?" with its stars. A closed solution card shows its label, length, title and description (on a phone, its number, title and description). An open solution card adds the video's worksheets under that row, where it has some ("Worksheets", below). All of it comes from the video's row, and no page can change it: a video has the same title and description wherever it appears; the layout is one template, `src/_includes/partials/video-block.njk`, and a test checks that every video on the site matches it (`SPEC.md` §7.5).
 
 **The handout carries the narration.** There are no transcripts on the site: the handout is each video's text version (the text alternative for people who can't hear the audio), so it has the video's full narration, word for word, naming the speakers, plus anything that matters on screen. The "Handout" button under each video links to it. Make it accessible: for a PDF, export it from Word as a tagged PDF and check it (`SPEC.md` §9.3). The handout's format (PDF, Word or a web page) is still being decided; until then it is a PDF.
 
@@ -167,25 +167,19 @@ In `content/problems/<slug>.md`, refer to videos by `video_id`:
 
 ```yaml
 problem_video: tired-but-wired-about    # the video about the problem itself
-is_this_you:
-  summary: "One or two plain sentences."
-  bullets:                              # 2 to 4
-    - "feel exhausted but alert in bed"
-    - "take a long time to fall asleep"
 solutions:                              # 1-3 main, then 0-3 extra, in display order
   - tier: main
     video: conditioning
-    blurb: "Try this if bed has become a place where you lie awake."
   - tier: extra
-    video: sleep-effort-and-control     # no blurb: the card shows the video's description
+    video: sleep-effort-and-control
 related:                                # 2-3 other problems, by file name
   - not-sleepy-at-bedtime
   - stress-and-worries
 ```
 
-The solutions follow the team's planning sheet (`SPEC.md` §7.2): its 1s are the main solutions, with the suggested start first, and its 2s are the extras. A solution's card shows the video's description from `data/videos.csv`; a `blurb` (optional) replaces it on this problem only, to say why the video suits this problem.
+The solutions follow the team's planning sheet (`SPEC.md` §7.2): its 1s are the main solutions, with the suggested start first, and its 2s are the extras. A solution is only a `tier` and a `video`: its card shows the video's title and description from `data/videos.csv`, the same on every problem. To change those words, edit the video's row there. (Until 2026-11-14 a solution could have a `blurb`, and each problem had "Is this you?" text, `is_this_you`. Both are gone, and the build stops on a file that still has either, saying to delete it.)
 
-A **stand-alone problem** has one video made for it instead of mechanism videos. Its file has `standalone: true` and no `solutions`; its `problem_video` is that video, and the page shows it with "Is this you?" and no solution cards. The build stops if a stand-alone problem lists solutions, or if any other problem has none.
+A **stand-alone problem** has one video made for it instead of mechanism videos. Its file has `standalone: true` and no `solutions`; its `problem_video` is that video, and the page shows it with no solution cards. The build stops if a stand-alone problem lists solutions, or if any other problem has none.
 
 ```yaml
 problem_video: sharing-a-bed-about      # the video made for this problem

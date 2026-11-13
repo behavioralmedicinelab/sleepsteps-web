@@ -190,7 +190,7 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       expect((card.match(/\sdata-worksheet="/g) ?? []), id).toHaveLength(sheets.length);
       if (!sheets.length) {
         // None of the section's markup. (The word is the team's to use: a
-        // blurb may say "the worksheets below".)
+        // description may say "the worksheets below".)
         expect(card, id).not.toMatch(WORKSHEET_MARKUP);
         return;
       }
@@ -283,12 +283,13 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     }
   });
 
-  it('puts "Is this you?" in its own section directly below the problem video', () => {
+  it('has no "Is this you?": the problem video ends the top block, and the solutions follow (project lead, 2026-11-14)', () => {
+    expect(main).not.toMatch(/is-this-you|Is this you|This topic may help if you|Not quite\?/);
     const wrapper = elementByClass(main, 'problem-video', 'div');
-    const panel = elementByClass(main, 'is-this-you', 'section');
-    expect(wrapper).not.toContain('is-this-you');
-    expect(main.slice(main.indexOf(wrapper) + wrapper.length).trim().startsWith('<section class="is-this-you panel panel--wash" aria-labelledby="is-this-you-title">')).toBe(true);
-    expect(main.indexOf(panel)).toBeLessThan(main.indexOf('class="solutions') === -1 ? Infinity : main.indexOf('class="solutions'));
+    const after = main.slice(main.indexOf(wrapper) + wrapper.length).trim();
+    // The top block closes straight after the video; the first section after it is the page's next part.
+    expect(after.startsWith('</div>')).toBe(true);
+    expect(after.match(/<section class="([^"]*)"/)?.[1]).toBe(solutions.length ? 'solutions solutions--main' : data.related.length ? 'related' : undefined);
   });
 
   it('renders each solution as a closed native <details name="solution">, numbered within its tier', () => {
@@ -306,14 +307,15 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     expect(cards.map((card) => attr(tags(card, 'li')[0], 'id'))).toEqual(solutions.map((s) => `solution-${s.video}`));
   });
 
-  it('shows each card\'s title, blurb and length, with nothing interactive inside the summary', () => {
+  it('shows each card\'s title, description and length, the video\'s own, with nothing interactive inside the summary', () => {
     cards.forEach((card, i) => {
       const s = [...tiers.main, ...tiers.extra][i];
       const summary = card.match(/<summary class="solution__face">([\s\S]*?)<\/summary>/)[1];
       expect(summary).not.toMatch(/<(a|button|input|select|textarea|details|iframe|audio)\b|tabindex/);
       expect(text(elementByClass(summary, 'solution__title', 'span'))).toBe(video(s.video).data.title);
-      // The blurb, or the video's description where there is none (SPEC §7.2).
-      expect(text(elementByClass(summary, 'solution__blurb', 'span'))).toBe(s.blurb || video(s.video).data.description);
+      // The video's description, the same on every problem (SPEC §7.2).
+      expect(text(elementByClass(summary, 'solution__description', 'span'))).toBe(video(s.video).data.description);
+      expect(s.blurb).toBeUndefined();
       expect(summary).toContain(`id="solution-${s.video}-length"`);
       expect(tags(summary, 'span').find((t) => attr(t, 'class') === 'solution__band')).toContain('aria-hidden="true"');
     });
@@ -356,21 +358,6 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     expect(text(elementByClass(main, 'solutions--main', 'section'))).toMatch(/^Things to try Main solutions Most people start here\./);
     if (tiers.extra.length) {
       expect(text(elementByClass(main, 'solutions--extra', 'section'))).toMatch(/^If you want more Other things that can help Useful extras/);
-    }
-  });
-
-  it('shows "Is this you?", with "Not quite? Try" the first related topic', () => {
-    const panel = elementByClass(main, 'is-this-you', 'section');
-    expect(panel).toMatch(/<h2 class="is-this-you__title" id="is-this-you-title">Is this you\?<\/h2>/);
-    expect(text(elementByClass(panel, 'is-this-you__summary', 'p'))).toBe(data.is_this_you.summary);
-    expect([...panel.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]))).toEqual(data.is_this_you.bullets);
-    const next = elementByClass(panel, 'is-this-you__next', 'p');
-    if (data.related.length) {
-      const first = model.problems.get(data.related[0]).data;
-      expect(text(next)).toBe(`Not quite? Try ${first.title} .`);
-      expect(tags(next, 'a').map((t) => attr(t, 'href'))).toEqual([`/problems/${data.related[0]}/`]);
-    } else {
-      expect(next).toBeUndefined();
     }
   });
 
@@ -419,7 +406,9 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     });
     expect(Math.max(...levels)).toBeLessThanOrEqual(4);
     const headings = [...main.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => [Number(m[1]), text(m[2])]);
-    expect(headings.slice(0, 3)).toEqual([[1, data.title], [2, video(data.problem_video).data.title], [2, 'Is this you?']]);
+    // The page starts with its title and its own video; nothing comes between that video and the solutions.
+    const next = solutions.length ? [[2, 'Main solutions']] : data.related.length ? [[2, 'Related topics']] : [];
+    expect(headings.slice(0, 3)).toEqual([[1, data.title], [2, video(data.problem_video).data.title], ...next]);
     expect(main.slice(main.indexOf('>') + 1)).not.toMatch(/\sid="main"/);
   });
 });
@@ -491,12 +480,11 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     expect(row).not.toMatch(/transcript/i);
   });
 
-  it('keeps its headings in order: the title, its video\'s title, then "Is this you?" (and Related topics, when it has some)', () => {
+  it('keeps its headings in order: the title, then its video\'s title (and Related topics, when it has some)', () => {
     const headings = [...main.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => [Number(m[1]), text(m[2])]);
     expect(headings).toEqual([
       [1, data.title],
       [2, v.title],
-      [2, 'Is this you?'],
       ...(data.related.length ? [[2, 'Related topics']] : []),
     ]);
   });
@@ -516,7 +504,7 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     const entry = entries.find((e) => e.id === slug);
     expect([entry?.type, entry?.url, entry?.title, entry?.summary]).toEqual(['problem', `/problems/${slug}/`, data.title, data.statement]);
     expect(entry.transcript).toContain(v.title);
-    expect(entry.transcript).toContain(data.is_this_you.summary);
+    expect(entry.transcript).toContain(v.description);
   });
 });
 
@@ -557,7 +545,7 @@ describe('solutionsSection with a playable video', () => {
       ratings,
     });
 
-  const html = render([{ tier: 'main', video: 'full', blurb: 'Try this.' }, { tier: 'main', video: 'bare', blurb: 'Or this.' }]);
+  const html = render([{ tier: 'main', video: 'full' }, { tier: 'main', video: 'bare' }]);
   const [full, bare] = elements(html, 'solution', 'li');
 
   it('puts the "Watch on YouTube" facade inside the panel, not the closed card, with no notice of its own', () => {
@@ -579,7 +567,7 @@ describe('solutionsSection with a playable video', () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(elementByClass(panel, 'video-block__title', 'h3')).toBe('<h3 class="video-block__title" id="video-full-title" tabindex="-1">Settling your body</h3>');
     expect(text(elementByClass(panel, 'step-chip', 'span'))).toBe('1 Main');
-    expect(text(elementByClass(panel, 'video-block__desc', 'p'))).toBe('Try this.');
+    expect(text(elementByClass(panel, 'video-block__desc', 'p'))).toBe('Words.');
   });
 
   it('gives the closed card nothing but its face: no quick Handout link (project lead, 2026-11-09)', () => {
@@ -592,7 +580,7 @@ describe('solutionsSection with a playable video', () => {
       expect(handouts).toHaveLength(1);
       expect(elementByClass(card, 'video-controls', 'div')).toContain(handouts[0]);
     }
-    expect(full).not.toMatch(/transcript|Words\./i);
+    expect(full).not.toMatch(/transcript/i);
   });
 
   it('puts "Audio only" and the handout in one row right under the video in the open card', () => {
@@ -605,13 +593,17 @@ describe('solutionsSection with a playable video', () => {
     expect(panel.indexOf(row)).toBeGreaterThan(panel.indexOf('video__frame'));
   });
 
-  it('shows the video\'s description, from data/videos.csv, on a solution without a blurb (SPEC §7.2)', () => {
-    const [card] = elements(render([{ tier: 'main', video: 'bare' }]), 'solution', 'li');
-    expect(text(elementByClass(card, 'solution__blurb', 'span'))).toBe('The bare video.');
-    expect(text(elementByClass(card, 'video-block__desc', 'p'))).toBe('The bare video.');
-    // A blurb replaces it, on this problem only.
-    expect(text(elementByClass(bare, 'solution__blurb', 'span'))).toBe('Or this.');
-    expect(bare).not.toContain('The bare video.');
+  it('shows the video\'s own title and description, from data/videos.csv, closed and open (SPEC §7.2)', () => {
+    expect(text(elementByClass(bare, 'solution__title', 'span'))).toBe('Bare');
+    expect(text(elementByClass(bare, 'video-block__title', 'h3'))).toBe('Bare');
+    expect(text(elementByClass(bare, 'solution__description', 'span'))).toBe('The bare video.');
+    expect(text(elementByClass(bare, 'video-block__desc', 'p'))).toBe('The bare video.');
+  });
+
+  it('gives a solution no text of its own: a blurb left in the data changes nothing (project lead, 2026-11-14)', () => {
+    const plain = render([{ tier: 'main', video: 'bare' }]);
+    expect(render([{ tier: 'main', video: 'bare', blurb: 'Try this if you are on this problem.', title: 'Another title', description: 'Another description.' }])).toBe(plain);
+    expect(plain).not.toMatch(/Try this if|Another title|Another description/);
   });
 
   it('renders "Audio only" and the handout for every video: the content check guarantees the files (SPEC §7.1)', () => {
@@ -637,7 +629,7 @@ describe('solutionsSection with a playable video', () => {
       row('elsewhere', 'not-on-this-page', 'Another video'),
       row('full-three', 'full', 'It’s the third', 'Shared-File.PDF'),
     ];
-    const solutions = [{ tier: 'main', video: 'full', blurb: 'Try this.' }, { tier: 'main', video: 'bare', blurb: 'Or this.' }];
+    const solutions = [{ tier: 'main', video: 'full' }, { tier: 'main', video: 'bare' }];
     const renderWith = (rows, { ratings = false, feedback = false, list = solutions } = {}) =>
       env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, ratings, feedback) }}', {
         items: filters.solutionsByTier(list, videos, rows).main,
@@ -706,15 +698,15 @@ describe('solutionsSection with a playable video', () => {
       expect(second).not.toMatch(/<h4\b/i);
     });
 
-    // The word is the team's to use (a blurb, a video's title or
-    // description, any page's text): only the section's markup means
+    // The word is the team's to use (a video's title or description, any
+    // page's text): only the section's markup means
     // "worksheets here", in these tests and in those of the built pages.
-    it('leaves the word "worksheet" in a blurb, a title or a description alone: no section without a row, and the same section with one', () => {
+    it('leaves the word "worksheet" in a title or a description alone: no section without a row, and the same section with one', () => {
       const wordy = [
-        videoRow('full', { title: 'Your worksheet plan', description: 'Fill in the worksheet as you watch.', youtube_url: 'https://youtu.be/AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' }),
+        videoRow('full', { title: 'Your worksheet plan', description: 'Try this. The worksheets below help you plan.', youtube_url: 'https://youtu.be/AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' }),
         videoRow('bare', { title: 'Bare', description: 'This video has worksheets too.', youtube_url: 'https://www.youtube.com/watch?v=Zz_-9yXwVu0', duration: '1:05', handout: 'bare.pdf', audio: 'bare.mp3' }),
       ];
-      const list = [{ tier: 'main', video: 'full', blurb: 'Try this. The worksheets below help you plan.' }, { tier: 'main', video: 'bare' }];
+      const list = [{ tier: 'main', video: 'full' }, { tier: 'main', video: 'bare' }];
       const renderWordy = (rows) =>
         env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items) }}', {
           items: filters.solutionsByTier(list, wordy, rows).main,
@@ -757,7 +749,7 @@ describe('solutionsSection with a playable video', () => {
   });
 
   describe('with ratings on (SPEC §12)', () => {
-    const [onFull, onBare] = elements(render([{ tier: 'main', video: 'full', blurb: 'Try this.' }, { tier: 'main', video: 'bare', blurb: 'Or this.' }], true), 'solution', 'li');
+    const [onFull, onBare] = elements(render([{ tier: 'main', video: 'full' }, { tier: 'main', video: 'bare' }], true), 'solution', 'li');
 
     it('ends the open card\'s row of controls with the widget, after "Audio only" and the handout', () => {
       const panel = elementByClass(onFull, 'solution__panel', 'div');
@@ -788,8 +780,8 @@ describe('solutionsSection with a playable video', () => {
     });
 
     it('renders the slots only for exactly true', () => {
-      const off = render([{ tier: 'main', video: 'bare', blurb: 'Or this.' }], false);
-      expect(render([{ tier: 'main', video: 'bare', blurb: 'Or this.' }], 'true')).toBe(off);
+      const off = render([{ tier: 'main', video: 'bare' }], false);
+      expect(render([{ tier: 'main', video: 'bare' }], 'true')).toBe(off);
       expect(off).not.toMatch(/rating/);
     });
   });

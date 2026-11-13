@@ -81,8 +81,14 @@ const GARBLED_CSV = 'has garbled characters (for example â€œ in place of “
 const VIDEOS_FILE = 'data/videos.csv';
 const PROBLEM_KEYS = [
   'title', 'statement', 'source_title', 'area', 'order',
-  'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
+  'problem_video', 'standalone', 'solutions', 'related',
 ];
+// Fields the site no longer has, with what to do: an error, not the
+// "unknown field" warning, so text someone still expects to see isn't
+// dropped without a word.
+const REMOVED_PROBLEM_KEYS = {
+  is_this_you: 'the page has no "Is this you?" since 2026-11-14 (SPEC §7.2): delete `is_this_you` and the lines under it',
+};
 const MEDIA = {
   audio: { dir: 'media/audio', extensions: ['.mp3'] },
   handout: { dir: 'media/pdf', extensions: ['.pdf'] },
@@ -94,8 +100,6 @@ const WARNINGS = {
   'placeholder-video': 'Placeholder videos (no YouTube link yet; SPEC §20 M8 requires none)',
   'placeholder-worksheet': `Placeholder worksheets (the shared ${PLACEHOLDER_WORKSHEET}; the launch check allows none, SPEC §7.6)`,
   'related-few': 'Problems with fewer than 2 related topics (SPEC §7.2 asks for 2-3)',
-  'is-this-you-empty': 'Problems with no "Is this you?" text',
-  'bullets-few': 'Problems with fewer than 2 "Is this you?" bullets (SPEC §7.2 asks for 2-4)',
   'thumbnail-missing': 'Videos with no thumbnail, while other videos have one (their frames will look different; SPEC §7.1)',
   'unused-video': 'Videos not used on any page',
   'worksheet-not-shown': 'Worksheets no page shows: their video is not a solution on any problem (SPEC §7.6)',
@@ -561,7 +565,8 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   for (const [slug, { file, data }] of problems) {
     if (!SLUG.test(slug)) error(file, '', 'the file name (the page_id) must be lowercase words joined by hyphens');
     for (const key of Object.keys(data)) {
-      if (!PROBLEM_KEYS.includes(key)) warn('unknown-key', file, key);
+      if (key in REMOVED_PROBLEM_KEYS) error(file, key, REMOVED_PROBLEM_KEYS[key]);
+      else if (!PROBLEM_KEYS.includes(key)) warn('unknown-key', file, key);
     }
     for (const field of ['title', 'statement']) {
       if (!isText(data[field])) error(file, field, 'required');
@@ -580,28 +585,6 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     // audio-<video_id>, would clash, and ratings couldn't tell them apart).
     const onPage = [];
     if (checkVideoRef(file, 'problem_video', data.problem_video)) onPage.push(['problem_video', data.problem_video]);
-
-    const itsYou = data.is_this_you;
-    if (itsYou === undefined || itsYou === null) {
-      warn('is-this-you-empty', file, slug);
-    } else if (!isObject(itsYou)) {
-      error(file, 'is_this_you', 'must have `summary` and `bullets` under it');
-    } else {
-      for (const key of Object.keys(itsYou)) {
-        if (!['summary', 'bullets'].includes(key)) error(file, `is_this_you.${key}`, 'unknown field; use summary and bullets');
-      }
-      if (itsYou.summary !== undefined && itsYou.summary !== null && typeof itsYou.summary !== 'string') {
-        error(file, 'is_this_you.summary', 'must be text');
-      }
-      const bullets = itsYou.bullets ?? [];
-      if (!Array.isArray(bullets) || !bullets.every(isText)) {
-        error(file, 'is_this_you.bullets', 'must be a list of text items');
-      } else {
-        if (bullets.length > 4) error(file, 'is_this_you.bullets', `has ${bullets.length} items; the most is 4`);
-        if (!isText(itsYou.summary) && bullets.length === 0) warn('is-this-you-empty', file, slug);
-        else if (bullets.length < 2) warn('bullets-few', file, slug);
-      }
-    }
 
     // A stand-alone problem has one video made for it (its problem_video)
     // and no solutions; every other problem has 1-3 main and 0-3 extra.
@@ -624,22 +607,18 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       data.solutions.forEach((solution, i) => {
         const field = `solutions[${i + 1}]`;
         if (!isObject(solution)) {
-          error(file, field, 'must have tier and video (and, if you like, a blurb)');
+          error(file, field, 'must have tier and video');
           return;
         }
         for (const key of Object.keys(solution)) {
-          if (!['tier', 'video', 'blurb'].includes(key)) error(file, `${field}.${key}`, 'unknown field; use tier, video and blurb');
+          if (key === 'blurb') error(file, `${field}.blurb`, `a solution has no blurb since 2026-11-14 (SPEC §7.2): a video's title and description are the same on every page. Delete this line; to change the words, edit the video's description in ${VIDEOS_FILE}`);
+          else if (!['tier', 'video'].includes(key)) error(file, `${field}.${key}`, 'unknown field; use tier and video');
         }
         if (!(solution.tier in counts)) error(file, `${field}.tier`, 'must be "main" or "extra"');
         else counts[solution.tier] += 1;
         if (checkVideoRef(file, `${field}.video`, solution.video)) {
           onPage.push([`${field}.video`, solution.video]);
           solutionVideos.add(solution.video);
-        }
-        // Optional: shown instead of the video's description on this page
-        // only (SPEC §7.2).
-        if (solution.blurb !== undefined && solution.blurb !== null && !isText(solution.blurb)) {
-          error(file, `${field}.blurb`, 'leave it out to show the video\'s description, or write one or two sentences, "Try this if ..."');
         }
       });
       for (const [tier, [min, max]] of Object.entries(SOLUTION_LIMITS)) {

@@ -99,7 +99,7 @@ export function text(html) {
  * a link's data-worksheet, or an address in /media/worksheets/. What "no
  * worksheets here" means in the tests of the built pages: the section, its
  * links and their files, never the word. The team may write "worksheet" in
- * any page's text, a solution's blurb or a video's title or description
+ * any page's text or a video's title or description
  * (and the template escapes a title's < > and quotes, so even markup typed
  * into one is text).
  */

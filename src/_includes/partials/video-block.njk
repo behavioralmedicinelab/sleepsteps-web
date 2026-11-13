@@ -8,9 +8,9 @@
 
     {% from "partials/video-block.njk" import videoBlock %}
     {{ videoBlock(video, heading=2, ratings=ratingsOn, feedback=feedbackOn) }}
-    {{ videoBlock(video, heading=3, description=solution.description,
-                  label={ num: 1, text: 'Main' }, close=id + '-panel',
-                  bleed='card', ratings=ratingsOn, feedback=feedbackOn) }}
+    {{ videoBlock(video, heading=3, label={ num: 1, text: 'Main' },
+                  close=id + '-panel', bleed='card', ratings=ratingsOn,
+                  feedback=feedbackOn) }}
 
   In this order, every time:
     0. the label, if the context has one: a step chip ("1 Main", "2 Extra"
@@ -18,7 +18,10 @@
        has none. A solution card's Close sits at the label's right.
     1. the title, a heading (h2 on the problem page and Start here, h3 in a
        solution card, under its section's h2), id video-<video_id>-title;
-    2. the description (data/videos.csv, or a solution's blurb, SPEC §7.2);
+    2. the description. Both are the video's own, from its row of
+       data/videos.csv, and so the same wherever the video is: no page can
+       give a video another title or description (project lead,
+       2026-11-14; SPEC §7.2);
     then the video (partials/video.njk), then one row of controls:
     3. "Audio only": a native <details> holding <audio controls
        preload="none"> (the video's own soundtrack, SPEC §9.2). First, so
@@ -57,7 +60,6 @@
   Arguments (keyword arguments, all optional after `video`):
     video        a video from `videoById` (or `introChapters`/`solutionsByTier`)
     heading      the title's heading level: 2 (default) or 3
-    description  the text under the title; default the video's description
     label        { num, text }: the step chip; none by default
     close        the id of the solution card's panel: adds "Close" at the
                  label's right, ships the header `hidden` and makes the
@@ -86,7 +88,7 @@
 {%- from "partials/rating.njk" import rating -%}
 {%- from "partials/step-chip.njk" import stepChip -%}
 {%- from "partials/video.njk" import videoEmbed -%}
-{%- macro videoBlock(video, heading=2, description='', label=none, close='', bleed='page', ratings=false, feedback=false) -%}
+{%- macro videoBlock(video, heading=2, label=none, close='', bleed='page', ratings=false, feedback=false) -%}
 {%- set h = 'h3' if heading == 3 else 'h2' -%}
 {%- set id = video.video_id -%}
 <div class="video-block">
@@ -103,7 +105,7 @@
       </div>
       {%- endif %}
       <{{ h }} class="video-block__title" id="video-{{ id }}-title"{% if close %} tabindex="-1"{% endif %}>{{ video.title }}</{{ h }}>
-      <p class="video-block__desc">{{ description or video.description }}</p>
+      <p class="video-block__desc">{{ video.description }}</p>
     </div>
     <div class="video-block__video">
       {{ videoEmbed(video, bleed=bleed) }}

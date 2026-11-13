@@ -28,9 +28,10 @@
 
   The closed card (V1, project lead, 2026-11-09) is the same on every card:
   the thumbnail band with its play disc, step chip ("1 Main" / "1 Extra")
-  and duration, then the title and the description (the solution's blurb,
-  or the video's description where it has none: `solution.description`,
-  SPEC §7.2). Nothing else: no quick "Handout" link and no rating summary.
+  and duration, then the video's title and description, the same on every
+  problem (data/videos.csv; project lead, 2026-11-14, SPEC §7.2: a solution
+  has no text of its own). Nothing else: no quick "Handout" link and no
+  rating summary.
   Below 600px it is the Problem-Phone accordion row (number disc, title,
   description, chevron).
 
@@ -79,7 +80,7 @@
   other, in either section, pausing its media, and moves focus to its title.
 
   ids (unique per page; the validator allows each video once per page):
-  solution-<video_id> on the card, plus -panel, -blurb, -length and
+  solution-<video_id> on the card, plus -panel, -description, -length and
   -worksheets, and the template's video-<video_id>-title.
 -#}
 {%- from "partials/icons.njk" import icon -%}
@@ -106,13 +107,13 @@
       <span class="solution__disc" aria-hidden="true">{{ solution.n }}</span>
       <span class="solution__text">
         <span class="solution__title">{{ video.title }}</span>
-        <span class="solution__blurb" id="{{ id }}-blurb">{{ solution.description }}</span>
+        <span class="solution__description" id="{{ id }}-description">{{ video.description }}</span>
         <span class="solution__length visually-hidden" id="{{ id }}-length">Video{% if spoken %}, {{ spoken }}{% endif %}</span>
       </span>
       <span class="solution__chevron" aria-hidden="true">{{ icon('chevron-down', 18) }}</span>
     </span></summary>
     <div class="solution__panel" id="{{ id }}-panel">
-      {{ videoBlock(video, heading=3, description=solution.description, label={ num: solution.n, text: label }, close=id + '-panel', bleed='card', ratings=ratingsOn, feedback=feedbackOn) }}
+      {{ videoBlock(video, heading=3, label={ num: solution.n, text: label }, close=id + '-panel', bleed='card', ratings=ratingsOn, feedback=feedbackOn) }}
       {%- if sheets.length %}
       <section class="worksheets" aria-labelledby="{{ id }}-worksheets">
         <h4 class="worksheets__title" id="{{ id }}-worksheets">Worksheet{{ 's' if sheets.length != 1 }}<span class="visually-hidden">: {{ video.title }}</span></h4>

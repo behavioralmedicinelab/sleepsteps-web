@@ -22,14 +22,15 @@ scripts:
   site: its title (h2) and description beside the video on wide screens,
   above it on narrow ones, then "Audio only", "Handout" and "Was this
   helpful?", with "Feedback" before the stars while features.feedback is
-  exactly true); "Is this you?", its own section directly below the video
-  (project lead, 2026-11-09; on Problem-A it sits beside the video); Main
-  solutions; "Other things that can help" (only when there are extras);
-  Related topics (only when there are some); "Back to all sleep problems";
-  then the page's YouTube note (notices/video.njk), once, last.
-  Heading outline: h1, then h2 for the problem video's title, "Is this
-  you?", each solutions section and Related topics, then h3 per solution
-  and, in an open card whose video has worksheets, an h4 over them.
+  exactly true); Main solutions; "Other things that can help" (only when
+  there are extras); Related topics (only when there are some); "Back to
+  all sleep problems"; then the page's YouTube note (notices/video.njk),
+  once, last. There is no "Is this you?" (project lead, 2026-11-14; SPEC
+  §7.2): the title, the first-person line and the problem's own video say
+  what the problem is.
+  Heading outline: h1, then h2 for the problem video's title, each
+  solutions section and Related topics, then h3 per solution and, in an
+  open card whose video has worksheets, an h4 over them.
 
   Worksheets (SPEC §7.6; project lead, 2026-11-13) belong to solution videos
   only: `solutionsByTier` gives each solution its video's rows of
@@ -40,14 +41,14 @@ scripts:
   A stand-alone problem (`standalone: true`, SPEC §7.2, §7.5) has no
   solutions: its own video, made for it, is the page's main content. The
   "On this page" chips and both solutions sections are left out (each needs
-  solutions to link to or list), so the page is the problem video, "Is this
-  you?", then Related topics, "Back to all sleep problems" and the YouTube
-  note, and content/problems/problems.11tydata.js leaves solutions.js out.
+  solutions to link to or list), so the page is the problem video, then
+  Related topics, "Back to all sleep problems" and the YouTube note, and
+  content/problems/problems.11tydata.js leaves solutions.js out.
   Each section renders from its own count, so no empty section or orphaned
   heading can appear.
 
   Front matter: SPEC §7.2 (title, statement, area, problem_video, standalone,
-  is_this_you, solutions, related). The problem file's body isn't shown.
+  solutions, related). The problem file's body isn't shown.
 
   There are no transcripts on the page (SPEC §9.3). Each video's row has
   a "Feedback" button (project lead, 2026-11-13; SPEC §13), which opens the
@@ -64,8 +65,6 @@ scripts:
 {%- set feedbackOn = site.features.feedback === true -%}
 {%- set mainCount = tiers.main.length -%}
 {%- set extraCount = tiers.extra.length -%}
-{%- set thisIsYou = is_this_you or {} -%}
-{%- set bullets = thisIsYou.bullets or [] -%}
 <div class="problem">
   <div class="problem__top">
     <nav class="breadcrumb" aria-label="Breadcrumb">
@@ -94,26 +93,6 @@ scripts:
     <div class="problem-video" id="about-this">
       {{ videoBlock(problemVideo, heading=2, ratings=ratingsOn, feedback=feedbackOn) }}
     </div>
-    {%- if thisIsYou.summary or bullets.length %}
-    <section class="is-this-you panel panel--wash" aria-labelledby="is-this-you-title">
-      <h2 class="is-this-you__title" id="is-this-you-title">Is this you?</h2>
-      {%- if thisIsYou.summary %}
-      <p class="is-this-you__summary">{{ thisIsYou.summary }}</p>
-      {%- endif %}
-      {%- if bullets.length %}
-      <p class="is-this-you__lead">This topic may help if you:</p>
-      <ul class="is-this-you__list">
-        {%- for bullet in bullets %}
-        <li>{{ bullet }}</li>
-        {%- endfor %}
-      </ul>
-      {%- endif %}
-      {%- if related and related.length %}
-      {%- set nextTopic = related[0] | problemBySlug(collections.problems) %}
-      <p class="is-this-you__next">Not quite? Try <a href="{{ nextTopic.url }}">{{ nextTopic.title }}</a>.</p>
-      {%- endif %}
-    </section>
-    {%- endif %}
   </div>
 
   {%- if mainCount %}

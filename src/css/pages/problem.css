@@ -11,13 +11,13 @@
  * `not all and (min-width: 37.5em)` so the desktop needs no resets.
  *
  * Contents
- *   1. Page and top (back link, breadcrumb, "On this page" chips)
- *   2. The problem video and "Is this you?"
- *   3. Solutions sections and grid
- *   4. Solution card: closed
- *   5. Solution card: open
- *   6. Related topics and "Back to all sleep problems"
- *   7. Motion, forced colours, print
+ *   1. Page and top (back link, breadcrumb, "On this page" chips, the
+ *      problem's own video)
+ *   2. Solutions sections and grid
+ *   3. Solution card: closed
+ *   4. Solution card: open
+ *   5. Related topics and "Back to all sleep problems"
+ *   6. Motion, forced colours, print
  */
 
 /* 1. Page and top -------------------------------------------------------- */
@@ -205,73 +205,7 @@
   }
 }
 
-/* 2. The problem video and "Is this you?" --------------------------------- */
-
-/* The problem's own video is the video template (components.css), as every
-   video is. "Is this you?" is its own section directly below it (project
-   lead, 2026-11-09; on Problem-A it sits beside the video). Shown in full
-   on phones too (the phone board shows only the summary), so nothing is
-   hidden. Its text keeps the reading measure, and the panel ends with it
-   (the measure plus its padding), as a panel of text does on the
-   information pages. */
-.is-this-you {
-  margin-top: var(--space-5);
-  padding: var(--space-5);
-  border: var(--border-width) solid transparent;
-}
-
-.is-this-you__title {
-  margin-bottom: var(--space-2);
-  font-size: var(--fs-card-title);
-  line-height: var(--lh-card-title);
-  font-weight: var(--weight-medium);
-  color: var(--ink);
-}
-
-.is-this-you__summary {
-  margin-bottom: var(--space-4);
-}
-
-.is-this-you__lead {
-  margin-bottom: var(--space-2);
-  font-weight: var(--weight-semibold);
-}
-
-.is-this-you__list {
-  padding-inline-start: var(--space-6);
-}
-
-.is-this-you__list li + li {
-  margin-top: var(--space-1);
-}
-
-.is-this-you__next {
-  margin-top: var(--space-5);
-}
-
-/* An in-sentence link with a 44px target (SPEC §7.5). */
-.is-this-you__next a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--target-min);
-}
-
-@media (min-width: 37.5em) {
-  .is-this-you {
-    max-width: calc(var(--measure) + 2 * (var(--space-7) + var(--border-width)));
-    margin-top: 0;
-    padding: var(--space-7);
-  }
-
-  /* Board 22px, snapped to the 24px title style. */
-  .is-this-you__title {
-    margin-bottom: var(--space-3);
-    font-size: var(--fs-title);
-    line-height: var(--lh-title);
-  }
-}
-
-/* 3. Solutions sections and grid ------------------------------------------- */
+/* 2. Solutions sections and grid ------------------------------------------- */
 
 .solutions {
   display: flex;
@@ -317,7 +251,7 @@
   }
 }
 
-/* 4. Solution card: closed --------------------------------------------------- */
+/* 3. Solution card: closed --------------------------------------------------- */
 
 /* The card. No overflow: hidden, which would clip the face's focus ring; the
    band rounds its own top corners instead. */
@@ -364,7 +298,7 @@ button.solution__face {
   text-align: start;
 }
 
-/* Phones: an accordion row (number disc, title and blurb, chevron). */
+/* Phones: an accordion row (number disc, title and description, chevron). */
 .solution__face-inner {
   display: flex;
   align-items: center;
@@ -407,7 +341,7 @@ button.solution__face {
   color: var(--night-teal);
 }
 
-.solution__blurb {
+.solution__description {
   color: var(--slate-grey);
 }
 
@@ -418,7 +352,7 @@ button.solution__face {
 }
 
 /* Turned on an open <details>, without JavaScript. With it, an open card's
-   face is hidden (section 5), so nothing turns. */
+   face is hidden (section 4), so nothing turns. */
 .solution__disclosure[open] > .solution__face .solution__chevron .icon {
   transform: rotate(180deg);
 }
@@ -491,7 +425,7 @@ button.solution__face {
   }
 }
 
-/* 5. Solution card: open ------------------------------------------------------ */
+/* 4. Solution card: open ------------------------------------------------------ */
 
 /* Spans the grid row with a 2px deep-teal border. `.is-open` is set by
    solutions.js; without JavaScript, an open <details> does the same (a
@@ -626,7 +560,7 @@ button.solution__face {
   overflow-wrap: anywhere;
 }
 
-/* 6. Related topics and "Back to all sleep problems" ---------------------- */
+/* 5. Related topics and "Back to all sleep problems" ---------------------- */
 
 .problem__end {
   display: flex;
@@ -752,7 +686,7 @@ button.solution__face {
   }
 }
 
-/* 7. Motion, forced colours, print -------------------------------------------- */
+/* 6. Motion, forced colours, print -------------------------------------------- */
 
 /* Only the hover shadow, the chevron turn and the open panel's fade, and
    only when motion is allowed (HANDOFF §10). */
