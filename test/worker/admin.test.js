@@ -315,6 +315,9 @@ describe('headers on every admin answer', () => {
       for (const [name, value] of Object.entries(ADMIN_HEADERS)) expect(res.headers.get(name), `${status} ${name}`).toBe(value);
       // As on the static pages (src/_headers, SPEC §16.1): no includeSubDomains, no preload.
       expect(res.headers.get('Strict-Transport-Security'), `${status} HSTS`).toBe('max-age=31536000');
+      // So a page that opened this one in a popup loses its handle on it, and
+      // can't load the summary again and again (SPEC §14.4).
+      expect(res.headers.get('Cross-Origin-Opener-Policy'), `${status} COOP`).toBe('same-origin');
       expect(res.headers.get('Content-Security-Policy')).toBe(CSP(` https://${TEAM}`));
       expect(res.headers.get('Set-Cookie')).toBeNull();
     }
