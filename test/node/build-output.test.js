@@ -5,7 +5,7 @@
 // switch is off (SPEC §11). features-off.test.js checks the shell and the CSP
 // rules on the site built with each combination of switches, and that the
 // real build matches the one with the same switches.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import { attr, pageAt, readHtmlPages, tags, text } from './helpers.js';
@@ -24,10 +24,15 @@ const EXTERNAL_URL = /^\s*(?:[a-z][a-z0-9+.-]*:|\/\/|\\\\)/i;
 // Getting urgent help and Referral info (§7.4).
 const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommons.org', 'www.cancer.org.au'];
 
+/** The file names in a content folder, without ".md": its page_ids. */
+const contentIds = (dir) => readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+const PROBLEM_IDS = contentIds('content/problems');
+
 describe('build output', () => {
   it('builds every expected page', () => {
     const files = pages.map((p) => p.file);
-    const expected = [
+    // The main pages and the required information pages (SPEC §7.4).
+    const required = [
       'index.html',
       '404.html',
       'start/index.html',
@@ -38,13 +43,18 @@ describe('build output', () => {
       'privacy/index.html',
       'urgent-help/index.html',
     ];
-    for (const file of expected) {
+    for (const file of required) {
       expect(files).toContain(file);
     }
-    const problemPages = files.filter((f) => /^problems\/[^/]+\/index\.html$/.test(f));
-    expect(problemPages).toHaveLength(36);
-    // And no other page: 9 pages and the 36 problems.
-    expect(files).toHaveLength(expected.length + problemPages.length);
+    // And no other page than one per file in content/pages/ and
+    // content/problems/, however many the team has added (SPEC §19.2).
+    const expected = [
+      ...required.slice(0, 4),
+      ...contentIds('content/pages').map((id) => `${id}/index.html`),
+      ...PROBLEM_IDS.map((id) => `problems/${id}/index.html`),
+    ];
+    expect(PROBLEM_IDS.length).toBeGreaterThan(0);
+    expect([...files].sort()).toEqual(expected.sort());
   });
 });
 
@@ -80,9 +90,11 @@ describe('the old Sleep problems page (/problems/)', () => {
     expect(targets.has('/#sleep-problems')).toBe(true);
     // Every page reaches the list: the footer's "Sleep problems" link.
     for (const { file } of pages) expect(toHome.some(([f, href]) => f === file && href === '/#sleep-problems'), file).toBe(true);
-    // Each problem page links to its own area on Home (breadcrumb and back link).
+    // Each problem page links to its own area on Home (breadcrumb and back
+    // link): one target for each area that has a problem.
     const areaLinks = [...targets].filter((href) => href !== '/#sleep-problems');
-    expect(areaLinks.length).toBe(10);
+    const areasInUse = new Set(PROBLEM_IDS.map((id) => `/#${readFileSync(`content/problems/${id}.md`, 'utf8').match(/^area: *["']?([^"'\s#]+)/m)?.[1]}`));
+    expect(areaLinks.sort()).toEqual([...areasInUse].sort());
   });
 });
 

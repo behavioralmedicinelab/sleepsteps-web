@@ -1,10 +1,16 @@
-// The areas and the 36 problem files match the handoff's content model
-// (SPEC §7.2; HANDOFF §8), and the M1b content is in place: a problem video
-// for every problem, solutions from the team's planning sheet (or none, for
-// the 13 stand-alone problems), the eight mechanism videos, the Start here
-// chapters and the problems that exercise each layout; and the worksheets of
-// the solution videos (SPEC §7.6). Full validation is in
-// validate-content.test.js.
+// The real content (data/areas.csv, content/problems/, content/start.md,
+// data/videos.csv and data/worksheets.csv) obeys the content model's rules
+// (SPEC §7.1-§7.3, §7.6).
+//
+// These check rules, never the sample values. The team may reword a title,
+// a statement or a blurb (with or without brackets), add a problem, an area,
+// a video or a worksheet, or change which solutions a problem lists (README
+// "Content editing", SPEC §19.2), and `npm test`, which Workers Builds runs
+// before every deploy, must still pass. So nothing here compares the content
+// with the wording in docs/design/HANDOFF.md, and every count comes from the
+// content itself. The handoff is read for one thing: the ids the site
+// started with, which are permanent (SPEC §7, "Identifiers"). Each rule's
+// own cases, on small fixtures, are in validate-content.test.js.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -16,83 +22,72 @@ import { validateContent } from '../../scripts/validate-content.js';
 import { listFiles } from './helpers.js';
 
 const handoff = readFileSync('docs/design/HANDOFF.md', 'utf8');
+/** The 36 problems the site started with: only their slugs are used here. */
 const handoffProblems = JSON.parse(handoff.match(/```json\n([\s\S]*?)\n```/)[1]);
 const areas = parseCsvRecords(readFileSync('data/areas.csv', 'utf8'));
 
-// The planning sheet's "Separate video" rows (SPEC §7.2): one video made for
-// the problem, and no solutions.
-const STANDALONE = [
-  'uncomfortable-sleep-environment', 'sleeping-in-hospital', 'sharing-a-bed', 'parents-of-young-children',
-  'involving-others', 'sleep-not-improving-yet', 'setbacks-and-bad-nights', 'following-sleep-advice',
-  'if-sleep-problems-return', 'dreams-and-nightmares', 'snoring', 'restless-legs', 'accepting-changes-to-my-sleep',
-];
-// The shared solution library: the eight mechanism videos (SPEC §7.1, §7.2).
+// The shared solution library the site started with: the eight mechanism
+// videos (SPEC §7.1, §7.2). Only their ids are used, as permanent ids.
 const MECHANISMS = [
   'sleep-drive', 'circadian-rhythm', 'conditioning', 'cognitive-arousal', 'physiological-arousal',
   'sleep-effort-and-control', 'treatment-symptoms-and-sleep', 'daytime-rhythms-and-sleep',
 ];
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const isText = (value) => typeof value === 'string' && value.trim() !== '';
 
-// The top-level one-line `key: value` scalars of a problem file, with strings
-// written as JSON-style double-quoted scalars (valid YAML). Nested fields
-// (is_this_you, solutions, related) and comments are skipped; the validator
-// reads those with Eleventy's own parser.
-function frontMatter(file) {
-  const block = readFileSync(file, 'utf8').match(/^---\n([\s\S]*?)\n---\n/)[1];
-  return Object.fromEntries(
-    block
-      .split('\n')
-      .map((line) => line.match(/^([a-z_]+): (\S.*)$/))
-      .filter((m) => m && !/^[[{]/.test(m[2]))
-      .map(([, key, raw]) => [
-        key,
-        raw.startsWith('"') ? JSON.parse(raw) : /^\d+$/.test(raw) ? Number(raw) : raw === 'true' ? true : raw === 'false' ? false : raw,
-      ]),
-  );
-}
-
-describe('data/areas.csv', () => {
+describe('data/areas.csv (SPEC §7.2)', () => {
   it('has the SPEC §7.2 columns', () => {
     expect(Object.keys(areas[0])).toEqual(['area_id', 'name', 'description', 'source_name', 'order']);
   });
 
-  it('has the 10 handoff areas in order 10..100', () => {
-    expect(areas.map((a) => [a.area_id, a.order])).toEqual(
-      ['core', 'day', 'clock', 'mind', 'med', 'env', 'social', 'hard', 'relapse', 'dis'].map((id, i) => [id, String((i + 1) * 10)]),
-    );
-  });
-
-  it.each(areas.map((a) => [a.area_id, a]))('%s matches the handoff name, source name and description', (id, area) => {
-    const row = handoff.match(new RegExp(`^\\| \`${id}\` \\| (.+?) \\| (.+?) \\|$`, 'm'));
-    expect([area.name, area.source_name]).toEqual([row[1], row[2]]);
-    const desc = handoff.match(new RegExp(`^\\| ${id} \\| (.+?) \\|$`, 'm'));
-    expect(area.description).toBe(desc[1]);
-  });
-});
-
-describe('content/problems', () => {
-  const files = readdirSync('content/problems').filter((f) => f.endsWith('.md'));
-
-  it('has one file per handoff problem', () => {
-    expect(files.map((f) => f.replace(/\.md$/, '')).sort()).toEqual(handoffProblems.map((p) => p.slug).sort());
-  });
-
-  it.each(handoffProblems.map((p, i) => [p.slug, p, i]))('%s matches the handoff', (slug, p) => {
-    const fm = frontMatter(`content/problems/${slug}.md`);
-    const order = handoffProblems.filter((q) => q.areaId === p.areaId).findIndex((q) => q.slug === slug) + 1;
-    expect(fm).toEqual({
-      title: p.shortTitle,
-      statement: p.statement,
-      source_title: p.sourceTitle,
-      area: p.areaId,
-      order: order * 10,
-      problem_video: `${slug}-about`,
-      ...(STANDALONE.includes(slug) ? { standalone: true } : {}),
-    });
-    expect(areas.map((a) => a.area_id)).toContain(fm.area);
+  // However many areas there are, and whatever they are called.
+  it('gives each area an id of its own (lowercase words joined by hyphens), a name and a numeric order', () => {
+    expect(areas.length).toBeGreaterThan(0);
+    const ids = areas.map((a) => a.area_id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const area of areas) {
+      expect(area.area_id).toMatch(SLUG);
+      expect(isText(area.name), area.area_id).toBe(true);
+      expect(area.order, area.area_id).toMatch(/^\d+(?:\.\d+)?$/);
+    }
   });
 });
 
-describe('M1b content (SPEC §7.1-§7.3)', () => {
+describe('content/problems (SPEC §7.2)', () => {
+  const slugs = readdirSync('content/problems').filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+  const { model } = validateContent(process.cwd());
+
+  it('names each file by its page_id: lowercase words joined by hyphens', () => {
+    expect(slugs.length).toBeGreaterThan(0);
+    for (const slug of slugs) expect(slug).toMatch(SLUG);
+    expect([...model.problems.keys()].sort()).toEqual([...slugs].sort());
+  });
+
+  // A page_id is never renamed without a redirect (SPEC §7): ratings, usage
+  // rows and links name it. More problems are fine; a problem that goes
+  // needs a rule for its address in src/_redirects (SPEC §18.2).
+  it('keeps the page_id of every problem the site started with, or redirects its address', () => {
+    const redirects = readFileSync('src/_redirects', 'utf8');
+    for (const { slug } of handoffProblems) {
+      const kept = slugs.includes(slug);
+      const redirected = new RegExp(`^/problems/${slug}/ +\\S+`, 'm').test(redirects);
+      expect(kept || redirected, `${slug}: content/problems/${slug}.md is gone, and src/_redirects has no rule for /problems/${slug}/`).toBe(true);
+    }
+  });
+
+  // The wording is the team's to change; only its shape is checked.
+  it('gives every problem a title, a statement, an area in data/areas.csv and a numeric order', () => {
+    const areaIds = areas.map((a) => a.area_id);
+    for (const [slug, { data }] of model.problems) {
+      expect(isText(data.title), `${slug}: title`).toBe(true);
+      expect(isText(data.statement), `${slug}: statement`).toBe(true);
+      expect(areaIds, `${slug}: area`).toContain(data.area);
+      expect(Number.isFinite(data.order), `${slug}: order`).toBe(true);
+    }
+  });
+});
+
+describe('the problems and Start here (SPEC §7.1-§7.3)', () => {
   const { errors, model } = validateContent(process.cwd());
   const problems = model.problems;
   const tiers = (slug) => {
@@ -105,76 +100,56 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
     expect(errors).toEqual([]);
   });
 
-  it('gives all 36 problems a problem video, "Is this you?" text and at least one main solution, or stand-alone status', () => {
-    expect(problems.size).toBe(36);
+  // A problem either lists solutions or is stand-alone, with the one video
+  // made for it (SPEC §7.2); which problems are which is the team's choice.
+  it('gives every problem a problem video in the library, and 1-3 main and 0-3 extra solutions or, stand-alone, none', () => {
     for (const [slug, { data }] of problems) {
       expect(model.videos.has(data.problem_video), slug).toBe(true);
-      expect(data.is_this_you.summary, slug).toBeTruthy();
-      expect(data.is_this_you.bullets.length, slug).toBeGreaterThanOrEqual(2);
-      if (data.standalone) expect(tiers(slug), slug).toEqual({ main: 0, extra: 0 });
-      else expect(tiers(slug).main, slug).toBeGreaterThanOrEqual(1);
+      const { main, extra } = tiers(slug);
+      if (data.standalone === true) {
+        expect({ main, extra }, slug).toEqual({ main: 0, extra: 0 });
+        continue;
+      }
+      expect(main, slug).toBeGreaterThanOrEqual(1);
+      expect(main, slug).toBeLessThanOrEqual(3);
+      expect(extra, slug).toBeLessThanOrEqual(3);
     }
   });
 
-  // The video's title is the team's to change in data/videos.csv, so it is
-  // checked only while the video is still a placeholder.
-  it('has the 13 stand-alone problems, each with no solutions and its own video, whose placeholder title names it', () => {
-    const standalone = [...problems].filter(([, { data }]) => data.standalone === true).map(([slug]) => slug);
-    expect(standalone.sort()).toEqual([...STANDALONE].sort());
-    for (const slug of STANDALONE) {
-      const { data } = problems.get(slug);
-      expect(data.solutions, slug).toBeUndefined();
-      const video = model.videos.get(data.problem_video).data;
-      if (!video.placeholder) continue;
-      expect(video.title, slug).toMatch(/^\[.+\]$/);
-      expect(video.title, slug).not.toMatch(/^\[About:/);
-    }
-  });
-
-  it('uses only the eight mechanism videos as solutions, each with a [bracketed] blurb', () => {
-    const used = new Set();
+  // Any video in the library may be a solution, and a blurb is optional
+  // text in any wording: without one the card shows the video's description.
+  it('gives every solution a video in the library, once on its page, and a blurb only as text', () => {
     for (const [slug, { data }] of problems) {
+      const onPage = [data.problem_video, ...(data.solutions ?? []).map((s) => s.video)];
+      expect(new Set(onPage).size, slug).toBe(onPage.length);
       for (const s of data.solutions ?? []) {
-        expect(MECHANISMS, `${slug}: ${s.video}`).toContain(s.video);
-        expect(s.blurb, `${slug}: ${s.video}`).toMatch(/^\[.+\]$/);
-        used.add(s.video);
+        expect(model.videos.has(s.video), `${slug}: ${s.video}`).toBe(true);
+        if (s.blurb !== undefined && s.blurb !== null) expect(isText(s.blurb), `${slug}: ${s.video}`).toBe(true);
       }
     }
-    expect([...used].sort()).toEqual([...MECHANISMS].sort());
   });
 
-  // Their wording and transcripts are the team's to change (data/videos.csv,
-  // data/transcripts/), so the brackets are checked only on placeholders.
-  it('has the eight mechanism videos in the library, each placeholder with a [bracketed] title and description', () => {
-    for (const id of MECHANISMS) {
-      const { data } = model.videos.get(id);
-      if (!data.placeholder) continue;
-      expect(data.title, id).toMatch(/^\[.+\]$/);
-      expect(data.description, id).toMatch(/^\[.+\]$/);
+  it('lists as related only other problems that exist, three at most', () => {
+    for (const [slug, { data }] of problems) {
+      const related = data.related ?? [];
+      expect(related.length, slug).toBeLessThanOrEqual(3);
+      expect(new Set(related).size, slug).toBe(related.length);
+      for (const other of related) {
+        expect(other, slug).not.toBe(slug);
+        expect(problems.has(other), `${slug}: ${other}`).toBe(true);
+      }
     }
   });
 
-  // One problem for each shape the layout handles (SPEC §7).
-  it.each([
-    ['cant-get-back-to-sleep', 3, 3],
-    ['tired-but-wired', 3, 2],
-    ['stress-and-worries', 3, 1],
-    ['sleep-timing-all-over-the-place', 3, 0],
-    ['putting-off-going-to-bed', 2, 2],
-    ['sharing-a-bed', 0, 0],
-  ])('layout sample %s has %i main and %i extra solutions', (slug, main, extra) => {
-    expect(tiers(slug)).toEqual({ main, extra });
-  });
-
-  it.each(['tired-but-wired', 'cant-get-back-to-sleep', 'pain', 'hot-flushes-and-night-sweats'])(
-    '%s has 2-3 placeholder related topics',
-    (slug) => {
-      expect(problems.get(slug).data.related.length).toBeGreaterThanOrEqual(2);
-    },
-  );
-
-  it('lists the two Start here videos in order, each with only its video (the rest is its row)', () => {
-    expect(model.start.data.chapters).toEqual([{ video: 'sleep-and-cancer' }, { video: 'how-to-use-this-program' }]);
+  // However many intro videos there are (README "Start here").
+  it('lists the Start here videos, each once and with only its video (the rest is its row)', () => {
+    const chapters = model.start.data.chapters;
+    expect(chapters.length).toBeGreaterThan(0);
+    for (const chapter of chapters) {
+      expect(Object.keys(chapter)).toEqual(['video']);
+      expect(model.videos.has(chapter.video), chapter.video).toBe(true);
+    }
+    expect(new Set(chapters.map((c) => c.video)).size).toBe(chapters.length);
   });
 });
 
@@ -205,8 +180,8 @@ describe('data/videos.csv', () => {
   });
 
   // video_ids are permanent (SPEC §7.1): ratings, events and pages.json use
-  // them. Any order, and more rows, are fine.
-  it('keeps the video_id of every intro, mechanism and problem video', () => {
+  // them. Any order, and more rows, are fine; so are other titles.
+  it('keeps the video_id of every intro, mechanism and problem video the site started with', () => {
     const ids = rows.map((r) => r.record.video_id);
     expect(ids).toEqual(expect.arrayContaining([...INTRO, ...MECHANISMS, ...problemVideos]));
     expect(new Set(ids).size).toBe(ids.length);
@@ -218,11 +193,11 @@ describe('data/videos.csv', () => {
     for (let i = 1; i < numbers.length; i += 1) expect(numbers[i]).toBeGreaterThan(numbers[i - 1]);
   });
 
-  it('marks each video without a link as a placeholder, with no YouTube ID and a [bracketed] title and description', () => {
+  // Its title and description are the team's to write at any time: the
+  // blank link is what makes a row a placeholder (README "Videos").
+  it('marks each video without a link as a placeholder, with no YouTube ID', () => {
     for (const { record } of rows.filter((r) => r.record.youtube_url === '')) {
       expect(model.videos.get(record.video_id).data, record.video_id).toMatchObject({ placeholder: true, youtube_id: '' });
-      expect(record.title, record.video_id).toMatch(/^\[.+\]$/);
-      expect(record.description, record.video_id).toMatch(/^\[.+\]$/);
     }
     // The build lists them (SPEC §20 M8 requires none).
     const placeholders = rows.filter((r) => r.record.youtube_url === '').map((r) => r.record.video_id);
@@ -475,7 +450,7 @@ describe('data/worksheets.csv after the team\'s edits', () => {
   });
 });
 
-describe('the M1b layouts', () => {
+describe('the pages that show videos', () => {
   const { model, warnings } = validateContent(process.cwd());
   // A video may be added to the spreadsheet before a page names it: the
   // build warns about it rather than failing (SPEC §7.1).
