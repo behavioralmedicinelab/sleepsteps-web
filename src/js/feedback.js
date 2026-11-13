@@ -539,7 +539,11 @@ export function init() {
     removeWidget();
     cancel.textContent = closeLabel;
     // A fresh line next time, except "Sending…", whose answer is still to come.
-    if (!state.sending) announce('');
+    // The field's invalid mark goes with the message that explained it.
+    if (!state.sending) {
+      announce('');
+      clearInvalid();
+    }
     // Back to the control that opened the dialog, unless focus has already
     // gone somewhere else on the page (browsers that don't restore focus
     // leave it on <body>).

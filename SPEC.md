@@ -600,7 +600,7 @@ Built in M5 with the project lead's decisions of 2026-11-07: A1 (the dialog show
 
   | State | Status line, and what else happens |
   |---|---|
-  | Blank message (empty once trimmed) | "Write your message before sending." The textarea gets `aria-invalid="true"`, the status line joins its `aria-describedby`, and it takes focus; the next input clears both. Nothing is sent |
+  | Blank message (empty once trimmed) | "Write your message before sending." The textarea gets `aria-invalid="true"`, the status line joins its `aria-describedby`, and it takes focus; the next input, or closing the dialog, clears both. Nothing is sent |
   | The text reaches 2,000 characters | "You've reached the 2,000-character limit.", once each time it gets there (`maxlength` cuts a long paste off silently). No live counter, which would be noisy for screen-reader users |
   | No token yet | "The spam check hasn't finished yet. Wait a moment, or complete it if it asks you to, then press Send again." Nothing is sent, then or later |
   | Sending | "Sending…". Send gets `aria-disabled="true"` (never `disabled`, which would drop focus) and the textarea is read-only. One request at a time: pressing Send again does nothing |

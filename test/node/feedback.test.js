@@ -1133,6 +1133,23 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect(said()).toEqual([]);
     });
 
+    it('drops the invalid mark with its message when the dialog closes, so the field reopens with neither', async () => {
+      await ready();
+      send().click();
+      expect(said()).toEqual([MESSAGES.EMPTY]);
+      expect(textarea().getAttribute('aria-invalid')).toBe('true');
+      expect(pressEscape(dom.document)).toBe(true);
+      await tick();
+      expect(said()).toEqual([]);
+      expect(textarea().hasAttribute('aria-invalid')).toBe(false);
+      expect(textarea().getAttribute('aria-describedby')).toBe('feedback-hint');
+      trigger().click();
+      await afterOpening();
+      expect(said()).toEqual([]);
+      expect(textarea().hasAttribute('aria-invalid')).toBe(false);
+      expect(textarea().getAttribute('aria-describedby')).toBe('feedback-hint');
+    });
+
     it('says the spam check is still running when there is no token yet', async () => {
       await open();
       trigger().click();
