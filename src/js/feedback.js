@@ -103,7 +103,7 @@
 // Never: console calls, device storage, a `sleepsteps:event`, reading the
 // address's query, or putting the message anywhere but the request body.
 
-import { SEND_FAILED, postJson, succeeded } from './api.js';
+import { REANNOUNCE_MS, SEND_FAILED, SLUG, postJson, succeeded } from './api.js';
 
 const ENDPOINT = '/api/feedback';
 const CONTACT_URL = '/contact/';
@@ -117,8 +117,8 @@ export const TEST_SITEKEY = '1x00000000000000000000AA';
 /** How long the Turnstile script may take to load before the dialog says the check isn't working. */
 export const LOAD_TIMEOUT_MS = 15000;
 
-/** The pause before a repeated message is set again, so it is announced. */
-export const REANNOUNCE_MS = 100;
+/** The pause before a repeated message is set again, so it is announced (api.js). */
+export { REANNOUNCE_MS };
 
 /** The longest message, in UTF-16 code units: the textarea's maxlength and the Worker's limit. */
 export const MAX_LENGTH = 2000;
@@ -172,7 +172,6 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const PREVIEW_HOST = /^[a-z0-9-]+-sleepsteps\.[a-z0-9-]+\.workers\.dev$/;
 // A real site key; the "<PUBLIC_SITE_KEY>" placeholder is not one.
 const SITE_KEY = /^0x[A-Za-z0-9_-]+$/;
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * The Turnstile site key for this host, or null when there is no usable one.

@@ -12,12 +12,21 @@
 // and previews), 429 and 5xx are failures like a timeout. Credentials
 // stay at fetch's default, so a preview behind Cloudflare Access keeps its
 // sign-in cookie. The widget shows SEND_FAILED on any failure.
+//
+// Also what the two widgets would otherwise each define: REANNOUNCE_MS and
+// SLUG.
 
 /** How long to wait for an answer before giving up (SPEC §11). */
 export const TIMEOUT_MS = 5000;
 
 /** The inline message for a failed send (SPEC §11), word for word. */
 export const SEND_FAILED = "Couldn't send right now — please try again later";
+
+/** The pause before a status message equal to the one shown is set again, so it is announced again (SPEC §12, §13). */
+export const REANNOUNCE_MS = 100;
+
+/** The shape of a page_id or a video_id: lowercase words joined by hyphens (SPEC §7). */
+export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Whether a status from postJson means the API accepted the request. */
 export const succeeded = (status) => Number.isInteger(status) && status >= 200 && status < 300;
