@@ -309,11 +309,12 @@ function upgradeFacade(link) {
 function setUpAudio(audio) {
   const media = audio.dataset.media;
   const fraction = () => (audio.duration > 0 ? audio.currentTime / audio.duration : 0);
-  // audio_play is reported from these listeners.
-  audio.addEventListener('play', () => {
-    pauseOthers(audio);
-    track('audio_play', media, fraction());
-  });
+  // `play` is only the request: it fires before any of the file has loaded
+  // (preload="none"), and the file may never load.
+  audio.addEventListener('play', () => pauseOthers(audio));
+  // audio_play is reported from these listeners: from `playing`, as a
+  // video's is from the PLAYING state.
+  audio.addEventListener('playing', () => track('audio_play', media, fraction()));
   // Seeking while paused fires timeupdate too, but isn't a play (SPEC §9.4:
   // reported only "if the item was played at all").
   audio.addEventListener('timeupdate', () => {

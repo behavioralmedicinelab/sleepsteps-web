@@ -437,6 +437,33 @@ describe('players.js', () => {
     expect(reported).toEqual([{ type: 'audio_play', detail: { media: 'a-talk', furthest: 75 } }]);
   });
 
+  it('reports no audio play for audio that never starts: `play` is only the request, which still pauses other media (SPEC §9.4)', async () => {
+    await load(
+      '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
+        '<audio controls preload="none" src="/media/audio/talk.mp3" data-media="a-talk"></audio>' +
+        '<audio controls preload="none" src="/media/audio/other.mp3" data-media="b-talk"></audio></main></body></html>',
+      ['players'],
+    );
+    const { document, window } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const [audio, other] = document.querySelectorAll('audio');
+    other.paused = false;
+
+    // Play is pressed, and the file then fails to load.
+    audio.paused = false;
+    audio.dispatchEvent(new Event('play'));
+    expect(other.paused).toBe(true);
+    audio.dispatchEvent(new Event('error'));
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported).toEqual([]);
+
+    // Once it does start, it is a play.
+    audio.dispatchEvent(new Event('playing'));
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported).toEqual([{ type: 'audio_play', detail: { media: 'a-talk', furthest: 0 } }]);
+  });
+
   // Two solution cards with playable videos (the site's own are placeholders,
   // SPEC §7): closing a card pauses its media (SPEC §7.5), and a video that
   // was still loading then must not start in the closed card.
