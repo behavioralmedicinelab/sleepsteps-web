@@ -80,6 +80,34 @@ describe('SiteHeader and MobileHeader', () => {
     expect(text(elementByClass(html, 'header-search__submit', 'button'))).toBe('Search');
   });
 
+  // Project lead, 2026-11-13 (SPEC §7.5, §8.1, §22): the site search is
+  // "Search this website" (the boards: "Search sleep problems"), so it isn't
+  // taken for the filter over Home's list of sleep problems.
+  it('labels both header search boxes "Search this website", on every page with the site header', () => {
+    for (const { file, html } of readHtmlPages(site)) {
+      const header = elementByClass(html, 'site-header', 'header');
+      if (file === 'urgent-help/index.html') {
+        expect(header, file).toBeUndefined();
+        continue;
+      }
+      // Desktop: a visually hidden label, and the same words as the placeholder.
+      expect(header, file).toContain('<label class="visually-hidden" for="site-q">Search this website</label>');
+      const desktop = tags(header, 'input').find((t) => attr(t, 'id') === 'site-q');
+      expect(attr(desktop, 'placeholder'), file).toBe('Search this website');
+      // Phone menu: a visible label, and the board's example as the placeholder.
+      expect(header, file).toContain('<label class="mobile-search__label" for="ph-q">Search this website</label>');
+      const phone = tags(header, 'input').find((t) => attr(t, 'id') === 'ph-q');
+      expect(attr(phone, 'placeholder'), file).toBe('e.g. waking too early');
+      expect(tags(header, 'label'), file).toHaveLength(2);
+      // The old name is nowhere on the page, in text or in an attribute.
+      expect(html, file).not.toMatch(/Search sleep problems/i);
+    }
+  });
+
+  it('gives the header search the name of the search page\'s own form', () => {
+    expect(pageAt(site, '/search/')).toContain('<label class="search-form__label" id="search-q-label" for="search-q">Search this website</label>');
+  });
+
   // Project lead, 2026-11-13 (SPEC §7.5, §22): Sleep problems is part of
   // Home, so the nav has no item for it, and the logo is the way home.
   it.each(['/', '/start/', '/problems/pain/', '/help/', '/search/', '/404.html'])('has no "Sleep problems" item in either nav on %s, and the logo links home', (url) => {

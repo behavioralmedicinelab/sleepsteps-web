@@ -18,7 +18,9 @@
   Escape-to-close.
 
   Both search forms submit GET /search/?q=... (SPEC §8.1). `data-site-search`
-  is the hook for the M2 search module.
+  is the hook for the M2 search module. They are named "Search this website"
+  (project lead, 2026-11-13; the boards: "Search sleep problems"), so nobody
+  takes them for the filter over Home's list of sleep problems.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/topic-nav.njk" import topicNav -%}
@@ -40,8 +42,8 @@
         </ul>
       </nav>
       <form class="header-search" role="search" action="/search/" method="get">
-        <label class="visually-hidden" for="site-q">Search sleep problems</label>
-        <input class="header-search__input" id="site-q" name="q" type="search" placeholder="Search sleep problems" autocomplete="off" enterkeyhint="search" data-site-search>
+        <label class="visually-hidden" for="site-q">Search this website</label>
+        <input class="header-search__input" id="site-q" name="q" type="search" placeholder="Search this website" autocomplete="off" enterkeyhint="search" data-site-search>
         <button class="header-search__submit" type="submit">{{ icon('search', 18) }}<span class="visually-hidden">Search</span></button>
       </form>
       <a class="site-header__urgent" href="/urgent-help/">Get urgent help</a>
@@ -62,7 +64,7 @@
       </summary>
       <div class="mobile-menu__panel" id="mobile-menu-panel">
         <form class="mobile-search" role="search" action="/search/" method="get">
-          <label class="mobile-search__label" for="ph-q">Search sleep problems</label>
+          <label class="mobile-search__label" for="ph-q">Search this website</label>
           <input class="mobile-search__input" id="ph-q" name="q" type="search" placeholder="e.g. waking too early" autocomplete="off" enterkeyhint="search" data-site-search>
         </form>
         <nav class="mobile-nav" aria-label="Main">

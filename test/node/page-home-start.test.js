@@ -308,10 +308,16 @@ describe('Home: the list of sleep problems (built HTML, no JavaScript)', () => {
 
   it('hides the toolbar until JavaScript runs: the filter alone, with no view toggle and no "Open all areas"', () => {
     expect(attr(tags(toolbar, 'div')[0], 'hidden')).toBe('');
-    // Not the header search's "Search sleep problems": this field only
-    // narrows the list on this page.
+    // Not "Search…", the header search's name ("Search this website"): this
+    // field only narrows the list on this page. Home has both, so each
+    // label names one field (SPEC §7.5).
     expect(toolbar).toMatch(/<label class="problems-search__label" for="problem-filter">Find a sleep problem on this page<\/label>/);
     expect(html.match(/<label[^>]*>Find a sleep problem on this page</g)).toHaveLength(1);
+    expect([...html.matchAll(/<label\b[^>]*\sfor="([^"]+)"[^>]*>([^<]*)<\/label>/g)].map((m) => [m[1], m[2]]).filter(([id]) => /-q$|^problem-filter$/.test(id))).toEqual([
+      ['site-q', 'Search this website'],
+      ['ph-q', 'Search this website'],
+      ['problem-filter', 'Find a sleep problem on this page'],
+    ]);
     const input = tags(toolbar, 'input').find((t) => attr(t, 'id') === 'problem-filter');
     expect(attr(input, 'type')).toBe('search');
     expect(attr(input, 'autocomplete')).toBe('off');
