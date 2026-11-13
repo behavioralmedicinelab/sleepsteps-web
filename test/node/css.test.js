@@ -372,6 +372,45 @@ describe('the worksheets of an open solution card (pages/problem.css)', () => {
   });
 });
 
+// Rules that could never apply, removed in review (2026-11-13). Each names
+// what would have to come back with the rule.
+describe('no stylesheet styles what no page can show', () => {
+  const sheet = (file) => sheets.find((s) => s.file === file).css;
+  const all = sheets.filter((s) => s.file !== 'admin.css');
+
+  it('has no box for placeholder copy: no template or script gives an element the class', () => {
+    for (const s of all) expect(s.css, s.file).not.toMatch(/\.placeholder\b/);
+  });
+
+  it('turns a solution card\'s chevron only where it shows: an open <details> without JavaScript', () => {
+    const css = sheet('pages/problem.css');
+    // With JavaScript an open card's face, chevron and all, is hidden.
+    expect(css).toMatch(/\n\.solution\.is-open \.solution__face-heading \{\s*display: none;\s*\}/);
+    expect(css).not.toMatch(/aria-expanded="true"\] \.solution__chevron/);
+    expect(css).toMatch(/\n\.solution__disclosure\[open\] > \.solution__face \.solution__chevron \.icon \{\s*transform: rotate\(180deg\);\s*\}/);
+    // The icon is rendered at its size (problem/solutions.njk), so no rule
+    // or token repeats it.
+    expect(readFileSync('src/_includes/problem/solutions.njk', 'utf8')).toContain("<span class=\"solution__chevron\" aria-hidden=\"true\">{{ icon('chevron-down', 18) }}</span>");
+    expect(css).not.toMatch(/\.solution__chevron \.icon \{\s*width/);
+    for (const s of sheets) expect(s.css, s.file).not.toMatch(/--icon-md/);
+  });
+
+  it('lays out nothing in the video wrapper, whose one child is the frame', () => {
+    const video = sheet('components.css').match(/\n\.video \{([^}]*)\}/)?.[1] ?? '';
+    expect(video).toMatch(/--video-inset:/);
+    expect(video).not.toMatch(/display|flex|gap/);
+  });
+
+  it('has one size of step chip, the solution cards\' 20px disc, with no modifier for it', () => {
+    const css = sheet('components.css');
+    expect(css.match(/\n\.step-chip \{([^}]*)\}/)?.[1] ?? '').toMatch(/--step-disc: 20px;[\s\S]*\n {2}gap: var\(--space-2\);/);
+    for (const s of all) expect(s.css, s.file).not.toMatch(/step-chip--sm/);
+    for (const file of ['partials/step-chip.njk', 'partials/video-block.njk', 'problem/solutions.njk']) {
+      expect(readFileSync(`src/_includes/${file}`, 'utf8'), file).not.toMatch(/variant='sm|'sm'/);
+    }
+  });
+});
+
 // Forced colours (site.css hides every settling arc: the SVG keeps its own
 // fill, a block of teal on the visitor's chosen ground).
 describe('forced colours', () => {

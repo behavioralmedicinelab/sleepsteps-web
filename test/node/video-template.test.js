@@ -251,7 +251,7 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     }
     expect([...shapes]).toEqual([
       'summary.solution__face[span.solution__face-inner[' +
-        'span.solution__band[span.play-disc.play-disc--sm,span.step-chip.step-chip--sm.step-chip--paper[span.step-chip__num,span.step-chip__label],span.duration-badge.solution__duration],' +
+        'span.solution__band[span.play-disc.play-disc--sm,span.step-chip.step-chip--paper[span.step-chip__num,span.step-chip__label],span.duration-badge.solution__duration],' +
         'span.solution__disc,' +
         'span.solution__text[span.solution__title,span.solution__blurb,span.solution__length.visually-hidden],' +
         'span.solution__chevron]]',

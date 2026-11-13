@@ -31,7 +31,6 @@ function enhance(details) {
 
   const wrapper = document.createElement('div');
   wrapper.className = details.className;
-  wrapper.dataset.enhanced = '';
 
   const setOpen = (open) => {
     button.setAttribute('aria-expanded', String(open));

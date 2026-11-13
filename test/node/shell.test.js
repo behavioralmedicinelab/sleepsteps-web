@@ -159,6 +159,13 @@ describe('SiteHeader and MobileHeader', () => {
     expect(html).toMatch(/<script type="module" src="\/js\/menu\.js"><\/script>/);
   });
 
+  // menu.js swaps the <details> for a <div> with the same classes; nothing
+  // reads a mark of its own on it.
+  it('gives the upgraded phone menu no hook that nothing reads', () => {
+    expect(readFileSync('src/js/menu.js', 'utf8')).not.toMatch(/enhanced/i);
+    for (const file of listFiles('src/css', (f) => f.endsWith('.css'))) expect(readFileSync(`src/css/${file}`, 'utf8'), file).not.toMatch(/data-enhanced/);
+  });
+
   it('uses the logo at the handoff sizes', () => {
     const html = pageAt(site, '/');
     const logos = tags(html, 'img').filter((t) => attr(t, 'src') === '/img/sleepsteps-logo.svg');

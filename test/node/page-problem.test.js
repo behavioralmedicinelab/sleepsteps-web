@@ -574,7 +574,7 @@ describe('solutionsSection with a playable video', () => {
   it('describes the card with its spoken length, and opens to the video template: header, video, row of controls', () => {
     expect(text(elementByClass(full, 'solution__length', 'span'))).toBe('Video, 6 minutes 40 seconds');
     const panel = elementByClass(full, 'solution__panel', 'div');
-    const order = ['class="video-block__header" hidden', 'class="video-block__top"', 'class="step-chip step-chip--sm"', 'class="video-block__close"', 'class="video-block__title"', 'class="video-block__desc"', 'class="video-block__video"', 'class="video-controls"'].map((c) => panel.indexOf(c));
+    const order = ['class="video-block__header" hidden', 'class="video-block__top"', 'class="step-chip"', 'class="video-block__close"', 'class="video-block__title"', 'class="video-block__desc"', 'class="video-block__video"', 'class="video-controls"'].map((c) => panel.indexOf(c));
     expect(order.every((n) => n >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(elementByClass(panel, 'video-block__title', 'h3')).toBe('<h3 class="video-block__title" id="video-full-title" tabindex="-1">Settling your body</h3>');

@@ -597,7 +597,7 @@ describe('Start here (/start/)', () => {
       // the solution cards' pill: the frame beside it shows the duration
       // (project lead, 2026-11-09). No large faint number, no eyebrow.
       expect(elementByClass(html, 'video-block__top', 'div')).toMatch(
-        new RegExp(`^<div class="video-block__top">\\s*<span class="step-chip step-chip--sm"><span class="step-chip__num">${c.n}</span> <span class="step-chip__label">of ${chapters.length}</span></span>\\s*</div>$`),
+        new RegExp(`^<div class="video-block__top">\\s*<span class="step-chip"><span class="step-chip__num">${c.n}</span> <span class="step-chip__label">of ${chapters.length}</span></span>\\s*</div>$`),
       );
       expect(html).not.toMatch(/start-chapter__(num|eyebrow|desc|head)|video-block__close/);
       expect(tags(html, 'div').find((t) => /video-block__header/.test(t))).toBe('<div class="video-block__header">');

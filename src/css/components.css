@@ -28,9 +28,6 @@
      phones, 14px -> 16px from 600px), the same on every frame. */
   --video-inset: var(--space-4);
   --disc: var(--play-disc-phone);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
 /* The 16:9 frame. A grid, so the error message (in the flow) fills it and
@@ -483,10 +480,10 @@ button.format-button {
 /* 3. Step chip ---------------------------------------------------------------- */
 
 .step-chip {
-  --step-disc: 24px; /* non-token: the boards' disc (20px on solution cards) */
+  --step-disc: 20px; /* non-token: the boards' disc on solution cards */
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-4) var(--space-1) var(--space-1);
   border: var(--border-width) solid transparent;
   border-radius: var(--radius-pill);
@@ -510,11 +507,6 @@ button.format-button {
   color: var(--paper);
   font-size: var(--fs-eyebrow);
   line-height: 1;
-}
-
-.step-chip--sm {
-  --step-disc: 20px;
-  gap: var(--space-2);
 }
 
 /* On a coloured band (a solution card's thumbnail band). */

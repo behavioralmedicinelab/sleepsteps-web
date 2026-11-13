@@ -95,7 +95,7 @@
       {%- if label or close %}
       <div class="video-block__top">
         {%- if label %}
-        {{ stepChip(label.num, label.text, variant='sm') }}
+        {{ stepChip(label.num, label.text) }}
         {%- endif %}
         {%- if close %}
         <button type="button" class="video-block__close" aria-expanded="true" aria-controls="{{ close }}">Close<span class="visually-hidden"> {{ video.title }}</span></button>

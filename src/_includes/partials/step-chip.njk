@@ -4,14 +4,14 @@
   label ("1 of 2" on Start here).
 
     {% from "partials/step-chip.njk" import stepChip %}
-    {{ stepChip(2, 'Main', variant='sm paper') }}
+    {{ stepChip(2, 'Main', variant='paper') }}
 
   Arguments:
     num       the number in the disc
     label     the text after it
-    variant   space-separated modifiers: 'sm' (20px disc, for solution
-              cards), 'paper' (paper ground, for a chip on a coloured band).
-              Default: teal-wash ground, 24px disc
+    variant   'paper': a paper ground, for a chip on a coloured band.
+              Default: the teal-wash ground. Every chip has the solution
+              cards' 20px disc
 -#}
 {%- macro stepChip(num, label, variant='') -%}
 <span class="step-chip{% for v in variant.split(' ') %}{% if v %} step-chip--{{ v }}{% endif %}{% endfor %}"><span class="step-chip__num">{{ num }}</span> <span class="step-chip__label">{{ label }}</span></span>

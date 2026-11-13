@@ -100,7 +100,7 @@
       <span class="solution__band" aria-hidden="true">
         {%- if video.thumbnail %}<img class="solution__thumb" src="/media/thumbs/{{ video.thumbnail }}" alt="" width="1280" height="720" loading="lazy" decoding="async">{% endif %}
         <span class="play-disc play-disc--sm">{{ icon('play', 20) }}</span>
-        {{ stepChip(solution.n, label, variant='sm paper') }}
+        {{ stepChip(solution.n, label, variant='paper') }}
         <span class="duration-badge solution__duration">{{ video.duration }}</span>
       </span>
       <span class="solution__disc" aria-hidden="true">{{ solution.n }}</span>

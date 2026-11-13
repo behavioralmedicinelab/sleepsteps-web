@@ -188,7 +188,7 @@ describe('videoBlock (the video template, SPEC §7.5, §9.2, §9.3, §12)', () =
 
     const card = render("{{ videoBlock(v, heading=3, label={ num: 1, text: 'Main' }, close='solution-bare-panel', bleed='card') }}", { v: video('bare') });
     expect(tags(card, 'div')).toContain('<div class="video-block__header" hidden>');
-    expect(children(elementByClass(card, 'video-block__top', 'div'))).toEqual(['span.step-chip step-chip--sm', 'button.video-block__close']);
+    expect(children(elementByClass(card, 'video-block__top', 'div'))).toEqual(['span.step-chip', 'button.video-block__close']);
     expect(tags(card, 'button')).toEqual(['<button type="button" class="video-block__close" aria-expanded="true" aria-controls="solution-bare-panel">']);
     expect(text(elementByClass(card, 'video-block__close', 'button'))).toBe('Close Bare');
     // The title is where solutions.js moves focus when the card opens.
@@ -295,9 +295,9 @@ describe('videoBlock (the video template, SPEC §7.5, §9.2, §9.3, §12)', () =
 });
 
 describe('stepChip', () => {
-  it('renders a step chip: a numbered disc and its label, with its variants as classes', () => {
-    expect(render("{{ stepChip(2, 'Main', variant='sm paper') }}")).toBe(
-      '<span class="step-chip step-chip--sm step-chip--paper"><span class="step-chip__num">2</span> <span class="step-chip__label">Main</span></span>',
+  it('renders a step chip: a numbered disc and its label, with its variant as a class', () => {
+    expect(render("{{ stepChip(2, 'Main', variant='paper') }}")).toBe(
+      '<span class="step-chip step-chip--paper"><span class="step-chip__num">2</span> <span class="step-chip__label">Main</span></span>',
     );
     expect(render("{{ stepChip(1, 'of 2') }}")).toBe(
       '<span class="step-chip"><span class="step-chip__num">1</span> <span class="step-chip__label">of 2</span></span>',

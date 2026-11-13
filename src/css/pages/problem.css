@@ -417,12 +417,8 @@ button.solution__face {
   color: var(--deep-teal);
 }
 
-.solution__chevron .icon {
-  width: var(--icon-md);
-  height: var(--icon-md);
-}
-
-.solution__face[aria-expanded="true"] .solution__chevron .icon,
+/* Turned on an open <details>, without JavaScript. With it, an open card's
+   face is hidden (section 5), so nothing turns. */
 .solution__disclosure[open] > .solution__face .solution__chevron .icon {
   transform: rotate(180deg);
 }

@@ -176,15 +176,6 @@ a:hover {
   color: var(--deep-teal);
 }
 
-/* Placeholder copy awaiting content or a later milestone. */
-.placeholder {
-  padding: var(--space-5) var(--space-6);
-  border: var(--border-width) dashed var(--slate-grey);
-  border-radius: var(--radius-md);
-  background: var(--white);
-  color: var(--slate-grey);
-}
-
 .link-list {
   display: flex;
   flex-wrap: wrap;
