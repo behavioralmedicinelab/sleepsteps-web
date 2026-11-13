@@ -49,8 +49,10 @@ function sampleResults() {
     zeroSearches: [{ q: 'insomnia pills', n: 9, ...ids(8) }, { q: 'melatonin', n: 2, ...ids(9) }],
     feedbackCount: [{ n: 3, ...ids(10) }],
     recentFeedback: [
-      { ts: '2026-11-01T03:00:00.000Z', page: 'pain', message: 'a\n\n\tb', ...ids(11) },
-      { ts: '2026-10-20T22:00:00.000Z', page: 'start', message: 'Thanks', ...ids(12) },
+      { ts: '2026-11-01T03:00:00.000Z', page: 'pain', video: null, message: 'a\n\n\tb', ...ids(11) },
+      // About a video (migration 0003), sent from that video's "Feedback" button.
+      { ts: '2026-10-20T22:00:00.000Z', page: 'start', video: 'how-sleep-works', message: 'Thanks', ...ids(12) },
+      // A row as the code before 0003 read it: no video key at all.
       { ts: '2026-10-19T08:00:00.000Z', page: 'old-slug', message: 'Gone', ...ids(16) },
     ],
     plays: [
@@ -339,13 +341,17 @@ describe('the summary page with data', () => {
     expect(textOf(section.querySelector('caption'))).toBe('Searches with no results');
   });
 
-  it('shows feedback newest first, by the page\'s current title and its id (the id alone for a page no longer on the site), with the hour in UTC', () => {
+  it('shows feedback newest first, by the page\'s current title and its id (the id alone for a page no longer on the site), then its video\'s id if it has one, with the hour in UTC', () => {
     const items = all(doc, '.feedback-item');
     expect(items.map((li) => textOf(li.querySelector('h3')))).toEqual([
       'Pain (pain), 1 Nov 2026, 03:00 to 04:00 UTC',
-      'Start here (start), 20 Oct 2026, 22:00 to 23:00 UTC',
+      'Start here (start), video how-sleep-works, 20 Oct 2026, 22:00 to 23:00 UTC',
       'old-slug (no longer on the site), 19 Oct 2026, 08:00 to 09:00 UTC',
     ]);
+    // The video by its id, as every video on this page is; none for a message without one.
+    expect(items.map((li) => li.querySelector('.feedback-item__video') && textOf(li.querySelector('.feedback-item__video')))).toEqual([null, 'how-sleep-works', null]);
+    expect(items[1].querySelector('.feedback-item__video').className).toBe('feedback-item__video video-id');
+    expect(summaryModel(sampleResults(), INDEX).feedback.recent.map((r) => r.video)).toEqual([null, 'how-sleep-works', null]);
     expect(items.map((li) => textOf(li.querySelector('.feedback-item__page')))).toEqual(['Pain', 'Start here', 'old-slug']);
     expect(items.map((li) => li.querySelector('.feedback-item__page-id') && textOf(li.querySelector('.feedback-item__page-id')))).toEqual(['(pain)', '(start)', null]);
     expect(items[0].querySelector('time').getAttribute('datetime')).toBe('2026-11-01T03:00:00.000Z');
@@ -488,8 +494,9 @@ describe('escaping', () => {
       searchTotals: [{ searches: texts.length, zero: texts.length }],
       zeroSearches: texts.map((text) => ({ q: text, n: 1 })),
       feedbackCount: [{ n: texts.length }],
-      // A page no longer on the site shows by its stored id, so the id is hostile too.
-      recentFeedback: texts.map((text) => ({ ts: '2026-11-01T03:00:00.000Z', page: text, message: text })),
+      // A page no longer on the site shows by its stored id, so the id is
+      // hostile too, and so is a stored video, shown as it is.
+      recentFeedback: texts.map((text) => ({ ts: '2026-11-01T03:00:00.000Z', page: text, video: text, message: text })),
       plays: texts.map((text) => ({ type: 'video_play', media: text, plays: 1, f0: 1, f25: 0, f50: 0, f75: 0, f100: 0 })),
       handouts: texts.map((text) => ({ media: text, clicks: 1, visits: 1 })),
     };
@@ -513,6 +520,7 @@ describe('escaping', () => {
   it('gives the stored text back exactly when the HTML is read', () => {
     const doc = parseHtml(dirty);
     expect(all(doc, '.feedback-item__message').map((b) => b.textContent)).toEqual(PAYLOADS);
+    expect(all(doc, '.feedback-item__video').map((span) => span.textContent)).toEqual(PAYLOADS);
     expect(all(doc, '.search-text').map((th) => th.textContent)).toEqual(PAYLOADS);
   });
 

@@ -16,7 +16,7 @@ collect:
   - feature: ratings
     text: "Star ratings you give a video"
   - feature: feedback
-    text: "Written feedback, if you choose to send it, and the page you sent it from"
+    text: "Written feedback, if you choose to send it, and the page you sent it from. If you use the Feedback button under a video, we also store which video it is about"
   - feature: events
     text: "Words you type into the site search. We store these without the code that groups your visit"
   - feature: events

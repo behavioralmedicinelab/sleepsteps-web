@@ -129,9 +129,10 @@ export function searchIndex({ problems = [], videos = [], transcripts = new Map(
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // The attributes that name a video in the HTML, each holding its video_id:
 // the facade (data-video), the handout links (data-handout), the
-// audio-only player (data-media), SPEC §9.4, and the ratings widget
-// (data-rating), SPEC §12.
-const VIDEO_ATTRIBUTES = /\sdata-(?:video|handout|media|rating)="([^"]*)"/g;
+// audio-only player (data-media), SPEC §9.4, the ratings widget
+// (data-rating), SPEC §12, and a video's "Feedback" button
+// (data-feedback-video), SPEC §13.
+const VIDEO_ATTRIBUTES = /\sdata-(?:video|handout|media|rating|feedback-video)="([^"]*)"/g;
 
 /** The value of an attribute in an opening tag, or undefined if it isn't there. */
 function attribute(tag, name) {

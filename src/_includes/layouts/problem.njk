@@ -21,7 +21,8 @@ scripts:
   (the video template, partials/video-block.njk, as every video on the
   site: its title (h2) and description beside the video on wide screens,
   above it on narrow ones, then "Audio only", "Handout" and "Was this
-  helpful?"); "Is this you?", its own section directly below the video
+  helpful?", with "Feedback" before the stars while features.feedback is
+  exactly true); "Is this you?", its own section directly below the video
   (project lead, 2026-11-09; on Problem-A it sits beside the video); Main
   solutions; "Other things that can help" (only when there are extras);
   Related topics (only when there are some); "Back to all sleep problems";
@@ -41,8 +42,9 @@ scripts:
   Front matter: SPEC §7.2 (title, statement, area, problem_video, standalone,
   is_this_you, solutions, related). The problem file's body isn't shown.
 
-  There are no transcripts on the page (SPEC §9.3) and no per-video
-  feedback (SPEC §13): the footer's "Send feedback" is the only route.
+  There are no transcripts on the page (SPEC §9.3). Each video's row has
+  a "Feedback" button (project lead, 2026-11-13; SPEC §13), which opens the
+  same dialog as the footer's "Send feedback"; there is no form on the page.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 {%- from "notices/video.njk" import youtubeNote -%}
@@ -52,6 +54,7 @@ scripts:
 {%- set problemVideo = problem_video | videoById(videos) -%}
 {%- set tiers = solutions | solutionsByTier(videos) -%}
 {%- set ratingsOn = site.features.ratings === true -%}
+{%- set feedbackOn = site.features.feedback === true -%}
 {%- set mainCount = tiers.main.length -%}
 {%- set extraCount = tiers.extra.length -%}
 {%- set thisIsYou = is_this_you or {} -%}
@@ -82,7 +85,7 @@ scripts:
     </nav>
     {%- endif %}
     <div class="problem-video" id="about-this">
-      {{ videoBlock(problemVideo, heading=2, ratings=ratingsOn) }}
+      {{ videoBlock(problemVideo, heading=2, ratings=ratingsOn, feedback=feedbackOn) }}
     </div>
     {%- if thisIsYou.summary or bullets.length %}
     <section class="is-this-you panel panel--wash" aria-labelledby="is-this-you-title">
@@ -108,12 +111,12 @@ scripts:
 
   {%- if mainCount %}
 
-  {{ solutionsSection('main', tiers.main, page_id, ratingsOn) }}
+  {{ solutionsSection('main', tiers.main, page_id, ratingsOn, feedbackOn) }}
   {%- endif %}
 
   {%- if extraCount %}
 
-  {{ solutionsSection('extra', tiers.extra, page_id, ratingsOn) }}
+  {{ solutionsSection('extra', tiers.extra, page_id, ratingsOn, feedbackOn) }}
   {%- endif %}
 
   <div class="problem__end">

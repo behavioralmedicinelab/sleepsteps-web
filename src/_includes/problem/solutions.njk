@@ -5,10 +5,11 @@
     {% from "problem/solutions.njk" import solutionsSection %}
     {% set tiers = solutions | solutionsByTier(videos) %}
     {% set ratingsOn = site.features.ratings === true %}
-    {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, page_id, ratingsOn) }}{% endif %}
-    {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, page_id, ratingsOn) }}{% endif %}
+    {% set feedbackOn = site.features.feedback === true %}
+    {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, page_id, ratingsOn, feedbackOn) }}{% endif %}
+    {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, page_id, ratingsOn, feedbackOn) }}{% endif %}
 
-  solutionsSection(tier, items, pageId, ratings)
+  solutionsSection(tier, items, pageId, ratings, feedback)
     tier     'main' ("Main solutions", #main-solutions) or 'extra' ("Other
              things that can help", #more-solutions). The page omits a
              section with no items: the extra one when there are no extras,
@@ -20,8 +21,12 @@
     ratings  exactly true (the layout passes site.features.ratings ===
              true): each open card's row of controls ends with the ratings
              widget (SPEC §12, partials/rating.njk)
+    feedback exactly true (the layout passes site.features.feedback ===
+             true): each open card's row of controls has the video's
+             "Feedback" button (SPEC §13)
 
-  solutionCard(solution, pageId, ratings): one card, an <li> in the grid.
+  solutionCard(solution, pageId, ratings, feedback): one card, an <li> in
+  the grid.
 
   The closed card (V1, project lead, 2026-11-09) is the same on every card:
   the thumbnail band with its play disc, step chip ("1 Main" / "1 Extra")
@@ -33,8 +38,8 @@
 
   The open card is the video template (partials/video-block.njk), as every
   video on the site is: the step chip with Close at its right, the title
-  (h3) and the description, the video, then "Audio only", "Handout" and
-  "Was this helpful?".
+  (h3) and the description, the video, then "Audio only", "Handout",
+  "Feedback" and "Was this helpful?".
 
   Without JavaScript each card is a native <details name="solution">: the
   <summary> is the closed card, and opening it shows the video and its row
@@ -61,12 +66,13 @@
 {%- from "partials/step-chip.njk" import stepChip -%}
 {%- from "partials/video-block.njk" import videoBlock -%}
 
-{%- macro solutionCard(solution, pageId, ratings=false) -%}
+{%- macro solutionCard(solution, pageId, ratings=false, feedback=false) -%}
 {%- set video = solution.video -%}
 {%- set id = 'solution-' + video.video_id -%}
 {%- set label = 'Main' if solution.tier == 'main' else 'Extra' -%}
 {%- set spoken = video.duration | spokenDuration -%}
 {%- set ratingsOn = ratings === true -%}
+{%- set feedbackOn = feedback === true -%}
 <li class="solution solution--{{ solution.tier }}" id="{{ id }}">
   <details class="solution__disclosure" name="solution">
     <summary class="solution__face"><span class="solution__face-inner">
@@ -85,13 +91,13 @@
       <span class="solution__chevron" aria-hidden="true">{{ icon('chevron-down', 18) }}</span>
     </span></summary>
     <div class="solution__panel" id="{{ id }}-panel">
-      {{ videoBlock(video, heading=3, description=solution.description, label={ num: solution.n, text: label }, close=id + '-panel', bleed='card', ratings=ratingsOn) }}
+      {{ videoBlock(video, heading=3, description=solution.description, label={ num: solution.n, text: label }, close=id + '-panel', bleed='card', ratings=ratingsOn, feedback=feedbackOn) }}
     </div>
   </details>
 </li>
 {%- endmacro -%}
 
-{%- macro solutionsSection(tier, items, pageId, ratings=false) -%}
+{%- macro solutionsSection(tier, items, pageId, ratings=false, feedback=false) -%}
 {%- if items and items.length -%}
 {%- if tier == 'main' -%}
   {%- set sectionId = 'main-solutions' -%}
@@ -114,7 +120,7 @@
   </div>
   <ol class="solution-grid" role="list">
     {%- for solution in items %}
-    {{ solutionCard(solution, pageId, ratings) }}
+    {{ solutionCard(solution, pageId, ratings, feedback) }}
     {%- endfor %}
   </ol>
 </section>

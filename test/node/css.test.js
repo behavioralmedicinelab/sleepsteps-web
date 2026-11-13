@@ -192,6 +192,33 @@ describe('the row of controls under each video (components.css)', () => {
     }
   });
 
+  // A video's "Feedback" button (SPEC §7.5, §13): a <button> with the
+  // handout link's class, so one rule gives both their look; the button's
+  // own rule only undoes what a browser adds to a <button>.
+  it('gives a video\'s "Feedback" button the handout link\'s look, and keeps it hidden until feedback.js shows it', () => {
+    const siteCss = sheets.find((s) => s.file === 'site.css').css;
+    // `hidden` wins over the class's display, in whatever order the sheets load.
+    expect(rule('.format-button')).toMatch(/display: inline-flex;/);
+    expect(siteCss).toMatch(/(?:^|\n)\[hidden\] \{\s*display: none !important;\s*\}/);
+    for (const s of sheets) expect(s.css, s.file).not.toMatch(/\.format-button\[hidden\]|\[data-feedback-video\]/);
+    // One look: 48px tall on phones and 44px from 600px, outlined in deep-teal on white.
+    expect(rule('.format-button')).toMatch(/min-height: var\(--target-lg\);[\s\S]*border: var\(--border-width\) solid var\(--deep-teal\);[\s\S]*background: var\(--white\);[\s\S]*color: var\(--deep-teal\);/);
+    expect(css).toMatch(/@media \(min-width: 37\.5em\) \{\s*\.format-button \{\s*min-height: var\(--target-min\);/);
+    // The button adds no size, colour or font of its own (site.css's base rule gives every button the page's font).
+    expect(rule('button.format-button').replace(/\s+/g, ' ').trim()).toBe('margin: 0; cursor: pointer;');
+    expect(siteCss).toMatch(/(?:^|\n)button,\ninput,\nselect,\ntextarea \{\s*font: inherit;\s*\}/);
+    // And it hovers as the handout link does.
+    expect(css).toMatch(/a\.format-button:hover,\nbutton\.format-button:hover,\n\.format-disclosure__toggle:hover > \.format-button \{\s*background: var\(--teal-wash\);\s*color: var\(--deep-teal\);\s*\}/);
+  });
+
+  it('shows the dialog\'s line for a video under its heading, and nothing while it is hidden (site.css)', () => {
+    const siteCss = sheets.find((s) => s.file === 'site.css').css;
+    const about = siteCss.match(/(?:^|\n)\.feedback__about \{([^}]*)\}/)?.[1] ?? '';
+    expect(about.replace(/\s+/g, ' ').trim()).toBe('margin-top: var(--space-2); font-weight: var(--weight-semibold); overflow-wrap: break-word;');
+    // No display of its own, so `hidden` hides it even without the !important rule.
+    expect(about).not.toMatch(/display/);
+  });
+
   it('makes the rating\'s fieldset and status line items of the row, the status line on a line of its own', () => {
     expect(rule('.rating')).toMatch(/display: contents;/);
     expect(rule('.rating__status-box')).toMatch(/flex: 1 1 100%;/);

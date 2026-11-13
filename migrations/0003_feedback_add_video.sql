@@ -1,0 +1,15 @@
+-- Migration number: 0003 	 2026-11-13T00:00:00.000Z
+-- Feedback stores which video a message is about, when the dialog was opened
+-- from a video's "Feedback" button (project lead's decision, 2026-11-13,
+-- SPEC §13, §17, §22). Messages sent from the footer's "Send feedback" store
+-- NULL, and so do the rows stored before this migration. Never edit this file
+-- once it has been applied to a remote database: change the schema with a new
+-- migration.
+--
+-- A plain nullable column with no default and no index: SQLite adds it
+-- without rewriting a row, and every row and its other columns are kept. Code
+-- from before this migration names its columns (INSERT INTO feedback (ts,
+-- page, message), SELECT ts, page, message), so it keeps working once this
+-- has been applied; code from this change on needs the column, so apply this
+-- first (SPEC §17).
+ALTER TABLE feedback ADD COLUMN video TEXT;

@@ -11,10 +11,25 @@
 // swaps the link for a <button> of the same look (no layout shift) and
 // unhides the dialog, which stays closed until the button is pressed.
 //
+// Each video also has a "Feedback" button in its row of controls
+// (partials/video-block.njk; project lead, 2026-11-13), which opens the
+// same dialog about that video. The buttons ship `hidden`, since they need
+// this module, which shows each one once it opens the dialog; a button that
+// can't name its video (no video_id, or no title heading on the page) stays
+// hidden. Opened from one, the dialog says "About the video: <title>" in
+// the line under its heading (the title is the text of the video's heading,
+// id video-<video_id>-title, set with textContent), and that line is read
+// with the notice as the dialog's description. Opened from the footer, the
+// line is emptied as well as hidden: a description is read even from a
+// hidden element. Only that line, and the video sent, differ: the draft, the
+// status line and a request in flight are the dialog's, whichever control
+// opened it.
+//
 // Opening: showModal(), then focus on the dialog's heading (not the first
 // field, which on phones would raise the keyboard over the notice). The
 // notice is the dialog's description. Escape, Cancel or Close close it,
-// keep the draft in memory (never stored) and return focus to the button.
+// keep the draft in memory (never stored) and return focus to the control
+// that opened it.
 // Escape does nothing while focus is inside Turnstile's frame, whose key
 // presses never reach this page (another origin); Tab leaves the frame, and
 // Escape works from there.
@@ -39,7 +54,10 @@
 // Closing the dialog clears the status line, except "Sending…".
 //
 // Sending: POST /api/feedback { page_id, message, turnstile_token } through
-// api.js, exactly those keys; the Worker cleans and checks the message.
+// api.js, exactly those keys, or, when the dialog was opened from a video's
+// button, { page_id, video_id, message, turnstile_token }: the video the
+// dialog is about when Send is pressed. The Worker cleans and checks the
+// message, and that the video is one of the page's.
 // One request at a time. Send sends nothing, and says why, when the message
 // is blank, the spam check failed or its token hasn't arrived. While
 // sending, Send is aria-disabled (never disabled, which would drop focus)
@@ -143,6 +161,8 @@ export const MESSAGES = Object.freeze({
   CONTACT: Object.freeze(['You can also ', 'contact the team', " by email or phone, but that isn't anonymous."]),
   CANCEL: 'Cancel',
   CLOSE: 'Close',
+  // The line under the heading when a video's button opened the dialog: this, then the video's title.
+  ABOUT: 'About the video: ',
 });
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -198,7 +218,7 @@ export function renderOptions(sitekey, size, on) {
   };
 }
 
-/** Set up the dialog. Returns true when the footer button now opens it. */
+/** Set up the dialog. Returns true when the footer button, and each video's, now opens it. */
 export function init() {
   const pageId = document.body?.getAttribute('data-page-id') ?? '';
   if (!SLUG.test(pageId)) return false;
@@ -207,13 +227,14 @@ export function init() {
   if (!link || !dialog || typeof dialog.showModal !== 'function' || typeof dialog.close !== 'function') return false;
   const form = dialog.querySelector('form');
   const title = dialog.querySelector('[tabindex="-1"]');
+  const about = dialog.querySelector('[data-feedback-about]');
   const field = dialog.querySelector('[data-feedback-field]');
   const textarea = dialog.querySelector('textarea');
   const check = dialog.querySelector('[data-feedback-check]');
   const sendButton = dialog.querySelector('[data-feedback-send]');
   const cancel = dialog.querySelector('[data-feedback-cancel]');
   const status = dialog.querySelector('[data-feedback-status]');
-  if (!form || !title || !field || !textarea || !check || !sendButton || !cancel || !status || !status.id) return false;
+  if (!form || !title || !about || !field || !textarea || !check || !sendButton || !cancel || !status || !status.id) return false;
 
   const sitekey = chooseSitekey(window.location?.hostname, dialog.getAttribute('data-sitekey'));
   const hint = textarea.getAttribute('aria-describedby') ?? '';
@@ -235,6 +256,8 @@ export function init() {
     announceTimer: undefined,
     viewport: null, // the visual viewport followed while the dialog is open
     fit: null, // the visible area the dialog is fitted to, { top, height }, or null
+    opener: null, // the control that opened the dialog, which gets focus back when it closes
+    video: null, // the video_id the dialog is about; null when the footer opened it
   };
 
   // ---- The status line ----------------------------------------------------
@@ -473,8 +496,17 @@ export function init() {
 
   // ---- Opening and closing ----------------------------------------------------
 
-  function open() {
+  /**
+   * Open the dialog from `opener`: the footer's button, or a video's
+   * "Feedback" button, with its `video` ({ id, title }). The line under the
+   * heading names that video, and is emptied and hidden without one.
+   */
+  function open(opener, video = null) {
     if (dialog.open) return;
+    state.opener = opener;
+    state.video = video ? video.id : null;
+    about.textContent = video ? `${MESSAGES.ABOUT}${video.title}` : '';
+    about.hidden = !video;
     try {
       dialog.showModal();
     } catch {
@@ -503,11 +535,12 @@ export function init() {
     cancel.textContent = closeLabel;
     // A fresh line next time, except "Sending…", whose answer is still to come.
     if (!state.sending) announce('');
-    // Back to the footer button, unless focus has already gone somewhere else
-    // on the page (browsers that don't restore focus leave it on <body>).
+    // Back to the control that opened the dialog, unless focus has already
+    // gone somewhere else on the page (browsers that don't restore focus
+    // leave it on <body>).
     const active = document.activeElement;
     const elsewhere = active && active !== document.body && active.isConnected && !dialog.contains(active);
-    if (!elsewhere) trigger.focus();
+    if (!elsewhere) (state.opener?.isConnected ? state.opener : trigger).focus();
   }
 
   // ---- Sending ----------------------------------------------------------------
@@ -539,13 +572,19 @@ export function init() {
 
     const token = state.token;
     const widget = state.widget;
+    // The video the dialog is about as Send is pressed: opening it from
+    // another control before the answer comes changes nothing that was sent.
+    const video = state.video;
     state.token = null; // single use
     state.sending = true;
     sendButton.setAttribute('aria-disabled', 'true');
     textarea.readOnly = true;
     announce('sending', reveal);
 
-    const answer = await postJson(ENDPOINT, { page_id: pageId, message, turnstile_token: token });
+    const answer = await postJson(
+      ENDPOINT,
+      video === null ? { page_id: pageId, message, turnstile_token: token } : { page_id: pageId, video_id: video, message, turnstile_token: token },
+    );
 
     state.sending = false;
     sendButton.removeAttribute('aria-disabled');
@@ -579,7 +618,7 @@ export function init() {
   trigger.setAttribute('data-feedback-trigger', '');
   trigger.textContent = link.textContent;
 
-  trigger.addEventListener('click', open);
+  trigger.addEventListener('click', () => open(trigger));
   cancel.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', onClose);
   form.addEventListener('submit', (event) => {
@@ -613,6 +652,16 @@ export function init() {
   const hadFocus = document.activeElement === link;
   link.replaceWith(trigger);
   if (hadFocus) trigger.focus();
+  // Each video's "Feedback" button: shown now that it can open the dialog.
+  // One that can't name its video stays hidden.
+  for (const button of document.querySelectorAll('button[data-feedback-trigger][data-feedback-video]')) {
+    const id = button.getAttribute('data-feedback-video') ?? '';
+    const name = SLUG.test(id) ? (document.getElementById(`video-${id}-title`)?.textContent ?? '').trim() : '';
+    if (!name) continue;
+    const video = Object.freeze({ id, title: name });
+    button.addEventListener('click', () => open(button, video));
+    button.hidden = false;
+  }
   return true;
 }
 

@@ -647,10 +647,12 @@ describe('Start here (/start/)', () => {
     expect(main).not.toMatch(/data-transcript|transcript__|notice-text">Ratings/);
   });
 
-  it('has one ratings widget per chapter while ratings are on, and no per-video feedback', () => {
+  it('has one ratings widget and one "Feedback" button per chapter while they are on, and no feedback link or form of its own', () => {
     const content = elementByClass(main, 'start-flow', 'div');
     expect(links(content).filter((l) => /feedback/i.test(l.name))).toEqual([]);
     expect(content).not.toMatch(/<textarea|<form\b/);
+    // Each chapter's row has the button that opens the dialog about its video (SPEC §13).
+    expect([...content.matchAll(/<button type="button" class="format-button" data-feedback-trigger data-feedback-video="([^"]+)" hidden>/g)].map((m) => m[1])).toEqual(chapters.map((c) => c.video));
     expect(tags(content, 'fieldset')).toHaveLength(chapters.length);
     expect([...content.matchAll(/\sdata-rating="([^"]+)"/g)].map((m) => m[1])).toEqual(chapters.map((c) => c.video));
   });

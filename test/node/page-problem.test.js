@@ -258,9 +258,15 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     expect(main.lastIndexOf('problem__all')).toBeGreaterThan(main.lastIndexOf('solution-grid'));
   });
 
-  it('has no per-video feedback links or forms (the footer is the only route, SPEC §13)', () => {
-    expect(text(main)).not.toMatch(/feedback/i);
-    expect(main).not.toMatch(/<(form|textarea)\b/);
+  it('has one "Feedback" button per video and no feedback link or form of its own (the dialog and the footer\'s "Send feedback" are base.njk\'s, SPEC §13)', () => {
+    // Each video's row has the button (project lead, 2026-11-13), hidden
+    // until feedback.js runs; video-template.test.js checks its markup.
+    const buttons = tags(main, 'button').filter((t) => attr(t, 'data-feedback-trigger') !== undefined);
+    expect(buttons.map((t) => [attr(t, 'data-feedback-video'), attr(t, 'hidden')])).toEqual(pageVideos.map((id) => [id, '']));
+    // "Feedback" appears nowhere else in the page's content.
+    expect(text(main.replace(/<button\b[^>]*data-feedback-trigger[\s\S]*?<\/button>/g, ''))).not.toMatch(/feedback/i);
+    expect(tags(main, 'a').filter((t) => /feedback/i.test(t))).toEqual([]);
+    expect(main).not.toMatch(/<(form|textarea|dialog)\b/);
   });
 
   it('keeps a heading outline without skipped levels: h1, the problem video\'s h2, h2 sections, h3 solutions', () => {
@@ -354,12 +360,13 @@ describe('a stand-alone problem page: /problems/sharing-a-bed/', () => {
     ]);
   });
 
-  it('works without JavaScript: a native "Audio only" disclosure, a plain handout link, and only the rating hidden', () => {
+  it('works without JavaScript: a native "Audio only" disclosure, a plain handout link, and only "Feedback" and the rating hidden', () => {
     expect(tags(main, 'details').map((t) => attr(t, 'id'))).toEqual([`audio-${data.problem_video}`]);
     expect(main).toMatch(/<audio\b[^>]*\scontrols\b/);
     const hidden = [...main.matchAll(/<([a-z0-9]+)\b[^>]*\shidden(?=[\s>])[^>]*>/g)].map((m) => [m[1], attr(m[0], 'class')]);
-    // The ratings widget (SPEC §12) needs JavaScript; nothing else does.
-    expect(hidden).toEqual([['div', 'rating']]);
+    // The video's "Feedback" button (SPEC §13) and the ratings widget (SPEC
+    // §12) need JavaScript; nothing else does.
+    expect(hidden).toEqual([['button', 'format-button'], ['div', 'rating']]);
     expect(elementByClass(main, 'problem__all', 'p')).toBe('<p class="problem__all"><a href="/#sleep-problems">Back to all sleep problems</a></p>');
   });
 

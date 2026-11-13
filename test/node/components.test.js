@@ -1,7 +1,7 @@
 // The shared components (SPEC §7.5, §9.1-§9.3, §12, §15.1; HANDOFF §5):
 // VideoEmbed, the video template every video uses (its label, title and
-// description, and the row of controls under it: "Audio only", the handout
-// and the ratings widget), the step chip, rendered with Eleventy's own
+// description, and the row of controls under it: "Audio only", the handout,
+// "Feedback" and the ratings widget), the step chip, rendered with Eleventy's own
 // Nunjucks and our filters, plus the plumbing they rely on in the built
 // site. video-template.test.js checks every video on every built page.
 import { readFileSync } from 'node:fs';
@@ -217,6 +217,45 @@ describe('videoBlock (the video template, SPEC §7.5, §9.2, §9.3, §12)', () =
       expect(tags(row(render('{{ videoBlock(v, ratings=true) }}', { v: video(id) })), 'div')[0], id).toBe('<div class="video-controls">');
     }
     expect(readFileSync('src/_includes/partials/video-block.njk', 'utf8')).not.toMatch(/if video\.(audio|handout)|data-rating-reveal/);
+  });
+
+  it('puts "Feedback" after the handout and before the rating: a hidden button naming the video, for feedback.js to show (SPEC §13)', () => {
+    const html = render('{{ videoBlock(v, ratings=true, feedback=true) }}', { v: video('full') });
+    expect(children(row(html))).toEqual(['details.format-disclosure', 'a.format-button', 'button.format-button', 'div.rating']);
+    // Never hidden: only the button and the rating wait for their scripts.
+    expect(tags(row(html), 'div')[0]).toBe('<div class="video-controls">');
+    expect(tags(row(html), 'button')).toEqual(['<button type="button" class="format-button" data-feedback-trigger data-feedback-video="full" hidden>']);
+    const button = row(html).match(/<button\b[\s\S]*?<\/button>/)[0];
+    // The handout's look: the same class, an icon of the same size, then the label.
+    expect(button).toMatch(/^<button [^>]*><svg class="icon format-button__icon" width="18" height="18" [^>]*aria-hidden="true" focusable="false">.*<\/svg>Feedback<span class="visually-hidden">: Settling &quot;your&quot; body<\/span><\/button>$/);
+    expect(text(button).replace(' :', ':')).toBe('Feedback: Settling "your" body');
+    // The icon is a stroke-only speech bubble: no fill or colour of its own, no style attribute.
+    const icon = button.match(/<svg\b[\s\S]*?<\/svg>/)[0];
+    expect(icon).toMatch(/^<svg [^>]*fill="none" stroke="currentColor" stroke-width="2" [^>]*><path d="[^"]+"\/><\/svg>$/);
+    expect(icon).not.toMatch(/style=|fill="(?!none)|#[0-9a-f]{3}/i);
+    // No link, form or field: the dialog (base.njk) holds those.
+    expect(row(html)).not.toMatch(/<form|<textarea|href="\/contact\/"|aria-haspopup/);
+    // Without the rating it ends the row.
+    expect(children(row(render('{{ videoBlock(v, feedback=true) }}', { v: video('full') })))).toEqual(['details.format-disclosure', 'a.format-button', 'button.format-button']);
+  });
+
+  it('renders "Feedback" for every video, placeholders included, and only while feedback is exactly true', () => {
+    for (const v of videos) {
+      const id = v.video_id;
+      for (const feedback of [false, 'true', 1, undefined]) {
+        const call = feedback === undefined ? '{{ videoBlock(v, ratings=true) }}' : `{{ videoBlock(v, ratings=true, feedback=${JSON.stringify(feedback)}) }}`;
+        const html = render(call, { v: video(id) });
+        expect(children(row(html)), `${id} ${feedback}`).toEqual(['details.format-disclosure', 'a.format-button', 'div.rating']);
+        expect(html, `${id} ${feedback}`).not.toMatch(/data-feedback|>Feedback</);
+      }
+      const on = render('{{ videoBlock(v, feedback=true) }}', { v: video(id) });
+      expect(tags(row(on), 'button'), id).toEqual([`<button type="button" class="format-button" data-feedback-trigger data-feedback-video="${id}" hidden>`]);
+      // The heading feedback.js takes the video's title from is in the same template.
+      expect(on, id).toContain(` id="video-${id}-title"`);
+    }
+    // In a solution card it is the template's second button, after Close.
+    const card = render("{{ videoBlock(v, heading=3, label={ num: 1, text: 'Main' }, close='solution-bare-panel', bleed='card', feedback=true) }}", { v: video('bare') });
+    expect(tags(card, 'button').map((t) => attr(t, 'class'))).toEqual(['video-block__close', 'format-button']);
   });
 
   it('links the handout by video_id, opening the PDF in media/pdf/', () => {

@@ -159,6 +159,13 @@ describe('the D1 stand-in (scripts/a11y/d1-sqlite.js)', () => {
     // Every time is an hour, as the Worker stores it (SPEC §14.1).
     const { results } = await db.prepare('SELECT ts FROM ratings UNION SELECT ts FROM events UNION SELECT ts FROM feedback').all();
     expect(results.every(({ ts }) => /T\d\d:00:00\.000Z$/.test(ts))).toBe(true);
+    // Some messages are about a video, always one of their page's, as the
+    // Worker stores them (SPEC §14.2); the newest 20 show both kinds.
+    const about = (await db.prepare('SELECT page, video FROM feedback WHERE video IS NOT NULL').all()).results;
+    expect(about.length).toBeGreaterThan(10);
+    for (const { page, video } of about) expect(pages[page].videos, `${page} ${video}`).toContain(video);
+    expect((await db.prepare('SELECT COUNT(*) AS n FROM feedback WHERE video IS NULL').first()).n).toBeGreaterThan(about.length);
+    expect(new Set(byName.recentFeedback.map((row) => row.video === null)).size).toBe(2);
     db.close();
   });
 });

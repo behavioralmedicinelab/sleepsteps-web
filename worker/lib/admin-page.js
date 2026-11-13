@@ -356,6 +356,15 @@ function feedbackPage(item) {
   return html`<span class="feedback-item__page">${item.title}</span> <span class="feedback-item__page-id">(${item.page})</span>`;
 }
 
+/**
+ * ", video <video_id>" after a message's page, when it was sent from that
+ * video's Feedback button (SPEC §13, §14.4); nothing for a message without
+ * one. By id, as every video on this page is.
+ */
+function feedbackVideo(item) {
+  return item.video ? html`, video <span class="feedback-item__video video-id">${item.video}</span>` : '';
+}
+
 function feedback(s) {
   const { total, recent } = s.feedback;
   if (total === 0 || recent.length === 0) return section('feedback', empty('No feedback in this range.'));
@@ -365,7 +374,7 @@ function feedback(s) {
   else lead = `All ${thousands(total)} messages in this range, newest first.`;
   const items = recent.map(
     (item) => html`<li class="feedback-item">
-<h3 class="feedback-item__heading">${feedbackPage(item)}, ${hourOf(item.ts)}</h3>
+<h3 class="feedback-item__heading">${feedbackPage(item)}${feedbackVideo(item)}, ${hourOf(item.ts)}</h3>
 <blockquote class="feedback-item__message" dir="auto">${item.message}</blockquote>
 </li>
 `,

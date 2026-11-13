@@ -376,11 +376,11 @@ button.video__facade[aria-disabled="true"] {
   }
 }
 
-/* The row of controls under every video: "Audio only", the handout, then
-   "Was this helpful?" with its stars. They share one line where there is
-   room and wrap, each whole, where there isn't (the stars drop below the
-   buttons on phones and in narrow columns). Left-aligned at every width
-   (SPEC §7.5). */
+/* The row of controls under every video: "Audio only", the handout,
+   "Feedback" (SPEC §13), then "Was this helpful?" with its stars. They
+   share one line where there is room and wrap, each whole, where there
+   isn't (the stars drop below the buttons on phones and in narrow
+   columns). Left-aligned at every width (SPEC §7.5). */
 .video-controls {
   display: flex;
   flex-wrap: wrap;
@@ -395,10 +395,11 @@ button.video__facade[aria-disabled="true"] {
   flex-basis: 100%;
 }
 
-/* An outlined button: the handout link, and the inside of the "Audio only"
-   <summary> (the summary itself keeps its default display, so browsers keep
-   its button semantics, as with the phone Menu). 48px tall on phones
-   (Problem-Phone.dc.html), 44px from 600px. */
+/* An outlined button: the handout link, a video's "Feedback" button, and
+   the inside of the "Audio only" <summary> (the summary itself keeps its
+   default display, so browsers keep its button semantics, as with the
+   phone Menu). 48px tall on phones (Problem-Phone.dc.html), 44px from
+   600px. */
 .format-button {
   display: inline-flex;
   align-items: center;
@@ -418,9 +419,19 @@ button.video__facade[aria-disabled="true"] {
 }
 
 a.format-button:hover,
+button.format-button:hover,
 .format-disclosure__toggle:hover > .format-button {
   background: var(--teal-wash);
   color: var(--deep-teal);
+}
+
+/* A video's "Feedback" is a <button> (it opens the feedback dialog, SPEC
+   §13) and must look like the handout link beside it. It ships [hidden],
+   and site.css's [hidden] rule wins over the display above, so it shows
+   only once feedback.js has made it work. */
+button.format-button {
+  margin: 0;
+  cursor: pointer;
 }
 
 .format-button .icon {

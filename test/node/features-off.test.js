@@ -177,8 +177,10 @@ describe.each(builds)('$name', ({ features, dir }) => {
       const before = allOnPages.get(file);
       expect(count(html, ' data-rating="'), file).toBe(on('ratings') ? count(before, ' data-rating="') : 0);
       if (!on('ratings')) expect(html, file).not.toMatch(/data-rating|rating__|Was this helpful/);
-      // "Audio only" and the handout stay whatever the switch says.
-      for (const needle of ['class="format-button"', 'class="format-disclosure"', '<audio ']) {
+      // "Audio only" and the handout stay whatever the switch says. (A
+      // video's "Feedback" button, a <button class="format-button">, follows
+      // features.feedback: below.)
+      for (const needle of ['<span class="format-button"', '<a class="format-button"', 'class="format-disclosure"', '<audio ']) {
         expect(count(html, needle), `${file}: ${needle}`).toBe(count(before, needle));
       }
       for (const row of elements(html, 'video-controls', 'div')) {
@@ -208,12 +210,19 @@ describe.each(builds)('$name', ({ features, dir }) => {
 
   // ---- features.feedback ----
 
-  it(`${on('feedback') ? 'renders' : 'renders no'} feedback dialog or "Send feedback" link, the 404 page included`, () => {
+  it(`${on('feedback') ? 'renders' : 'renders no'} feedback dialog, "Send feedback" link or "Feedback" button under a video, the 404 page included`, () => {
     for (const { file, html } of pages) {
       const hasId = attr(bodyOf(html), 'data-page-id') !== undefined;
+      const videos = count(html, ' data-video="');
       expect(tags(html, 'dialog'), file).toHaveLength(on('feedback') && hasId ? 1 : 0);
-      expect(count(html, 'data-feedback-trigger'), file).toBe(on('feedback') ? 1 : 0);
-      if (!on('feedback')) expect(html, file).not.toMatch(/feedback-dialog|data-feedback|Send feedback/);
+      // The footer's link, and one hidden button for each video on the page (SPEC §13).
+      expect(count(html, 'data-feedback-trigger'), file).toBe(on('feedback') ? 1 + videos : 0);
+      expect(count(html, ' data-feedback-video="'), file).toBe(on('feedback') ? videos : 0);
+      expect(count(html, '<button type="button" class="format-button" data-feedback-trigger data-feedback-video="'), file).toBe(on('feedback') ? videos : 0);
+      expect(count(html, '<button type="button" class="format-button"'), file).toBe(on('feedback') ? videos : 0);
+      // The rest of each row is as with every feature on.
+      expect(count(html, 'class="video-controls"'), file).toBe(videos);
+      if (!on('feedback')) expect(html, file).not.toMatch(/feedback-dialog|data-feedback|Send feedback|>Feedback</);
       // The footer's Contact link stays.
       expect(tags(elementByClass(html, 'site-footer', 'footer'), 'a').some((t) => attr(t, 'href') === '/contact/'), file).toBe(true);
     }
@@ -257,7 +266,9 @@ describe.each(builds)('$name', ({ features, dir }) => {
     });
 
     it(`${on('feedback') ? 'lists' : "doesn't list"} written feedback`, () => {
-      expect(items.includes('Written feedback, if you choose to send it, and the page you sent it from')).toBe(on('feedback'));
+      expect(items.includes('Written feedback, if you choose to send it, and the page you sent it from. If you use the Feedback button under a video, we also store which video it is about')).toBe(on('feedback'));
+      // Nothing else on the page speaks of a video's Feedback button.
+      expect(privacyText.includes('Feedback button')).toBe(on('feedback'));
     });
 
     it(`${on('events') ? 'lists' : "doesn't list"} searches and usage, and the paragraph on turning statistics off`, () => {
@@ -374,6 +385,10 @@ describe.each(builds)('$name', ({ features, dir }) => {
       // Without the switch's module, its widgets aren't there to send anything.
       expect(dom.document.querySelectorAll('[data-rating]').length > 0).toBe(on('ratings') && /problems\/|start/.test(url));
       expect(dom.document.querySelector('dialog') !== null).toBe(on('feedback') && url !== '/404.html');
+      // A "Feedback" button under each video, shown by feedback.js, only while its switch is on.
+      const videos = dom.document.querySelectorAll('[data-video]').length;
+      expect(videos > 0).toBe(/problems\/|start/.test(url) && url !== '/problems/');
+      expect(dom.document.querySelectorAll('button[data-feedback-video]').map((b) => b.hidden)).toEqual(on('feedback') ? Array.from({ length: videos }, () => false) : []);
     });
   });
 });

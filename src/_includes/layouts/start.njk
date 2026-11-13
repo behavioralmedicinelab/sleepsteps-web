@@ -29,8 +29,9 @@ layout: layouts/base.njk
   only", "Handout" and, while site.features.ratings is exactly true, "Was
   this helpful?" with its stars (SPEC §12). Intro-B's large faint number
   and its white bar under the video are not built, so every video looks
-  the same (SPEC §7.5). No transcripts (SPEC §9.3) and no per-video
-  feedback (SPEC §7.5, §13). Then the end card to Home's list of sleep
+  the same (SPEC §7.5). No transcripts (SPEC §9.3). While
+  site.features.feedback is exactly true, each row also has the video's
+  "Feedback" button (SPEC §13). Then the end card to Home's list of sleep
   problems, and the page's YouTube note (notices/video.njk), once, last.
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
@@ -63,7 +64,7 @@ layout: layouts/base.njk
     <div class="with-sidebar__main start-flow">
       {%- for chapter in introVideos %}
       <article class="start-chapter" id="{{ chapter.id }}" aria-labelledby="video-{{ chapter.video_id }}-title">
-        {{ videoBlock(chapter.video, heading=2, label={ num: chapter.n, text: 'of ' + chapterCount }, ratings=site.features.ratings === true) }}
+        {{ videoBlock(chapter.video, heading=2, label={ num: chapter.n, text: 'of ' + chapterCount }, ratings=site.features.ratings === true, feedback=site.features.feedback === true) }}
       </article>
       {%- endfor %}
       <section class="start-next on-dark">

@@ -152,10 +152,13 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect($$('[data-rating]').length).toBeGreaterThan(0);
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(true);
     for (const row of $$('.video-controls')) expect(row.hidden).toBe(false);
-    // "Send feedback" is still the plain Contact link, and the dialog stays shut (SPEC §13).
-    const trigger = $('[data-feedback-trigger]');
+    // "Send feedback" is still the plain Contact link, the dialog stays shut
+    // and each video's "Feedback" button stays hidden (SPEC §13).
+    const trigger = $('.site-footer [data-feedback-trigger]');
     expect([trigger.localName, trigger.getAttribute('href')]).toEqual(['a', '/contact/']);
     expect($('dialog').hidden).toBe(true);
+    expect($$('button[data-feedback-video]').length).toBe($$('.video-controls').length);
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(true);
     // solutions.js (and players.js, which it imports) did their part, and the page view went out.
     expect($('details.solution__disclosure')).toBeNull();
     expect($('.solution__face').localName).toBe('button');
@@ -169,7 +172,10 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect($$('details.solution__disclosure').length).toBeGreaterThan(0);
     expect($('summary.solution__face')).not.toBeNull();
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(false);
-    expect($('[data-feedback-trigger]').localName).toBe('button');
+    expect($('.site-footer [data-feedback-trigger]').localName).toBe('button');
+    // Each video's "Feedback" button shows, in a card that is still a native disclosure too.
+    expect($$('button[data-feedback-video]').length).toBe($$('.video-controls').length);
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(false);
   });
 
   it('usage-prefs.js: no usage statistics are sent, and the rest of the page works', async () => {
@@ -178,6 +184,7 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect(ran).toEqual(['menu.js', 'players.js', 'rating.js', 'feedback.js']);
     expect(api).toEqual([]);
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(false);
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(false);
   });
 
   it('usage-prefs.js on the privacy page: the switch stays as without JavaScript, explaining, with its button hidden', async () => {
@@ -233,7 +240,8 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect(failed).toEqual(['menu.js']);
     expect(ran).toEqual(['events.js', 'solutions.js', 'rating.js', 'players.js', 'feedback.js']);
     expect($('details.solution__disclosure')).toBeNull();
-    expect($('[data-feedback-trigger]').localName).toBe('button');
+    expect($('.site-footer [data-feedback-trigger]').localName).toBe('button');
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(false);
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(false);
   });
 });

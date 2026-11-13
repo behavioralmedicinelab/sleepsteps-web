@@ -181,6 +181,11 @@ const APPLIED_MIGRATIONS = {
   // this merges (SPEC §17); production got it with 0001 at its first
   // `npm run db:migrate:remote` (2026-11-10). It must not change once applied anywhere.
   '0002_feedback_drop_page_title.sql': 'ab705000414d47bf26598b4d4133243cd3adb8f59ea944ae7c34eaf319baeeb0',
+  // Feedback's nullable `video` (project lead, 2026-11-13). Pinned before its
+  // first remote apply: a person runs `npm run db:migrate:preview` when its
+  // pull request opens and `npm run db:migrate:remote` just before it merges
+  // (SPEC §17, §18.4). It must not change once applied anywhere.
+  '0003_feedback_add_video.sql': 'eb3d75c3b50e06041101df7e6142bf0d8dba06862f88107b38d018e6bc204adb',
 };
 
 describe('migrations/', () => {

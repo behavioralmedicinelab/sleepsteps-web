@@ -128,7 +128,9 @@ describe('columns (SPEC §14.4, decision B1)', () => {
     expect([...EXPORT_TABLES.keys()]).toEqual(['ratings', 'feedback', 'events', 'searches']);
     expect(EXPORT_TABLES.get('ratings').columns).toEqual(['id', 'ts', 'page', 'video', 'stars']);
     // No page_title: feedback stores the page id only (migration 0002).
-    expect(EXPORT_TABLES.get('feedback').columns).toEqual(['id', 'ts', 'page', 'message']);
+    // `video`, directly after `page`, is the video a message is about
+    // (migration 0003), as in the ratings file.
+    expect(EXPORT_TABLES.get('feedback').columns).toEqual(['id', 'ts', 'page', 'video', 'message']);
     expect(EXPORT_TABLES.get('events').columns).toEqual(['ts', 'session_id', 'page', 'type', 'media', 'furthest']);
     expect(EXPORT_TABLES.get('searches').columns).toEqual(['ts', 'q', 'results']);
     for (const table of EXPORT_TABLES.keys()) {
@@ -197,7 +199,8 @@ describe('parts (paged=1)', () => {
   it('joins parts of 2 and of 3 rows into exactly the one-file export', async () => {
     await insert('events', sampleEvents((i) => 900_000_001 + i));
     await insert('ratings', Array.from({ length: 7 }, (_, i) => ({ ts: `2026-10-0${1 + (i % 3)}T10:00:00.000Z`, page: 'pain', video: 'pain-about', stars: 1 + (i % 5) })));
-    await insert('feedback', Array.from({ length: 5 }, (_, i) => ({ ts: '2026-10-09T10:00:00.000Z', page: 'pain', message: `m${i}` })));
+    // Messages with and without a video, in one hour.
+    await insert('feedback', Array.from({ length: 5 }, (_, i) => ({ ts: '2026-10-09T10:00:00.000Z', page: 'pain', video: i % 2 ? 'pain-about' : null, message: `m${i}` })));
     for (const table of EXPORT_TABLES.keys()) {
       const reference = await whole(table);
       for (const pageRows of [1, 2, 3]) expect(await joined(table, undefined, makeRouter({ pageRows })), `${table} ${pageRows}`).toBe(reference);
@@ -491,7 +494,11 @@ describe('dates', () => {
 
 describe('the CSV (RFC 4180, OWASP)', () => {
   it('starts with the UTF-8 BOM bytes, ends records with CRLF, leaves NULL empty and numbers bare', async () => {
-    await insert('feedback', [{ id: 12, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message: 'a "quoted", line\nbreak' }]);
+    await insert('feedback', [
+      { id: 12, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message: 'a "quoted", line\nbreak' },
+      { id: 13, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: 'settling-your-body', message: 'about a video' },
+      { id: 14, ts: '2026-10-05T10:00:00.000Z', page: 'start', video: null, message: 'no video' },
+    ]);
     await insert('ratings', [{ id: 3, ts: '2026-10-05T10:00:00.000Z', page: 'start', video: 'how-sleep-works', stars: 4 }]);
     await insert('events', [ev('page_view', '2026-10-05T10:00:00.000Z', 'pain', A)]);
     const res = await get('table=feedback&from=2026-10-01&to=2026-10-31');
@@ -499,7 +506,14 @@ describe('the CSV (RFC 4180, OWASP)', () => {
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
     // The header's cells are text, so they are quoted too.
-    expect(text).toBe(`${BOM}"id","ts","page","message"\r\n12,"2026-10-05T10:00:00.000Z","pain","a ""quoted"", line\nbreak"\r\n`);
+    // `video` comes directly after `page`: the video_id, or an empty field
+    // for NULL (a message sent from the footer, or stored before migration 0003).
+    expect(text).toBe(
+      `${BOM}"id","ts","page","video","message"\r\n` +
+        '12,"2026-10-05T10:00:00.000Z","pain",,"a ""quoted"", line\nbreak"\r\n' +
+        '13,"2026-10-05T10:00:00.000Z","pain","settling-your-body","about a video"\r\n' +
+        '14,"2026-10-05T10:00:00.000Z","start",,"no video"\r\n',
+    );
     // NULL is an empty field: a page view has no media or furthest.
     expect(await whole('events')).toBe(`${BOM}"ts","session_id","page","type","media","furthest"\r\n"2026-10-05T10:00:00.000Z","${A}","pain","page_view",,\r\n`);
     expect(await whole('ratings')).toBe(`${BOM}"id","ts","page","video","stars"\r\n3,"2026-10-05T10:00:00.000Z","start","how-sleep-works",4\r\n`);
@@ -510,10 +524,25 @@ describe('the CSV (RFC 4180, OWASP)', () => {
     await insert('feedback', starts.map((message, i) => ({ id: 100 + i, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message })));
     await insert('events', [search('=HYPERLINK("http://x")', 0), search('plain', 1)]);
     const feedback = parseCsv(await whole('feedback')).slice(1);
-    expect(feedback.map((r) => r[3])).toEqual(starts.map((s) => `'${s}`));
+    expect(feedback.map((r) => r[4])).toEqual(starts.map((s) => `'${s}`));
+    expect(feedback.map((r) => r[3])).toEqual(starts.map(() => ''));
     const searches = parseCsv(await whole('searches')).slice(1);
     expect(searches.map((r) => r[1])).toEqual(['\'=HYPERLINK("http://x")', 'plain']);
     for (const message of starts) expect(FORMULA_START.test(message), JSON.stringify(message)).toBe(true);
+  });
+
+  it('defuses the video cell like any text cell (the API stores only a video_id from pages.json, which starts with none of these)', async () => {
+    // Rows written straight to the database, as a mistaken manual edit could.
+    await insert('feedback', [
+      { id: 300, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: '=SUM(1)', message: 'x' },
+      { id: 301, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: '@x', message: 'y' },
+      { id: 302, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: 'a "quoted", id', message: 'z' },
+    ]);
+    const text = await whole('feedback');
+    expect(text).toContain(`300,"2026-10-05T10:00:00.000Z","pain","'=SUM(1)","x"\r\n`);
+    expect(text).toContain(`301,"2026-10-05T10:00:00.000Z","pain","'@x","y"\r\n`);
+    expect(text).toContain('302,"2026-10-05T10:00:00.000Z","pain","a ""quoted"", id","z"\r\n');
+    expect(parseCsv(text).slice(1).map((r) => r[3])).toEqual(["'=SUM(1)", "'@x", 'a "quoted", id']);
   });
 
   it('round-trips the stored text: parse, then remove one leading apostrophe', async () => {
@@ -522,7 +551,7 @@ describe('the CSV (RFC 4180, OWASP)', () => {
     await insert('events', texts.map((q, i) => search(q, i, '2026-10-07T10:00:00.000Z')));
     const unguard = (cell) => (cell.startsWith("'") ? cell.slice(1) : cell);
     const feedback = parseCsv(await whole('feedback')).slice(1);
-    expect(feedback.map((r) => unguard(r[3]))).toEqual(texts);
+    expect(feedback.map((r) => unguard(r[4]))).toEqual(texts);
     const searches = parseCsv(await whole('searches')).slice(1).map((r) => unguard(r[1]));
     expect(searches.sort()).toEqual([...texts].sort());
   });

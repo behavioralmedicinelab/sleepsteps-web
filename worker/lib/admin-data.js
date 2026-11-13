@@ -76,7 +76,7 @@ const meanOf = (row) => (row.n > 0 ? row.total / row.n : null);
  *     byPageVideo: Array<{ page, title, known, video, n, total, mean }>,
  *   },
  *   searches: { total: number, zero: number, top: Array<{ q, n }> },
- *   feedback: { total: number, recent: Array<{ ts, page, title, known, message }> },
+ *   feedback: { total: number, recent: Array<{ ts, page, title, known, video, message }> },
  *   plays: { video: Array<{ media, plays, f0, f25, f50, f75, f100 }>, audio: Array<same> },
  *   handouts: Array<{ media, clicks, visits }>,
  * }}
@@ -88,8 +88,9 @@ const meanOf = (row) => (row.n > 0 ? row.total / row.n : null);
  *   mean is total / n, unrounded. searches.top keeps D1's order (count,
  *   then text). feedback.recent keeps D1's order (newest first); its page
  *   shows by its current title in pages.json (feedback stores none), or by
- *   its id when it is no longer there (known false). plays and handouts by
- *   count, then video id.
+ *   its id when it is no longer there (known false), and its `video` is the
+ *   video_id it is about, or null (sent from the footer, or stored before
+ *   migration 0003). plays and handouts by count, then video id.
  */
 export function summaryModel(results, index) {
   const rowsOf = (name) => (Array.isArray(results?.[name]) ? results[name] : []);
@@ -164,6 +165,7 @@ export function summaryModel(results, index) {
       recent: rowsOf('recentFeedback').map((row) => ({
         ts: String(row.ts),
         ...pageOf(index, String(row.page)),
+        video: row.video === null || row.video === undefined ? null : String(row.video),
         message: String(row.message ?? ''),
       })),
     },

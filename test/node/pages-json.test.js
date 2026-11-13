@@ -15,7 +15,8 @@ const { model } = validateContent(process.cwd());
 const pages = JSON.parse(readFileSync('worker/generated/pages.json', 'utf8'));
 const built = readHtmlPages(site);
 // With every feature on, whatever site.config.json says, so the ratings
-// widget's data-rating is always there to check (SPEC §11).
+// widget's data-rating and a video's "Feedback" button's data-feedback-video
+// are always there to check (SPEC §11).
 const builtOn = readHtmlPages(inject('builtSiteOn'));
 const problemIds = [...model.problems.keys()];
 const TRACKED = [...problemIds, 'start', 'urgent-help'].sort();
@@ -80,6 +81,22 @@ describe('pagesIndex()', () => {
     ]);
     expect(json.a.videos).toEqual(['rated-video']);
     expect(() => pagesIndex([result('/a/', '<body data-page-id="a">', '', '<div data-rating="Not A Slug"></div>')])).toThrow(/"Not A Slug" is not a video_id/);
+  });
+
+  it('reads a video\'s "Feedback" button\'s data-feedback-video (SPEC §13), not the dialog\'s or the footer\'s other data-feedback-* hooks', () => {
+    const json = pagesIndex([
+      result(
+        '/a/',
+        '<body data-page-id="a">',
+        '<title>A</title>',
+        '<button type="button" class="format-button" data-feedback-trigger data-feedback-video="feedback-video" hidden></button>' +
+          '<a href="/contact/" data-feedback-trigger></a><dialog data-feedback-dialog data-sitekey="0xkey"><p data-feedback-about hidden></p>' +
+          '<div data-feedback-videos="no" data-feedback-video-id="no" data-feedback-status></div></dialog>',
+      ),
+    ]);
+    expect(json.a.videos).toEqual(['feedback-video']);
+    expect(() => pagesIndex([result('/a/', '<body data-page-id="a">', '', '<button data-feedback-video="Not A Slug"></button>')])).toThrow(/"Not A Slug" is not a video_id/);
+    expect(() => pagesIndex([result('/a/', '<body data-page-id="a">', '', '<button data-feedback-video=""></button>')])).toThrow(/"" is not a video_id/);
   });
 
   it('fails the build on a duplicate page_id, a page_id or video_id that is not a slug, or no page at all', () => {
@@ -161,16 +178,25 @@ describe('the HTML pages.json is read from', () => {
     expect(marked).toEqual(TRACKED);
   });
 
-  it('names videos only by video_id: data-video, data-handout, the audio’s data-media and the ratings widget’s data-rating', () => {
+  it('names videos only by video_id: data-video, data-handout, the audio’s data-media, the ratings widget’s data-rating and the "Feedback" button’s data-feedback-video', () => {
     const seen = new Set();
     for (const { file, html } of builtOn) {
-      for (const [, name, value] of html.matchAll(/\sdata-(video|handout|media|rating)="([^"]*)"/g)) {
+      for (const [, name, value] of html.matchAll(/\sdata-(video|handout|media|rating|feedback-video)="([^"]*)"/g)) {
         expect(model.videos.has(value), `${file}: data-${name}="${value}"`).toBe(true);
         seen.add(name);
       }
       expect(html, file).not.toMatch(/\sdata-transcript=/);
     }
-    expect([...seen].sort()).toEqual(['handout', 'media', 'rating', 'video']);
+    expect([...seen].sort()).toEqual(['feedback-video', 'handout', 'media', 'rating', 'video']);
+  });
+
+  it('gives a page the same videos by each attribute, so a "Feedback" button never adds one the page couldn\'t already send', () => {
+    for (const { file, html } of builtOn) {
+      const named = (name) => [...new Set([...html.matchAll(new RegExp(`\\sdata-${name}="([^"]*)"`, 'g'))].map((m) => m[1]))].sort();
+      for (const name of ['handout', 'media', 'rating', 'feedback-video']) expect(named(name), `${file}: data-${name}`).toEqual(named('video'));
+      const id = attr(tags(html, 'body')[0], 'data-page-id');
+      if (id !== undefined) expect(pages[id].videos, file).toEqual(named('video'));
+    }
   });
 
   it('gives each audio player the video_id of its own "Audio only" disclosure (audio_play, SPEC §10.2)', () => {

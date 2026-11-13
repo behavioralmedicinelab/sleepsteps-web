@@ -457,8 +457,9 @@ describe('the summary data (SPEC §14.4)', () => {
       page: 'pain',
       message: `message ${i}`,
     }));
-    // Two in one hour: the higher id is newer.
-    rows.push({ id: 900, ts: '2026-11-05T08:00:00.000Z', page: 'start', message: 'same hour, lower id' });
+    // Two in one hour: the higher id is newer. One is about a video
+    // (migration 0003); the rest have none.
+    rows.push({ id: 900, ts: '2026-11-05T08:00:00.000Z', page: 'start', video: 'how-sleep-works', message: 'same hour, lower id' });
     rows.push({ id: 901, ts: '2026-11-05T08:00:00.000Z', page: 'gone', message: 'same hour, higher id' });
     await insert('feedback', rows);
     const { feedback } = await model();
@@ -467,9 +468,31 @@ describe('the summary data (SPEC §14.4)', () => {
     expect(feedback.recent.slice(0, 3).map((r) => r.message)).toEqual(['same hour, higher id', 'same hour, lower id', 'message 22']);
     // Feedback stores no title (migration 0002): a page shows by its current
     // title in pages.json, and one no longer there by its id.
-    expect(feedback.recent[0]).toEqual({ ts: '2026-11-05T08:00:00.000Z', page: 'gone', title: 'gone', known: false, message: 'same hour, higher id' });
-    expect(feedback.recent[1]).toEqual({ ts: '2026-11-05T08:00:00.000Z', page: 'start', title: 'Start here', known: true, message: 'same hour, lower id' });
-    expect(feedback.recent.at(-1)).toEqual({ ts: '2026-10-15T08:00:00.000Z', page: 'pain', title: 'Pain', known: true, message: 'message 5' });
+    // Each has the video it is about, by id, or null.
+    expect(feedback.recent[0]).toEqual({ ts: '2026-11-05T08:00:00.000Z', page: 'gone', title: 'gone', known: false, video: null, message: 'same hour, higher id' });
+    expect(feedback.recent[1]).toEqual({ ts: '2026-11-05T08:00:00.000Z', page: 'start', title: 'Start here', known: true, video: 'how-sleep-works', message: 'same hour, lower id' });
+    expect(feedback.recent.at(-1)).toEqual({ ts: '2026-10-15T08:00:00.000Z', page: 'pain', title: 'Pain', known: true, video: null, message: 'message 5' });
+    expect(feedback.recent.filter((r) => r.video !== null)).toHaveLength(1);
+  });
+
+  it('shows the video a message is about by its id, after its page, and nothing for a message without one', async () => {
+    await insert('feedback', [
+      { ts: '2026-11-01T10:00:00.000Z', page: 'pain', video: 'settling-your-body', message: 'about a video' },
+      { ts: '2026-11-02T10:00:00.000Z', page: 'pain', video: null, message: 'from the footer' },
+      // A video that has left the page, or the site, still shows: it is what was stored.
+      { ts: '2026-11-03T10:00:00.000Z', page: 'gone', video: 'old-video', message: 'both gone' },
+    ]);
+    const body = await (await get('/admin/')).text();
+    expect(body).toContain(
+      '<h3 class="feedback-item__heading"><span class="feedback-item__page">Pain</span> <span class="feedback-item__page-id">(pain)</span>, video <span class="feedback-item__video video-id">settling-your-body</span>, <time datetime="2026-11-01T10:00:00.000Z">',
+    );
+    expect(body).toContain(
+      '<h3 class="feedback-item__heading"><span class="feedback-item__page">Pain</span> <span class="feedback-item__page-id">(pain)</span>, <time datetime="2026-11-02T10:00:00.000Z">',
+    );
+    expect(body).toContain(
+      '<h3 class="feedback-item__heading"><span class="feedback-item__page">gone</span> (no longer on the site), video <span class="feedback-item__video video-id">old-video</span>, <time datetime="2026-11-03T10:00:00.000Z">',
+    );
+    expect(body.match(/class="feedback-item__video video-id"/g)).toHaveLength(2);
   });
 
   it('shows a message\'s page by the title pages.json has now, with its id', async () => {
@@ -579,12 +602,13 @@ describe('the summary page', () => {
     expect(on).not.toContain('Data collection is off');
   });
 
-  it('escapes feedback, page ids and search text: they render as text, never as markup', async () => {
+  it('escapes feedback, page ids, a message\'s video and search text: they render as text, never as markup', async () => {
     const payloads = ['<script>alert(1)</script>', '"><img src=x onerror=alert(1)>', "' onfocus='x", '</blockquote><b>x', '&lt;b&gt;'];
     const seed = async (texts) => {
       await testEnv.DB.batch(['events', 'feedback'].map((t) => testEnv.DB.prepare(`DELETE FROM ${t}`)));
-      // A page no longer on the site shows by its stored id, so the id is hostile too.
-      await insert('feedback', texts.map((text, i) => ({ ts: `2026-11-0${i + 1}T10:00:00.000Z`, page: text, message: text })));
+      // A page no longer on the site shows by its stored id, so the id is
+      // hostile too, and so is a stored video, shown as it is.
+      await insert('feedback', texts.map((text, i) => ({ ts: `2026-11-0${i + 1}T10:00:00.000Z`, page: text, video: text, message: text })));
       await insert('events', texts.map((text) => search(text, 0)));
       return (await get('/admin/')).text();
     };

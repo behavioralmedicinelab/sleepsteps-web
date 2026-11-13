@@ -47,10 +47,11 @@ export const FEEDBACK_COUNT_SQL = 'SELECT COUNT(*) AS n FROM feedback WHERE ts >
 /**
  * The 20 most recent messages, by ts and then id, newest first (SPEC §14.4).
  * feedback.id is its own sequence. The page is shown by its current title
- * from pages.json: feedback stores no title (migration 0002).
+ * from pages.json: feedback stores no title (migration 0002). `video` is the
+ * video a message is about, or NULL (migration 0003).
  */
 export const RECENT_FEEDBACK_SQL =
-  'SELECT ts, page, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts DESC, id DESC LIMIT 20';
+  'SELECT ts, page, video, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts DESC, id DESC LIMIT 20';
 
 /**
  * Plays per item and format: a play is one (session, page, item) group at
@@ -116,9 +117,13 @@ export const SEARCHES_PART_SQL =
 export const RATINGS_PART_SQL =
   'SELECT id, ts, page, video, stars FROM ratings WHERE ts >= ?1 AND ts < ?2 ORDER BY ts, id LIMIT ?3 OFFSET ?4';
 
-/** Feedback keeps its id, for the same reason. It stores no page title (migration 0002). */
+/**
+ * Feedback keeps its id, for the same reason. It stores no page title
+ * (migration 0002); `video` is NULL, an empty cell, for a message that isn't
+ * about a video (migration 0003).
+ */
 export const FEEDBACK_PART_SQL =
-  'SELECT id, ts, page, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts, id LIMIT ?3 OFFSET ?4';
+  'SELECT id, ts, page, video, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts, id LIMIT ?3 OFFSET ?4';
 
 // Before a download starts: how many rows it holds, counting at most ?3 (the
 // row cap plus one), so the count itself reads at most that many index
@@ -142,7 +147,7 @@ export const FEEDBACK_COUNT_CAPPED_SQL = 'SELECT COUNT(*) AS n FROM (SELECT 1 FR
  */
 export const EXPORT_TABLES = new Map([
   ['ratings', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'video', 'stars']), partSql: RATINGS_PART_SQL, countSql: RATINGS_COUNT_SQL, pageRows: 2000 })],
-  ['feedback', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'message']), partSql: FEEDBACK_PART_SQL, countSql: FEEDBACK_COUNT_CAPPED_SQL, pageRows: 500 })],
+  ['feedback', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'video', 'message']), partSql: FEEDBACK_PART_SQL, countSql: FEEDBACK_COUNT_CAPPED_SQL, pageRows: 500 })],
   ['events', Object.freeze({ types: EVENT_TYPE_ORDER, columns: Object.freeze(['ts', 'session_id', 'page', 'type', 'media', 'furthest']), partSql: EVENTS_PART_SQL, countSql: EVENTS_COUNT_SQL, pageRows: 2000 })],
   ['searches', Object.freeze({ types: Object.freeze(['search']), columns: Object.freeze(['ts', 'q', 'results']), partSql: SEARCHES_PART_SQL, countSql: SEARCHES_COUNT_SQL, pageRows: 2000 })],
 ]);

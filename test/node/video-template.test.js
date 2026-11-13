@@ -4,8 +4,10 @@
 //
 // - every video is the video template (partials/video-block.njk): the label
 //   where the context has one, the title and the description, the video,
-//   then one row of exactly "Audio only", "Handout" and, while
-//   features.ratings is on, "Was this helpful?", in that order;
+//   then one row of exactly "Audio only", "Handout", while features.feedback
+//   is on, exactly one "Feedback" button (project lead, 2026-11-13; SPEC
+//   §13) and, while features.ratings is on, "Was this helpful?", in that
+//   order;
 // - stripped of what may differ (text, ids, the heading level, the label
 //   and a card's Close, the frame's bleed and whether the video is on
 //   YouTube yet), every template is the same markup;
@@ -95,6 +97,7 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
   const withVideos = pages.filter((p) => p.main.includes('data-video='));
   const blocks = withVideos.flatMap(({ file, main }) => elements(main, 'video-block', 'div').map((html) => ({ file, html, node: tree(html) })));
   const ratingsOn = features.ratings === true;
+  const feedbackOn = features.feedback === true;
 
   it('covers every page with a video: the problem pages and Start here, and no other', () => {
     expect(withVideos.map((p) => p.file).sort()).toEqual(
@@ -134,7 +137,7 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
   });
 
   it.each(blocks.map((b) => [`${b.file} ${videoIdOf(b.html)}`, b]))(
-    '%s: the label (if any), title and description, the video, then exactly "Audio only", "Handout" and the rating, in that order',
+    '%s: the label (if any), title and description, the video, then exactly "Audio only", "Handout", "Feedback" and the rating, in that order',
     (where, { node, html }) => {
       const grid = node.children[0];
       expect(kids(node)).toEqual(['div.video-block__grid']);
@@ -151,13 +154,55 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
       expect(grid.children[1].children[0].cls.split(' ')[0]).toBe('video');
       const row = grid.children[2];
       expect(row.open).toBe('<div class="video-controls">');
-      expect(kids(row)).toEqual(['details.format-disclosure', 'a.format-button', ...(ratingsOn ? ['div.rating'] : [])]);
+      expect(kids(row)).toEqual(['details.format-disclosure', 'a.format-button', ...(feedbackOn ? ['button.format-button'] : []), ...(ratingsOn ? ['div.rating'] : [])]);
       const controls = elementByClass(html, 'video-controls', 'div');
       expect(visibleText(elementByClass(controls, 'format-disclosure__toggle', 'summary'))).toBe('Audio only');
       expect(visibleText(elementByClass(controls, 'format-button', 'a'))).toBe('Handout');
       if (ratingsOn) expect(visibleText(elementByClass(controls, 'rating__legend', 'legend'))).toBe('Was this helpful?');
+      // "Feedback": exactly one button per video while the switch is on,
+      // after the handout and before the rating, naming this video and
+      // shipped hidden (it needs feedback.js); none while it is off. It is the
+      // row's only button, and nothing else in the template opens the dialog.
+      const id = videoIdOf(html);
+      const buttons = tags(controls, 'button');
+      const triggers = (html.match(/<[a-z0-9]+\b[^>]*\sdata-feedback-(?:trigger|video)\b[^>]*>/g) ?? []);
+      if (feedbackOn) {
+        expect(buttons).toEqual([`<button type="button" class="format-button" data-feedback-trigger data-feedback-video="${id}" hidden>`]);
+        expect(triggers).toEqual(buttons);
+        const button = controls.match(/<button\b[\s\S]*?<\/button>/)[0];
+        expect(visibleText(button)).toBe('Feedback');
+        expect(text(button).replace(' :', ':')).toBe(`Feedback: ${text(elementByClass(html, 'video-block__title'))}`);
+        expect(button).toMatch(/^<button [^>]*><svg class="icon format-button__icon" [^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/svg>Feedback<span class="visually-hidden">: [^<]+<\/span><\/button>$/);
+        // After the whole handout link, and wholly before the rating.
+        const handoutAt = controls.indexOf('<a class="format-button"');
+        const buttonAt = controls.indexOf('<button type="button" class="format-button"');
+        const at = [handoutAt, controls.indexOf('</a>', handoutAt), buttonAt, controls.indexOf('</button>', buttonAt), ratingsOn ? controls.indexOf('<div class="rating"') : controls.length];
+        expect(at.every((i) => i > -1)).toBe(true);
+        expect([...at].sort((a, b) => a - b)).toEqual(at);
+        // The heading feedback.js reads the video's title from.
+        expect(html).toContain(` id="video-${id}-title"`);
+      } else {
+        expect(buttons).toEqual([]);
+        expect(triggers).toEqual([]);
+        expect(html).not.toMatch(/data-feedback|>Feedback</);
+      }
     },
   );
+
+  it(`has ${feedbackOn ? 'one "Feedback" button per video, each naming a different video of its page, and the footer\'s "Send feedback"' : 'no "Feedback" button anywhere'}`, () => {
+    for (const { file, html, main } of withVideos) {
+      const named = [...html.matchAll(/\sdata-feedback-video="([^"]*)"/g)].map((m) => m[1]);
+      const videos = tags(main, 'div').filter((t) => attr(t, 'data-video') !== undefined).map((t) => attr(t, 'data-video'));
+      expect(named, file).toEqual(feedbackOn ? videos : []);
+      expect(new Set(named).size, file).toBe(named.length);
+      // With the footer's link, the page's only other way into the dialog.
+      expect((html.match(/\sdata-feedback-trigger\b/g) ?? []).length, file).toBe(feedbackOn ? videos.length + 1 : 0);
+    }
+    // A page without videos has none.
+    for (const { file, html } of pages.filter((p) => !withVideos.some((w) => w.file === p.file))) {
+      expect(html, file).not.toMatch(/data-feedback-video/);
+    }
+  });
 
   it('labels each template by its context: none on the problem video, "n Main"/"n Extra" with Close on a card, "n of N" on Start here', () => {
     for (const { file, html, node } of blocks) {

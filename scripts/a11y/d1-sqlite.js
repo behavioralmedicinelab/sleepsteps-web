@@ -53,8 +53,10 @@ export function createD1(migrationsDir) {
 /**
  * Seeds `d1` with a deterministic sample over the 30 days before `nowMs`:
  * visits to the tracked pages with plays, handouts and ratings, searches
- * (some with no results) and feedback, including a long unbroken word, so
- * the summary's tables, lists and messages all have rows to show. `pages` is
+ * (some with no results) and feedback, including a long unbroken word and
+ * messages about one of their page's videos (as from its "Feedback" button,
+ * SPEC §13), so the summary's tables, lists and messages all have rows to
+ * show. `pages` is
  * worker/generated/pages.json. Returns the number of rows written.
  */
 export async function seedD1(d1, pages, nowMs, { visits = 240, searches = 90, feedback = 140 } = {}) {
@@ -92,7 +94,11 @@ export async function seedD1(d1, pages, nowMs, { visits = 240, searches = 90, fe
     'Merci beaucoup — très utile',
   ];
   for (let i = 0; i < feedback; i += 1) {
-    rows.push(['INSERT INTO feedback (ts, page, message) VALUES (?, ?, ?)', [at(), pick(ids), pick(messages)]]);
+    const page = pick(ids);
+    // About a third of the messages from a page with videos are about one of them.
+    const { videos } = pages[page];
+    const video = videos.length && rand() < 0.35 ? pick(videos) : null;
+    rows.push(['INSERT INTO feedback (ts, page, video, message) VALUES (?, ?, ?, ?)', [at(), page, video, pick(messages)]]);
   }
   for (const [sql, values] of rows) await d1.prepare(sql).bind(...values).run();
   return rows.length;
