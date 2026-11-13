@@ -217,6 +217,8 @@ To add a worksheet, put its PDF in `media/worksheets/` and add a row. A video's 
 
 The site counts how often each worksheet is opened, in the anonymous usage statistics, as it does for handouts (`SPEC.md` §10.2). It counts by `worksheet_id`, so a worksheet keeps its count when you change its title or replace its file, as long as its `worksheet_id` stays the same.
 
+Worksheets are under the content licence (CC BY 4.0), as handouts are. If a worksheet reproduces someone else's questionnaire or diary, say so on the worksheet: the licence leaves out only material marked as someone else's ([`LICENSE-CONTENT.md`](LICENSE-CONTENT.md)).
+
 The build checks every row and stops, naming the row as Excel numbers it, on a missing cell, a `worksheet_id` used twice, a `video_id` that isn't in `data/videos.csv`, or a file that isn't a PDF in `media/worksheets/` (the name must match exactly, capitals included, as for the videos' files). It only warns, without stopping, about a worksheet whose video isn't a solution on any problem (nobody would see it) and about a solution video with no worksheet.
 
 **Placeholder worksheets.** For now the eight solution videos have sample rows with `[bracketed]` titles, which all name the stand-in file `placeholder-worksheet.pdf`. Replace each with a real one by changing its `title` and `file` (keep its `worksheet_id`), and delete the sample rows a video doesn't need. You can reword a placeholder's title too; keep its square brackets while its row still names the stand-in file (a test checks that every placeholder title has them, and the site isn't published while a test fails). Once a video has its YouTube link, the build stops if one of its worksheets still names the stand-in, and there must be none at launch (`node scripts/validate-content.js --no-placeholders` checks). The worksheets are PDFs for now; whether another format would suit worksheets people fill in is still being decided (`SPEC.md` §21). Make a PDF accessible as you would a handout (`SPEC.md` §9.3).
@@ -333,5 +335,5 @@ These limits protect the free plan's 5 million database rows read a day, which t
 
 ## Licence
 
-- **Content** (page text, transcripts, data files, handouts, audio and thumbnails): [CC BY 4.0](LICENSE-CONTENT.md). Our name and logo, and third-party material, are not covered.
+- **Content** (page text, transcripts, data files, handouts, worksheets, audio and thumbnails): [CC BY 4.0](LICENSE-CONTENT.md). Our name and logo, and third-party material, are not covered.
 - **Code:** [MIT](LICENSE).

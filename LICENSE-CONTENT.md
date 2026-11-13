@@ -11,7 +11,7 @@ credit, link to the licence, and say if you changed anything.
 
 - The page text in `content/`, including problem descriptions and transcripts.
 - The data files in `data/`.
-- Handouts, audio and thumbnails in `media/`.
+- Handouts, worksheets, audio and thumbnails in `media/`.
 - Our videos, where the video's description states this licence.
 
 ## What is not covered
@@ -27,7 +27,7 @@ credit, link to the licence, and say if you changed anything.
 
 A suggested credit:
 
-> Adapted from “[title of the page, video or handout]” ([its web address])
+> Adapted from “[title of the page, video, handout or worksheet]” ([its web address])
 > by the SleepSteps Trial Research Team, used under
 > [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes were made.
 
