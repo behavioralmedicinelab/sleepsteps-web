@@ -35,11 +35,26 @@ export function tags(html, name) {
   return html.match(new RegExp(`<${name}(?=[\\s>/])[^>]*>`, 'gi')) ?? [];
 }
 
-/** The value of an attribute in an opening tag, or undefined. */
+// An opening tag, up to the ">" that ends it (one inside a quoted value
+// doesn't), and one attribute: a name, then perhaps = and a quoted or bare
+// value.
+const OPENING_TAG = /^<[^\s>/]+(?:[^>"']|"[^"]*"|'[^']*')*/;
+const ATTRIBUTE = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+
+/**
+ * The value of an attribute in an opening tag, as written (not decoded),
+ * '' for one without a value, or undefined. The tag's attributes are read
+ * one at a time, so a word inside another attribute's value (a keyword
+ * such as "hidden", "for" in a description) is never taken for an
+ * attribute. Given a whole element, only its opening tag is read.
+ */
 export function attr(tag, name) {
-  const m = tag.match(new RegExp(`\\s${name}(?:\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+)))?(?=[\\s>/])`, 'i'));
-  if (!m) return undefined;
-  return m[1] ?? m[2] ?? m[3] ?? '';
+  const opening = tag.match(OPENING_TAG)?.[0] ?? tag;
+  const wanted = name.toLowerCase();
+  for (const m of opening.replace(/^<[^\s>/]+/, '').matchAll(ATTRIBUTE)) {
+    if (m[1].toLowerCase() === wanted) return m[2] ?? m[3] ?? m[4] ?? '';
+  }
+  return undefined;
 }
 
 /** The first element (opening tag to its matching close) with this class. */
