@@ -271,15 +271,18 @@ button.video__facade[aria-disabled="true"] {
    2026-11-09): the label (a step chip, where the context has one) with a
    solution card's Close at its right, the title and the description; the
    video; then the row of controls. One layout everywhere, decided by the
-   width of the page's main column (.with-sidebar__main in site.css, the one
-   query container for every video on the page), so the problem video and
-   an open card below it always switch together: narrower than 768px, one
-   column in the DOM's order (the label, title and description above the
-   video); from 768px the video (3fr) and the label, title and description
-   (2fr) side by side, and the row under both, across the block ("Audio
-   only", the handout, "Feedback" and the rating share one line once the
-   row is about 800px wide; narrower, the stars take the line under the
-   buttons, SPEC §7.5). 768 is the Problem-A
+   width of the page's two-column wrapper (.with-sidebar in site.css, the
+   one query container for every video on the site, as wide on Start here
+   as on a problem page), so every video switches at one window width
+   (about 1130px) and never back, and the problem video and an open card
+   below it always switch together: narrower than 1080px, one column in
+   the DOM's order (the label, title and description above the video);
+   from 1080px the video (3fr) and the label, title and description (2fr)
+   side by side, and the row under both, across the block ("Audio only",
+   the handout, "Feedback" and the rating share one line once the row is
+   about 800px wide; narrower, the stars take the line under the buttons,
+   SPEC §7.5). 1080 is a problem page's sidebar (280) and gap (32) and a
+   768px main column (Start here's is then 780px); 768 is the Problem-A
    open card's 420 + 24 + 280 = 724 (not tokens) plus an open card's 2px
    border and 20px panel padding on each side, so the narrowest template,
    the open card's, still has 724px when it goes to two columns. */
@@ -349,7 +352,7 @@ button.video__facade[aria-disabled="true"] {
   min-width: 0;
 }
 
-@container video-context (min-width: 768px) {
+@container video-context (min-width: 1080px) {
   .video-block__grid {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     grid-template-areas:

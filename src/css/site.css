@@ -1076,13 +1076,23 @@ button.site-footer__feedback {
 
 /* TopicNav beside the content (problem pages, Start here). Below 600px the
    sidebar is hidden: TopicNav is in the Menu panel instead, and only one
-   "All topics" landmark is ever exposed. */
+   "All topics" landmark is ever exposed.
+
+   The wrapper is the query container for every video template on the site
+   (components.css, partials/video-block.njk). Its width is the window's
+   less the gutters, the same on a problem page as on Start here, and only
+   grows with the window, so the problem video, the open solution cards and
+   Start here's chapters all switch layout at one window width and never
+   back, and no page shows two layouts at once. The main column can't be the
+   container: it is narrower on a problem page than on Start here, and it
+   narrows when the sidebar moves from above it to beside it. */
 .with-sidebar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--space-8);
   padding-block: var(--space-4) var(--space-12);
+  container: video-context / inline-size;
 }
 
 .with-sidebar__side {
@@ -1091,15 +1101,9 @@ button.site-footer__feedback {
   max-width: 320px;
 }
 
-/* The query container for every video template on the page (components.css,
-   partials/video-block.njk): the problem video, the open solution cards and
-   Start here's chapters all switch layout at the same column width, so no
-   page shows two layouts at once. Inline-size containment leaves the flex
-   basis (600px, not the content) and the sidebar's wrapping as they were. */
 .with-sidebar__main {
   flex: 999 1 600px;
   min-width: 0;
-  container: video-context / inline-size;
 }
 
 .with-sidebar--roomy {

@@ -43,14 +43,16 @@
   Every row of data/videos.csv names an audio file and a handout (the
   content check fails the build otherwise, SPEC §7.1), so both always render.
 
-  Layout (components.css): decided by the width of the page's main column
-  (.with-sidebar__main, the one query container for every video on the
-  page, so the problem video and an open card switch together). From 768px
-  (the Problem-A open card's 420 + 24 + 280 = 724, plus an open card's
-  border and padding) the video (3fr) and the label, title and description
-  (2fr) sit side by side and the row runs under both; narrower, the label,
-  title and description come first (the DOM order), then the video and the
-  row. Every caller must render inside .with-sidebar__main.
+  Layout (components.css): decided by the width of the page's two-column
+  wrapper (.with-sidebar, the one query container for every video on the
+  site, so every video switches at one window width, and the problem video
+  and an open card switch together). From 1080px (a 768px main column
+  beside a problem page's sidebar: the Problem-A open card's 420 + 24 +
+  280 = 724, plus an open card's border and padding) the video (3fr) and
+  the label, title and description (2fr) sit side by side and the row runs
+  under both; narrower, the label, title and description come first (the
+  DOM order), then the video and the row. Every caller must render inside
+  .with-sidebar__main, the wrapper's main column.
 
   Arguments (keyword arguments, all optional after `video`):
     video        a video from `videoById` (or `introChapters`/`solutionsByTier`)

@@ -162,23 +162,51 @@ describe('the row of controls under each video (components.css)', () => {
   });
 
   // SPEC §7.5 (project lead, 2026-11-09): one video template everywhere.
-  // Every template on a page switches at the width of the page's main
-  // column (one query container, site.css), so the problem video and an
-  // open card never show two layouts at once: one column in the DOM's order
-  // (header, video, row) below 768px, and from 768px the video (3fr) beside
-  // the header (2fr) with the row under both. 768 = 724 + 2 × (an open
-  // card's 2px border + 20px panel padding).
-  it('lays out every video on a page the same way, by the main column\'s width (site.css, components.css)', () => {
+  // Every template takes its layout from one query container, the page's
+  // two-column wrapper (.with-sidebar, site.css): its width follows the
+  // window's, the same on Start here and on problem pages, so every video
+  // on the site switches at one window width and never back, and no page
+  // shows two layouts at once. (The main column's own width doesn't: it
+  // narrows when the sidebar moves from above it to beside it.) One column
+  // in the DOM's order (header, video, row) below 1080px, and from 1080px
+  // the video (3fr) beside the header (2fr) with the row under both.
+  // 1080 = a problem page's sidebar (280) + gap (32) + a 768px main column;
+  // 768 = 724 + 2 × (an open card's 2px border + 20px panel padding).
+  it('lays out every video on the site the same way, by the two-column wrapper\'s width (site.css, components.css)', () => {
     const siteCss = sheets.find((s) => s.file === 'site.css').css;
-    const main = siteCss.match(/(?:^|\n)\.with-sidebar__main \{([^}]*)\}/)?.[1] ?? '';
-    expect(main).toMatch(/container: video-context \/ inline-size;/);
+    const siteRule = (selector) => siteCss.match(new RegExp(`(?:^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`))?.[1] ?? '';
+    const main = siteRule('.with-sidebar__main');
+    expect(siteRule('.with-sidebar')).toMatch(/container: video-context \/ inline-size;/);
     expect(main).toMatch(/flex: 999 1 600px;/);
+    // One container on the page: not the main column, whose width is not
+    // the same on the two page types and goes down as well as up.
+    expect(main).not.toMatch(/container/);
+    expect(siteCss.match(/container: video-context/g)).toHaveLength(1);
+    const threshold = Number(css.match(/@container video-context \(min-width: (\d+)px\)/)?.[1]);
+    expect(threshold).toBe(1080);
+    // On both page types the sidebar is already beside the main column at
+    // the switch (so the main column only widens from there), and the main
+    // column has the 768px an open card needs.
+    const px = (value) => Number(value.match(/^(\d+)px$/)?.[1] ?? tokensCss.match(new RegExp(`${value.match(/^var\((--[\w-]+)\)$/)?.[1]}: (\\d+)px;`))?.[1]);
+    const basis = (declarations, fallback) => declarations.match(/flex(?:-basis)?: (?:\d+ \d+ )?(\d+px);/)?.[1] ?? fallback;
+    const gap = (declarations, fallback) => declarations.match(/(?:^|\s)gap: ([^;]+);/)?.[1] ?? fallback;
+    const plain = { side: basis(siteRule('.with-sidebar__side')), gap: gap(siteRule('.with-sidebar')), main: basis(main) };
+    const roomy = {
+      side: basis(siteRule('.with-sidebar--roomy > .with-sidebar__side'), plain.side),
+      gap: gap(siteRule('.with-sidebar--roomy'), plain.gap),
+      main: basis(siteRule('.with-sidebar--roomy > .with-sidebar__main'), plain.main),
+    };
+    expect([plain, roomy].map((l) => [px(l.side), px(l.gap), px(l.main)])).toEqual([[280, 32, 600], [260, 40, 560]]);
+    for (const layout of [plain, roomy]) {
+      expect(px(layout.side) + px(layout.gap) + px(layout.main)).toBeLessThanOrEqual(threshold);
+      expect(threshold - px(layout.side) - px(layout.gap)).toBeGreaterThanOrEqual(768);
+    }
     // The template is no container of its own, and no other rule names one
     // for it.
     expect(rule('.video-block')).toBe('');
     for (const s of sheets) expect(s.css, s.file).not.toMatch(/video-block \/ inline-size|@container video-block\b/);
     expect(rule('.video-block__grid')).toMatch(/display: grid;[\s\S]*grid-template-columns: minmax\(0, 1fr\);/);
-    const wide = css.match(/@container video-context \(min-width: 768px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const wide = css.match(/@container video-context \(min-width: 1080px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
     expect(wide).not.toBe('');
     expect(wide).toMatch(/\.video-block__grid \{[^}]*grid-template-columns: minmax\(0, 3fr\) minmax\(0, 2fr\);[^}]*grid-template-areas:\s*"video header"\s*"controls controls";/);
     expect(wide).toMatch(/\.video-block__header \{\s*grid-area: header;/);

@@ -125,11 +125,16 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     expect(main).not.toMatch(/problem-block|solution__tools|solution__header|solution__heading|solution__lede|solution__meta|solution__quick|start-chapter__(head|num|title|desc|eyebrow)|data-rating-reveal|video--lg|<span class="video__title">/);
   });
 
-  // Every template on a page takes its layout from one query container, the
-  // page's main column (site.css), so the problem video and an open card
-  // never show two layouts at once (SPEC §7.5).
-  it.each(withVideos.map((p) => [p.file, p.html]))('%s: every template is inside the page\'s main column, the one query container', (file, html) => {
-    const column = elementByClass(html, 'with-sidebar__main', '(?:main|div)');
+  // Every template takes its layout from one query container, the page's
+  // two-column wrapper (.with-sidebar, site.css), which is as wide on Start
+  // here as on a problem page: every video switches at one window width, and
+  // the problem video and an open card never show two layouts at once (SPEC
+  // §7.5). The videos themselves are in its main column.
+  it.each(withVideos.map((p) => [p.file, p.html]))('%s: every template is inside the page\'s two-column wrapper, the one query container', (file, html) => {
+    const wrappers = elements(html, 'with-sidebar', 'div');
+    expect(wrappers, file).toHaveLength(1);
+    expect(attr(tags(wrappers[0], 'div')[0], 'class').split(/\s+/), file).toContain('container');
+    const column = elementByClass(wrappers[0], 'with-sidebar__main', '(?:main|div)');
     expect(column, file).toBeDefined();
     expect(elements(column, 'video-block', 'div')).toHaveLength(elements(html, 'video-block', 'div').length);
   });
