@@ -317,11 +317,16 @@ export function init() {
 
   // ---- Turnstile ------------------------------------------------------------
 
-  /** The spam check can't give a token: say so if the dialog is open. */
+  /**
+   * The spam check can't give a token: say so if the dialog is open, once.
+   * A further failure while the message shows (the script's error after its
+   * timeout, or each of Turnstile's retries) would say it again and replace
+   * the Contact link, dropping focus from it. Send still repeats it.
+   */
   function checkFailed() {
     state.failed = true;
     state.token = null;
-    if (dialog.open && !state.sending) announce('check');
+    if (dialog.open && !state.sending && state.shown !== 'check') announce('check');
   }
 
   /** The check works after all: drop its failure message (and, with a token, the wait). */

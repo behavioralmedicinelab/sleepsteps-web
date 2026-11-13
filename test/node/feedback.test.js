@@ -1042,6 +1042,45 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect(requests).toHaveLength(1);
     });
 
+    // The 15-second timeout may be followed by the script's own error, and
+    // Turnstile retries a failed check, calling the error callback each time.
+    it('says so once: a further failure neither says it again nor replaces the Contact link the visitor may be on', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      await open();
+      trigger().click();
+      await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS);
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      let link = status().querySelector('a');
+      link.focus();
+      turnstileScripts()[0].dispatchEvent(new Event('error'));
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      expect(status().querySelector('a')).toBe(link);
+      expect(active()).toBe(link);
+      expect(vi.getTimerCount()).toBe(0);
+
+      await open();
+      trigger().click();
+      loadTurnstile();
+      turnstile.last.options['error-callback']('300010');
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      link = status().querySelector('a');
+      link.focus();
+      turnstile.last.options['error-callback']('300010');
+      turnstile.last.options['unsupported-callback']();
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      expect(status().querySelector('a')).toBe(link);
+      expect(active()).toBe(link);
+      expect(vi.getTimerCount()).toBe(0);
+
+      // Send still says it again, since the visitor asked.
+      type('Hello');
+      send().click();
+      expect(said()).toEqual([]);
+      await vi.advanceTimersByTimeAsync(REANNOUNCE_MS);
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      expect(requests).toEqual([]);
+    });
+
     it('says so when the browser is unsupported, or render() throws', async () => {
       await open();
       trigger().click();
