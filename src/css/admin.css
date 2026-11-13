@@ -59,8 +59,9 @@ body.admin {
   font-family: var(--font-heading);
 }
 
-.admin button,
-.admin input {
+/* :where() keeps this at one class's weight, so a button's own class, later
+   in the file, still sets its font-weight. */
+.admin :where(button, input) {
   font: inherit;
 }
 
@@ -248,6 +249,9 @@ body.admin {
   min-height: var(--target-min);
 }
 
+/* These lists and the feedback list have no markers, so each has
+   role="list" in the HTML (lib/admin-page.js): Safari stops announcing a
+   list without markers as a list. */
 .admin-links,
 .admin-toc ul,
 .error-summary ul {
@@ -460,6 +464,7 @@ body.admin {
 .page-name,
 .page-id,
 .video-id,
+.worksheet-id,
 .search-text {
   overflow-wrap: break-word;
 }
@@ -574,6 +579,7 @@ body.admin {
   .page-name,
   .page-id,
   .video-id,
+  .worksheet-id,
   .search-text {
     overflow-wrap: anywhere;
   }

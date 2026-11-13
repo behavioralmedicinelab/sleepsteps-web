@@ -4,8 +4,8 @@
 // build have it too); this module only shapes the data.
 //
 // Entries: every sleep problem, Start here, and every information page
-// (content/pages/) without `search: false` in its front matter. Home, the
-// Sleep problems page and the search page are not entries.
+// (content/pages/) without `search: false` in its front matter. Home (with
+// its list of sleep problems) and the search page are not entries.
 //
 //   { id, url, title, summary, keywords, transcript, type }
 //
@@ -15,7 +15,10 @@
 //   every video on the page, the video's title, its description (for a
 //   solution with a blurb, the blurb instead, as the page shows) and its
 //   transcript (data/transcripts/<video_id>.txt, which the site doesn't
-//   show), so a match in a solution video leads to the problem page. For
+//   show), so a match in a solution video leads to the problem page; and,
+//   after each solution video's own text, the titles of its worksheets
+//   (data/worksheets.csv, SPEC §7.6), which that video's open card lists,
+//   so a search for a worksheet's name finds the problems that offer it. For
 //   Start here, each intro video's title, description and transcript. For
 //   an information page, the text of its rendered body.
 // - type: "problem", "start" or "page".
@@ -27,6 +30,8 @@
 // and writes the result with writeIfChanged().
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { SLUG } from './lib/videos.js';
+import { worksheetsByVideo } from './lib/worksheets.js';
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 // Inline elements join their text to the words around them; any other tag
@@ -72,12 +77,17 @@ const join = (parts) => parts.map((p) => String(p ?? '').replace(/\s+/g, ' ').tr
  * @param {object[]} input.videos    data/videos.csv rows (the `videos` global data)
  * @param {Map<string, string>} [input.transcripts] video_id -> plain-text
  *   transcript (readTranscripts() in scripts/lib/videos.js)
+ * @param {object[]} [input.worksheets] data/worksheets.csv rows (the
+ *   `worksheets` global data): a solution video's worksheet titles join
+ *   its problems' text (SPEC §7.6). Only solutions: no page shows the
+ *   worksheets of a problem's own video or of an intro video.
  * @param {object} [input.start]     the Start here item (collections.all, page_id "start")
  * @param {object[]} [input.pages]   information page items, rendered (templateContent)
  * @param {object[]} [input.keywords] data/keywords.csv rows
  */
-export function searchIndex({ problems = [], videos = [], transcripts = new Map(), start, pages = [], keywords = [] }) {
+export function searchIndex({ problems = [], videos = [], transcripts = new Map(), worksheets = [], start, pages = [], keywords = [] }) {
   const kw = keywordsByPage(keywords);
+  const sheets = worksheetsByVideo(worksheets);
   const library = new Map(
     videos.map((row) => [row.video_id, { title: row.title, description: row.description, text: transcripts.get(row.video_id) ?? '' }]),
   );
@@ -106,6 +116,8 @@ export function searchIndex({ problems = [], videos = [], transcripts = new Map(
       const v = video(s.video);
       const blurb = typeof s.blurb === 'string' ? s.blurb.trim() : '';
       parts.push(v.title, blurb || v.description, v.text);
+      // The worksheets its open card lists, in the card's order.
+      for (const sheet of sheets.get(s.video) ?? []) parts.push(sheet.title);
     }
     entries.push(entry(item, 'problem', d.statement, join(parts)));
   }
@@ -126,12 +138,15 @@ export function searchIndex({ problems = [], videos = [], transcripts = new Map(
 
 // ---- worker/generated/pages.json (SPEC §8.3) ----------------------------------
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // The attributes that name a video in the HTML, each holding its video_id:
 // the facade (data-video), the handout links (data-handout), the
-// audio-only player (data-media), SPEC §9.4, and the ratings widget
-// (data-rating), SPEC §12.
-const VIDEO_ATTRIBUTES = /\sdata-(?:video|handout|media|rating)="([^"]*)"/g;
+// audio-only player (data-media), SPEC §9.4, the ratings widget
+// (data-rating), SPEC §12, and a video's "Feedback" button
+// (data-feedback-video), SPEC §13.
+const VIDEO_ATTRIBUTES = /\sdata-(?:video|handout|media|rating|feedback-video)="([^"]*)"/g;
+// The attribute that names a worksheet, holding its worksheet_id: a worksheet
+// link in an open solution card (data-worksheet), SPEC §7.6, §9.4.
+const WORKSHEET_ATTRIBUTE = /\sdata-worksheet="([^"]*)"/g;
 
 /** The value of an attribute in an opening tag, or undefined if it isn't there. */
 function attribute(tag, name) {
@@ -144,15 +159,19 @@ function attribute(tag, name) {
  * The Worker's list of pages, read from the rendered HTML, so it holds
  * exactly what the browser modules can send:
  *
- *   { page_id: { url, title, page_view, videos: [video_id, ...] } }
+ *   { page_id: { url, title, page_view, videos: [video_id, ...], worksheets: [worksheet_id, ...] } }
  *
  * - every page whose <body> has a data-page-id (so not the 404 page);
  * - title: the <title> text;
  * - page_view: whether <body> has data-page-view (track_page_view, SPEC §10.2);
- * - videos: every video_id the page names (VIDEO_ATTRIBUTES), sorted.
+ * - videos: every video_id the page names (VIDEO_ATTRIBUTES), sorted;
+ * - worksheets: every worksheet_id the page names (WORKSHEET_ATTRIBUTE),
+ *   sorted: the worksheets of its solution videos, so empty on every page
+ *   without solution cards (SPEC §7.6). A worksheet_open event must name one
+ *   of them (SPEC §10.2).
  *
- * Throws, failing the build, on a page_id or video_id that isn't a slug, a
- * page_id on two pages, or no page with a page_id at all.
+ * Throws, failing the build, on a page_id, video_id or worksheet_id that
+ * isn't a slug, a page_id on two pages, or no page with a page_id at all.
  * Keys are sorted, so the file only changes when the site does.
  * @param {{ outputPath: string, url: string, content: string }[]} results
  *   the rendered templates, as Eleventy passes them to eleventy.after
@@ -174,6 +193,11 @@ export function pagesIndex(results = []) {
       if (!SLUG.test(video)) throw new Error(`pages.json: ${where}: "${video}" is not a video_id`);
       videos.add(video);
     }
+    const worksheets = new Set();
+    for (const [, worksheet] of html.matchAll(WORKSHEET_ATTRIBUTE)) {
+      if (!SLUG.test(worksheet)) throw new Error(`pages.json: ${where}: "${worksheet}" is not a worksheet_id`);
+      worksheets.add(worksheet);
+    }
     pages.set(id, {
       where,
       entry: {
@@ -181,6 +205,7 @@ export function pagesIndex(results = []) {
         title: htmlToText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]),
         page_view: attribute(body, 'data-page-view') !== undefined,
         videos: [...videos].sort(),
+        worksheets: [...worksheets].sort(),
       },
     });
   }

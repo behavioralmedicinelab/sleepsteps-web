@@ -3,9 +3,7 @@ title: "Hot flushes and night sweats"
 statement: "Hot flushes or night sweats wake me up"
 source_title: "I am struggling because of hot flushes or night sweats affecting my sleep"
 area: med
-time_of_day: night
 order: 30
-new: false
 problem_video: hot-flushes-and-night-sweats-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

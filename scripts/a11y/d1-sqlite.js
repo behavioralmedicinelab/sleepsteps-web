@@ -53,11 +53,14 @@ export function createD1(migrationsDir) {
 /**
  * Seeds `d1` with a deterministic sample over the 30 days before `nowMs`:
  * visits to the tracked pages with plays, handouts and ratings, searches
- * (some with no results) and feedback, including a long unbroken word, so
- * the summary's tables, lists and messages all have rows to show. `pages` is
+ * (some with no results) and feedback, including a long unbroken word and
+ * messages about one of their page's videos (as from its "Feedback" button,
+ * SPEC §13), and worksheets opened from the pages that list some (SPEC
+ * §7.6), so the summary's tables, lists and messages all have rows to
+ * show. `pages` is
  * worker/generated/pages.json. Returns the number of rows written.
  */
-export async function seedD1(d1, pages, nowMs, { visits = 240, searches = 90, feedback = 140 } = {}) {
+export async function seedD1(d1, pages, nowMs, { visits = 240, searches = 90, feedback = 140, worksheets = 120 } = {}) {
   let state = 7;
   const rand = () => (state = (state * 1103515245 + 12345) % 2147483648) / 2147483648;
   const pick = (list) => list[Math.floor(rand() * list.length)];
@@ -69,8 +72,9 @@ export async function seedD1(d1, pages, nowMs, { visits = 240, searches = 90, fe
   const rows = [];
   const event = (ts, session, page, type, detail) =>
     rows.push(['INSERT INTO events (ts, session_id, page, type, detail) VALUES (?, ?, ?, ?, ?)', [ts, session, page, type, JSON.stringify(detail)]]);
+  const visit = () => `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
   for (let i = 0; i < visits; i += 1) {
-    const session = `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
+    const session = visit();
     const ts = at();
     const [page, { videos }] = pick(tracked);
     const media = pick(videos);
@@ -92,7 +96,19 @@ export async function seedD1(d1, pages, nowMs, { visits = 240, searches = 90, fe
     'Merci beaucoup — très utile',
   ];
   for (let i = 0; i < feedback; i += 1) {
-    rows.push(['INSERT INTO feedback (ts, page, message) VALUES (?, ?, ?)', [at(), pick(ids), pick(messages)]]);
+    const page = pick(ids);
+    // About a third of the messages from a page with videos are about one of them.
+    const { videos } = pages[page];
+    const video = videos.length && rand() < 0.35 ? pick(videos) : null;
+    rows.push(['INSERT INTO feedback (ts, page, video, message) VALUES (?, ?, ?, ?)', [at(), page, video, pick(messages)]]);
+  }
+  // Worksheets opened (worksheet_open, SPEC §10.2), each one of its page's
+  // own, as the Worker stores them. They come last, so the rows above are
+  // the ones this sample had before worksheets were counted.
+  const withWorksheets = Object.entries(pages).filter(([, page]) => page.worksheets?.length);
+  for (let i = 0; i < worksheets && withWorksheets.length; i += 1) {
+    const [page, { worksheets: listed }] = pick(withWorksheets);
+    event(at(), visit(), page, 'worksheet_open', { worksheet: pick(listed) });
   }
   for (const [sql, values] of rows) await d1.prepare(sql).bind(...values).run();
   return rows.length;

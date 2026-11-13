@@ -8,7 +8,10 @@
 //   again is joined with a comma and "! Name" detaches it, as Cloudflare
 //   does), so pages load under the real Content-Security-Policy. Rules for a
 //   host (the workers.dev noindex rule) never match a local address.
-//   _headers itself is never served.
+//   _headers itself is never served. Nor is dist/_redirects: its rules are
+//   followed first, whether or not a file matches, as Cloudflare does
+//   (/problems/ → /, SPEC §7.2). Only rules for one exact path are read,
+//   which is all the file has (deploy-config.test.js).
 // - Pages carry the "<PUBLIC_SITE_KEY>" placeholder as the feedback dialog's
 //   site key (withPlaceholderKey), as production did before its real key
 //   (SPEC §18.4 step 5). So the dialog uses Cloudflare's test key on
@@ -76,6 +79,22 @@ export function parseHeadersFile(text) {
   return rules;
 }
 
+/**
+ * dist/_redirects -> Map(path -> { to, status }): the rules for one exact
+ * path. A rule with a * or a :placeholder, or a line Cloudflare would drop,
+ * is left out; the site has neither (test/node/deploy-config.test.js).
+ */
+export function parseRedirectsFile(text) {
+  const rules = new Map();
+  for (const line of text.split('\n')) {
+    const [from, to, status = '302', ...rest] = line.trim().replace(/\s+#.*$/, '').split(/\s+/);
+    if (!from?.startsWith('/') || !to || rest.length || /\*|:[A-Za-z]\w*/.test(from)) continue;
+    if (![301, 302, 303, 307, 308].includes(Number(status)) || rules.has(from)) continue;
+    rules.set(from, { to, status: Number(status) });
+  }
+  return rules;
+}
+
 /** The headers `rules` give `pathname`, as { lower-case name: [name, value] }. */
 export function headersFor(rules, pathname) {
   const out = new Map();
@@ -114,6 +133,7 @@ export const withPlaceholderKey = (html) => html.replace(/data-sitekey="[^"]*"/g
  */
 export async function startServer({ dist, pages, site, db, pageRows, port: wanted = 0, host = '127.0.0.1' }) {
   const rules = parseHeadersFile(readFileSync(path.join(dist, '_headers'), 'utf8'));
+  const redirects = parseRedirectsFile(readFileSync(path.join(dist, '_redirects'), 'utf8'));
   const key = await makeKey('a11y-key-1');
   const access = createAccessVerifier({
     fetcher: async () => new Response(JSON.stringify(certsBody([key])), { headers: { 'Content-Type': 'application/json' } }),
@@ -167,7 +187,13 @@ export async function startServer({ dist, pages, site, db, pageRows, port: wante
     const file = path.join(dist, path.normalize(pathname));
     const inside = file.startsWith(dist + path.sep) || file === dist;
     const fallback = () => sendFile(res, req.method, 404, path.join(dist, '404.html'), url.pathname);
-    if (!inside || path.basename(file) === '_headers') return fallback();
+    const redirect = redirects.get(url.pathname);
+    if (redirect) {
+      // A path keeps the request's query, as Cloudflare's redirect does.
+      res.writeHead(redirect.status, { Location: redirect.to.startsWith('/') && !redirect.to.includes('?') ? `${redirect.to}${url.search}` : redirect.to });
+      return res.end();
+    }
+    if (!inside || ['_headers', '_redirects'].includes(path.basename(file))) return fallback();
     if (pathname.endsWith('/') && isFile(path.join(file, 'index.html'))) return sendFile(res, req.method, 200, path.join(file, 'index.html'), url.pathname);
     if (!pathname.endsWith('/') && isFile(path.join(file, 'index.html'))) {
       res.writeHead(307, { Location: `${url.pathname}/${url.search}` });

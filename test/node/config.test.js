@@ -23,12 +23,36 @@ describe('eleventy.config.js', () => {
     expect(registered.passthrough).toContainEqual({ 'src/img': 'img' });
   });
 
-  it('ariaCurrent marks the page and, in section mode, pages below it', () => {
+  // The worksheets (SPEC §7.6): data/worksheets.csv is global data through
+  // the same CSV extension, byte-order mark and all, and the whole media/
+  // folder is copied, media/worksheets/ with it.
+  it('reads data/worksheets.csv as the global data `worksheets`, and copies media/ (so media/worksheets/) as it is', () => {
+    const rows = registered.dataExtensions.csv.parser(readFileSync('data/worksheets.csv', 'utf8'));
+    expect(Array.isArray(rows)).toBe(true);
+    for (const row of rows) expect(Object.keys(row)).toEqual(['worksheet_id', 'video_id', 'title', 'file']);
+    expect(registered.dataExtensions.csv.parser('\uFEFFworksheet_id,video_id,title,file\r\n')).toEqual([]);
+    expect(registered.passthrough).toContainEqual({ media: 'media' });
+  });
+
+  it('ariaCurrent marks the page itself, and nothing else (no "section" mode since the nav lost Sleep problems)', () => {
     expect(f.ariaCurrent('/about/', '/about/')).toBe(' aria-current="page"');
-    expect(f.ariaCurrent('/problems/pain/', '/problems/', 'section')).toBe(' aria-current="true"');
     expect(f.ariaCurrent('/problems/pain/', '/problems/')).toBe('');
-    expect(f.ariaCurrent('/', '/start/', 'section')).toBe('');
+    expect(f.ariaCurrent('/problems/pain/', '/problems/', 'section')).toBe('');
+    expect(f.ariaCurrent('/', '/start/')).toBe('');
+    expect(f.ariaCurrent('/', '/#sleep-problems')).toBe('');
     expect(f.ariaCurrent(undefined, '/start/')).toBe('');
+    expect(f.ariaCurrent.length).toBe(2);
+  });
+
+  it('copies src/_headers and src/_redirects to the site root, where Workers reads them (SPEC §16.1, §18.2)', () => {
+    expect(registered.passthrough).toContainEqual({ 'src/_headers': '_headers' });
+    expect(registered.passthrough).toContainEqual({ 'src/_redirects': '_redirects' });
+  });
+
+  it('registers no filter that only the old Home used', () => {
+    expect(Object.keys(f)).not.toContain('videoFormats');
+    // Start here's end card still spells out the number of areas.
+    expect(Object.keys(f)).toContain('numberWord');
   });
 
   it('telHref keeps digits and a leading +', () => {
@@ -56,32 +80,22 @@ describe('eleventy.config.js', () => {
       { area_id: 'day', name: 'Day', order: '20' },
       { area_id: 'core', name: 'Core', order: '10' },
     ];
-    const item = (slug, area) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, area } });
+    // `new` is a leftover field: the "New" pill is gone (SPEC §7.5, §22), so it adds nothing.
+    const item = (slug, area) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, statement: `${slug}.`, area, new: slug === 'c' } });
     const grouped = f.groupByArea([item('a', 'day'), item('b', 'core'), item('c', 'core')], areas);
-    expect(grouped.map((a) => [a.area_id, a.problems.map((p) => p.slug)])).toEqual([
-      ['core', ['b', 'c']],
-      ['day', ['a']],
+    expect(grouped.map((a) => [a.area_id, a.name, a.problems.map((p) => p.slug)])).toEqual([
+      ['core', 'Core', ['b', 'c']],
+      ['day', 'Day', ['a']],
     ]);
-    expect(() => f.groupByArea([item('x', 'nope')], areas)).toThrow(/unknown area "nope"/);
-  });
-
-  it('groupByTime keeps the given order and the collection order, and fails on a time with no group', () => {
-    const times = [
-      { id: 'evening', name: 'In the evening' },
-      { id: 'night', name: 'During the night' },
-      { id: 'any', name: 'Any time' },
-    ];
-    const item = (slug, time) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, statement: `${slug}.`, time_of_day: time, new: slug === 'c' } });
-    const grouped = f.groupByTime([item('a', 'night'), item('b', 'evening'), item('c', 'night')], times);
-    expect(grouped.map((t) => [t.id, t.name, t.problems.map((p) => p.slug)])).toEqual([
-      ['evening', 'In the evening', ['b']],
-      ['night', 'During the night', ['a', 'c']],
-      ['any', 'Any time', []],
+    // A problem as the templates read it.
+    expect(grouped[0].problems).toEqual([
+      { slug: 'b', title: 'b', statement: 'b.', url: '/problems/b/' },
+      { slug: 'c', title: 'c', statement: 'c.', url: '/problems/c/' },
     ]);
-    // The same shape as groupByArea's problems.
-    expect(grouped[1].problems[1]).toEqual({ slug: 'c', title: 'c', statement: 'c.', url: '/problems/c/', isNew: true });
-    expect(() => f.groupByTime([item('x', 'noon')], times)).toThrow(/x\.md: time_of_day "noon" has no group/);
-    expect(() => f.groupByTime(undefined, times)).toThrow(/groupByTime expects/);
+    expect(() => f.groupByArea([item('x', 'nope')], areas)).toThrow(/x\.md: unknown area "nope"/);
+    expect(() => f.groupByArea(undefined, areas)).toThrow(/groupByArea expects/);
+    // The "When it happens" view's filter is gone (SPEC §7.2, §22).
+    expect(f.groupByTime).toBeUndefined();
   });
 
   // The templates, the moduleScripts filter and the Worker (worker/router.js)
@@ -163,10 +177,11 @@ describe('eleventy.config.js', () => {
     expect(f.spokenDuration('1:05')).toBe('1 minute 5 seconds');
     expect(f.spokenDuration('0:45')).toBe('45 seconds');
     expect(f.spokenDuration('10:00')).toBe('10 minutes');
-    expect(f.spokenDuration('1:02:03')).toBe('1 hour 2 minutes 3 seconds');
-    expect(f.spokenDuration('2:00:01')).toBe('2 hours 1 second');
+    expect(f.spokenDuration('75:09')).toBe('75 minutes 9 seconds');
     expect(f.spokenDuration('0:00')).toBe('0 seconds');
-    for (const other of ['[mm:ss]', '', undefined, '6:4', '6:60', 'six']) expect(f.spokenDuration(other)).toBe('');
+    // No hours: data/videos.csv takes m:ss only, and the content check
+    // refuses h:mm:ss, which Excel writes for a time (SPEC §7.1).
+    for (const other of ['[mm:ss]', '', undefined, '6:4', '6:60', 'six', '1:02:03', '6:40:00']) expect(f.spokenDuration(other)).toBe('');
   });
 
   it('numberWord spells out 0-20 and leaves larger numbers as digits', () => {
@@ -222,20 +237,76 @@ describe('eleventy.config.js', () => {
       expect(() => f.solutionsByTier([{ tier: 'other', video: 'intro' }], videos)).toThrow(/tier/);
     });
 
+    // SPEC §7.6: worksheets belong to the video, so a solution gets its
+    // video's rows of data/worksheets.csv whatever the problem.
+    describe('solutionsByTier and the worksheets (data/worksheets.csv rows, SPEC §7.6)', () => {
+      const row = (worksheet_id, video_id, title, file = `${worksheet_id}.pdf`) => ({ worksheet_id, video_id, title, file });
+      const worksheets = [
+        row('drive-b', 'sleep-drive', 'Second in the file'),
+        row('intro-a', 'intro', 'For the intro', 'placeholder-worksheet.pdf'),
+        row('drive-a', 'sleep-drive', ' Third in the file '),
+        row('other', 'not-on-this-page', 'Another video'),
+        row('drive-c', 'sleep-drive', 'Shares a file', 'drive-b.pdf'),
+      ];
+      const solutions = [
+        { tier: 'main', video: 'sleep-drive', blurb: 'A' },
+        { tier: 'extra', video: 'cognitive-arousal' },
+        { tier: 'main', video: 'intro' },
+      ];
+
+      it('gives each solution its video\'s worksheets in the file\'s order, and [] to a video with none', () => {
+        const tiers = f.solutionsByTier(solutions, videos, worksheets);
+        expect(tiers.main.map((s) => [s.video.video_id, s.worksheets])).toEqual([
+          ['sleep-drive', [
+            { worksheet_id: 'drive-b', video_id: 'sleep-drive', title: 'Second in the file', file: 'drive-b.pdf', placeholder: false },
+            { worksheet_id: 'drive-a', video_id: 'sleep-drive', title: 'Third in the file', file: 'drive-a.pdf', placeholder: false },
+            { worksheet_id: 'drive-c', video_id: 'sleep-drive', title: 'Shares a file', file: 'drive-b.pdf', placeholder: false },
+          ]],
+          ['intro', [{ worksheet_id: 'intro-a', video_id: 'intro', title: 'For the intro', file: 'placeholder-worksheet.pdf', placeholder: true }]],
+        ]);
+        expect(tiers.extra.map((s) => [s.video.video_id, s.worksheets])).toEqual([['cognitive-arousal', []]]);
+      });
+
+      it('gives a video the same worksheets on every problem, whatever its tier, number or blurb', () => {
+        const here = f.solutionsByTier([{ tier: 'main', video: 'sleep-drive', blurb: 'On this problem.' }], videos, worksheets).main[0];
+        const there = f.solutionsByTier([{ tier: 'main', video: 'intro' }, { tier: 'extra', video: 'sleep-drive' }], videos, worksheets).extra[0];
+        expect(there.worksheets).toEqual(here.worksheets);
+        expect(here.worksheets.map((w) => w.worksheet_id)).toEqual(['drive-b', 'drive-a', 'drive-c']);
+      });
+
+      it('gives every solution [] for an empty file (the header row alone), and when the worksheets aren\'t passed', () => {
+        for (const data of [[], undefined, null]) {
+          const tiers = f.solutionsByTier(solutions, videos, data);
+          expect([...tiers.main, ...tiers.extra].map((s) => s.worksheets)).toEqual([[], [], []]);
+        }
+        expect(f.solutionsByTier(solutions, videos).main[0].worksheets).toEqual([]);
+        // The rest of each solution is as it was.
+        expect(f.solutionsByTier(solutions, videos, worksheets).main.map(({ worksheets: _, ...rest }) => rest)).toEqual(
+          f.solutionsByTier(solutions, videos).main.map(({ worksheets: _, ...rest }) => rest),
+        );
+      });
+
+      it('fails the build on worksheets data that isn\'t the file\'s rows', () => {
+        expect(() => f.solutionsByTier(solutions, videos, 'data/worksheets.csv')).toThrow(/solutionsByTier\(videos, worksheets\)/);
+        expect(() => f.solutionsByTier(solutions, videos, { rows: [] })).toThrow(/data\/worksheets\.csv/);
+      });
+
+      it('gives no worksheets to videoById or introChapters: only solutions have them', () => {
+        expect(Object.keys(f.videoById('sleep-drive', videos))).not.toContain('worksheets');
+        expect(Object.keys(f.introChapters([{ video: 'intro' }], videos)[0])).not.toContain('worksheets');
+        expect(Object.keys(f.introChapters([{ video: 'intro' }], videos)[0].video)).not.toContain('worksheets');
+      });
+    });
+
     it('introChapters resolves Start here chapters from the videos\' rows, and gives [] without any', () => {
       const chapters = f.introChapters([{ video: 'intro' }, { video: 'cognitive-arousal' }], videos);
       expect(chapters.map(({ video, ...rest }) => rest)).toEqual([
-        { n: 1, id: 'v1', video_id: 'intro', title: 'Intro', duration: '6:40', description: 'What it covers.' },
-        { n: 2, id: 'v2', video_id: 'cognitive-arousal', title: 'Cognitive arousal', duration: '3:05', description: 'Racing thoughts.' },
+        { n: 1, id: 'v1', video_id: 'intro', title: 'Intro' },
+        { n: 2, id: 'v2', video_id: 'cognitive-arousal', title: 'Cognitive arousal' },
       ]);
       expect(chapters[0].video).toBe(f.videoById('intro', videos));
       expect(f.introChapters(undefined, videos)).toEqual([]);
       expect(() => f.introChapters([{ video: 'nope' }], videos)).toThrow(/unknown video/);
-    });
-
-    it('videoFormats says which formats any video has', () => {
-      expect(f.videoFormats(videos)).toEqual({ handout: true, audio: true });
-      expect(f.videoFormats(videos.slice(2))).toEqual({ handout: false, audio: false });
     });
   });
 

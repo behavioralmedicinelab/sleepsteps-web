@@ -3,25 +3,28 @@
   Problem-A.dc.html, phone Problem-Phone.dc.html; SPEC §7.2, §7.5).
 
     {% from "problem/solutions.njk" import solutionsSection %}
-    {% set tiers = solutions | solutionsByTier(videos) %}
+    {% set tiers = solutions | solutionsByTier(videos, worksheets) %}
     {% set ratingsOn = site.features.ratings === true %}
-    {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, page_id, ratingsOn) }}{% endif %}
-    {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, page_id, ratingsOn) }}{% endif %}
+    {% set feedbackOn = site.features.feedback === true %}
+    {% if tiers.main.length %}{{ solutionsSection('main', tiers.main, ratingsOn, feedbackOn) }}{% endif %}
+    {% if tiers.extra.length %}{{ solutionsSection('extra', tiers.extra, ratingsOn, feedbackOn) }}{% endif %}
 
-  solutionsSection(tier, items, pageId, ratings)
+  solutionsSection(tier, items, ratings, feedback)
     tier     'main' ("Main solutions", #main-solutions) or 'extra' ("Other
              things that can help", #more-solutions). The page omits a
              section with no items: the extra one when there are no extras,
              and both on a stand-alone problem (SPEC §7.2).
     items    tiers.main or tiers.extra from `solutionsByTier`; with none,
              the macro renders nothing (no heading without cards)
-    pageId   the page's page_id (unused by the cards; kept so callers
-             don't change)
     ratings  exactly true (the layout passes site.features.ratings ===
              true): each open card's row of controls ends with the ratings
              widget (SPEC §12, partials/rating.njk)
+    feedback exactly true (the layout passes site.features.feedback ===
+             true): each open card's row of controls has the video's
+             "Feedback" button (SPEC §13)
 
-  solutionCard(solution, pageId, ratings): one card, an <li> in the grid.
+  solutionCard(solution, ratings, feedback): one card, an <li> in the
+  grid.
 
   The closed card (V1, project lead, 2026-11-09) is the same on every card:
   the thumbnail band with its play disc, step chip ("1 Main" / "1 Extra")
@@ -33,13 +36,35 @@
 
   The open card is the video template (partials/video-block.njk), as every
   video on the site is: the step chip with Close at its right, the title
-  (h3) and the description, the video, then "Audio only", "Handout" and
-  "Was this helpful?".
+  (h3) and the description, the video, then "Audio only", "Handout",
+  "Feedback" and "Was this helpful?".
+
+  Worksheets (SPEC §7.6; project lead, 2026-11-13: "Add a section to
+  expanded solution video boxes where worksheets can go"). After the
+  template, and so under its row of controls and across the card, an open
+  card lists its video's worksheets: `solution.worksheets`, the video's
+  rows of data/worksheets.csv in the file's order (`solutionsByTier`). They
+  belong to the video, so a video shows the same worksheets on every
+  problem where it is a solution. The video template itself doesn't change
+  and knows nothing of them: only a solution card adds this section, never
+  the problem's own video or a Start here chapter.
+    <section class="worksheets">, a region named by its heading;
+    <h4>     "Worksheet" for one and "Worksheets" for several, then the
+             video's title for screen readers (the card's title is the
+             template's <h3>); id solution-<video_id>-worksheets;
+    <ul>     one link per worksheet, styled as the row's "Handout"
+             (.format-button, the download icon): its title, with " (PDF)"
+             for screen readers, to /media/worksheets/<file>.
+             data-worksheet holds the worksheet_id.
+  A video with no worksheets has no section at all (no empty heading). The
+  links are plain links, so they work without JavaScript. Styles:
+  src/css/pages/problem.css ("Solution card: open").
 
   Without JavaScript each card is a native <details name="solution">: the
-  <summary> is the closed card, and opening it shows the video and its row
-  of controls, while the <summary> stays above them as the card's name and
-  only close control (the template's header ships `hidden`). The shared
+  <summary> is the closed card, and opening it shows the video, its row of
+  controls and its worksheets, while the <summary> stays above them as the
+  card's name and only close control (the template's header ships `hidden`,
+  so there the worksheets' <h4> follows the section's <h2>). The shared
   `name` keeps one card open at a time across both sections where browsers
   support it; elsewhere several can be open, which is harmless. Cards start
   closed, so the first screen holds one video facade, not two; add `open`
@@ -54,26 +79,28 @@
   other, in either section, pausing its media, and moves focus to its title.
 
   ids (unique per page; the validator allows each video once per page):
-  solution-<video_id> on the card, plus -panel, -blurb, -length, and the
-  template's video-<video_id>-title.
+  solution-<video_id> on the card, plus -panel, -blurb, -length and
+  -worksheets, and the template's video-<video_id>-title.
 -#}
 {%- from "partials/icons.njk" import icon -%}
 {%- from "partials/step-chip.njk" import stepChip -%}
 {%- from "partials/video-block.njk" import videoBlock -%}
 
-{%- macro solutionCard(solution, pageId, ratings=false) -%}
+{%- macro solutionCard(solution, ratings=false, feedback=false) -%}
 {%- set video = solution.video -%}
 {%- set id = 'solution-' + video.video_id -%}
 {%- set label = 'Main' if solution.tier == 'main' else 'Extra' -%}
 {%- set spoken = video.duration | spokenDuration -%}
 {%- set ratingsOn = ratings === true -%}
+{%- set feedbackOn = feedback === true -%}
+{%- set sheets = solution.worksheets or [] -%}
 <li class="solution solution--{{ solution.tier }}" id="{{ id }}">
   <details class="solution__disclosure" name="solution">
     <summary class="solution__face"><span class="solution__face-inner">
       <span class="solution__band" aria-hidden="true">
         {%- if video.thumbnail %}<img class="solution__thumb" src="/media/thumbs/{{ video.thumbnail }}" alt="" width="1280" height="720" loading="lazy" decoding="async">{% endif %}
         <span class="play-disc play-disc--sm">{{ icon('play', 20) }}</span>
-        {{ stepChip(solution.n, label, variant='sm paper') }}
+        {{ stepChip(solution.n, label, variant='paper') }}
         <span class="duration-badge solution__duration">{{ video.duration }}</span>
       </span>
       <span class="solution__disc" aria-hidden="true">{{ solution.n }}</span>
@@ -85,13 +112,23 @@
       <span class="solution__chevron" aria-hidden="true">{{ icon('chevron-down', 18) }}</span>
     </span></summary>
     <div class="solution__panel" id="{{ id }}-panel">
-      {{ videoBlock(video, heading=3, description=solution.description, label={ num: solution.n, text: label }, close=id + '-panel', bleed='card', ratings=ratingsOn) }}
+      {{ videoBlock(video, heading=3, description=solution.description, label={ num: solution.n, text: label }, close=id + '-panel', bleed='card', ratings=ratingsOn, feedback=feedbackOn) }}
+      {%- if sheets.length %}
+      <section class="worksheets" aria-labelledby="{{ id }}-worksheets">
+        <h4 class="worksheets__title" id="{{ id }}-worksheets">Worksheet{{ 's' if sheets.length != 1 }}<span class="visually-hidden">: {{ video.title }}</span></h4>
+        <ul class="worksheets__list" role="list">
+          {%- for sheet in sheets %}
+          <li><a class="format-button" href="/media/worksheets/{{ sheet.file }}" type="application/pdf" data-worksheet="{{ sheet.worksheet_id }}">{{ icon('download', 18, 'format-button__icon') }}{{ sheet.title }}<span class="visually-hidden"> (PDF)</span></a></li>
+          {%- endfor %}
+        </ul>
+      </section>
+      {%- endif %}
     </div>
   </details>
 </li>
 {%- endmacro -%}
 
-{%- macro solutionsSection(tier, items, pageId, ratings=false) -%}
+{%- macro solutionsSection(tier, items, ratings=false, feedback=false) -%}
 {%- if items and items.length -%}
 {%- if tier == 'main' -%}
   {%- set sectionId = 'main-solutions' -%}
@@ -114,7 +151,7 @@
   </div>
   <ol class="solution-grid" role="list">
     {%- for solution in items %}
-    {{ solutionCard(solution, pageId, ratings) }}
+    {{ solutionCard(solution, ratings, feedback) }}
     {%- endfor %}
   </ol>
 </section>

@@ -46,11 +46,12 @@ const count = (value) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const compareCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 /** Text order for titles: en-AU collation, then code units, so it is total. */
 function compareText(a, b) {
-  return a.localeCompare(b, 'en-AU') || (a < b ? -1 : a > b ? 1 : 0);
+  return a.localeCompare(b, 'en-AU') || compareCode(a, b);
 }
-const compareCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** A page id -> how the page shows it: its title from pages.json, or the id when it is no longer on the site. */
 function pageOf(index, id) {
@@ -76,9 +77,10 @@ const meanOf = (row) => (row.n > 0 ? row.total / row.n : null);
  *     byPageVideo: Array<{ page, title, known, video, n, total, mean }>,
  *   },
  *   searches: { total: number, zero: number, top: Array<{ q, n }> },
- *   feedback: { total: number, recent: Array<{ ts, page, title, known, message }> },
+ *   feedback: { total: number, recent: Array<{ ts, page, title, known, video, message }> },
  *   plays: { video: Array<{ media, plays, f0, f25, f50, f75, f100 }>, audio: Array<same> },
  *   handouts: Array<{ media, clicks, visits }>,
+ *   worksheets: Array<{ page, title, known, worksheet, clicks, visits }>,
  * }}
  *   views.rows: every tracked page in pages.json (page_view true), with 0
  *   for those with no views, plus any page with views that is no longer in
@@ -88,8 +90,13 @@ const meanOf = (row) => (row.n > 0 ? row.total / row.n : null);
  *   mean is total / n, unrounded. searches.top keeps D1's order (count,
  *   then text). feedback.recent keeps D1's order (newest first); its page
  *   shows by its current title in pages.json (feedback stores none), or by
- *   its id when it is no longer there (known false). plays and handouts by
- *   count, then video id.
+ *   its id when it is no longer there (known false), and its `video` is the
+ *   video_id it is about, or null (sent from the footer, or stored before
+ *   migration 0003). plays and handouts by count, then video id.
+ *   worksheets: one row per page and worksheet_id, by clicks, then the
+ *   page's title and id, then the worksheet id; a page no longer in
+ *   pages.json shows by its id (known false), and a worksheet by the id
+ *   stored, whether or not the page still lists it.
  */
 export function summaryModel(results, index) {
   const rowsOf = (name) => (Array.isArray(results?.[name]) ? results[name] : []);
@@ -164,6 +171,7 @@ export function summaryModel(results, index) {
       recent: rowsOf('recentFeedback').map((row) => ({
         ts: String(row.ts),
         ...pageOf(index, String(row.page)),
+        video: row.video === null || row.video === undefined ? null : String(row.video),
         message: String(row.message ?? ''),
       })),
     },
@@ -171,6 +179,11 @@ export function summaryModel(results, index) {
     handouts: rowsOf('handouts')
       .map((row) => ({ media: String(row.media), clicks: count(row.clicks), visits: count(row.visits) }))
       .sort((a, b) => b.clicks - a.clicks || compareCode(a.media, b.media)),
+    worksheets: rowsOf('worksheets')
+      .map((row) => ({ ...pageOf(index, String(row.page)), worksheet: String(row.worksheet), clicks: count(row.clicks), visits: count(row.visits) }))
+      .sort(
+        (a, b) => b.clicks - a.clicks || compareText(a.title, b.title) || compareCode(a.page, b.page) || compareCode(a.worksheet, b.worksheet),
+      ),
   };
 }
 
@@ -178,11 +191,13 @@ export function summaryModel(results, index) {
 
 /**
  * The most rows one download may hold (decision B5). An export reads about
- * 2 rows per row sent, and each download start counts its rows first (one
- * index entry each, twice when it opens the download page), so a download
- * at the cap reads about 400,000 rows: 8% of the free plan's 5 M a day for
- * the whole account. At the free plan's write ceiling (about 50,000 events
- * a day) one day still fits.
+ * 2 rows per row sent, more where an hour holds many rows of one type, and
+ * each download start counts its rows first (one index entry each, twice
+ * when it opens the download page), so a download at the cap reads about
+ * 430,000 rows at the traffic expected: 9% of the free plan's 5 M a day for
+ * the whole account. SPEC §14.4, "The D1 read budget", has the busier
+ * cases. At the free plan's write ceiling (about 50,000 events a day) one
+ * day still fits.
  */
 export const MAX_EXPORT_ROWS = 100_000;
 

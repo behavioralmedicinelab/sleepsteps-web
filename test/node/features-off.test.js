@@ -53,10 +53,11 @@ const ALL_ON = {
   'stand-alone problem': ['menu', 'events', 'rating', 'players', 'feedback'],
   'Start here': ['menu', 'events', 'players', 'rating', 'feedback'],
   Search: ['menu', 'events', 'search', 'feedback'],
-  'Sleep problems': ['menu', 'problems', 'feedback'],
+  // Home holds the list of sleep problems (project lead, 2026-11-13).
+  Home: ['menu', 'problems', 'feedback'],
   Privacy: ['menu', 'stats-switch', 'feedback'],
   'Getting urgent help': ['events', 'feedback'],
-  'Home, About, Contact, Referral info': ['menu', 'feedback'],
+  'About, Contact, Referral info': ['menu', 'feedback'],
   '404 page': ['menu'],
 };
 
@@ -64,13 +65,13 @@ function kindOf(file) {
   const slug = file.match(/^problems\/([^/]+)\/index\.html$/)?.[1];
   if (slug) return (model.problems.get(slug).data.solutions ?? []).length ? 'problem with solutions' : 'stand-alone problem';
   return {
+    'index.html': 'Home',
     'start/index.html': 'Start here',
     'search/index.html': 'Search',
-    'problems/index.html': 'Sleep problems',
     'privacy/index.html': 'Privacy',
     'urgent-help/index.html': 'Getting urgent help',
     '404.html': '404 page',
-  }[file] ?? 'Home, About, Contact, Referral info';
+  }[file] ?? 'About, Contact, Referral info';
 }
 
 const allOn = builds.find((b) => b.name === 'all on');
@@ -176,8 +177,10 @@ describe.each(builds)('$name', ({ features, dir }) => {
       const before = allOnPages.get(file);
       expect(count(html, ' data-rating="'), file).toBe(on('ratings') ? count(before, ' data-rating="') : 0);
       if (!on('ratings')) expect(html, file).not.toMatch(/data-rating|rating__|Was this helpful/);
-      // "Audio only" and the handout stay whatever the switch says.
-      for (const needle of ['class="format-button"', 'class="format-disclosure"', '<audio ']) {
+      // "Audio only" and the handout stay whatever the switch says. (A
+      // video's "Feedback" button, a <button class="format-button">, follows
+      // features.feedback: below.)
+      for (const needle of ['<span class="format-button"', '<a class="format-button"', 'class="format-disclosure"', '<audio ']) {
         expect(count(html, needle), `${file}: ${needle}`).toBe(count(before, needle));
       }
       for (const row of elements(html, 'video-controls', 'div')) {
@@ -187,20 +190,39 @@ describe.each(builds)('$name', ({ features, dir }) => {
     expect(pages.filter((p) => p.html.includes('class="video-controls')).length).toBeGreaterThan(0);
   });
 
-  it(`${on('ratings') ? 'keeps' : 'drops'} Home's ratings note, the only text that needs JavaScript`, () => {
+  // Home's "Rate each video to help us improve" went with its step cards
+  // (2026-11-13), and with it the [data-js-only] hook that menu.js used to
+  // show: text marked that way would now stay hidden for good.
+  it('says nothing about ratings on Home, and marks no text [data-js-only]', () => {
     const home = pageAt(dir, '/');
-    expect(count(home, 'class="home-step__note"')).toBe(on('ratings') ? 1 : 0);
-    expect(pages.filter((p) => /\sdata-js-only[\s>=]/.test(p.html)).map((p) => p.file)).toEqual(on('ratings') ? ['index.html'] : []);
+    expect(home).not.toMatch(/home-step__note|Rate each video/);
+    expect(pages.filter((p) => /\sdata-js-only[\s>=]/.test(p.html)).map((p) => p.file)).toEqual([]);
+    expect(readFileSync('src/js/menu.js', 'utf8')).not.toMatch(/data-js-only/);
+  });
+
+  // Home is the Sleep problems page (SPEC §7.2): the list and its script
+  // are there whatever the switches say, and the old page isn't built.
+  it('has the list of sleep problems on Home, loads problems.js there alone, and builds no /problems/ page', () => {
+    expect(pages.filter((p) => scriptsOf(p.html).includes('/js/problems.js')).map((p) => p.file)).toEqual(['index.html']);
+    expect(pages.filter((p) => /\sdata-problems[\s>=]/.test(p.html)).map((p) => p.file)).toEqual(['index.html']);
+    expect(pages.map((p) => p.file)).not.toContain('problems/index.html');
   });
 
   // ---- features.feedback ----
 
-  it(`${on('feedback') ? 'renders' : 'renders no'} feedback dialog or "Send feedback" link, the 404 page included`, () => {
+  it(`${on('feedback') ? 'renders' : 'renders no'} feedback dialog, "Send feedback" link or "Feedback" button under a video, the 404 page included`, () => {
     for (const { file, html } of pages) {
       const hasId = attr(bodyOf(html), 'data-page-id') !== undefined;
+      const videos = count(html, ' data-video="');
       expect(tags(html, 'dialog'), file).toHaveLength(on('feedback') && hasId ? 1 : 0);
-      expect(count(html, 'data-feedback-trigger'), file).toBe(on('feedback') ? 1 : 0);
-      if (!on('feedback')) expect(html, file).not.toMatch(/feedback-dialog|data-feedback|Send feedback/);
+      // The footer's link, and one hidden button for each video on the page (SPEC §13).
+      expect(count(html, 'data-feedback-trigger'), file).toBe(on('feedback') ? 1 + videos : 0);
+      expect(count(html, ' data-feedback-video="'), file).toBe(on('feedback') ? videos : 0);
+      expect(count(html, '<button type="button" class="format-button" data-feedback-trigger data-feedback-video="'), file).toBe(on('feedback') ? videos : 0);
+      expect(count(html, '<button type="button" class="format-button"'), file).toBe(on('feedback') ? videos : 0);
+      // The rest of each row is as with every feature on.
+      expect(count(html, 'class="video-controls"'), file).toBe(videos);
+      if (!on('feedback')) expect(html, file).not.toMatch(/feedback-dialog|data-feedback|Send feedback|>Feedback</);
       // The footer's Contact link stays.
       expect(tags(elementByClass(html, 'site-footer', 'footer'), 'a').some((t) => attr(t, 'href') === '/contact/'), file).toBe(true);
     }
@@ -244,13 +266,31 @@ describe.each(builds)('$name', ({ features, dir }) => {
     });
 
     it(`${on('feedback') ? 'lists' : "doesn't list"} written feedback`, () => {
-      expect(items.includes('Written feedback, if you choose to send it, and the page you sent it from')).toBe(on('feedback'));
+      expect(items.includes('Written feedback, if you choose to send it, and the page you sent it from. If you use the Feedback button under a video, we also store which video it is about')).toBe(on('feedback'));
+      // Nothing else on the page speaks of a video's Feedback button.
+      expect(privacyText.includes('Feedback button')).toBe(on('feedback'));
     });
 
     it(`${on('events') ? 'lists' : "doesn't list"} searches and usage, and the paragraph on turning statistics off`, () => {
       expect(items.some((item) => item.startsWith('Words you type into the site search.'))).toBe(on('events'));
       expect(items.some((item) => item.startsWith('Anonymous usage:'))).toBe(on('events'));
       expect(privacyText.includes('You can stop your browser sending us anonymous usage information')).toBe(on('events'));
+    });
+
+    // Every usage event type but the search has its words in both places
+    // (SPEC §10.2, §15.2): page views, plays, and handouts and worksheets
+    // opened (worksheet_open, project lead, 2026-11-13).
+    it(`${on('events') ? 'names' : "doesn't name"} handouts and worksheets opened among the usage it counts, and among what turning statistics off stops`, () => {
+      const usage = 'Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts and worksheets opened';
+      const stop = 'You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts and worksheets opened, and searches.';
+      expect(items.includes(usage)).toBe(on('events'));
+      expect(privacyText.includes(stop)).toBe(on('events'));
+      // Those two sentences are in the parts of the page that show only
+      // while usage statistics are on, so nothing says worksheets opened
+      // are counted while they are off. The page's other words are the
+      // team's (the wording is a draft, SPEC §21): nothing here counts the
+      // word "worksheet" across the page.
+      expect(privacyText.includes('handouts and worksheets opened')).toBe(on('events'));
     });
 
     it('names in "still reach us" only the features that are on', () => {
@@ -312,7 +352,6 @@ describe.each(builds)('$name', ({ features, dir }) => {
 
     const SAMPLES = [
       ['/', ''],
-      ['/problems/', ''],
       ['/problems/tired-but-wired/', ''],
       ['/problems/restless-legs/', ''],
       ['/start/', ''],
@@ -360,8 +399,12 @@ describe.each(builds)('$name', ({ features, dir }) => {
       if (on('events') && search) expected.push(['/api/event', 'search']);
       expect(sent).toEqual(expected);
       // Without the switch's module, its widgets aren't there to send anything.
-      expect(dom.document.querySelectorAll('[data-rating]').length > 0).toBe(on('ratings') && /problems\/|start/.test(url) && url !== '/problems/');
+      expect(dom.document.querySelectorAll('[data-rating]').length > 0).toBe(on('ratings') && /problems\/|start/.test(url));
       expect(dom.document.querySelector('dialog') !== null).toBe(on('feedback') && url !== '/404.html');
+      // A "Feedback" button under each video, shown by feedback.js, only while its switch is on.
+      const videos = dom.document.querySelectorAll('[data-video]').length;
+      expect(videos > 0).toBe(/problems\/|start/.test(url));
+      expect(dom.document.querySelectorAll('button[data-feedback-video]').map((b) => b.hidden)).toEqual(on('feedback') ? Array.from({ length: videos }, () => false) : []);
     });
   });
 });
@@ -371,9 +414,10 @@ describe.each(builds)('$name', ({ features, dir }) => {
 describe('all off', () => {
   const { dir } = builds.find((b) => b.name === 'all off');
 
-  it('loads no script on Getting urgent help, and only menu.js on the plain pages', () => {
+  it('loads no script on Getting urgent help, only menu.js on the plain pages, and problems.js too on Home', () => {
     expect(scriptsOf(pageAt(dir, '/urgent-help/'))).toEqual([]);
-    for (const url of ['/', '/about/', '/contact/', '/help/', '/privacy/', '/404.html']) expect(scriptsOf(pageAt(dir, url)), url).toEqual(['/js/menu.js']);
+    for (const url of ['/about/', '/contact/', '/help/', '/privacy/', '/404.html']) expect(scriptsOf(pageAt(dir, url)), url).toEqual(['/js/menu.js']);
+    expect(scriptsOf(pageAt(dir, '/'))).toEqual(['/js/menu.js', '/js/problems.js']);
   });
 
   it('loads no module that can call the API on any page', () => {

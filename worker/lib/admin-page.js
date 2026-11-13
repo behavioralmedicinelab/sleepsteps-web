@@ -18,7 +18,7 @@
 
 import { TS_RE, thousands } from './admin-data.js';
 import { html } from './html.js';
-import { formatDayLong, formatHour, formatMonth, formatSpan, formatTime, MIN_DAY } from './date-range.js';
+import { formatDayLong, formatHour, formatMonth, formatSpan, formatSpanLong, formatTime, MIN_DAY, SUMMARY_DEFAULT_DAYS } from './date-range.js';
 
 /** The tables the page offers to download, in link order, with their names in the copy. */
 export const DOWNLOAD_TABLES = Object.freeze([
@@ -29,7 +29,7 @@ export const DOWNLOAD_TABLES = Object.freeze([
 ]);
 
 /** The free plan's rows read a day, for the whole account (SPEC §17). */
-export const DAILY_ROWS_READ = 5_000_000;
+const DAILY_ROWS_READ = 5_000_000;
 
 /**
  * A summary load that reads more than this (10% of a day's allowance) says
@@ -162,7 +162,7 @@ const errorText = (error, view) => (ERROR_TEXT[error.code] ?? (() => 'Check this
 function errorSummary(view) {
   return html`<section class="error-summary" aria-labelledby="error-summary-title">
 <h2 id="error-summary-title">There is a problem</h2>
-<ul>
+<ul role="list">
 ${view.errors.map((error) => html`<li><a href="${`#${error.field}`}"><span>${errorText(error, view)}</span></a></li>\n`)}</ul>
 </section>`;
 }
@@ -181,7 +181,7 @@ function rangeForm(view) {
   return html`<form class="range" method="get" action="/admin/" novalidate>
 <fieldset>
 <legend>Date range</legend>
-<p class="hint" id="range-hint">UTC days, both included. Leave both empty for the last 30 days. Up to ${view.limits.maxSummaryDays} days.</p>
+<p class="hint" id="range-hint">UTC days, both included. Leave both empty for the last ${SUMMARY_DEFAULT_DAYS} days. Up to ${view.limits.maxSummaryDays} days.</p>
 <div class="range__fields">
 ${dateField(view, 'from', 'From')}
 ${dateField(view, 'to', 'To')}
@@ -195,12 +195,10 @@ ${dateField(view, 'to', 'To')}
 
 function currentRange(view) {
   const { range } = view;
-  const span = range.from === range.to
-    ? formatDayLong(range.from)
-    : `${formatDayLong(range.from)} to ${formatDayLong(range.to)}`;
+  const span = formatSpanLong(range.from, range.to);
   const lead = range.isDefault ? `Showing the last ${plural(range.days, 'day', 'days')}: ${span}` : `Showing ${span}`;
   const today = range.to === view.today ? ' Today is still under way, so its numbers can still grow.' : '';
-  const reset = range.isDefault ? '' : html` <a class="range-current__reset" href="/admin/">Show the last 30 days</a>`;
+  const reset = range.isDefault ? '' : html` <a class="range-current__reset" href="/admin/">Show the last ${SUMMARY_DEFAULT_DAYS} days</a>`;
   return html`<p class="range-current">${lead} (UTC days, both included).${today}${reset}</p>`;
 }
 
@@ -212,11 +210,12 @@ const SECTIONS = [
   ['feedback', 'Feedback'],
   ['plays', 'Plays and how far people got'],
   ['handouts', 'Handouts opened'],
+  ['worksheets', 'Worksheets opened'],
 ];
 
 function contents() {
   return html`<nav class="admin-toc" aria-label="On this page">
-<ul>
+<ul role="list">
 ${SECTIONS.map(([id, title]) => html`<li><a href="${`#${id}`}">${title}</a></li>\n`)}</ul>
 </nav>`;
 }
@@ -231,7 +230,7 @@ ${body}
 
 /** The four links for checked days. `label` names the days; each link adds that they are UTC. */
 function exportLinks(from, to, label) {
-  return html`<ul class="admin-links">
+  return html`<ul class="admin-links" role="list">
 ${DOWNLOAD_TABLES.map(({ table, name }) => html`<li><a href="${exportHref(table, from, to)}">${name}, ${label} UTC (CSV)</a></li>\n`)}</ul>`;
 }
 
@@ -340,9 +339,16 @@ ${table}`,
   );
 }
 
-/** A stored hour as <time>, only when it is exactly toISOString() output; otherwise its text, escaped. */
+/**
+ * A stored hour as <time>, only when it is exactly toISOString() output for
+ * a real time; otherwise its text, escaped. TS_RE checks only where the
+ * digits are, so a hand-written row's month 13 passes it, and formatHour
+ * would throw on that and fail the whole page.
+ */
 function hourOf(ts) {
-  return TS_RE.test(ts) ? html`<time datetime="${ts}">${formatHour(ts)}</time>` : ts;
+  const ms = TS_RE.test(ts) ? Date.parse(ts) : NaN;
+  const exact = Number.isFinite(ms) && new Date(ms).toISOString() === ts;
+  return exact ? html`<time datetime="${ts}">${formatHour(ts)}</time>` : ts;
 }
 
 /**
@@ -356,6 +362,15 @@ function feedbackPage(item) {
   return html`<span class="feedback-item__page">${item.title}</span> <span class="feedback-item__page-id">(${item.page})</span>`;
 }
 
+/**
+ * ", video <video_id>" after a message's page, when it was sent from that
+ * video's Feedback button (SPEC §13, §14.4); nothing for a message without
+ * one. By id, as every video on this page is.
+ */
+function feedbackVideo(item) {
+  return item.video ? html`, video <span class="feedback-item__video video-id">${item.video}</span>` : '';
+}
+
 function feedback(s) {
   const { total, recent } = s.feedback;
   if (total === 0 || recent.length === 0) return section('feedback', empty('No feedback in this range.'));
@@ -365,7 +380,7 @@ function feedback(s) {
   else lead = `All ${thousands(total)} messages in this range, newest first.`;
   const items = recent.map(
     (item) => html`<li class="feedback-item">
-<h3 class="feedback-item__heading">${feedbackPage(item)}, ${hourOf(item.ts)}</h3>
+<h3 class="feedback-item__heading">${feedbackPage(item)}${feedbackVideo(item)}, ${hourOf(item.ts)}</h3>
 <blockquote class="feedback-item__message" dir="auto">${item.message}</blockquote>
 </li>
 `,
@@ -377,7 +392,7 @@ function feedback(s) {
   return section(
     'feedback',
     html`<p>${lead} Times are UTC, rounded down to the hour. Messages are shown as stored: as sent, except that line breaks are made uniform, control characters are removed and spaces are trimmed from each end. Feedback comes from anyone and can hold health or identifying details.</p>
-<ol class="feedback-list">
+<ol class="feedback-list" role="list">
 ${items}</ol>${more}`,
   );
 }
@@ -420,6 +435,24 @@ function handouts(s) {
     s.handouts.map((row) => html`<tr>${videoHeader(row.media)}${num(row.clicks)}${num(row.visits)}</tr>\n`),
   );
   return section('handouts', html`${intro}\n${table}`);
+}
+
+/**
+ * Worksheets (SPEC §7.6, §14.4): a worksheet belongs to a video and shows on
+ * every page where that video is a solution, so each row is a page and a
+ * worksheet. The worksheet shows by its worksheet_id, as stored, as videos
+ * show by their video_id.
+ */
+function worksheets(s) {
+  const intro = html`<p>Each click on a worksheet link in an open solution card, whether the browser opened the worksheet or saved it, and the number of visits that clicked, for each page and worksheet. A worksheet goes with its video, so it can be opened from every page where that video is a solution. Worksheets are shown by their worksheet_id.</p>`;
+  if (s.worksheets.length === 0) return section('worksheets', html`${intro}\n${empty('No worksheets opened in this range.')}`);
+  const table = dataTable(
+    'worksheets-caption',
+    'Worksheet clicks per page and worksheet',
+    [{ label: 'Page' }, { label: 'Worksheet' }, { label: 'Clicks', num: true }, { label: 'Visits', num: true }],
+    s.worksheets.map((row) => html`<tr>${pageHeader(row)}<td class="worksheet-id">${row.worksheet}</td>${num(row.clicks)}${num(row.visits)}</tr>\n`),
+  );
+  return section('worksheets', html`${intro}\n${table}`);
 }
 
 // ---------------------------------------------------------------- the pages
@@ -469,7 +502,8 @@ ${ratings(view.summary)}
 ${searches(view.summary)}
 ${feedback(view.summary)}
 ${plays(view.summary)}
-${handouts(view.summary)}`
+${handouts(view.summary)}
+${worksheets(view.summary)}`
     : '';
 
   return html`${head(title)}
@@ -504,7 +538,7 @@ export function renderDownloadPage(view) {
   const name = entry ? entry.name : view.table;
   const lower = name.toLowerCase();
   const parts = Math.max(1, Math.ceil(view.rows / view.pageRows));
-  const span = view.from === view.to ? formatDayLong(view.from) : `${formatDayLong(view.from)} to ${formatDayLong(view.to)}`;
+  const span = formatSpanLong(view.from, view.to);
   return html`${head(`Download ${lower}, ${formatSpan(view.from, view.to)} (UTC)`, { script: true })}
 ${header(view.host)}
 <main id="main" class="admin-container admin-main">

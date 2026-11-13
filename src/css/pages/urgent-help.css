@@ -6,7 +6,7 @@
  * text is 17px body (SPEC §7.5).
  *
  * The minimal header, the 880px column and its padding come from site.css
- * (§14, layouts/urgent.njk).
+ * (its section 11; layouts/urgent.njk).
  *
  * Colour pairs are the listed ones: paper on ink and on deep-teal (the
  * board's on-teal-muted description on ink is not listed), ink,
@@ -174,5 +174,18 @@ a.contact-card__number:hover {
 
   .call-card a {
     padding: var(--space-8); /* board 28 x 32 */
+  }
+}
+
+/* Backgrounds don't print, so the call cards' paper text, the numbers
+   included, would come out pale grey or not at all: ink text and an ink
+   edge instead. Both grounds go, in case the reader prints backgrounds. */
+@media print {
+  .call-card a,
+  .call-card a:hover,
+  .call-card--first a {
+    border-color: var(--ink);
+    background: none;
+    color: var(--ink);
   }
 }

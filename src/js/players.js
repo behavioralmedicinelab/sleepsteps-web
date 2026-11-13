@@ -2,8 +2,8 @@
 //
 // The HTML works without this module (SPEC §2, §11): each video facade is a
 // "Watch on YouTube" link, "Audio only" is a native <details>, and handouts
-// are plain links. There are no transcripts on the site (SPEC §9.3). This
-// module:
+// and worksheets are plain links. There are no transcripts on the site
+// (SPEC §9.3). This module:
 //
 // - turns each facade link into a "Play video" button of the same size. Only
 //   when it is pressed does it load the YouTube IFrame Player API (once per
@@ -12,17 +12,20 @@
 //   frame says so and links to the video on YouTube;
 // - pauses every other video and audio when one starts;
 // - keeps the furthest point reached per media item (0/25/50/75/100) and
-//   reports it, plus handout clicks, through report() (SPEC §9.4, §10.2),
-//   for events.js to send: see below.
+//   reports it, plus handout clicks and clicks on a solution card's
+//   worksheet links (SPEC §7.6), through report() (SPEC §9.4, §10.2), for
+//   events.js to send: see below.
 //
-// Exports, for page scripts (solutions.js): pauseWithin(root).
+// Exports, for solutions.js (a card being closed) and feedback.js (the
+// feedback dialog opening over the page): pauseWithin(root).
 //
 // Usage statistics: report() only dispatches a `sleepsteps:event`
 // CustomEvent on document, with detail { type, detail } in the SPEC §10.2
 // shapes, which worker/routes/event.js accepts: video_play / audio_play
 // { media, furthest } (furthest 0, 25, 50, 75 or 100) and handout_open
 // { media }, where media is always the video_id (data-video, data-media,
-// data-handout). events.js, loaded before this module whenever
+// data-handout); and worksheet_open { worksheet }, the worksheet_id
+// (data-worksheet). events.js, loaded before this module whenever
 // features.events is on, listens and sends them (SPEC §10.1). Nothing is
 // sent or stored here.
 
@@ -42,7 +45,7 @@ const WATCH_URL = 'https://www.youtube.com/watch?v=';
 const LOAD_TIMEOUT_MS = 15000;
 const POLL_MS = 5000; // SPEC §9.4: poll while playing
 
-const players = new Map(); // .video wrapper -> { player, videoId, poll }
+const players = new Map(); // .video wrapper -> { player, videoId, poll, started }
 
 // ---- Reports, sent by events.js ---------------------------------------------
 
@@ -106,12 +109,31 @@ function pauseOthers(except) {
   });
 }
 
-/** Pause every video and audio inside `root` (e.g. a card being closed). */
+/**
+ * Pause every video and audio inside `root`: a card being closed, or the
+ * whole document as the feedback dialog opens over it. A video that is
+ * still loading isn't playing yet, so there is nothing to pause: onReady
+ * and onStateChange keep it from starting where the visitor can't get to
+ * it (outOfReach).
+ */
 export function pauseWithin(root) {
   players.forEach((entry, wrapper) => {
     if (root.contains(wrapper)) pausePlayer(entry);
   });
   root.querySelectorAll('audio').forEach((audio) => audio.pause());
+}
+
+/**
+ * Whether the visitor can't get to this video: it is inside something
+ * hidden, as when its solution card was closed while it loaded
+ * (solutions.js), or behind an open dialog (the feedback dialog, the site's
+ * only one, is modal: the page behind it is inert; feedback.js). A video
+ * must not start playing there by itself.
+ */
+function outOfReach(wrapper) {
+  if (wrapper.closest('[hidden]')) return true;
+  const dialog = document.querySelector('dialog[open]');
+  return dialog !== null && !dialog.contains(wrapper);
 }
 
 // ---- YouTube player --------------------------------------------------------------
@@ -166,7 +188,7 @@ function showError(wrapper) {
   link.textContent = 'Watch on YouTube';
   message.append("The video couldn't load here. ", link);
   frame.replaceChildren(message);
-  wrapper.classList.remove('is-loading', 'is-playing');
+  wrapper.classList.remove('is-loading');
   if (hadFocus) link.focus();
 }
 
@@ -183,8 +205,22 @@ function onStateChange(wrapper, state) {
   const entry = players.get(wrapper);
   const states = window.YT?.PlayerState;
   if (!entry || !states) return;
+  // Its first start, where the visitor can't get to it (`autoplay: 1` starts
+  // a video that was still loading when its card closed, or when the
+  // feedback dialog opened): pause it, pause nothing else and report no
+  // play. Once the visitor has played it, a later start there is theirs (the
+  // browser's media controls, a media key).
+  if (!entry.started && (state === states.PLAYING || state === states.BUFFERING) && outOfReach(wrapper)) {
+    try {
+      entry.player.pauseVideo();
+    } catch {
+      // Mid-teardown; nothing to pause.
+    }
+    return;
+  }
   // video_play is reported from here and from the 5-second poll.
   if (state === states.PLAYING) {
+    entry.started = true;
     pauseOthers(wrapper);
     sample(entry);
     clearInterval(entry.poll);
@@ -211,6 +247,7 @@ function play(wrapper, button) {
   // Text set after the live region is in the page, so it is announced.
   status.textContent = 'Loading video…';
 
+  let readyTimer;
   loadApi()
     .then((YT) => {
       const mount = document.createElement('div');
@@ -219,7 +256,7 @@ function play(wrapper, button) {
       mount.append(target);
       frame.append(mount);
 
-      const readyTimer = setTimeout(() => showError(wrapper), LOAD_TIMEOUT_MS);
+      readyTimer = setTimeout(() => showError(wrapper), LOAD_TIMEOUT_MS);
       const player = new YT.Player(target, {
         host: PLAYER_HOST,
         videoId: youtubeId,
@@ -238,10 +275,11 @@ function play(wrapper, button) {
             const moveFocus = !active || active === document.body || wrapper.contains(active);
             frame.querySelectorAll('.video__media, .video__facade, .video__status').forEach((el) => el.remove());
             wrapper.classList.remove('is-loading');
-            wrapper.classList.add('is-playing');
             // Autoplay may be blocked (iOS); YouTube then shows its own play
             // button, which the focused iframe makes the next thing to press.
-            player.playVideo();
+            // Not if the visitor has closed its card, or opened the feedback
+            // dialog, meanwhile.
+            if (!outOfReach(wrapper)) player.playVideo();
             if (moveFocus) iframe.focus();
           },
           onStateChange: (event) => onStateChange(wrapper, event.data),
@@ -251,9 +289,14 @@ function play(wrapper, button) {
           },
         },
       });
-      players.set(wrapper, { player, videoId, poll: 0 });
+      players.set(wrapper, { player, videoId, poll: 0, started: false });
     })
-    .catch(() => showError(wrapper));
+    .catch(() => {
+      // Creating the player may have thrown with its timer already running,
+      // which would show the error a second time.
+      clearTimeout(readyTimer);
+      showError(wrapper);
+    });
 }
 
 /** Swap a facade link for a button with the same classes and contents. */
@@ -281,11 +324,12 @@ function upgradeFacade(link) {
 function setUpAudio(audio) {
   const media = audio.dataset.media;
   const fraction = () => (audio.duration > 0 ? audio.currentTime / audio.duration : 0);
-  // audio_play is reported from these listeners.
-  audio.addEventListener('play', () => {
-    pauseOthers(audio);
-    track('audio_play', media, fraction());
-  });
+  // `play` is only the request: it fires before any of the file has loaded
+  // (preload="none"), and the file may never load.
+  audio.addEventListener('play', () => pauseOthers(audio));
+  // audio_play is reported from these listeners: from `playing`, as a
+  // video's is from the PLAYING state.
+  audio.addEventListener('playing', () => track('audio_play', media, fraction()));
   // Seeking while paused fires timeupdate too, but isn't a play (SPEC §9.4:
   // reported only "if the item was played at all").
   audio.addEventListener('timeupdate', () => {
@@ -299,15 +343,22 @@ function setUpAudio(audio) {
 function onClick(event) {
   const link = event.target.closest?.('a[href]');
   // handout_open { media: video_id } when a handout link is clicked
-  // (whatever the format): the row's "Handout" or a closed card's quick
-  // link.
+  // (whatever the format): the row's "Handout", the only one (a closed card
+  // has no quick link, SPEC §9.4).
   if (link?.dataset.handout) report('handout_open', { media: link.dataset.handout });
+  // worksheet_open { worksheet: worksheet_id } when a worksheet link in an
+  // open solution card is clicked (SPEC §7.6), in the same way.
+  if (link?.dataset.worksheet) report('worksheet_open', { worksheet: link.dataset.worksheet });
 }
 
 function init() {
   document.querySelectorAll('a.video__facade').forEach(upgradeFacade);
   document.querySelectorAll('audio[data-media]').forEach(setUpAudio);
   document.addEventListener('click', onClick);
+  // A middle click opens the link in a new tab, and fires auxclick, not click.
+  document.addEventListener('auxclick', (event) => {
+    if (event.button === 1) onClick(event);
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushAll();
   });

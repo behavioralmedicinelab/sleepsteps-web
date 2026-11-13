@@ -20,7 +20,7 @@ const IMPORTS = {
   'admin-export.js': [],
   'api.js': [],
   'events.js': ['./usage-prefs.js'],
-  'feedback.js': ['./api.js'],
+  'feedback.js': ['./api.js', './players.js'],
   'menu.js': [],
   'players.js': [],
   'problems.js': [],
@@ -71,10 +71,11 @@ describe('static imports (SPEC §11)', () => {
     }
   });
 
-  it('fails together: api.js takes ratings and feedback, usage-prefs.js the usage statistics, players.js the solution cards', () => {
+  // feedback.js imports players.js since 2026-11-13, to pause the page's media as its dialog opens (SPEC §13).
+  it('fails together: api.js takes ratings and feedback, usage-prefs.js the usage statistics, players.js the solution cards and feedback', () => {
     expect(failsWith('api.js')).toEqual(['api.js', 'feedback.js', 'rating.js']);
     expect(failsWith('usage-prefs.js')).toEqual(['events.js', 'stats-switch.js', 'usage-prefs.js']);
-    expect(failsWith('players.js')).toEqual(['players.js', 'solutions.js']);
+    expect(failsWith('players.js')).toEqual(['feedback.js', 'players.js', 'solutions.js']);
     expect(failsWith('search-config.js')).toEqual(['search-config.js', 'search.js']);
     for (const name of ['menu.js', 'problems.js', 'admin-export.js']) expect(failsWith(name)).toEqual([name]);
   });
@@ -152,24 +153,35 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect($$('[data-rating]').length).toBeGreaterThan(0);
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(true);
     for (const row of $$('.video-controls')) expect(row.hidden).toBe(false);
-    // "Send feedback" is still the plain Contact link, and the dialog stays shut (SPEC §13).
-    const trigger = $('[data-feedback-trigger]');
+    // "Send feedback" is still the plain Contact link, the dialog stays shut
+    // and each video's "Feedback" button stays hidden (SPEC §13).
+    const trigger = $('.site-footer [data-feedback-trigger]');
     expect([trigger.localName, trigger.getAttribute('href')]).toEqual(['a', '/contact/']);
     expect($('dialog').hidden).toBe(true);
+    expect($$('button[data-feedback-video]').length).toBe($$('.video-controls').length);
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(true);
     // solutions.js (and players.js, which it imports) did their part, and the page view went out.
     expect($('details.solution__disclosure')).toBeNull();
     expect($('.solution__face').localName).toBe('button');
     expect(api.map((r) => [r.url, JSON.parse(r.body).type])).toEqual([['/api/event', 'page_view']]);
   });
 
-  it('players.js: the facades stay "Watch on YouTube" links and the cards native disclosures; ratings and feedback still work', async () => {
+  it('players.js: the facades stay "Watch on YouTube" links, the cards native disclosures and "Send feedback" a link to Contact; ratings still work', async () => {
     const { ran, failed } = await open('/problems/tired-but-wired/', 'players.js');
-    expect(failed).toEqual(['solutions.js', 'players.js']);
-    expect(ran).toEqual(['menu.js', 'events.js', 'rating.js', 'feedback.js']);
+    expect(failed).toEqual(['solutions.js', 'players.js', 'feedback.js']);
+    expect(ran).toEqual(['menu.js', 'events.js', 'rating.js']);
     expect($$('details.solution__disclosure').length).toBeGreaterThan(0);
     expect($('summary.solution__face')).not.toBeNull();
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(false);
-    expect($('[data-feedback-trigger]').localName).toBe('button');
+    // feedback.js imports players.js, to pause the page's media as its
+    // dialog opens (SPEC §13), so it doesn't run either: "Send feedback" is
+    // still the plain Contact link, the dialog stays shut and each video's
+    // "Feedback" button stays hidden, as without JavaScript.
+    const trigger = $('.site-footer [data-feedback-trigger]');
+    expect([trigger.localName, trigger.getAttribute('href')]).toEqual(['a', '/contact/']);
+    expect($('dialog').hidden).toBe(true);
+    expect($$('button[data-feedback-video]').length).toBe($$('.video-controls').length);
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(true);
   });
 
   it('usage-prefs.js: no usage statistics are sent, and the rest of the page works', async () => {
@@ -178,6 +190,7 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect(ran).toEqual(['menu.js', 'players.js', 'rating.js', 'feedback.js']);
     expect(api).toEqual([]);
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(false);
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(false);
   });
 
   it('usage-prefs.js on the privacy page: the switch stays as without JavaScript, explaining, with its button hidden', async () => {
@@ -200,12 +213,41 @@ describe('a module that fails to load, on the built pages (SPEC §2, §11)', () 
     expect(api).toEqual([]);
   });
 
+  // Home holds the list of sleep problems (SPEC §7.2, §11): without
+  // problems.js it stays the no-JavaScript list, every area open.
+  it('problems.js: Home keeps every area of sleep problems open under a plain heading, with no filter shown; the menu and feedback still work', async () => {
+    const { ran, failed } = await open('/', 'problems.js');
+    expect(failed).toEqual(['problems.js']);
+    expect(ran).toEqual(['menu.js', 'feedback.js']);
+    expect($('[data-problems-tools]').hidden).toBe(true);
+    expect($('[data-problems-hint]').hidden).toBe(true);
+    expect($$('[data-problems] button')).toEqual([]);
+    expect($$('[data-group-list]')).toHaveLength(10);
+    for (const list of $$('[data-group-list]')) expect(list.hidden).toBe(false);
+    expect($$('[data-problems] li[data-slug] a')).toHaveLength(36);
+    expect($('[data-filter-status]').textContent).toBe('36 topics in 10 areas');
+    expect($('[data-feedback-trigger]').localName).toBe('button');
+    expect($('.mobile-menu__toggle').localName).toBe('button');
+    expect(api).toEqual([]);
+  });
+
+  it("menu.js on Home: the list of sleep problems still gets its filter and area buttons", async () => {
+    const { ran, failed } = await open('/', 'menu.js');
+    expect(failed).toEqual(['menu.js']);
+    expect(ran).toEqual(['problems.js', 'feedback.js']);
+    expect($('details[data-mobile-menu]')).not.toBeNull();
+    expect($('[data-problems-tools]').hidden).toBe(false);
+    expect($$('[data-problems] button[aria-expanded="false"]')).toHaveLength(10);
+    expect(api).toEqual([]);
+  });
+
   it('menu.js: the other modules still run, and the page keeps its no-JavaScript menu', async () => {
     const { ran, failed } = await open('/problems/tired-but-wired/', 'menu.js');
     expect(failed).toEqual(['menu.js']);
     expect(ran).toEqual(['events.js', 'solutions.js', 'rating.js', 'players.js', 'feedback.js']);
     expect($('details.solution__disclosure')).toBeNull();
-    expect($('[data-feedback-trigger]').localName).toBe('button');
+    expect($('.site-footer [data-feedback-trigger]').localName).toBe('button');
+    for (const button of $$('button[data-feedback-video]')) expect(button.hidden).toBe(false);
     for (const widget of $$('[data-rating]')) expect(widget.hidden).toBe(false);
   });
 });

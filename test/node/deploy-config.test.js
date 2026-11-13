@@ -1,8 +1,9 @@
 // Deployment configuration (SPEC §14.1, §14.3, §16.1, §17, §18.1-§18.3):
 // wrangler.jsonc and its previews block, the preview-migrations config, the
-// npm and Node pins, and the built dist/_headers with its security headers.
-// Wrangler doesn't check _headers on deploy (a bad line is silently
-// dropped), so it is checked here.
+// npm and Node pins, the built dist/_headers with its security headers, and
+// the built dist/_redirects. Wrangler doesn't check _headers on deploy (a bad
+// line is silently dropped), and a bad _redirects line gets only a warning
+// in the build log while the deploy goes ahead, so both are checked here.
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -180,6 +181,11 @@ const APPLIED_MIGRATIONS = {
   // this merges (SPEC §17); production got it with 0001 at its first
   // `npm run db:migrate:remote` (2026-11-10). It must not change once applied anywhere.
   '0002_feedback_drop_page_title.sql': 'ab705000414d47bf26598b4d4133243cd3adb8f59ea944ae7c34eaf319baeeb0',
+  // Feedback's nullable `video` (project lead, 2026-11-13). Pinned before its
+  // first remote apply: a person runs `npm run db:migrate:preview` when its
+  // pull request opens and `npm run db:migrate:remote` just before it merges
+  // (SPEC §17, §18.4). It must not change once applied anywhere.
+  '0003_feedback_add_video.sql': 'eb3d75c3b50e06041101df7e6142bf0d8dba06862f88107b38d018e6bc204adb',
 };
 
 describe('migrations/', () => {
@@ -517,6 +523,128 @@ describe('the _headers parser used above', () => {
     expect(rules).toEqual([
       { line: 2, url: 'https://:a.:b.workers.dev/*', headers: { 'x-robots-tag': 'noindex, nofollow' }, unset: [] },
       { line: 5, url: '/f', headers: {}, unset: ['Server'] },
+    ]);
+  });
+});
+
+/**
+ * Parse a _redirects file the way Cloudflare does: a port of the parser
+ * Wrangler 4.153.0 bundles (workers-shared parseRedirects and validateUrl,
+ * with html_handling left at its default). Returns { rules: [{ line, from,
+ * to, status, dynamic }], invalid }. A rule is `dynamic` when its source has
+ * a * or a :placeholder; any other rule is static and matches only the exact
+ * path it names. Cloudflare drops every `invalid` line, with no more than a
+ * warning in the build log.
+ */
+function parseRedirects(text) {
+  const rules = [];
+  const invalid = [];
+  const seen = new Set();
+  const pathOf = (token, search, hash) => {
+    const url = new URL(`//${token.startsWith('/') ? token : `/${token}`}`, 'relative://');
+    return `${url.pathname}${search ? url.search : ''}${hash ? url.hash : ''}`;
+  };
+  const hostOf = (token) => /^https:\/\/+(?<host>[^/]+)\/?(?<path>.*)/.exec(token)?.groups;
+  text.split('\n').forEach((raw, i) => {
+    const n = i + 1;
+    const line = raw.trim();
+    if (line === '' || line.startsWith('#')) return;
+    if (line.length > 2000) return invalid.push(`line ${n}: over 2,000 characters`);
+    const tokens = line.replace(/\s+#.*$/, '').split(/\s+/);
+    if (tokens.length < 2 || tokens.length > 3) return invalid.push(`line ${n}: ${tokens.length} parts, not 2 or 3`);
+    const [source, destination, code = '302'] = tokens;
+    // The source: a path on this site only.
+    if (hostOf(source)) return invalid.push(`line ${n}: the source must be a path, not a full address`);
+    const from = pathOf(source, false, false);
+    // The destination: a path, or an https address.
+    const host = hostOf(destination);
+    if (!host && !destination.startsWith('/')) return invalid.push(`line ${n}: the destination must start with / or https://`);
+    const to = host ? `https://${host.host}${pathOf(host.path, true, true)}` : pathOf(destination, true, true);
+    const status = Number(code);
+    if (![200, 301, 302, 303, 307, 308].includes(status)) return invalid.push(`line ${n}: status ${code}`);
+    if (!host && ((from.endsWith('/*') && /\/index(.html)?$/.test(to)) || (from.endsWith('/') && /\/index(.html)?$/.test(to)))) {
+      return invalid.push(`line ${n}: an endless loop`);
+    }
+    if (seen.has(from)) return invalid.push(`line ${n}: a second rule for ${from}`);
+    seen.add(from);
+    if (status === 200 && host) return invalid.push(`line ${n}: a 200 can only point to a path`);
+    rules.push({ line: n, from, to, status, dynamic: /\*|:[A-Za-z]\w*/.test(from) });
+  });
+  if (rules.filter((r) => !r.dynamic).length > 2000) invalid.push('more than 2,000 static rules');
+  if (rules.filter((r) => r.dynamic).length > 100) invalid.push('more than 100 dynamic rules');
+  return { rules, invalid };
+}
+
+// The Sleep problems page became part of Home on 2026-11-13 (SPEC §7.2,
+// §22), so its old address redirects there. Workers reads dist/_redirects
+// with the static assets, as it reads _headers, and applies a rule whether
+// or not a file matches the path.
+describe('dist/_redirects (SPEC §7.2, §18.2)', () => {
+  const site = inject('builtSite');
+  const file = path.join(site, '_redirects');
+  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  const { rules, invalid } = parseRedirects(text);
+  const slugs = readdirSync('content/problems').filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+
+  it('is copied into the build as it is in src/', () => {
+    expect(existsSync(file)).toBe(true);
+    expect(text).toBe(readFileSync('src/_redirects', 'utf8'));
+  });
+
+  it('has no line Cloudflare would drop', () => {
+    expect(invalid).toEqual([]);
+  });
+
+  it('sends the old Sleep problems address, with and without its final slash, to Home with a 301, and has no other rule', () => {
+    expect(rules.map(({ from, to, status }) => [from, to, status])).toEqual([
+      ['/problems', '/', 301],
+      ['/problems/', '/', 301],
+    ]);
+  });
+
+  it('has only static rules, each one exact path: none can match a problem page', () => {
+    expect(slugs).toHaveLength(36);
+    for (const rule of rules) {
+      expect(rule.dynamic, `line ${rule.line}: ${rule.from}`).toBe(false);
+      expect(rule.from, `line ${rule.line}`).not.toMatch(/[*:]/);
+    }
+    // A static rule is looked up by the request's exact path.
+    const sources = new Set(rules.map((r) => r.from));
+    for (const slug of slugs) {
+      for (const address of [`/problems/${slug}/`, `/problems/${slug}`, `/problems/${slug}/index.html`]) expect(sources.has(address), address).toBe(false);
+    }
+    expect(text).not.toMatch(/^\s*\/problems\/\S/m);
+  });
+
+  it('redirects only addresses with no page of their own, to pages that are built, without a fragment (so /problems/#core keeps #core)', () => {
+    for (const { from, to, line } of rules) {
+      // A rule wins over a file at the same path, so a page there could never be reached.
+      for (const built of [`${from.replace(/\/$/, '')}/index.html`, `${from.replace(/\/$/, '')}.html`]) {
+        expect(existsSync(path.join(site, built)), `line ${line}: ${built}`).toBe(false);
+      }
+      expect(to, `line ${line}`).toMatch(/^\/[^#?]*$/);
+      expect(existsSync(path.join(site, to.endsWith('/') ? `${to}index.html` : to)), `line ${line}: ${to}`).toBe(true);
+    }
+  });
+});
+
+describe('the _redirects parser used above', () => {
+  it('drops what Cloudflare drops', () => {
+    const { rules, invalid } = parseRedirects(
+      ['/only-one-part', '/a /b 301 extra', 'https://x.example/a /b', '/c d', '/e /f 404', '/g/* /g/index.html', '/h /i', '/h /j', '/k https://x.example/ 200'].join('\n'),
+    );
+    expect(rules.map((r) => [r.line, r.from, r.to, r.status])).toEqual([[7, '/h', '/i', 302]]);
+    expect(invalid.map((m) => m.match(/^line (\d+)/)[1])).toEqual(['1', '2', '3', '4', '5', '6', '8', '9']);
+  });
+
+  it('reads rules, the default status, comments, and tells static rules from dynamic ones', () => {
+    const { rules, invalid } = parseRedirects('# c\n/old /new 301   # why\n/x/ https://x.example/y?z=1#top\n/blog/* /news/:splat 308\n/u/:id /users/:id\n');
+    expect(invalid).toEqual([]);
+    expect(rules).toEqual([
+      { line: 2, from: '/old', to: '/new', status: 301, dynamic: false },
+      { line: 3, from: '/x/', to: 'https://x.example/y?z=1#top', status: 302, dynamic: false },
+      { line: 4, from: '/blog/*', to: '/news/:splat', status: 308, dynamic: true },
+      { line: 5, from: '/u/:id', to: '/users/:id', status: 302, dynamic: true },
     ]);
   });
 });

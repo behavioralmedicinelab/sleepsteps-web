@@ -2,7 +2,8 @@
 // worker/routes/feedback.js, the gates in worker/router.js as this route
 // meets them (its own body limit, and CF-Connecting-IP passed on for
 // Siteverify only), the Turnstile check as the route uses it, and what is
-// stored. Runs in workerd against this file's own D1, with the migrations
+// stored, the video a message is about included (the optional video_id,
+// migration 0003; project lead, 2026-11-13). Runs in workerd against this file's own D1, with the migrations
 // applied (apply-migrations.js). Siteverify is never reached: the global
 // fetch is mocked for every test (the Workers Vitest plugin has no fetchMock),
 // and any other fetch fails the test. Most tests use a router built from the
@@ -22,6 +23,7 @@ import { createRouter } from '../../worker/router.js';
 import {
   cleanMessage,
   FEEDBACK_KEYS,
+  FEEDBACK_VIDEO_KEY,
   handleFeedback,
   MAX_MESSAGE_LENGTH,
   MAX_TOKEN_LENGTH,
@@ -50,7 +52,8 @@ const ENV = () => ({ DB: testEnv.DB, DATA_COLLECTION: 'on', API_HOSTS: 'example.
 const TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
 const IP = '203.0.113.77';
 // No page_title: feedback stores the page id only (migration 0002, SPEC §17).
-const COLUMNS = ['id', 'message', 'page', 'ts'];
+// `video` is the video a message is about, or NULL (migration 0003).
+const COLUMNS = ['id', 'message', 'page', 'ts', 'video'];
 const HOUR = /^\d{4}-\d\d-\d\dT\d\d:00:00\.000Z$/;
 
 /** A valid body, as feedback.js sends it. */
@@ -200,9 +203,15 @@ describe('the feedback body (SPEC §13, §14.1)', () => {
     expect([MAX_MESSAGE_LENGTH, MAX_TOKEN_LENGTH]).toEqual([2000, 2048]);
   });
 
-  it('has its own error codes in the closed list: message and turnstile', () => {
+  it('may also hold video_id, the one optional key', () => {
+    expect(FEEDBACK_VIDEO_KEY).toBe('video_id');
+    expect(FEEDBACK_KEYS).not.toContain(FEEDBACK_VIDEO_KEY);
+  });
+
+  it('has its own error codes in the closed list: message and turnstile, and shares video with /api/rate', () => {
     expect(ERROR_CODES).toContain('message');
     expect(ERROR_CODES).toContain('turnstile');
+    expect(ERROR_CODES).toContain('video');
   });
 
   it('has its own body limit, 16384 bytes, while the other routes keep 4096', () => {
@@ -221,6 +230,8 @@ describe('storing feedback', () => {
     const [row] = stored;
     expect(Object.keys(row).sort()).toEqual(COLUMNS);
     expect([row.page, row.message]).toEqual(['pain', 'The audio on this page was too quiet zq-message']);
+    // Sent without a video_id, as from the footer's "Send feedback": no video.
+    expect(row.video).toBeNull();
     expect(row.ts).toMatch(HOUR);
     expect([floorHour(before), floorHour(after)]).toContain(Date.parse(row.ts));
     // No events or ratings row, and so no session_id (SPEC §14.1).
@@ -310,6 +321,142 @@ describe('storing feedback', () => {
     const texts = ['<script>alert(1)</script>', "'); DROP TABLE feedback; --", '=HYPERLINK("http://zq")', '{"zq":1}', 'Ünïcödé — “quotes” 😴'];
     for (const text of texts) await expectStored(await send(feedback(text)));
     expect(await messages()).toEqual(texts);
+  });
+});
+
+describe('the video a message is about (SPEC §13, §14.2; migration 0003)', () => {
+  const about = (video, page = 'pain') => ({ page_id: page, video_id: video, message: 'About this video zq', turnstile_token: TOKEN });
+  const stored = async () => (await rows()).map((r) => [r.page, r.video, r.message]);
+
+  it('stores the video_id with the message when it is one of that page\'s videos, after one Siteverify call', async () => {
+    await expectStored(await send(about('settling-your-body'), { headers: { 'CF-Connecting-IP': IP } }));
+    expect(await stored()).toEqual([['pain', 'settling-your-body', 'About this video zq']]);
+    const [row] = await rows();
+    expect(Object.keys(row).sort()).toEqual(COLUMNS);
+    expect(row.ts).toMatch(HOUR);
+    expect(await otherRows()).toEqual([]);
+    expect(siteverify).toEqual([{ secret: SECRET, response: TOKEN, remoteip: IP }]);
+    expect(logged).toEqual([]);
+  });
+
+  it('stores NULL, not text, when the body has no video_id', async () => {
+    await expectStored(await send(feedback('From the footer zq')));
+    expect(await rows()).toEqual([expect.objectContaining({ page: 'pain', video: null, message: 'From the footer zq' })]);
+    expect((await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM feedback WHERE video IS NULL').first()).n).toBe(1);
+    expect((await testEnv.DB.prepare('SELECT typeof(video) AS t FROM feedback').first()).t).toBe('null');
+  });
+
+  it('accepts each of a page\'s videos, on that page only', async () => {
+    for (const [page, { videos }] of Object.entries(PAGES)) {
+      for (const video of videos) {
+        await expectStored(await send(about(video, page)));
+        for (const other of Object.keys(PAGES).filter((id) => id !== page && !PAGES[id].videos.includes(video))) {
+          await expectError(await send(about(video, other)), 400, 'video');
+        }
+      }
+    }
+    expect(await stored()).toEqual([
+      ['pain', 'pain-about', 'About this video zq'],
+      ['pain', 'settling-your-body', 'About this video zq'],
+      ['start', 'how-sleep-works', 'About this video zq'],
+    ]);
+    // Only the three accepted bodies reached Siteverify.
+    expect(siteverify).toHaveLength(3);
+    expect(logged).toEqual([]);
+  });
+
+  it('accepts the four keys in any order, and stores the same row', async () => {
+    await expectStored(await send(`{"video_id":"pain-about","turnstile_token":"${TOKEN}","message":"zq order","page_id":"pain"}`));
+    await expectStored(await send(`{"page_id":"pain","message":"zq order","turnstile_token":"${TOKEN}","video_id":"pain-about"}`));
+    expect(await stored()).toEqual([['pain', 'pain-about', 'zq order'], ['pain', 'pain-about', 'zq order']]);
+  });
+
+  it.each([
+    ['a video of another page', 'how-sleep-works'],
+    ['an unknown video', 'no-such-video'],
+    ['null', null],
+    ['an empty string', ''],
+    ['a number', 1],
+    ['true', true],
+    ['false', false],
+    ['a video in an array', ['pain-about']],
+    ['a video object', { id: 'pain-about' }],
+    ['an uppercase video_id', 'PAIN-ABOUT'],
+    ['a video_id with spaces round it', ' pain-about '],
+    ['two videos in one string', 'pain-about,settling-your-body'],
+    ['the page\'s own id', 'pain'],
+    ['"__proto__"', '__proto__'],
+    ['"constructor"', 'constructor'],
+    ['"has"', 'has'],
+  ])('refuses video_id %s with 400 "video", before Siteverify, storing and logging nothing', async (_, video) => {
+    await expectError(await send(about(video)), 400, 'video');
+    expect(validateFeedback(about(video), index)).toEqual({ status: 400, error: 'video' });
+    await expectUntouched();
+  });
+
+  it.each(['home', 'search', 'urgent-help', 'untitled'])('refuses any video_id from %s, a page without videos, which still accepts feedback without one', async (page) => {
+    for (const video of ['pain-about', 'how-sleep-works', '', null]) await expectError(await send(about(video, page)), 400, 'video');
+    await expectUntouched();
+    await expectStored(await send({ ...feedback(), page_id: page }));
+    expect((await rows()).map((r) => [r.page, r.video])).toEqual([[page, null]]);
+  });
+
+  it.each([
+    ['body before video: an extra key with a bad video', { ...about('zq'), ts: 'x' }, 400, 'body'],
+    ['body before video: a key missing with a bad video', { page_id: 'pain', video_id: 'zq', message: 'zq' }, 400, 'body'],
+    ['page before video: an unknown page with a video', about('pain-about', 'zq'), 400, 'page'],
+    ['video before message: a bad video with an empty message', { ...about('zq'), message: '' }, 400, 'video'],
+    ['video before message: a bad video with a message that is not a string', { ...about('zq'), message: 5 }, 400, 'video'],
+    ['video before token: a bad video with no token', { ...about(null), turnstile_token: '' }, 400, 'video'],
+    ['message after video: a good video with an empty message', { ...about('pain-about'), message: ' ' }, 400, 'message'],
+    ['token after video: a good video with an empty token', { ...about('pain-about'), turnstile_token: '' }, 403, 'turnstile'],
+  ])('checks in order: %s', async (_, body, status, code) => {
+    await expectError(await send(body), status, code);
+    expect(validateFeedback(body, index)).toEqual({ status, error: code });
+    await expectUntouched();
+  });
+
+  it.each([
+    ['the events-style key "video"', { page_id: 'pain', video: 'pain-about', message: 'zq', turnstile_token: TOKEN }],
+    ['"videoId"', { page_id: 'pain', videoId: 'pain-about', message: 'zq', turnstile_token: TOKEN }],
+    ['"Video_id"', { page_id: 'pain', Video_id: 'pain-about', message: 'zq', turnstile_token: TOKEN }],
+    ['video_id and a fifth key', { ...about('pain-about'), page_title: 'Pain zq-title' }],
+    ['video_id and a __proto__ key', `{"page_id":"pain","video_id":"pain-about","message":"zq proto","turnstile_token":"${TOKEN}","__proto__":{}}`],
+    ['video_id in place of the message', { page_id: 'pain', video_id: 'pain-about', turnstile_token: TOKEN }],
+    ['video_id in place of the token', { page_id: 'pain', video_id: 'pain-about', message: 'zq' }],
+    ['video_id alone', { video_id: 'pain-about' }],
+  ])('refuses %s with 400 "body": only video_id may join the three keys', async (_, body) => {
+    await expectError(await send(body), 400, 'body');
+    await expectUntouched();
+  });
+
+  it('never reads video_id from the prototype chain: an inherited one is no video', () => {
+    const inherited = Object.assign(Object.create({ video_id: 'pain-about' }), feedback());
+    expect(validateFeedback(inherited, index)).toEqual({ status: 400, error: 'body' });
+  });
+
+  it('returns the checked video, or null without one, and leaves the body as it was', () => {
+    const body = about('pain-about');
+    const copy = structuredClone(body);
+    expect(validateFeedback(body, index)).toEqual({ row: { page: 'pain', video: 'pain-about', message: 'About this video zq' }, token: TOKEN });
+    expect(body).toEqual(copy);
+    expect(validateFeedback(feedback('zq'), index).row).toEqual({ page: 'pain', video: null, message: 'zq' });
+    expect(Object.hasOwn(validateFeedback(feedback('zq'), index).row, 'video')).toBe(true);
+  });
+
+  it('checks the video before Turnstile, so a refused one never costs a Siteverify call or needs the secret', async () => {
+    await expectError(await send(about('how-sleep-works'), {}, { ...ENV(), TURNSTILE_SECRET: undefined }), 400, 'video');
+    await expectUntouched();
+    // And a good one still fails closed without the secret.
+    await expectError(await send(about('pain-about'), {}, { ...ENV(), TURNSTILE_SECRET: undefined }), 500, 'server');
+    expect(await rows()).toEqual([]);
+  });
+
+  it('stores nothing when Turnstile refuses a message about a video', async () => {
+    answer = () => Response.json({ success: false, 'error-codes': ['invalid-input-response'] });
+    await expectError(await send(about('pain-about')), 403, 'turnstile');
+    expect(await rows()).toEqual([]);
+    expect(logged).toEqual([]);
   });
 });
 
@@ -462,7 +609,7 @@ describe('validation: 400 or 403 with the failed rule, before Siteverify, and no
   it('checks without changing the body it was given, and returns only the checked values', () => {
     const body = feedback('  zq\r\nchecked\u0000  ');
     const copy = structuredClone(body);
-    expect(validateFeedback(body, index)).toEqual({ row: { page: 'pain', message: 'zq\nchecked' }, token: TOKEN });
+    expect(validateFeedback(body, index)).toEqual({ row: { page: 'pain', video: null, message: 'zq\nchecked' }, token: TOKEN });
     expect(body).toEqual(copy);
   });
 
@@ -684,9 +831,11 @@ describe('order of the checks (worker/router.js)', () => {
     await expectUntouched();
   });
 
-  it('then the route: body, page, message, token, the secret, Siteverify, and last the write', async () => {
-    await expectError(await send({ ...feedback(''), page_id: 'zq', ts: 'x' }), 400, 'body');
+  it('then the route: body, page, video, message, token, the secret, Siteverify, and last the write', async () => {
+    await expectError(await send({ ...feedback(''), page_id: 'zq', video_id: 'zq', ts: 'x' }), 400, 'body');
+    await expectError(await send({ ...feedback(''), page_id: 'zq', video_id: 'zq' }), 400, 'page');
     await expectError(await send({ ...feedback(''), page_id: 'zq' }), 400, 'page');
+    await expectError(await send({ ...feedback(''), video_id: 'zq', turnstile_token: '' }), 400, 'video');
     await expectError(await send({ ...feedback(''), turnstile_token: '' }), 400, 'message');
     await expectError(await send({ ...feedback(), turnstile_token: '' }), 403, 'turnstile');
     expect(siteverify).toEqual([]);
@@ -779,6 +928,8 @@ describe('failures and logs (SPEC §11, §14.1)', () => {
       { page_id: 'pain', message: SENTINEL.repeat(200), turnstile_token: TOKEN },
       { page_id: 'pain', message: SENTINEL, turnstile_token: SENTINEL.repeat(100) },
       { page_id: 'pain', message: SENTINEL, turnstile_token: TOKEN, [SENTINEL]: 1 },
+      { page_id: 'pain', video_id: SENTINEL, message: 'zq', turnstile_token: TOKEN },
+      { page_id: 'pain', video_id: { [SENTINEL]: SENTINEL }, message: 'zq', turnstile_token: TOKEN },
       `{"page_id":"${SENTINEL}"`,
     ]) {
       expect([400, 403]).toContain((await send(body)).status);
@@ -799,16 +950,48 @@ describe('the Worker as deployed: the real pages.json and site.config.json', () 
     expect(real.size).toBeGreaterThan(0);
     for (const page of real.keys()) {
       const result = validateFeedback({ page_id: page, message: 'zq', turnstile_token: TOKEN }, real);
-      expect(result, page).toEqual({ row: { page, message: 'zq' }, token: TOKEN });
+      expect(result, page).toEqual({ row: { page, video: null, message: 'zq' }, token: TOKEN });
     }
+  });
+
+  it('accepts a message about each video from the pages that have it, and from no other page', () => {
+    const real = pageIndex(realPages);
+    const all = new Set([...real.values()].flatMap((entry) => [...entry.videos]));
+    expect(all.size).toBeGreaterThan(40);
+    let accepted = 0;
+    for (const [page, entry] of real) {
+      for (const video of all) {
+        const result = validateFeedback({ page_id: page, video_id: video, message: 'zq', turnstile_token: TOKEN }, real);
+        if (entry.videos.has(video)) {
+          expect(result, `${page} ${video}`).toEqual({ row: { page, video, message: 'zq' }, token: TOKEN });
+          accepted += 1;
+        } else {
+          expect(result, `${page} ${video}`).toEqual({ status: 400, error: 'video' });
+        }
+      }
+    }
+    expect(accepted).toBe(Object.values(realPages).reduce((n, entry) => n + entry.videos.length, 0));
+  });
+
+  it('stores the video with a message about a problem page\'s video, and refuses a Start here video there', async () => {
+    const [video] = realPages['tired-but-wired'].videos;
+    const [intro] = realPages.start.videos;
+    expect(realPages['tired-but-wired'].videos).not.toContain(intro);
+    const good = await deployed({ page_id: 'tired-but-wired', video_id: video, message: 'Real video zq', turnstile_token: TOKEN });
+    expect(good.status).toBe(expected);
+    const bad = await deployed({ page_id: 'tired-but-wired', video_id: intro, message: 'Real video zq', turnstile_token: TOKEN });
+    if (expected === 204) await expectError(bad, 400, 'video');
+    else await expectNotFound(bad);
+    const want = expected === 204 ? [{ page: 'tired-but-wired', video, message: 'Real video zq' }] : [];
+    expect((await rows()).map((r) => ({ page: r.page, video: r.video, message: r.message }))).toEqual(want);
   });
 
   it.each(['tired-but-wired', 'home', 'search', 'start', 'contact'])('stores feedback from %s with its page id only', async (page) => {
     expect(realPages[page]).toBeTruthy();
     const res = await deployed({ page_id: page, message: 'Real page zq', turnstile_token: TOKEN });
     expect(res.status).toBe(expected);
-    const want = expected === 204 ? [{ page, message: 'Real page zq' }] : [];
-    expect((await rows()).map((r) => ({ page: r.page, message: r.message }))).toEqual(want);
+    const want = expected === 204 ? [{ page, video: null, message: 'Real page zq' }] : [];
+    expect((await rows()).map((r) => ({ page: r.page, video: r.video, message: r.message }))).toEqual(want);
     for (const row of await rows()) expect(Object.keys(row).sort()).toEqual(COLUMNS);
   });
 

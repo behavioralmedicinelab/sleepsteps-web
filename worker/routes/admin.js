@@ -76,6 +76,10 @@ export const ADMIN_HEADERS = Object.freeze({
   'Referrer-Policy': 'same-origin',
   'X-Frame-Options': 'DENY',
   'Cross-Origin-Resource-Policy': 'same-origin',
+  // A page that opened an admin page in a popup loses its handle on it once
+  // it loads, so another site can't load the summary again and again
+  // through one (SPEC §14.4). As on every static response (SPEC §16.1).
+  'Cross-Origin-Opener-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   // As on every static response (src/_headers, SPEC §16.1): no
   // includeSubDomains, no preload. Browsers ignore it over http.
@@ -89,7 +93,7 @@ export const ADMIN_HEADERS = Object.freeze({
  * the var is well formed, because Chrome checks it on the redirect to
  * sign-in when the session has ended.
  */
-export function adminCsp(env, { scripts = false } = {}) {
+function adminCsp(env, { scripts = false } = {}) {
   let team = '';
   try {
     const domain = env?.ACCESS_TEAM_DOMAIN;
@@ -127,7 +131,9 @@ export const EXPORT_CROSS_SITE = 'Start the download from the admin page: open /
  * attachment leaves that site's page open to start the next, so it could
  * use up the account's daily D1 reads (SPEC §14.4). The summary isn't
  * checked: the redirect back from the Access sign-in arrives "cross-site",
- * and an HTML answer replaces the page that navigated.
+ * and an HTML answer replaces the page that navigated. A popup the other
+ * site opened is cut off from it by Cross-Origin-Opener-Policy
+ * (ADMIN_HEADERS), so it can't be loaded again without another click.
  */
 function startedHere(request) {
   const site = request.headers.get('Sec-Fetch-Site');

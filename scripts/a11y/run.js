@@ -12,8 +12,10 @@
 //    axe-core, which it injects from node_modules;
 // 3. runs axe-core with the WCAG 2.0, 2.1 and 2.2 A and AA tags on every
 //    built page and the main states (menus, groups, the filter, an open
-//    solution card, ratings sent and failed, search results, none and
-//    failed, the statistics switch, the feedback dialog's states, pages
+//    solution card with its worksheets, ratings sent and failed, search
+//    results, none and
+//    failed, the statistics switch, the feedback dialog's states (opened
+//    from the footer and from a video's "Feedback" button), pages
 //    without JavaScript, the admin summary, error and download pages) at 320
 //    and 1280px, and with WCAG 1.4.12's text spacing at 320px on every page
 //    and on the open phone menu, solution card and feedback dialog and the
@@ -23,16 +25,18 @@
 //    shows a 2px ring, is at least 44px, ends up wholly on screen, the order
 //    is the same both ways and the walk comes back round, so nothing traps
 //    focus), and works the phone menu, a solution card and the feedback
-//    dialog from the keyboard;
+//    dialog (from the footer, from a video's button and from an open
+//    solution card's) from the keyboard;
 // 5. counts the site's own errors in every state (C2, SPEC §20 M7): CSP
 //    violations, uncaught exceptions, console calls from our scripts, and
 //    failed requests to this site other than the ones a state causes on
 //    purpose.
 // It fails (exit 1) on any WCAG violation, keyboard failure or error of the
 // site's own; best-practice findings and axe's "incomplete" items are listed
-// for a person to check. Exit 2: it couldn't run (no Chrome, no build). A
-// state that needs a feature switched off in site.config.json is skipped,
-// and the output says so.
+// for a person to check. Exit 2: it couldn't run (no Chrome, no build, an
+// option without its value) or checked nothing (an --only that matches no
+// state or walk, or only skipped ones). A state that needs a feature
+// switched off in site.config.json is skipped, and the output says so.
 //
 // Options: --only <regex> runs the states and walks whose names match;
 // --report <file> writes every result as JSON.
@@ -63,7 +67,24 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 const args = process.argv.slice(2);
 const option = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const only = option('--only') ? new RegExp(option('--only'), 'i') : null;
+// An option given without its value (last on the line, empty, or followed by
+// another option) stops the run: dropped without a word, --only would run
+// every check and --report would write nothing.
+const OPTION_VALUES = { '--only': 'a regular expression, such as "feedback"', '--report': 'a file name', '--port': 'a port number', '--host': 'an address' };
+/** --only's pattern (null without one), or why the options can't be used. */
+function readOptions() {
+  for (const [name, what] of Object.entries(OPTION_VALUES)) {
+    const value = option(name);
+    if (args.includes(name) && (!value || value.startsWith('--'))) return { problem: `${name} needs a value: ${what}.` };
+  }
+  if (!args.includes('--only')) return { only: null };
+  try {
+    return { only: new RegExp(option('--only'), 'i') };
+  } catch (error) {
+    return { problem: `--only "${option('--only')}" isn't a regular expression: ${error.message}` };
+  }
+}
+const { only = null, problem: optionProblem = null } = readOptions();
 const reportFile = option('--report');
 const serveOnly = args.includes('--serve');
 const SERVE_PORT = 8790;
@@ -99,28 +120,59 @@ const textSpacing = async (tab) => {
   await tab.sleep(150);
 };
 
+// Each of these fails its state unless the part really opened: a state
+// checked on the closed page would otherwise be reported "ok".
 const openMenu = async (tab) => {
   await tab.click('.mobile-menu__toggle');
-  await tab.waitFor(`document.querySelector('.mobile-menu__toggle[aria-expanded="true"]')`, 2000);
+  if (!(await tab.waitFor(`document.querySelector('.mobile-menu__toggle[aria-expanded="true"]')`, 2000))) {
+    throw new Error("the phone menu didn't open");
+  }
 };
 // The enhanced face (solutions.js), never "any button in the card": the
 // template's Close always carries aria-expanded="true" and stays in the DOM
 // inside the hidden panel, so a looser selector matches before any card
 // opens. If solutions.js didn't enhance the cards, the click finds nothing
 // and throws.
+//
+// The open card must show worksheets (SPEC §7.6), so every state that opens
+// one checks that section too: the first solution of the page these states
+// use, /problems/tired-but-wired/, has three. If the content changes and it
+// has none, this says so rather than letting the section go unchecked.
+const WORKSHEET_SHOWN = `(() => {
+  const link = document.querySelector('.solution.is-open .worksheets a[data-worksheet]');
+  return !!link && link.getClientRects().length > 0;
+})()`;
 const openFirstCard = async (tab) => {
   await tab.click('.solution button.solution__face[aria-expanded]');
   if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) {
     throw new Error("the first solution card didn't open");
+  }
+  if (!(await js(tab, WORKSHEET_SHOWN))) {
+    throw new Error("the open solution card shows no worksheets: this page's first solution needs at least one in data/worksheets.csv (SPEC §7.6)");
   }
 };
 const openCardAndAudio = async (tab) => {
   await openFirstCard(tab);
   await js(tab, `[...document.querySelectorAll('.solution .format-disclosure')].find((d) => d.offsetParent)?.setAttribute('open', '')`);
 };
+// The footer's "Send feedback" (general feedback), and the problem video's
+// "Feedback" button (feedback about that video, SPEC §13). Each video's row
+// has one, before the footer in the page, so the footer's is named.
+const FOOTER_TRIGGER = '.site-footer [data-feedback-trigger]';
+const VIDEO_TRIGGER = '.problem-video button[data-feedback-video]';
+// The same button in the open solution card.
+const CARD_TRIGGER = '.solution.is-open button[data-feedback-video]';
+const DIALOG_OPEN = `document.querySelector('[data-feedback-dialog]')?.open`;
 const openDialog = async (tab) => {
-  await tab.click('[data-feedback-trigger]');
-  await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
+  await tab.click(FOOTER_TRIGGER);
+  if (!(await tab.waitFor(DIALOG_OPEN, 3000))) throw new Error('"Send feedback" didn\'t open the dialog');
+};
+/** Opens the dialog from the problem video's button, and fails unless it says which video it is about. */
+const openDialogFromVideo = async (tab) => {
+  await tab.click(VIDEO_TRIGGER);
+  if (!(await tab.waitFor(DIALOG_OPEN, 3000))) throw new Error("the video's Feedback button didn't open the dialog");
+  const about = await js(tab, `(() => { const el = document.querySelector('[data-feedback-about]'); return el && !el.hidden && el.getClientRects().length ? el.textContent : ''; })()`);
+  if (!/^Video: \S/.test(about)) throw new Error(`the dialog didn't say which video it is about ("${about}")`);
 };
 /**
  * Waits for Turnstile's frame (inside a closed shadow root, and in a process
@@ -166,6 +218,7 @@ function states() {
   };
   list.push(
     { name: 'text spacing: menu open (a problem page)', path: '/problems/pain/', widths: [320], setup: spaced(openMenu) },
+    { name: 'text spacing: an area of sleep problems open (Home)', path: '/', widths: [320], setup: spaced((tab) => tab.click('[data-problems] button[aria-expanded]')) },
     { name: 'text spacing: a solution card and its audio open', path: '/problems/tired-but-wired/', widths: [320], setup: spaced(openCardAndAudio) },
     {
       name: 'text spacing: feedback open',
@@ -174,6 +227,16 @@ function states() {
       widths: [320],
       setup: spaced(async (tab) => {
         await openDialog(tab);
+        return (await waitForTurnstile(tab)) ? undefined : "Turnstile didn't load (offline?): checked without its widget";
+      }),
+    },
+    {
+      name: "text spacing: feedback open from a video's button",
+      feature: 'feedback',
+      path: '/problems/pain/',
+      widths: [320],
+      setup: spaced(async (tab) => {
+        await openDialogFromVideo(tab);
         return (await waitForTurnstile(tab)) ? undefined : "Turnstile didn't load (offline?): checked without its widget";
       }),
     },
@@ -191,19 +254,13 @@ function states() {
         await js(tab, `document.querySelector('.topic-nav details')?.setAttribute('open', '')`);
       },
     },
-    { name: 'problems: an area open', path: '/problems/', setup: (tab) => tab.click('[data-view-panel]:not([hidden]) button[aria-expanded]') },
-    { name: 'problems: area named in the address', path: '/problems/#mind' },
-    {
-      name: 'problems: When it happens, a group open',
-      path: '/problems/',
-      setup: async (tab) => {
-        await tab.click('label[for="view-time"]');
-        await tab.click('[data-view-panel="time"] button[aria-expanded]');
-      },
-    },
+    // Home's list of sleep problems (SPEC §7.2; the Sleep problems page until 2026-11-13).
+    { name: 'problems: an area open', path: '/', setup: (tab) => tab.click('[data-problems] button[aria-expanded]') },
+    { name: 'problems: area named in the address', path: '/#mind' },
+    { name: 'problems: the list named in the address', path: '/#sleep-problems' },
     {
       name: 'problems: the filter matches',
-      path: '/problems/',
+      path: '/',
       setup: async (tab) => {
         await js(tab, `document.querySelector('#problem-filter').focus()`);
         await tab.type('night');
@@ -212,7 +269,7 @@ function states() {
     },
     {
       name: 'problems: the filter matches nothing',
-      path: '/problems/',
+      path: '/',
       setup: async (tab) => {
         await js(tab, `document.querySelector('#problem-filter').focus()`);
         await tab.type('xyzzyq');
@@ -268,6 +325,26 @@ function states() {
       },
     },
     {
+      name: "feedback: open from a video's button",
+      feature: 'feedback',
+      path: '/problems/pain/',
+      setup: async (tab) => {
+        await openDialogFromVideo(tab);
+        return (await waitForTurnstile(tab)) ? undefined : "Turnstile didn't load (offline?): checked without its widget";
+      },
+    },
+    {
+      name: "feedback: open from a solution card's button",
+      feature: 'feedback',
+      path: '/problems/tired-but-wired/',
+      setup: async (tab) => {
+        await openFirstCard(tab);
+        await tab.click(CARD_TRIGGER);
+        if (!(await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000))) throw new Error("the card's Feedback button didn't open the dialog");
+        return (await waitForTurnstile(tab)) ? undefined : "Turnstile didn't load (offline?): checked without its widget";
+      },
+    },
+    {
       name: 'feedback: a blank message',
       feature: 'feedback',
       path: '/problems/pain/',
@@ -284,6 +361,12 @@ function states() {
       feature: 'feedback',
       path: '/problems/pain/',
       setup: async (tab) => sendFeedback(tab, /Thanks/),
+    },
+    {
+      name: "feedback: sent from a video's button",
+      feature: 'feedback',
+      path: '/problems/pain/',
+      setup: async (tab) => sendFeedback(tab, /Thanks/, openDialogFromVideo),
     },
     {
       name: "feedback: couldn't send (collection off)",
@@ -313,10 +396,20 @@ function states() {
         await tab.sleep(400);
       },
     },
-    { name: 'no JavaScript: Home', path: '/', js: false },
-    { name: 'no JavaScript: Sleep problems', path: '/problems/', js: false },
+    { name: 'no JavaScript: Home, with every area of sleep problems open', path: '/', js: false },
     { name: 'no JavaScript: a problem page', path: '/problems/tired-but-wired/', js: false },
-    { name: 'no JavaScript: a solution card open', path: '/problems/tired-but-wired/', js: false, noJs: `document.querySelector('details.solution__disclosure').open = true` },
+    {
+      // The open <details> shows the video, its row and its worksheets
+      // (SPEC §7.6), plain links that need no JavaScript.
+      name: 'no JavaScript: a solution card open',
+      path: '/problems/tired-but-wired/',
+      js: false,
+      noJs: `(() => {
+        const card = document.querySelector('details.solution__disclosure');
+        card.open = true;
+        if (!card.querySelector('.worksheets a[data-worksheet]')?.getClientRects().length) throw new Error("the open solution card shows no worksheets: this page's first solution needs at least one in data/worksheets.csv (SPEC §7.6)");
+      })()`,
+    },
     { name: 'no JavaScript: search', path: '/search/?q=sleep', js: false },
     { name: 'no JavaScript: privacy', path: '/privacy/', js: false },
     { name: 'no JavaScript: the menu open', path: '/', js: false, widths: [320], noJs: `document.querySelector('[data-mobile-menu]').open = true` },
@@ -342,8 +435,8 @@ async function expect(tab, expression, failure, timeout = 15000) {
   if (!(await tab.waitFor(expression, timeout))) throw new Error(failure);
 }
 
-async function sendFeedback(tab, expected) {
-  await openDialog(tab);
+async function sendFeedback(tab, expected, open = openDialog) {
+  await open(tab);
   if (!(await waitForTurnstile(tab))) return "Turnstile didn't load (offline?): this state couldn't be reached";
   await js(tab, `document.querySelector('[data-feedback-dialog] textarea').focus()`);
   await tab.type('A message from the accessibility check');
@@ -475,7 +568,7 @@ async function tabWalk(tab, { max = 300, inside = null } = {}) {
 function walks() {
   const from = dayIso(-30);
   const to = dayIso(-1);
-  const pages = ['/', '/start/', '/problems/', '/problems/tired-but-wired/', '/problems/sharing-a-bed/', '/search/?q=sleep', '/help/', '/about/', '/contact/', '/privacy/', '/urgent-help/', '/404', '/admin/', `/admin/?from=${to}&to=${from}`, `/admin/export?table=feedback&from=${from}&to=${to}`];
+  const pages = ['/', '/start/', '/problems/tired-but-wired/', '/problems/sharing-a-bed/', '/search/?q=sleep', '/help/', '/about/', '/contact/', '/privacy/', '/urgent-help/', '/404', '/admin/', `/admin/?from=${to}&to=${from}`, `/admin/export?table=feedback&from=${from}&to=${to}`];
   const list = pages.map((p) => ({ name: `walk ${p}`, path: p, status: p.includes(`from=${to}`) ? 400 : undefined, run: (tab) => tabWalk(tab) }));
   list.push(
     {
@@ -505,6 +598,8 @@ function walks() {
         await tab.key('Enter');
         if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) problems.push("Enter didn't open the card");
         else if (!(await js(tab, `document.activeElement.matches('.solution.is-open .video-block__title')`))) problems.push("Opening the card didn't move focus to its title");
+        // The walk then stops at each worksheet link (SPEC §7.6): its ring and 44px target are checked with the rest.
+        if (!(await js(tab, WORKSHEET_SHOWN))) problems.push("The open card shows no worksheets: this page's first solution needs at least one in data/worksheets.csv (SPEC §7.6)");
         const walk = await tabWalk(tab);
         return { stops: walk.stops, problems: [...problems, ...walk.problems] };
       },
@@ -515,18 +610,115 @@ function walks() {
       path: '/problems/pain/',
       run: async (tab) => {
         const problems = [];
-        await js(tab, `document.querySelector('[data-feedback-trigger]').focus()`);
+        await js(tab, `document.querySelector(${JSON.stringify(FOOTER_TRIGGER)}).focus()`);
         await tab.key('Enter');
         if (!(await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000))) return { problems: ["Enter didn't open the dialog"] };
+        const about = await js(tab, `[document.querySelector('[data-feedback-about]').hidden, document.querySelector('[data-feedback-about]').textContent]`);
+        if (!about[0] || about[1] !== '') problems.push(`Opened from the footer, the dialog names a video (${about})`);
         const turnstile = await waitForTurnstile(tab);
         const walk = await tabWalk(tab, { max: 40, inside: true });
         problems.push(...walk.problems);
         await js(tab, `document.querySelector('[data-feedback-dialog] textarea').focus()`);
         await tab.key('Escape');
         await tab.sleep(200);
-        const after = await js(tab, `[document.querySelector('[data-feedback-dialog]').open, document.activeElement.matches('[data-feedback-trigger]')]`);
+        const after = await js(tab, `[document.querySelector('[data-feedback-dialog]').open, document.activeElement.matches(${JSON.stringify(FOOTER_TRIGGER)})]`);
         if (after[0] || !after[1]) problems.push(`Escape didn't close the dialog and return focus to "Send feedback" (${after})`);
         return { stops: walk.stops, problems, note: turnstile ? undefined : "Turnstile didn't load (offline?)" };
+      },
+    },
+    {
+      name: "keys: the feedback dialog from a video's button",
+      feature: 'feedback',
+      path: '/problems/pain/',
+      run: async (tab) => {
+        const problems = [];
+        const state = `(() => {
+          const about = document.querySelector('[data-feedback-about]');
+          const heading = document.querySelector('.problem-video .video-block__title');
+          return {
+            open: document.querySelector('[data-feedback-dialog]').open,
+            onButton: document.activeElement.matches(${JSON.stringify(VIDEO_TRIGGER)}),
+            onFooter: document.activeElement.matches(${JSON.stringify(FOOTER_TRIGGER)}),
+            about: about.hidden ? null : about.textContent,
+            expected: 'Video: ' + heading.textContent.trim(),
+            draft: document.querySelector('[data-feedback-dialog] textarea').value,
+          };
+        })()`;
+        if (!(await js(tab, `(() => { const b = document.querySelector(${JSON.stringify(VIDEO_TRIGGER)}); return b && !b.hidden && b.getClientRects().length > 0; })()`))) {
+          return { problems: ["feedback.js didn't show the video's Feedback button"] };
+        }
+        await js(tab, `document.querySelector(${JSON.stringify(VIDEO_TRIGGER)}).focus()`);
+        await tab.key('Enter');
+        if (!(await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000))) return { problems: ["Enter didn't open the dialog"] };
+        const opened = await js(tab, state);
+        if (opened.about !== opened.expected) problems.push(`The dialog says "${opened.about}", not "${opened.expected}"`);
+        const turnstile = await waitForTurnstile(tab);
+        const walk = await tabWalk(tab, { max: 40, inside: true });
+        problems.push(...walk.problems);
+        // A draft, then Escape: focus goes back to the video's button, not the footer's.
+        await js(tab, `document.querySelector('[data-feedback-dialog] textarea').focus()`);
+        await tab.type('A draft');
+        await tab.key('Escape');
+        await tab.sleep(200);
+        const closed = await js(tab, state);
+        if (closed.open || !closed.onButton) problems.push(`Escape didn't close the dialog and return focus to the video's "Feedback" button (${JSON.stringify(closed)})`);
+        // Space opens it again, about the same video, with the draft kept.
+        await tab.key('Space');
+        if (!(await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000))) problems.push("Space didn't open the dialog again");
+        const again = await js(tab, state);
+        if (again.about !== again.expected || again.draft !== 'A draft') problems.push(`Reopened, the dialog lost its video or the draft (${JSON.stringify(again)})`);
+        await tab.key('Escape');
+        await tab.sleep(200);
+        // From the footer the same dialog names no video, and keeps the draft.
+        await js(tab, `document.querySelector(${JSON.stringify(FOOTER_TRIGGER)}).focus()`);
+        await tab.key('Enter');
+        if (!(await tab.waitFor(DIALOG_OPEN, 3000))) problems.push('Enter on "Send feedback" didn\'t open the dialog afterwards');
+        const footer = await js(tab, `(() => { const about = document.querySelector('[data-feedback-about]'); return { hidden: about.hidden, text: about.textContent, draft: document.querySelector('[data-feedback-dialog] textarea').value }; })()`);
+        if (!footer.hidden || footer.text !== '' || footer.draft !== 'A draft') problems.push(`Opened from the footer afterwards, the dialog still names the video or lost the draft (${JSON.stringify(footer)})`);
+        await tab.key('Escape');
+        await tab.sleep(200);
+        const end = await js(tab, state);
+        if (end.open || !end.onFooter) problems.push(`Escape didn't return focus to "Send feedback" (${JSON.stringify(end)})`);
+        return { stops: walk.stops, problems, note: turnstile ? undefined : "Turnstile didn't load (offline?)" };
+      },
+    },
+    {
+      // A button inside an open solution card: the dialog is about the
+      // card's video, and Escape puts focus back on that button, with the
+      // card still open. On a1.localhost the dialog has no site key (A1), so
+      // nothing here waits for Cloudflare.
+      name: "keys: the feedback dialog from a solution card's button",
+      feature: 'feedback',
+      path: '/problems/tired-but-wired/',
+      host: 'a1.localhost',
+      run: async (tab) => {
+        const problems = [];
+        if (!(await js(tab, `!!document.querySelector('.solution button.solution__face')`))) return { problems: ["solutions.js didn't enhance the cards"] };
+        await js(tab, `document.querySelector('.solution button.solution__face').focus()`);
+        await tab.key('Enter');
+        if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) return { problems: ["Enter didn't open the card"] };
+        const state = `(() => {
+          const button = document.querySelector(${JSON.stringify(CARD_TRIGGER)});
+          const about = document.querySelector('[data-feedback-about]');
+          return {
+            shown: Boolean(button) && !button.hidden && button.getClientRects().length > 0,
+            open: document.querySelector('[data-feedback-dialog]').open,
+            onButton: Boolean(button) && document.activeElement === button,
+            about: about.hidden ? null : about.textContent,
+            expected: 'Video: ' + (document.querySelector('.solution.is-open .video-block__title')?.textContent.trim() ?? ''),
+          };
+        })()`;
+        if (!(await js(tab, state)).shown) return { problems: ["feedback.js didn't show the open card's Feedback button"] };
+        await js(tab, `document.querySelector(${JSON.stringify(CARD_TRIGGER)}).focus()`);
+        await tab.key('Enter');
+        if (!(await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000))) return { problems: ["Enter didn't open the dialog"] };
+        const opened = await js(tab, state);
+        if (opened.about !== opened.expected) problems.push(`The dialog says "${opened.about}", not "${opened.expected}"`);
+        await tab.key('Escape');
+        await tab.sleep(200);
+        const closed = await js(tab, state);
+        if (closed.open || !closed.onButton) problems.push(`Escape didn't close the dialog and return focus to the open card's "Feedback" button (${JSON.stringify(closed)})`);
+        return { problems };
       },
     },
     {
@@ -537,9 +729,9 @@ function walks() {
       height: 500,
       host: 'a1.localhost',
       run: async (tab) => {
-        await js(tab, `document.querySelector('[data-feedback-trigger]').focus()`);
+        await js(tab, `document.querySelector(${JSON.stringify(FOOTER_TRIGGER)}).focus()`);
         await tab.key('Enter');
-        await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
+        if (!(await tab.waitFor(DIALOG_OPEN, 3000))) return { problems: ["Enter didn't open the dialog"] };
         await tab.sleep(400);
         return tabWalk(tab, { max: 40, inside: true });
       },
@@ -611,6 +803,10 @@ async function serve() {
 }
 
 async function main() {
+  if (optionProblem) {
+    console.error(optionProblem);
+    return 2;
+  }
   if (serveOnly) return serve();
   const chrome = findChrome();
   if (!chrome) {
@@ -627,6 +823,10 @@ async function main() {
     return 2;
   }
   const { pages, site } = build;
+  if (only && ![...states(), ...walks()].some((item) => only.test(item.name))) {
+    console.error(`--only ${option('--only')} matches no state or walk, so there is nothing to check. Their names start each line of a full run: "page /help/", "feedback: open", "walk /start/".`);
+    return 2;
+  }
   const db = createD1(path.join(ROOT, 'migrations'));
   await seedD1(db, pages, Date.now());
   const results = [];
@@ -773,6 +973,11 @@ async function main() {
   }
   if (reportFile) writeFileSync(reportFile, JSON.stringify({ chrome: version, axe: axeVersion, results, incomplete: Object.fromEntries(incomplete), advisories: Object.fromEntries(advisories) }, null, 1));
   const checked = results.length;
+  if (checked === 0) {
+    // Everything --only matched was skipped (its feature is switched off).
+    console.log('\nNo checks ran: every state and walk that matches --only was skipped.');
+    return 2;
+  }
   console.log(failures ? `\n${failures} of ${checked} checks failed.` : `\nAll ${checked} checks passed.`);
   return failures ? 1 : 0;
 }

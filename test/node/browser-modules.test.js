@@ -69,6 +69,8 @@ describe('players.js', () => {
           this.options = options;
           this.iframe = document.createElement('iframe');
           target.replaceWith(this.iframe);
+          this.calls = []; // 'play' and 'pause', in the order they were asked for
+          this.state = -1; // unstarted
           created.push(this);
         }
 
@@ -76,10 +78,30 @@ describe('players.js', () => {
           return this.iframe;
         }
 
-        playVideo() {}
+        playVideo() {
+          this.calls.push('play');
+        }
+
+        pauseVideo() {
+          this.calls.push('pause');
+        }
 
         getPlayerState() {
-          return -1;
+          return this.state;
+        }
+
+        getDuration() {
+          return 400;
+        }
+
+        getCurrentTime() {
+          return 0;
+        }
+
+        /** The player reports a new state, as YouTube does. */
+        becomes(state) {
+          this.state = state;
+          this.options.events.onStateChange({ data: state });
         }
 
         destroy() {
@@ -252,6 +274,34 @@ describe('players.js', () => {
     expect(dom.document.querySelector('iframe')).toBeNull();
   });
 
+  it('says the video couldn\'t load once, and not again 15 seconds later, when creating the player throws', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await load(videoPage, ['players']);
+    const button = dom.document.querySelector('button.video__facade');
+    button.focus();
+    button.click();
+    dom.window.YT = {
+      ...fakeYouTube(dom.document),
+      Player: class {
+        constructor() {
+          throw new Error('The player could not be created');
+        }
+      },
+    };
+    dom.window.onYouTubeIframeAPIReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(errorShown()).toEqual(SHOWN);
+    const message = dom.document.querySelector('.video__error');
+    // No readiness timer is left to put the alert in again, and move focus back to its link.
+    expect(vi.getTimerCount()).toBe(0);
+    const elsewhere = dom.document.getElementById('elsewhere');
+    elsewhere.focus();
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS);
+    expect(dom.document.querySelector('.video__error')).toBe(message);
+    expect(dom.document.querySelectorAll('.video__error')).toHaveLength(1);
+    expect(dom.document.activeElement).toBe(elsewhere);
+  });
+
   it('leaves focus where the visitor moved it when a video fails', async () => {
     await load(videoPage, ['players']);
     const button = dom.document.querySelector('button.video__facade');
@@ -310,6 +360,71 @@ describe('players.js', () => {
     expect(scripts()).toEqual([]);
   });
 
+  // A worksheet link is handled exactly as the handout link is (SPEC §7.6,
+  // §9.4): any click inside an <a href> marked data-worksheet is reported
+  // once, with the worksheet_id, and the link still opens.
+  it('reports clicks on a worksheet link only as DOM events, with the worksheet_id, and lets the link open', async () => {
+    await load(
+      videoPage.replace(
+        '<a id="elsewhere"',
+        '<section class="worksheets"><ul role="list">' +
+          '<li><a class="format-button" id="sheet" href="/media/worksheets/File Name.pdf" type="application/pdf" data-worksheet="settling-worksheet-1">' +
+          '<svg class="format-button__icon" id="sheet-icon"></svg>A worksheet<span class="visually-hidden" id="sheet-format"> (PDF)</span></a></li>' +
+          // Not a link, an empty id, and no href: none is a worksheet to open.
+          '<li><button type="button" id="not-a-link" data-worksheet="settling-worksheet-2">B</button></li>' +
+          '<li><a id="empty" href="/media/worksheets/c.pdf" data-worksheet="">C</a></li>' +
+          '<li><a id="no-href" data-worksheet="settling-worksheet-3">D</a></li>' +
+          '<li><a id="unmarked" href="/media/worksheets/e.pdf">E</a></li>' +
+          '</ul></section><a id="elsewhere"',
+      ),
+      ['players'],
+    );
+    const { document } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const press = (id) => {
+      const click = new Event('click', { bubbles: true, cancelable: true });
+      document.getElementById(id).dispatchEvent(click);
+      return click.defaultPrevented;
+    };
+    // The link itself, its icon and its hidden "(PDF)": one report each, by id, never the file name.
+    expect([press('sheet'), press('sheet-icon'), press('sheet-format')]).toEqual([false, false, false]);
+    expect(reported).toEqual([1, 2, 3].map(() => ({ type: 'worksheet_open', detail: { worksheet: 'settling-worksheet-1' } })));
+    for (const id of ['not-a-link', 'empty', 'no-href', 'unmarked', 'elsewhere']) expect(press(id), id).toBe(false);
+    expect(reported).toHaveLength(3);
+    // The handout beside it is still a handout_open, and nothing else.
+    document.querySelector('.video-controls a[data-handout]').click();
+    expect(reported.slice(3)).toEqual([{ type: 'handout_open', detail: { media: 'full' } }]);
+    // A middle click (auxclick, button 1) counts as it does for a handout;
+    // the right button, which opens the context menu, doesn't.
+    const aux = (button) => document.getElementById('sheet').dispatchEvent(Object.assign(new Event('auxclick', { bubbles: true, cancelable: true }), { button }));
+    aux(2);
+    expect(reported).toHaveLength(4);
+    aux(1);
+    expect(reported.slice(4)).toEqual([{ type: 'worksheet_open', detail: { worksheet: 'settling-worksheet-1' } }]);
+    // players.js sends and stores nothing itself.
+    expect(scripts()).toEqual([]);
+  });
+
+  it('counts a handout opened in a new tab with a middle click, which fires auxclick and no click (SPEC §9.4)', async () => {
+    await load(videoPage, ['players']);
+    const { document } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const handout = document.querySelector('.video-controls a[data-handout]');
+    const press = (target, button) => {
+      const event = Object.assign(new Event('auxclick', { bubbles: true, cancelable: true }), { button });
+      target.dispatchEvent(event);
+      return event;
+    };
+    // The right button opens the context menu; what is chosen there can't be seen.
+    press(handout, 2);
+    press(document.getElementById('elsewhere'), 1);
+    expect(reported).toEqual([]);
+    expect(press(handout, 1).defaultPrevented).toBe(false);
+    expect(reported).toEqual([{ type: 'handout_open', detail: { media: 'full' } }]);
+  });
+
   it('has no transcripts to open, print or report (SPEC §9.3): nothing but the native "Audio only" disclosure', async () => {
     await load(videoPage, ['players'], { hash: '#transcript-full' });
     const { document, window } = dom;
@@ -348,6 +463,188 @@ describe('players.js', () => {
     audio.dispatchEvent(new Event('timeupdate'));
     window.dispatchEvent(new Event('pagehide'));
     expect(reported).toEqual([{ type: 'audio_play', detail: { media: 'a-talk', furthest: 75 } }]);
+  });
+
+  it('reports no audio play for audio that never starts: `play` is only the request, which still pauses other media (SPEC §9.4)', async () => {
+    await load(
+      '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
+        '<audio controls preload="none" src="/media/audio/talk.mp3" data-media="a-talk"></audio>' +
+        '<audio controls preload="none" src="/media/audio/other.mp3" data-media="b-talk"></audio></main></body></html>',
+      ['players'],
+    );
+    const { document, window } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const [audio, other] = document.querySelectorAll('audio');
+    other.paused = false;
+
+    // Play is pressed, and the file then fails to load.
+    audio.paused = false;
+    audio.dispatchEvent(new Event('play'));
+    expect(other.paused).toBe(true);
+    audio.dispatchEvent(new Event('error'));
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported).toEqual([]);
+
+    // Once it does start, it is a play.
+    audio.dispatchEvent(new Event('playing'));
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported).toEqual([{ type: 'audio_play', detail: { media: 'a-talk', furthest: 0 } }]);
+  });
+
+  // Two solution cards with playable videos (the site's own are placeholders,
+  // SPEC §7): closing a card pauses its media (SPEC §7.5), and a video that
+  // was still loading then must not start in the closed card.
+  const cardsPage = env.renderString(
+    '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
+      '{% from "problem/solutions.njk" import solutionsSection %}' +
+      '{{ solutionsSection("main", items) }}</main></body></html>',
+    {
+      items: filters.solutionsByTier(
+        [
+          { tier: 'main', video: 'full', blurb: 'Try this.' },
+          { tier: 'main', video: 'other', blurb: 'Or this.' },
+        ],
+        [...videos, videoRow('other', { title: 'Another idea', youtube_url: 'https://youtu.be/ZyXwVuTsRqP', duration: '2:10', handout: 'other.pdf', audio: 'other.mp3' })],
+      ).main,
+    },
+  );
+  const PLAYING = 1;
+  const PAUSED = 2;
+  const BUFFERING = 3;
+
+  it.each([
+    ['the IFrame API', false],
+    ['the player', true],
+  ])('does not start a video whose card was closed while %s loaded, or pause what plays in the open card', async (_, apiLoaded) => {
+    await load(cardsPage, ['players', 'solutions']);
+    const { document, window } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const [first, second] = document.querySelectorAll('.solution');
+    const apiArrives = async () => {
+      window.YT = fakeYouTube(document);
+      window.onYouTubeIframeAPIReady();
+      await settle();
+    };
+
+    first.querySelector('.solution__face').click();
+    first.querySelector('button.video__facade').click();
+    if (apiLoaded) await apiArrives();
+    // Close, before the video is ready; then the next card's audio plays.
+    first.querySelector('.video-block__close').click();
+    expect(first.querySelector('.solution__panel').hidden).toBe(true);
+    second.querySelector('.solution__face').click();
+    const audio = second.querySelector('audio');
+    audio.paused = false;
+    audio.dispatchEvent(new Event('play'));
+    if (!apiLoaded) await apiArrives();
+
+    const [player] = created;
+    player.options.events.onReady();
+    expect(player.calls).toEqual([]);
+    // `autoplay: 1` may start it all the same: it is paused, and the audio plays on.
+    player.becomes(BUFFERING);
+    player.becomes(PLAYING);
+    expect(player.calls).toEqual(['pause', 'pause']);
+    expect(audio.paused).toBe(false);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported.filter((r) => r.type === 'video_play')).toEqual([]);
+
+    // Opened again, the video plays when the visitor starts it, and that is a play.
+    first.querySelector('.solution__face').click();
+    player.calls.length = 0;
+    player.becomes(PLAYING);
+    player.becomes(PAUSED);
+    expect(player.calls).toEqual([]);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(reported.filter((r) => r.type === 'video_play')).toEqual([{ type: 'video_play', detail: { media: 'full', furthest: 0 } }]);
+
+    // Only that first, automatic start is held back. Once the visitor has
+    // played the video, starting it again while its card is closed (the
+    // browser's own media controls, a media key, picture-in-picture) is
+    // theirs to do.
+    first.querySelector('.video-block__close').click();
+    player.becomes(PLAYING);
+    player.becomes(PAUSED);
+    expect(player.calls).toEqual([]);
+  });
+
+  // The feedback dialog is modal: the page behind it is inert, so its
+  // players can't be reached while it is open. feedback.js pauses them as it
+  // opens (SPEC §13). The page: a playable video with its "Feedback" button,
+  // the footer's link and the dialog, with no usable Turnstile key, so
+  // nothing loads from Cloudflare.
+  const dialogPage = env.renderString(
+    '<!doctype html><html lang="en-AU"><head><title>T</title></head><body data-page-id="a-page"><main><h1>A page</h1>' +
+      '{% from "partials/video-block.njk" import videoBlock %}' +
+      '{{ videoBlock(v, feedback=true) }}</main>' +
+      '<footer><a href="/contact/" data-feedback-trigger>Send feedback</a></footer>' +
+      '{% include "partials/feedback-dialog.njk" %}</body></html>',
+    { v: filters.videoById('full', videos), site: { turnstileSiteKey: '<PUBLIC_SITE_KEY>' } },
+  );
+  /** Close the dialog and let its "close" event, which comes in a later task, arrive. */
+  const closeDialog = async () => {
+    dom.document.querySelector('dialog').close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  it('pauses the playing video or audio when the feedback dialog opens, from the footer or a video, and starts nothing when it closes', async () => {
+    await load(dialogPage, ['players', 'feedback']);
+    const { document, window } = dom;
+    const dialog = document.querySelector('dialog');
+    document.querySelector('button.video__facade').click();
+    window.YT = fakeYouTube(document);
+    window.onYouTubeIframeAPIReady();
+    await settle();
+    const [player] = created;
+    player.options.events.onReady();
+    player.becomes(PLAYING);
+    expect(player.calls).toEqual(['play']);
+
+    document.querySelector('footer button[data-feedback-trigger]').click();
+    expect(dialog.open).toBe(true);
+    expect(player.calls).toEqual(['play', 'pause']);
+    player.becomes(PAUSED);
+    await closeDialog();
+    expect(player.calls).toEqual(['play', 'pause']);
+
+    const audio = document.querySelector('audio');
+    audio.paused = false;
+    audio.dispatchEvent(new Event('play'));
+    document.querySelector('button[data-feedback-video="full"]').click();
+    expect(dialog.open).toBe(true);
+    expect(audio.paused).toBe(true);
+    await closeDialog();
+    expect(audio.paused).toBe(true);
+    expect(player.calls).toEqual(['play', 'pause']);
+  });
+
+  it('does not start a video that was still loading when the feedback dialog opened; the visitor starts it after closing', async () => {
+    await load(dialogPage, ['players', 'feedback']);
+    const { document, window } = dom;
+    document.querySelector('button.video__facade').click();
+    document.querySelector('footer button[data-feedback-trigger]').click();
+    expect(document.querySelector('dialog').open).toBe(true);
+    const focused = document.activeElement;
+    window.YT = fakeYouTube(document);
+    window.onYouTubeIframeAPIReady();
+    await settle();
+    const [player] = created;
+    player.options.events.onReady();
+    expect(player.calls).toEqual([]);
+    // Focus stays in the dialog.
+    expect(document.activeElement).toBe(focused);
+    player.becomes(BUFFERING);
+    player.becomes(PLAYING);
+    expect(player.calls).toEqual(['pause', 'pause']);
+    player.becomes(PAUSED);
+
+    await closeDialog();
+    player.calls.length = 0;
+    player.becomes(PLAYING);
+    player.becomes(PAUSED);
+    expect(player.calls).toEqual([]);
   });
 });
 
@@ -402,15 +699,40 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
     expect(document.activeElement).toBe(face(firstExtra));
   });
 
-  it('keeps focus on the card button should the title not be rendered', async () => {
+  // The worksheets of an open card (SPEC §7.6) are the page's only links
+  // marked data-worksheet; players.js reports each click, open card or not
+  // (without JavaScript nothing is reported: the links are plain links).
+  it('reports a click on each worksheet link of a card as a worksheet_open with its worksheet_id, and nothing for the card\'s other controls', async () => {
     await load(html, ['players', 'solutions']);
     const { document } = dom;
-    document.isRendered = (el) => !el.classList.contains('video-block__header');
-    const [first] = cards();
-    face(first).focus();
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const withSheets = cards().filter((card) => card.querySelector('.worksheets'));
+    const links = document.querySelectorAll('[data-worksheet]');
+    expect(links.length).toBeGreaterThanOrEqual(withSheets.length);
+    // Nothing to click while none of this page's solution videos has a
+    // worksheet in data/worksheets.csv (a valid file, SPEC §7.6): then no
+    // element is marked at all.
+    expect(links.length > 0).toBe(withSheets.length > 0);
+    if (withSheets.length === 0) return;
+    // Every one is in a card's worksheets section, under its video template.
+    expect(links).toEqual(withSheets.flatMap((card) => card.querySelectorAll('.solution__panel > .worksheets a.format-button')));
+    const [first] = withSheets;
     face(first).click();
+    first.querySelector('.video-block__close').click();
+    expect(reported).toEqual([]);
+    face(first).click();
+    for (const link of first.querySelectorAll('.worksheets a')) {
+      const click = new Event('click', { bubbles: true, cancelable: true });
+      link.dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(false);
+      expect(link.getAttribute('href')).toMatch(/^\/media\/worksheets\/[^/]+\.pdf$/i);
+    }
+    expect(reported).toEqual(first.querySelectorAll('.worksheets a').map((a) => ({ type: 'worksheet_open', detail: { worksheet: a.dataset.worksheet } })));
+    expect(reported.length).toBeGreaterThan(0);
+    for (const { detail } of reported) expect(detail.worksheet).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+    // The card stays open, and focus is not moved.
     expect(face(first).getAttribute('aria-expanded')).toBe('true');
-    expect(document.activeElement).toBe(face(first));
   });
 });
 
@@ -434,35 +756,36 @@ describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => 
     handout.dispatchEvent(click);
     expect(click.defaultPrevented).toBe(false);
     expect(reported).toEqual([{ type: 'handout_open', detail: { media: 'sharing-a-bed-about' } }]);
+    // No solution cards, so no worksheet to open or report (SPEC §7.6).
+    expect(document.querySelectorAll('[data-worksheet]')).toEqual([]);
   });
 });
 
-describe('problems.js on /problems/', () => {
-  const html = pageAt(site, '/problems/');
-  const panel = (view) => dom.document.querySelector(`[data-view-panel="${view}"]`);
-  const groups = (view) => panel(view).querySelectorAll('section.group-list__group');
-  const areaSections = () => groups('area');
+// Home holds the list of sleep problems (project lead, 2026-11-13; it was
+// the Sleep problems page, /problems/).
+describe('problems.js on Home (/)', () => {
+  const html = pageAt(site, '/');
+  const areaSections = () => dom.document.querySelectorAll('[data-problems] section.group-list__group');
   const button = (section) => section.querySelector('button.group-list__header');
-  const expanded = (view) => groups(view).map((s) => button(s).getAttribute('aria-expanded'));
+  const expanded = () => areaSections().map((s) => button(s).getAttribute('aria-expanded'));
   const visibleItems = (section) => section.querySelectorAll('li[data-slug]').filter((li) => !li.hidden);
   const typeQuery = (value) => {
     const input = dom.document.getElementById('problem-filter');
     input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
   };
-  const slugs = (items) => items.map((li) => li.dataset.slug).sort();
-  /** Each group of a view: its name, whether it is hidden or open, and its count. */
-  const viewState = (view) =>
-    groups(view).map((s) => [
+  /** Each area: its name, whether it is hidden or open, and its count. */
+  const pageState = () =>
+    areaSections().map((s) => [
       s.querySelector('[data-group-name]').textContent,
       s.hidden,
       button(s).getAttribute('aria-expanded'),
       s.querySelector('[data-group-list]').hidden,
       s.querySelector('[data-group-count]').textContent,
     ]);
-  /** Check a view is narrowed: only groups with a match show, each open, counting "n of total". Returns the shown slugs. */
-  const expectNarrowed = (view) => {
-    for (const section of groups(view)) {
+  /** Check the page is narrowed: only areas with a match show, each open, counting "n of total". Returns the shown slugs. */
+  const expectNarrowed = () => {
+    for (const section of areaSections()) {
       const items = visibleItems(section);
       expect(section.hidden).toBe(items.length === 0);
       if (items.length === 0) continue;
@@ -471,36 +794,36 @@ describe('problems.js on /problems/', () => {
       const total = section.querySelectorAll('li[data-slug]').length;
       expect(section.querySelector('[data-group-count]').textContent).toBe(`${items.length} of ${total}`);
     }
-    return slugs(groups(view).filter((s) => !s.hidden).flatMap(visibleItems));
+    return areaSections()
+      .filter((s) => !s.hidden)
+      .flatMap(visibleItems)
+      .map((li) => li.dataset.slug)
+      .sort();
   };
 
-  // The page with a group that has no topics, second in each view (an area
-  // with no problems yet, or a time of day none has): a copy of the view's
-  // first group, renamed, with its list emptied.
-  const withEmptyGroups = (source) => {
-    let out = source;
-    for (const view of ['area', 'time']) {
-      const first = out.indexOf('<section', out.indexOf(`data-view-panel="${view}"`));
-      const end = out.indexOf('</section>', first) + '</section>'.length;
-      const empty = out
-        .slice(first, end)
-        .replace(/^<section([^>]*?) id="[^"]*"/, '<section$1 id="empty"')
-        .replace(/(data-group-name>)[^<]*/, '$1Nothing here yet')
-        .replace(/data-total="\d+">\d+</, 'data-total="0">0<')
-        .replace(/(group-list__count-unit">) topics?/, '$1 topics')
-        .replace(/(<ul\b[^>]*\bid=")[^"]*("[^>]*>)[\s\S]*<\/ul>/, `$1${view}-empty-problems$2</ul>`);
-      expect(empty).not.toContain('<li');
-      const second = out.indexOf('<section', end);
-      out = out.slice(0, second) + empty + out.slice(second);
-    }
-    return out;
+  // The page with an area that has no topics yet, second in the list: a
+  // copy of the first area, renamed, with its list emptied.
+  const withEmptyArea = (source) => {
+    const first = source.indexOf('<section class="group-list__group"');
+    expect(first).toBeGreaterThan(-1);
+    const end = source.indexOf('</section>', first) + '</section>'.length;
+    const empty = source
+      .slice(first, end)
+      .replace(/^<section([^>]*?) id="[^"]*"/, '<section$1 id="empty"')
+      .replace(/(data-group-name>)[^<]*/, '$1Nothing here yet')
+      .replace(/data-total="\d+">\d+</, 'data-total="0">0<')
+      .replace(/(group-list__count-unit">) topics?/, '$1 topics')
+      .replace(/(<ul\b[^>]*\bid=")[^"]*("[^>]*>)[\s\S]*<\/ul>/, '$1area-empty-problems$2</ul>');
+    expect(empty).not.toContain('<li');
+    const second = source.indexOf('<section', end);
+    return source.slice(0, second) + empty + source.slice(second);
   };
 
   beforeEach(() => {
     vi.useFakeTimers();
   });
 
-  it('shows the toolbar (the filter and the view toggle, no "Open all areas") and its lede sentence', async () => {
+  it('shows the toolbar (the filter alone: no view toggle, no "Open all areas") and its lede sentence', async () => {
     await load(html, ['problems']);
     const { document } = dom;
     const tools = document.querySelector('[data-problems-tools]');
@@ -508,62 +831,63 @@ describe('problems.js on /problems/', () => {
     expect(document.querySelector('[data-problems-hint]').hidden).toBe(false);
     expect(tools.querySelectorAll('button')).toHaveLength(0);
     expect(document.querySelector('[data-toggle-all]')).toBeNull();
-    const radios = tools.querySelectorAll('fieldset input[type="radio"]');
-    expect(radios.map((r) => [r.value, r.checked])).toEqual([['area', true], ['time', false]]);
+    expect(tools.querySelectorAll('input').map((i) => i.id)).toEqual(['problem-filter']);
+    expect(document.querySelectorAll('main fieldset, main input[type="radio"]')).toHaveLength(0);
   });
 
-  it('makes every group in both views a button, all closed (project lead, 2026-11-07)', async () => {
+  it('makes every area a button, all closed (project lead, 2026-11-07)', async () => {
     await load(html, ['problems']);
-    for (const [view, n] of [['area', 10], ['time', 6]]) {
-      const sections = groups(view);
-      expect(sections).toHaveLength(n);
-      sections.forEach((section, i) => {
-        const list = section.querySelector('[data-group-list]');
-        const header = button(section);
-        expect(header.parentNode.tagName.toLowerCase()).toBe('h2');
-        expect(header.getAttribute('type')).toBe('button');
-        expect(header.getAttribute('aria-controls')).toBe(list.id);
-        expect(header.getAttribute('aria-expanded')).toBe('false');
-        expect(list.hidden).toBe(true);
-        expect(section.querySelector('span.group-list__header')).toBeNull();
-      });
+    const sections = areaSections();
+    expect(sections).toHaveLength(10);
+    for (const section of sections) {
+      const list = section.querySelector('[data-group-list]');
+      const header = button(section);
+      expect(header.parentNode.tagName.toLowerCase()).toBe('h3');
+      expect(header.getAttribute('type')).toBe('button');
+      expect(header.getAttribute('aria-controls')).toBe(list.id);
+      expect(header.getAttribute('aria-expanded')).toBe('false');
+      expect(list.hidden).toBe(true);
+      expect(section.hidden).toBe(false);
+      expect(section.querySelector('span.group-list__header')).toBeNull();
     }
-    expect(panel('area').hidden).toBe(false);
-    expect(panel('time').hidden).toBe(true);
     expect(dom.document.querySelector('[data-problems]').classList.contains('is-enhanced')).toBe(true);
 
-    for (const view of ['area', 'time']) {
-      const second = groups(view)[1];
-      button(second).click();
-      expect(button(second).getAttribute('aria-expanded')).toBe('true');
-      expect(second.querySelector('[data-group-list]').hidden).toBe(false);
-      button(second).click();
-      expect(second.querySelector('[data-group-list]').hidden).toBe(true);
-    }
+    const second = sections[1];
+    button(second).click();
+    expect(button(second).getAttribute('aria-expanded')).toBe('true');
+    expect(second.querySelector('[data-group-list]').hidden).toBe(false);
+    button(second).click();
+    expect(button(second).getAttribute('aria-expanded')).toBe('false');
+    expect(second.querySelector('[data-group-list]').hidden).toBe(true);
   });
 
-  it('opens only the area named in the URL, leaving every time of day closed', async () => {
+  it('opens only the area named in the URL', async () => {
     await load(html, ['problems'], { hash: '#mind' });
     const open = areaSections().filter((s) => button(s).getAttribute('aria-expanded') === 'true');
     expect(open.map((s) => s.id)).toEqual(['mind']);
-    expect(expanded('time')).toEqual(Array(6).fill('false'));
+    expect(expanded().filter((value) => value === 'false')).toHaveLength(9);
   });
 
-  it('switches to "When it happens" and back, and the result line follows the view', async () => {
-    const [{ STATUS_DELAY }] = await load(html, ['problems']);
-    const { document } = dom;
-    const status = document.querySelector('[data-filter-status]');
-    expect(status.textContent).toBe('36 topics in 10 areas');
-    document.getElementById('view-time').click();
-    expect(panel('time').hidden).toBe(false);
-    expect(panel('area').hidden).toBe(true);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe('36 topics across 6 times of day');
-    document.getElementById('view-area').click();
-    expect(panel('area').hidden).toBe(false);
-    expect(panel('time').hidden).toBe(true);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe('36 topics in 10 areas');
+  // Links from other pages arrive at /#sleep-problems (the section) or at
+  // /#<area_id> (an area in it); the skip link is #main.
+  it.each(['#sleep-problems', '#main', '#nowhere'])('leaves every area closed when the URL names %s, on load and on hashchange', async (hash) => {
+    await load(html, ['problems'], { hash });
+    expect(expanded()).toEqual(Array(10).fill('false'));
+    expect(dom.document.querySelector('[data-problems-tools]').hidden).toBe(false);
+    button(areaSections()[0]).click();
+    dom.window.dispatchEvent(new Event('hashchange'));
+    expect(expanded()).toEqual(['true', ...Array(9).fill('false')]);
+    expect(dom.document.getElementById('sleep-problems').hidden).toBe(false);
+  });
+
+  it('leaves the rest of Home as it was: the hero, the trial band and the disclaimer', async () => {
+    const before = installDom(html);
+    const outside = (document) => ['.home-hero', '.home-trial', '.home-disclaimer'].map((selector) => document.querySelector(selector).textContent);
+    const expected = outside(before.document);
+    before.restore();
+    await load(html, ['problems']);
+    expect(outside(dom.document)).toEqual(expected);
+    expect(dom.document.querySelectorAll('main button').every((b) => b.closest('#sleep-problems') !== null)).toBe(true);
   });
 
   it('filters as you type: hides areas without matches, opens the rest, and announces the count once typing pauses', async () => {
@@ -571,6 +895,7 @@ describe('problems.js on /problems/', () => {
     const { document } = dom;
     const status = document.querySelector('[data-filter-status]');
     const before = status.textContent;
+    expect(before).toBe('36 topics in 10 areas');
 
     typeQuery('night');
     const shown = areaSections().filter((s) => !s.hidden);
@@ -598,119 +923,65 @@ describe('problems.js on /problems/', () => {
     vi.advanceTimersByTime(STATUS_DELAY);
     expect(status.textContent).toBe(before);
     expect(areaSections().filter((s) => s.hidden)).toEqual([]);
-    expect(expanded('area')).toEqual(Array(10).fill('false'));
+    expect(expanded()).toEqual(Array(10).fill('false'));
   });
 
-  it('filters "When it happens" the same way: "3am" hides the times without matches and opens the rest', async () => {
+  it('puts the areas back as they were when the field is cleared: one opened by hand stays open, the rest close', async () => {
     const [{ STATUS_DELAY }] = await load(html, ['problems']);
-    const { document } = dom;
-    const status = document.querySelector('[data-filter-status]');
-    document.getElementById('view-time').click();
-    button(groups('time')[2]).click(); // open "During the night" by hand too
+    const status = dom.document.querySelector('[data-filter-status]');
+    button(areaSections()[2]).click(); // open the third area by hand
 
     typeQuery('3am');
-    const areaMatches = areaSections().flatMap(visibleItems).filter((li) => !li.closest('section').hidden);
-    const matchedSlugs = areaMatches.map((li) => li.dataset.slug).sort();
-    expect(matchedSlugs.length).toBeGreaterThan(0);
-    const timeShown = groups('time').filter((s) => !s.hidden);
-    expect(timeShown.length).toBeGreaterThan(0);
-    expect(timeShown.length).toBeLessThan(6);
-    expect(timeShown.flatMap(visibleItems).map((li) => li.dataset.slug).sort()).toEqual(matchedSlugs);
-    for (const section of groups('time')) {
-      const items = visibleItems(section);
-      expect(section.hidden).toBe(items.length === 0);
-      if (items.length) {
-        expect(button(section).getAttribute('aria-expanded')).toBe('true');
-        expect(section.querySelector('[data-group-list]').hidden).toBe(false);
-        const total = section.querySelectorAll('li[data-slug]').length;
-        expect(section.querySelector('[data-group-count]').textContent).toBe(`${items.length} of ${total}`);
-      }
-    }
+    const matched = expectNarrowed();
+    expect(matched.length).toBeGreaterThan(0);
+    const shown = areaSections().filter((s) => !s.hidden);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.length).toBeLessThan(10);
     vi.advanceTimersByTime(STATUS_DELAY);
-    const n = matchedSlugs.length;
+    const n = matched.length;
     expect(status.textContent).toBe(n === 1 ? '1 topic matches “3am”' : `${n} topics match “3am”`);
 
-    // Clearing it puts the times of day back as they were.
+    // A second query narrows again: the state to return to is still the one
+    // before the first.
+    typeQuery('night');
+    expect(expectNarrowed()).not.toEqual(matched);
+
     typeQuery('');
     vi.advanceTimersByTime(STATUS_DELAY);
-    expect(groups('time').filter((s) => s.hidden)).toEqual([]);
-    expect(expanded('time')).toEqual(['false', 'false', 'true', 'false', 'false', 'false']);
-    expect(groups('time').map((s) => s.querySelector('[data-group-count]').textContent)).toEqual(
-      groups('time').map((s) => String(s.querySelectorAll('li[data-slug]').length)),
+    expect(areaSections().filter((s) => s.hidden)).toEqual([]);
+    expect(expanded()).toEqual(['false', 'false', 'true', 'false', 'false', 'false', 'false', 'false', 'false', 'false']);
+    expect(areaSections().flatMap((s) => s.querySelectorAll('li[data-slug]')).filter((li) => li.hidden)).toEqual([]);
+    expect(areaSections().map((s) => s.querySelector('[data-group-count]').textContent)).toEqual(
+      areaSections().map((s) => String(s.querySelectorAll('li[data-slug]').length)),
     );
-    expect(status.textContent).toBe('36 topics across 6 times of day');
+    expect(status.textContent).toBe('36 topics in 10 areas');
   });
 
-  it('says so when nothing matches, keeping every topic in view, in either view', async () => {
+  it('says so when nothing matches, keeping every topic in view', async () => {
     const [{ STATUS_DELAY, NO_MATCH }] = await load(html, ['problems']);
     const status = dom.document.querySelector('[data-filter-status]');
     typeQuery('zzzz');
     vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(NO_MATCH.area);
+    expect(NO_MATCH).toBe('Nothing matches yet. Try a different word, or open an area below.');
+    expect(status.textContent).toBe(NO_MATCH);
     expect(areaSections().filter((s) => s.hidden)).toEqual([]);
-    dom.document.getElementById('view-time').click();
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(NO_MATCH.time);
-    expect(groups('time').filter((s) => s.hidden)).toEqual([]);
+    expect(areaSections().flatMap((s) => s.querySelectorAll('li[data-slug]')).filter((li) => li.hidden)).toEqual([]);
   });
 
-  it('keeps the filter when switching view: typed in By area, "When it happens" is narrowed to the same topics, and back again', async () => {
-    const [{ STATUS_DELAY }] = await load(html, ['problems']);
-    const { document } = dom;
-    const status = document.querySelector('[data-filter-status]');
-
-    typeQuery('night');
-    vi.advanceTimersByTime(STATUS_DELAY);
-    const matched = expectNarrowed('area');
-    expect(matched.length).toBeGreaterThan(1);
-    const line = `${matched.length} topics match “night”`;
-    expect(status.textContent).toBe(line);
-    const areaNarrowed = viewState('area');
-
-    document.getElementById('view-time').click();
-    expect(panel('time').hidden).toBe(false);
-    expect(document.getElementById('problem-filter').value).toBe('night');
-    expect(expectNarrowed('time')).toEqual(matched);
-    expect(groups('time').filter((s) => s.hidden).length).toBeGreaterThan(0);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(line);
-
-    document.getElementById('view-area').click();
-    expect(panel('area').hidden).toBe(false);
-    expect(viewState('area')).toEqual(areaNarrowed);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(line);
-
-    // And the other way: typed in "When it happens", By area follows.
-    document.getElementById('view-time').click();
-    typeQuery('3am');
-    const fromTime = expectNarrowed('time');
-    expect(fromTime.length).toBeGreaterThan(0);
-    expect(fromTime).not.toEqual(matched);
-    document.getElementById('view-area').click();
-    expect(expectNarrowed('area')).toEqual(fromTime);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    const n = fromTime.length;
-    expect(status.textContent).toBe(n === 1 ? '1 topic matches “3am”' : `${n} topics match “3am”`);
-  });
-
-  it('hides a group with no topics only while the filter narrows: cleared or with no match, both views are as on load', async () => {
-    const [{ STATUS_DELAY, NO_MATCH }] = await load(withEmptyGroups(html), ['problems']);
+  it('hides an area with no topics only while the filter narrows: cleared or with no match, the page is as on load', async () => {
+    const [{ STATUS_DELAY, NO_MATCH }] = await load(withEmptyArea(html), ['problems']);
     const status = dom.document.querySelector('[data-filter-status]');
-    const empties = () => ['area', 'time'].map((view) => groups(view)[1]);
-    expect(groups('area')).toHaveLength(11);
-    expect(groups('time')).toHaveLength(7);
-    for (const section of empties()) {
-      expect(section.querySelector('[data-group-name]').textContent).toBe('Nothing here yet');
-      expect(section.hidden).toBe(false);
-      expect(section.querySelector('[data-group-count]').textContent).toBe('0');
-      expect(button(section).getAttribute('aria-expanded')).toBe('false');
-    }
-    const onLoad = { area: viewState('area'), time: viewState('time') };
-    const asOnLoad = () => expect({ area: viewState('area'), time: viewState('time') }).toEqual(onLoad);
+    const empty = () => areaSections()[1];
+    expect(areaSections()).toHaveLength(11);
+    expect(empty().querySelector('[data-group-name]').textContent).toBe('Nothing here yet');
+    expect(empty().hidden).toBe(false);
+    expect(empty().querySelector('[data-group-count]').textContent).toBe('0');
+    expect(button(empty()).getAttribute('aria-expanded')).toBe('false');
+    const onLoad = pageState();
+    const asOnLoad = () => expect(pageState()).toEqual(onLoad);
 
     typeQuery('night');
-    for (const section of empties()) expect(section.hidden).toBe(true);
+    expect(empty().hidden).toBe(true);
 
     typeQuery('');
     asOnLoad();
@@ -723,23 +994,29 @@ describe('problems.js on /problems/', () => {
     typeQuery('nightzzzz'); // narrowed, then nothing matches
     asOnLoad();
     vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(NO_MATCH.area);
-
-    dom.document.getElementById('view-time').click();
-    typeQuery('');
-    asOnLoad();
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe('36 topics across 7 times of day');
+    expect(status.textContent).toBe(NO_MATCH);
   });
 
-  it('opens an area on hashchange, switching back to By area', async () => {
-    await load(html, ['problems']);
+  it('opens an area on hashchange, clearing a filter that hides it', async () => {
+    const [{ STATUS_DELAY }] = await load(html, ['problems']);
     const { document, window } = dom;
-    document.getElementById('view-time').click();
     window.location.hash = '#social';
     window.dispatchEvent(new Event('hashchange'));
-    expect(panel('area').hidden).toBe(false);
-    expect(document.getElementById('view-area').checked).toBe(true);
-    expect(button(document.getElementById('social')).getAttribute('aria-expanded')).toBe('true');
+    const social = document.getElementById('social');
+    expect(button(social).getAttribute('aria-expanded')).toBe('true');
+    expect(expanded().filter((value) => value === 'true')).toHaveLength(1);
+
+    // A filter that hides the area is cleared, so the area can show.
+    button(social).click();
+    typeQuery('night sweats');
+    expect(expectNarrowed()).toEqual(['hot-flushes-and-night-sweats']);
+    expect(social.hidden).toBe(true);
+    window.dispatchEvent(new Event('hashchange'));
+    expect(document.getElementById('problem-filter').value).toBe('');
+    expect(social.hidden).toBe(false);
+    expect(button(social).getAttribute('aria-expanded')).toBe('true');
+    expect(areaSections().filter((s) => s.hidden)).toEqual([]);
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(document.querySelector('[data-filter-status]').textContent).toBe('36 topics in 10 areas');
   });
 });

@@ -37,6 +37,7 @@ export const SHAPES = new Map([
   ['video_play', ['media', 'furthest']],
   ['audio_play', ['media', 'furthest']],
   ['handout_open', ['media']],
+  ['worksheet_open', ['worksheet']],
 ]);
 
 /** A v4 UUID as crypto.randomUUID() writes it, the only visit code the Worker accepts. */

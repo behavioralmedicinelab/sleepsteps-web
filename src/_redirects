@@ -1,0 +1,14 @@
+# Redirects for static assets (SPEC §7.2, §18.2). The build copies this file
+# to dist/_redirects; Wrangler reads it as config and never serves it. One
+# rule a line: source, destination, status. A line Cloudflare can't read is
+# dropped with only a warning in the build log, so
+# test/node/deploy-config.test.js checks every line.
+
+# The Sleep problems page is part of the home page since 2026-11-13 (SPEC
+# §22), so its old address goes there. A rule with no * matches only the
+# exact path it names, so the address is listed with and without its final
+# slash, and neither rule matches a problem page (/problems/<slug>/).
+# Browsers keep a #fragment across a redirect, so /problems/#core arrives at
+# /#core, where that area opens.
+/problems / 301
+/problems/ / 301

@@ -1,7 +1,10 @@
 /*
- * Sleep problems (/problems/): SPEC §7.2, §7.5, §8.1; HANDOFF §6.3; boards
- * Problems-A.dc.html and Problems-Phone.dc.html. Loaded through `styles`
- * front matter in content/problems.njk.
+ * The Sleep problems section of Home (/#sleep-problems): SPEC §7.2, §7.5,
+ * §8.1; HANDOFF §6.3; boards Problems-A.dc.html and Problems-Phone.dc.html.
+ * Loaded through `styles` front matter in content/index.njk, after
+ * home.css; the markup is that file's section and
+ * src/_includes/partials/problem-list.njk. Until 2026-11-13 this was the
+ * Sleep problems page's stylesheet (SPEC §22).
  *
  * Values come from tokens.css; board spacing off the token scale snaps up to
  * the next step, and the boards' 14-15px running text (descriptions,
@@ -10,47 +13,64 @@
  * follow the phone board; `min-width: 37.5em` (600px) follows the desktop
  * board.
  *
- * Both views, By area and "When it happens", are the same accordion
- * (.group-list): one group per area or per time of day (SPEC §7.2, §7.5).
+ * The problems are listed by area, in an accordion (.group-list): one group
+ * per area (SPEC §7.2, §7.5).
  *
- * Reused from elsewhere: the title band (.band, .on-dark: site.css §7),
- * .container, .page-body, .panel, .link-standalone, .visually-hidden
- * (site.css) and .topic-card (components.css §5), which this page extends
- * with a row variant.
+ * Reused from elsewhere: .container and .eyebrow (site.css),
+ * .section-heading and .topic-card (components.css §5), which this section
+ * extends with a row variant.
  *
  * Contents
- *   1. Page values        3. Group accordion    5. Nudge and spacing
- *   2. Band toolbar       4. Topic cards        6. Motion, forced colours,
- *                                                  print
+ *   1. Section            3. Group accordion    5. Motion and print
+ *   2. Filter             4. Topic cards
  */
 
-/* 1. Page values ------------------------------------------------------------- */
+/* 1. Section ----------------------------------------------------------------- */
 
-/* Sizes from the boards that only this page uses. */
-.problems-page {
-  --problems-column: 1000px;        /* band, accordion and nudge column (board) */
+/* On the page's paper ground, under the hero (the boards' teal title band
+   is not carried over: the hero above is already teal). The heading, the
+   filter and the accordion share one 1000px column (board), inside Home's
+   1200px page. The sizes are the boards', used only here. */
+.problems-section {
+  --content-max: 1000px;            /* the section's column (board) */
   --fs-topic-row: calc(19rem / 16); /* topic card titles; phone group names (HANDOFF §6.3) */
   --chevron-disc: 36px;             /* a group's chevron disc (board) */
+  padding-block: var(--space-8) var(--space-9);
 }
 
-/* The band's content sits in the 1000px column, inside the 1280px page. */
-.problems-band .band__inner {
-  --content-max: var(--problems-column);
+.problems-section__eyebrow {
+  margin-bottom: var(--space-2);
 }
 
-/* 2. Band toolbar ------------------------------------------------------------ */
+/* ink on paper, at the lede's line length. */
+.problems-section__lede {
+  max-width: var(--measure);
+  margin-top: var(--space-3);
+}
 
+@media (min-width: 37.5em) {
+  .problems-section {
+    padding-block: var(--space-11) var(--space-12);
+  }
+
+  .problems-section__eyebrow {
+    margin-bottom: var(--space-3);
+  }
+
+  .problems-section__lede {
+    margin-top: var(--space-4);
+  }
+}
+
+/* 2. Filter ------------------------------------------------------------------ */
+
+/* The filter: its label over the field, the width of the section's column.
+   On paper the ring is the page's deep-teal (site.css). */
 .problems-tools {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-top: var(--space-7);
+  margin-top: var(--space-6);
 }
 
-.problems-search {
-  min-width: 0;
-}
-
+/* The site's form-label size, as on the search page. */
 .problems-search__label {
   display: block;
   margin-bottom: var(--space-2);
@@ -59,8 +79,8 @@
   font-weight: var(--weight-semibold);
 }
 
-/* Paper on deep-teal is 5.9:1, so the field's edge needs no border. The
-   transparent one keeps an edge in forced colours. */
+/* A white field with a slate-grey edge (5.4:1 on paper), as the site's
+   other fields on light grounds. */
 .problems-search__input {
   -webkit-appearance: none;
   appearance: none;
@@ -69,96 +89,10 @@
   min-height: var(--target-xl);
   margin: 0;
   padding: 0 var(--space-5);
-  border: var(--border-width) solid transparent;
+  border: var(--border-width) solid var(--slate-grey);
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background: var(--white);
   color: var(--ink);
-}
-
-/* By area / When it happens: two radios drawn as a slider, so it reads as
-   one or the other (SPEC §7.5). A pill-shaped track holds both labels; a
-   paper thumb slides under the checked one. The track and thumb are the
-   empty spans after the radios (content/problems.njk), so they follow the
-   radios through sibling selectors. The radios keep the semantics: one
-   group, arrow keys, the legend read out. */
-.view-toggle {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.view-toggle__options {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-/* The track: night-teal inside a paper edge (5.9:1 on the deep-teal band,
-   so the control's outline is clear). */
-.view-toggle__track {
-  position: absolute;
-  inset: 0;
-  border: var(--border-width) solid var(--paper);
-  border-radius: var(--radius-pill);
-  background: var(--night-teal);
-}
-
-/* The thumb: paper on night-teal (10.5:1), inset by --space-1. It fills the
-   first half; when the second radio is checked it moves one half across.
-   Its transparent border keeps an edge in forced colours. */
-.view-toggle__thumb {
-  position: absolute;
-  top: var(--space-1);
-  bottom: var(--space-1);
-  left: var(--space-1);
-  width: calc(50% - 2 * var(--space-1));
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-pill);
-  background: var(--paper);
-}
-
-/* The second radio is the only one whose label is followed by the track. */
-.view-toggle__input:checked + .view-toggle__label + .view-toggle__track + .view-toggle__thumb {
-  transform: translateX(calc(100% + 2 * var(--space-1)));
-}
-
-/* Each label is half the track and the whole of its height: a 52px target,
-   above the track and thumb. Narrow side padding on phones keeps "When it
-   happens" on one line on most of them; on the narrowest it wraps, and the
-   thumb grows with it. */
-.view-toggle__label {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--target-xl);
-  padding: var(--space-2) var(--space-3);
-  color: var(--paper);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  font-weight: var(--weight-semibold);
-  text-align: center;
-  cursor: pointer;
-}
-
-.view-toggle__input:not(:checked) + .view-toggle__label:hover {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-/* Selected: night-teal on the paper thumb (10.5:1). */
-.view-toggle__input:checked + .view-toggle__label {
-  color: var(--night-teal);
-  cursor: default;
-}
-
-/* The radios are visually hidden, so the ring goes round the whole track
-   (paper, from .on-dark): arrow keys move the choice inside it. */
-.view-toggle__input:focus-visible ~ .view-toggle__track {
-  outline: var(--focus-width) solid var(--focus-colour);
-  outline-offset: var(--focus-offset);
 }
 
 /* The live result line: sentence text, so 17px (board 15). */
@@ -166,36 +100,16 @@
   margin-top: var(--space-4);
 }
 
-@media (min-width: 37.5em) {
-  .problems-tools {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    margin-top: var(--space-8);
-  }
+/* 3. Group accordion ------------------------------------------------------------ */
 
-  .problems-search {
-    flex: 1 1 420px;
-  }
-
-  .view-toggle__options {
-    display: inline-grid;
-  }
-
-  .view-toggle__label {
-    padding-inline: var(--space-7);
-  }
+.problems {
+  margin-top: var(--space-5);
 }
-
-/* 3. Group accordion (both views) ---------------------------------------------- */
 
 .group-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  width: 100%;
-  max-width: var(--problems-column);
-  margin-inline: auto;
 }
 
 .group-list__group {
@@ -257,8 +171,8 @@ button.group-list__header[aria-expanded="true"] {
   overflow-wrap: break-word;
 }
 
-/* Areas only. Kept on phones too (the phone board drops it): nothing is
-   lost at 320px. */
+/* Kept on phones too (the phone board drops it): nothing is lost at
+   320px. */
 .group-list__description {
   display: block;
   margin-top: 0;
@@ -326,6 +240,10 @@ button.group-list__header[aria-expanded="true"] {
 }
 
 @media (min-width: 37.5em) {
+  .problems {
+    margin-top: var(--space-6);
+  }
+
   .group-list {
     gap: var(--space-4);
   }
@@ -372,31 +290,9 @@ button.group-list__header[aria-expanded="true"] {
   min-width: 0;
 }
 
-/* The title and the "New" pill share a line, wrapping when narrow. */
+/* A long word in a title breaks, so it can't widen the card. */
 .topic-card__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
   overflow-wrap: break-word;
-}
-
-.topic-card__title > span {
-  min-width: 0;
-}
-
-/* clay-deep on clay-wash, 5.4:1. Not uppercase: only eyebrows are. */
-.topic-card__new {
-  display: inline-block;
-  padding: var(--space-1) var(--space-3);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-pill);
-  background: var(--clay-wash);
-  color: var(--clay-deep);
-  font-family: var(--font-body);
-  font-size: var(--fs-eyebrow);
-  line-height: var(--lh-eyebrow);
-  font-weight: var(--weight-semibold);
 }
 
 .topic-card__arrow {
@@ -404,8 +300,8 @@ button.group-list__header[aria-expanded="true"] {
   color: var(--deep-teal);
 }
 
-/* Rows in a group, in both views. Phones: a borderless row in the group's
-   card, with a teal-wash hover (phone board). */
+/* Rows in a group. Phones: a borderless row in the group's card, with a
+   teal-wash hover (phone board). */
 .topic-card--row {
   display: flex;
   align-items: center;
@@ -467,59 +363,13 @@ button.group-list__header[aria-expanded="true"] {
   }
 }
 
-/* 5. Nudge and spacing ---------------------------------------------------------- */
+/* 5. Motion and print ----------------------------------------------------------- */
 
-.problems {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-9);
-}
-
-.problems-nudge {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-8);
-  width: 100%;
-  max-width: var(--problems-column);
-  margin-inline: auto;
-  padding: var(--space-6);
-}
-
-.problems-nudge__text {
-  flex: 1 1 420px;
-}
-
-/* ink on panel: tokens.json lists ink, not deep-teal, on that ground. */
-.problems-nudge a,
-.problems-nudge a:hover {
-  color: var(--ink);
-}
-
-.problems-nudge a:hover {
-  text-decoration-thickness: 2px;
-}
-
-@media (min-width: 37.5em) {
-  .problems-nudge {
-    padding: var(--space-7) var(--space-8);
-  }
-}
-
-/* 6. Motion, forced colours, print ---------------------------------------------- */
-
-/* Colour fades, the chevron turn and the toggle's slide, when motion is
-   allowed (HANDOFF §10). Panels open and close at once: no height
-   animation. With reduced motion the thumb jumps to its side. */
+/* Colour fades and the chevron turn, when motion is allowed (HANDOFF §10).
+   Panels open and close at once: no height animation. */
 @media (prefers-reduced-motion: no-preference) {
-  .group-list__chevron .icon,
-  .view-toggle__thumb {
+  .group-list__chevron .icon {
     transition: transform var(--duration);
-  }
-
-  .view-toggle__label {
-    transition: color var(--duration);
   }
 
   .group-list__header,
@@ -532,29 +382,23 @@ button.group-list__header[aria-expanded="true"] {
   }
 }
 
-/* Forced colours drop the thumb's fill, leaving its border round the
-   chosen label; the label is underlined too, so the choice doesn't rest on
-   that outline alone. */
-@media (forced-colors: active) {
-  .view-toggle__input:checked + .view-toggle__label {
-    text-decoration: underline;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-  }
-}
-
-/* Print the view on screen with every group open, and no controls. */
+/* Print every group on screen open, and no controls, nor the lede's
+   sentence about them. */
 @media print {
   .problems-tools,
-  .group-list__chevron {
+  .group-list__chevron,
+  [data-problems-hint] {
     display: none;
   }
 
   .group-list__problems[hidden] {
     display: block !important;
   }
+}
 
-  .problems-nudge {
-    display: none;
+/* A group that was closed prints as an open one does: the grid, from 600px. */
+@media print and (min-width: 37.5em) {
+  .group-list__problems[hidden] {
+    display: grid !important;
   }
 }

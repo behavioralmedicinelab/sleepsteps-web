@@ -4,7 +4,7 @@
 // over a stand-in D1. The Worker tests (test/worker/admin*.test.js) run the
 // same code against a real D1; these check the markup itself: structure,
 // escaping, the absence of ids, the links and the copy for each state.
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { summaryModel, thousands } from '../../worker/lib/admin-data.js';
 import { EXPORT_TABLES, SUMMARY_QUERIES, TABLES_PRESENT_SQL } from '../../worker/lib/admin-queries.js';
 import { DOWNLOAD_TABLES, renderDownloadPage, renderSummary, ROWS_READ_NOTE, SIGN_OUT_URL } from '../../worker/lib/admin-page.js';
@@ -49,8 +49,10 @@ function sampleResults() {
     zeroSearches: [{ q: 'insomnia pills', n: 9, ...ids(8) }, { q: 'melatonin', n: 2, ...ids(9) }],
     feedbackCount: [{ n: 3, ...ids(10) }],
     recentFeedback: [
-      { ts: '2026-11-01T03:00:00.000Z', page: 'pain', message: 'a\n\n\tb', ...ids(11) },
-      { ts: '2026-10-20T22:00:00.000Z', page: 'start', message: 'Thanks', ...ids(12) },
+      { ts: '2026-11-01T03:00:00.000Z', page: 'pain', video: null, message: 'a\n\n\tb', ...ids(11) },
+      // About a video (migration 0003), sent from that video's "Feedback" button.
+      { ts: '2026-10-20T22:00:00.000Z', page: 'start', video: 'how-sleep-works', message: 'Thanks', ...ids(12) },
+      // A row as the code before 0003 read it: no video key at all.
       { ts: '2026-10-19T08:00:00.000Z', page: 'old-slug', message: 'Gone', ...ids(16) },
     ],
     plays: [
@@ -58,6 +60,14 @@ function sampleResults() {
       { type: 'audio_play', media: 'how-sleep-works', plays: 1, f0: 0, f25: 0, f50: 0, f75: 0, f100: 1, ...ids(14) },
     ],
     handouts: [{ media: 'pain-about', clicks: 4, visits: 3, ...ids(15) }],
+    // Per page and worksheet (SPEC §7.6): one worksheet opened from two
+    // pages, one of them no longer on the site, and a tie on clicks.
+    worksheets: [
+      { page: 'start', worksheet: 'settling-worksheet-2', clicks: 2, visits: 2, ...ids(17) },
+      { page: 'pain', worksheet: 'settling-worksheet-1', clicks: 1234, visits: 1001, ...ids(18) },
+      { page: 'old-slug', worksheet: 'settling-worksheet-1', clicks: 5, visits: 4, ...ids(19) },
+      { page: 'pain', worksheet: 'settling-worksheet-2', clicks: 2, visits: 1, ...ids(20) },
+    ],
   };
 }
 
@@ -185,6 +195,14 @@ describe.each(Object.entries(STATES))('the %s page', (name, page) => {
     }
   });
 
+  it('gives every list role="list": admin.css removes their markers, and Safari then stops announcing a plain list as one', () => {
+    // As every such list on the public pages has (start.css, home.css).
+    const lists = all(doc, 'ul, ol');
+    for (const list of lists) expect(list.getAttribute('role'), list.getAttribute('class') ?? list.localName).toBe('list');
+    // The contents, last month's and this range's links and the messages; the error summary.
+    expect(lists).toHaveLength({ ok: 4, 'ok, empty': 3, invalid: 1 }[name] ?? 0);
+  });
+
   it('has no inline style, inline script or event-handler attribute', () => {
     expect(page).not.toMatch(/\sstyle\s*=|<style[\s>]/i);
     expect(page).not.toMatch(/<[^>]+\son[a-z]+\s*=/i);
@@ -232,7 +250,8 @@ describe('the summary page with data', () => {
 
   it('titles the page with its range, and lists the sections it has, in order', () => {
     expect(doc.querySelector('title').textContent).toBe('Site data, 8 Oct to 6 Nov 2026 (UTC)');
-    expect(sectionIds).toEqual(['downloads', 'views', 'ratings', 'searches', 'feedback', 'plays', 'handouts']);
+    expect(sectionIds).toEqual(['downloads', 'views', 'ratings', 'searches', 'feedback', 'plays', 'handouts', 'worksheets']);
+    expect(all(doc, 'section > h2').map(textOf).slice(-2)).toEqual(['Handouts opened', 'Worksheets opened']);
     expect(all(doc, '.admin-toc a').map((a) => a.getAttribute('href'))).toEqual(sectionIds.map((id) => `#${id}`));
     expect(doc.querySelector('.admin-toc').getAttribute('aria-label')).toBe('On this page');
   });
@@ -260,6 +279,24 @@ describe('the summary page with data', () => {
     expect(textOf(parseHtml(renderSummary(summaryView('from=2026-11-01&to=2026-11-01'))).querySelector('.range-current'))).toMatch(
       /^Showing 1 November 2026 \(UTC days/,
     );
+  });
+
+  describe('with another default range', () => {
+    afterEach(() => {
+      vi.doUnmock('../../worker/lib/date-range.js');
+      vi.resetModules();
+    });
+
+    it('takes the days it names from SUMMARY_DEFAULT_DAYS, in the hint and in the way back', async () => {
+      // Both said "30" in their own text, so a changed default would have
+      // left them naming the old one.
+      vi.resetModules();
+      vi.doMock('../../worker/lib/date-range.js', async (original) => ({ ...(await original()), SUMMARY_DEFAULT_DAYS: 14 }));
+      const page = await import('../../worker/lib/admin-page.js');
+      const other = parseHtml(page.renderSummary(summaryView('from=2026-10-01&to=2026-10-31')));
+      expect(textOf(other.querySelector('#range-hint'))).toBe('UTC days, both included. Leave both empty for the last 14 days. Up to 92 days.');
+      expect(textOf(other.querySelector('.range-current__reset'))).toBe('Show the last 14 days');
+    });
   });
 
   it("links last month's four files, then this range's, ending yesterday, every one named as UTC", () => {
@@ -339,13 +376,17 @@ describe('the summary page with data', () => {
     expect(textOf(section.querySelector('caption'))).toBe('Searches with no results');
   });
 
-  it('shows feedback newest first, by the page\'s current title and its id (the id alone for a page no longer on the site), with the hour in UTC', () => {
+  it('shows feedback newest first, by the page\'s current title and its id (the id alone for a page no longer on the site), then its video\'s id if it has one, with the hour in UTC', () => {
     const items = all(doc, '.feedback-item');
     expect(items.map((li) => textOf(li.querySelector('h3')))).toEqual([
       'Pain (pain), 1 Nov 2026, 03:00 to 04:00 UTC',
-      'Start here (start), 20 Oct 2026, 22:00 to 23:00 UTC',
+      'Start here (start), video how-sleep-works, 20 Oct 2026, 22:00 to 23:00 UTC',
       'old-slug (no longer on the site), 19 Oct 2026, 08:00 to 09:00 UTC',
     ]);
+    // The video by its id, as every video on this page is; none for a message without one.
+    expect(items.map((li) => li.querySelector('.feedback-item__video') && textOf(li.querySelector('.feedback-item__video')))).toEqual([null, 'how-sleep-works', null]);
+    expect(items[1].querySelector('.feedback-item__video').className).toBe('feedback-item__video video-id');
+    expect(summaryModel(sampleResults(), INDEX).feedback.recent.map((r) => r.video)).toEqual([null, 'how-sleep-works', null]);
     expect(items.map((li) => textOf(li.querySelector('.feedback-item__page')))).toEqual(['Pain', 'Start here', 'old-slug']);
     expect(items.map((li) => li.querySelector('.feedback-item__page-id') && textOf(li.querySelector('.feedback-item__page-id')))).toEqual(['(pain)', '(start)', null]);
     expect(items[0].querySelector('time').getAttribute('datetime')).toBe('2026-11-01T03:00:00.000Z');
@@ -382,6 +423,56 @@ describe('the summary page with data', () => {
     expect(all(doc, '[aria-labelledby="handouts-caption"] tbody tr').map((tr) => tr.querySelectorAll('th, td').map(textOf))).toEqual([
       ['pain-about', '4', '3'],
     ]);
+  });
+
+  // "Worksheets opened" (SPEC §14.4), in the handouts table's style: the
+  // page as the row header, then the worksheet by its id, clicks and visits.
+  it('gives worksheet clicks and visits per page and worksheet, by clicks, then page and worksheet id, in the handouts table\'s style', () => {
+    const region = doc.querySelector('[aria-labelledby="worksheets-caption"]');
+    expect([region.getAttribute('class'), region.getAttribute('role'), region.getAttribute('tabindex')]).toEqual(['table-scroll', 'region', '0']);
+    expect(textOf(region.querySelector('caption'))).toBe('Worksheet clicks per page and worksheet');
+    expect(region.querySelectorAll('thead th').map((th) => [textOf(th), th.getAttribute('scope'), th.getAttribute('class')])).toEqual([
+      ['Page', 'col', null],
+      ['Worksheet', 'col', null],
+      ['Clicks', 'col', 'num'],
+      ['Visits', 'col', 'num'],
+    ]);
+    expect(region.querySelectorAll('tbody tr').map((tr) => tr.querySelectorAll('th, td').map(textOf))).toEqual([
+      ['Pain pain', 'settling-worksheet-1', '1,234', '1,001'],
+      ['old-slug No longer on the site', 'settling-worksheet-1', '5', '4'],
+      ['Pain pain', 'settling-worksheet-2', '2', '1'],
+      ['Start here start', 'settling-worksheet-2', '2', '2'],
+    ]);
+    // Each row: the page as its header, the id in its own cell, two numbers.
+    for (const tr of region.querySelectorAll('tbody tr')) {
+      expect(tr.children.map((cell) => [cell.localName, cell.getAttribute('class'), cell.getAttribute('scope')])).toEqual([
+        ['th', null, 'row'],
+        ['td', 'worksheet-id', null],
+        ['td', 'num', null],
+        ['td', 'num', null],
+      ]);
+    }
+    expect(region.querySelector('tfoot')).toBeNull();
+    const section = doc.querySelector('section[aria-labelledby="worksheets"]');
+    expect(textOf(section.querySelector('h2'))).toBe('Worksheets opened');
+    expect(textOf(section.querySelector('p'))).toBe(
+      'Each click on a worksheet link in an open solution card, whether the browser opened the worksheet or saved it, and the number of visits that clicked, for each page and worksheet. A worksheet goes with its video, so it can be opened from every page where that video is a solution. Worksheets are shown by their worksheet_id.',
+    );
+    // The handouts table has the same shape: a caption, a scroll region, clicks and visits.
+    expect(all(doc, '[aria-labelledby="handouts-caption"] thead th').map(textOf).slice(-2)).toEqual(['Clicks', 'Visits']);
+    expect(summaryModel(sampleResults(), INDEX).worksheets).toEqual([
+      { page: 'pain', title: 'Pain', known: true, worksheet: 'settling-worksheet-1', clicks: 1234, visits: 1001 },
+      { page: 'old-slug', title: 'old-slug', known: false, worksheet: 'settling-worksheet-1', clicks: 5, visits: 4 },
+      { page: 'pain', title: 'Pain', known: true, worksheet: 'settling-worksheet-2', clicks: 2, visits: 1 },
+      { page: 'start', title: 'Start here', known: true, worksheet: 'settling-worksheet-2', clicks: 2, visits: 2 },
+    ]);
+  });
+
+  it('reads odd worksheet rows as text and numbers: a missing count is 0, and results without the statement give no rows', () => {
+    const { worksheets: none } = summaryModel({ ...emptyResults(), worksheets: undefined }, INDEX);
+    expect(none).toEqual([]);
+    const { worksheets: odd } = summaryModel({ ...emptyResults(), worksheets: [{ page: 7, worksheet: 12, clicks: '3', visits: null }] }, INDEX);
+    expect(odd).toEqual([{ page: '7', title: '7', known: false, worksheet: '12', clicks: 3, visits: 0 }]);
   });
 
   it('shows the rows read, and a note once a load reads more than a tenth of the daily allowance', () => {
@@ -466,7 +557,12 @@ describe('the summary page, more ranges and lists', () => {
       'No video plays in this range.',
       'No audio-only plays in this range.',
       'No handouts opened in this range.',
+      'No worksheets opened in this range.',
     ]);
+    // The section keeps its heading and its line of explanation.
+    const worksheets = doc.querySelector('section[aria-labelledby="worksheets"]');
+    expect(textOf(worksheets.querySelector('h2'))).toBe('Worksheets opened');
+    expect(textOf(worksheets.querySelector('p'))).toMatch(/^Each click on a worksheet link in an open solution card, /);
     const searched = { ...emptyResults(), searchTotals: [{ searches: 3, zero: 0 }] };
     expect(textOf(parseHtml(renderSummary(summaryView('', { results: searched }))).querySelector('section[aria-labelledby="searches"]'))).toBe(
       'Searches that found nothing 3 searches in this range, 0 of which found nothing. Every search in this range found something.',
@@ -488,10 +584,13 @@ describe('escaping', () => {
       searchTotals: [{ searches: texts.length, zero: texts.length }],
       zeroSearches: texts.map((text) => ({ q: text, n: 1 })),
       feedbackCount: [{ n: texts.length }],
-      // A page no longer on the site shows by its stored id, so the id is hostile too.
-      recentFeedback: texts.map((text) => ({ ts: '2026-11-01T03:00:00.000Z', page: text, message: text })),
+      // A page no longer on the site shows by its stored id, so the id is
+      // hostile too, and so is a stored video, shown as it is.
+      recentFeedback: texts.map((text) => ({ ts: '2026-11-01T03:00:00.000Z', page: text, video: text, message: text })),
       plays: texts.map((text) => ({ type: 'video_play', media: text, plays: 1, f0: 1, f25: 0, f50: 0, f75: 0, f100: 0 })),
       handouts: texts.map((text) => ({ media: text, clicks: 1, visits: 1 })),
+      // A hostile page id and worksheet id, as rows written straight to the database could hold.
+      worksheets: texts.map((text) => ({ page: text, worksheet: text, clicks: 1, visits: 1 })),
     };
     return renderSummary(summaryView('', { results, host: texts[0] }));
   }
@@ -499,7 +598,7 @@ describe('escaping', () => {
   const dirty = seeded(PAYLOADS);
   const clean = seeded(PAYLOADS.map((_, i) => `plain text ${i}`));
 
-  it('renders feedback, page ids, search text, video ids and the host as text, never as markup', () => {
+  it('renders feedback, page ids, search text, video ids, worksheet ids and the host as text, never as markup', () => {
     expect(dirty).not.toMatch(/<script|<img|<b>/i);
     for (const tag of dirty.match(/<[^>]*>/g)) expect(tag).not.toMatch(/\son\w+\s*=/i);
     expect(dirty).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
@@ -513,7 +612,11 @@ describe('escaping', () => {
   it('gives the stored text back exactly when the HTML is read', () => {
     const doc = parseHtml(dirty);
     expect(all(doc, '.feedback-item__message').map((b) => b.textContent)).toEqual(PAYLOADS);
+    expect(all(doc, '.feedback-item__video').map((span) => span.textContent)).toEqual(PAYLOADS);
     expect(all(doc, '.search-text').map((th) => th.textContent)).toEqual(PAYLOADS);
+    // By clicks (all 1), then the page's title, which here is the payload itself.
+    expect(all(doc, '.worksheet-id').map((td) => td.textContent).sort()).toEqual([...PAYLOADS].sort());
+    expect(all(doc, '[aria-labelledby="worksheets-caption"] .page-name').map((span) => span.textContent).sort()).toEqual([...PAYLOADS].sort());
   });
 
   it('shows a stored time that isn\'t toISOString() output as text, with no <time>', () => {
@@ -521,6 +624,17 @@ describe('escaping', () => {
     const page = renderSummary(summaryView('', { results }));
     expect(page).not.toContain('<time');
     expect(page).toContain('2026-11-01 03:00&quot;&gt;&lt;b&gt;');
+  });
+
+  it('shows a stored time with the right digits that names no real time as text too, and still renders the page', () => {
+    // A hand-written row: TS_RE checks only where the digits are. Month 13
+    // made the whole summary a 500; 31 November would have shown as 1 December.
+    for (const ts of ['2026-13-45T99:99:99.000Z', '2026-11-07T23:60:00.000Z', '2026-11-31T10:00:00.000Z', '2026-11-07T24:00:00.000Z']) {
+      const results = { ...emptyResults(), feedbackCount: [{ n: 1 }], recentFeedback: [{ ts, page: 'pain', message: 'x' }] };
+      const page = renderSummary(summaryView('', { results }));
+      expect(page, ts).not.toContain('<time');
+      expect(page, ts).toContain(`, ${ts}</h3>`);
+    }
   });
 
   it('shows control characters other than tab and line breaks as U+FFFD', () => {
@@ -745,7 +859,8 @@ describe('the answers (worker/routes/admin.js)', () => {
 
   it('shows the rows the batch read', async () => {
     const body = await (await answer('/admin/', fakeDb({ rowsRead: 1500 }))).text();
-    // Nine statements at 1,500 rows each.
-    expect(body).toContain(`This page read ${thousands(9 * 1500)} rows from the database.`);
+    // Ten statements at 1,500 rows each: the worksheets one is in the same batch.
+    expect(SUMMARY_QUERIES.map(([name]) => name)).toEqual(['views', 'viewTotals', 'ratings', 'searchTotals', 'zeroSearches', 'feedbackCount', 'recentFeedback', 'plays', 'handouts', 'worksheets']);
+    expect(body).toContain(`This page read ${thousands(10 * 1500)} rows from the database.`);
   });
 });

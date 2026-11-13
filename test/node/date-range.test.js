@@ -13,6 +13,7 @@ import {
   formatHour,
   formatMonth,
   formatSpan,
+  formatSpanLong,
   formatTime,
   MAX_EXPORT_DAYS,
   MAX_SUMMARY_DAYS,
@@ -128,8 +129,6 @@ describe('exportRange', () => {
       to: '2026-10-31',
       start: '2026-10-01T00:00:00.000Z',
       end: '2026-11-01T00:00:00.000Z',
-      days: 31,
-      isDefault: true,
     });
   });
 
@@ -141,7 +140,8 @@ describe('exportRange', () => {
 
   it(`accepts at most ${MAX_EXPORT_DAYS} days, so any calendar month fits`, () => {
     expect(MAX_EXPORT_DAYS).toBe(31);
-    expect(exportRange(q('from=2026-08-01&to=2026-08-31'), NOW)).toMatchObject({ ok: true, days: 31 });
+    expect(daysIncluding('2026-08-01', '2026-08-31')).toBe(31);
+    expect(exportRange(q('from=2026-08-01&to=2026-08-31'), NOW)).toMatchObject({ ok: true, from: '2026-08-01', to: '2026-08-31' });
     expect(exportRange(q('from=2026-08-01&to=2026-09-01'), NOW)).toEqual({ ok: false, error: 'too-long' });
   });
 
@@ -184,6 +184,9 @@ describe('formatting (always UTC, no locale data)', () => {
     expect(formatSpan('2026-10-09', '2026-10-09')).toBe('9 Oct 2026');
     expect(formatSpan('2026-10-09', '2026-11-05')).toBe('9 Oct to 5 Nov 2026');
     expect(formatSpan('2026-12-28', '2027-01-03')).toBe('28 Dec 2026 to 3 Jan 2027');
+    expect(formatSpanLong('2026-10-09', '2026-10-09')).toBe('9 October 2026');
+    expect(formatSpanLong('2026-10-09', '2026-11-05')).toBe('9 October 2026 to 5 November 2026');
+    expect(formatSpanLong('2026-12-28', '2027-01-03')).toBe('28 December 2026 to 3 January 2027');
   });
 
   it('formats a stored hour and a time, saying UTC', () => {

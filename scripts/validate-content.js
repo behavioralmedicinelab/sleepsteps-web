@@ -1,6 +1,6 @@
-// Content validation (SPEC §7.1-§7.3, §9.2, §9.3, §18.1). Fails the build,
-// with the file and field (or, in data/videos.csv, the row), on anything a
-// template would otherwise render wrongly or silently drop: missing or
+// Content validation (SPEC §7.1-§7.3, §7.6, §9.2, §9.3, §18.1). Fails the
+// build, with the file and field (or, in a spreadsheet, the row), on
+// anything a template would otherwise render wrongly or silently drop: missing or
 // misspelt fields, unknown references, solution counts outside 1-3 main /
 // 0-3 extra (a stand-alone problem has none), a video used twice on one
 // page, and media files that are missing or too large. Warns, without
@@ -17,9 +17,18 @@
 // on text that isn't UTF-8 or that was garbled by opening the file in the
 // wrong encoding (MOJIBAKE).
 //
+// Worksheets are data/worksheets.csv, one row per worksheet (SPEC §7.6),
+// checked with the same care as the video library: the worksheet_id, a
+// video_id that is a row of data/videos.csv, a title, and a PDF in
+// media/worksheets/ (it exists, its name matches exactly and it is 25 MiB at
+// most). A worksheet of a video on YouTube has its own file, never the
+// shared placeholder. It warns about a worksheet no page shows (its video is
+// not a solution on any problem) and a solution video with none.
+//
 // CLI:    node scripts/validate-content.js [--no-placeholders]
 //         (exit code 1 on errors; --no-placeholders is the launch check,
-//         SPEC §20 M8: it also fails on placeholder videos)
+//         SPEC §20 M8: it also fails on placeholder videos and placeholder
+//         worksheets)
 // Module: validateContent(rootDir, { launch }) -> { errors, warnings, model }
 //
 // Front matter is read with Eleventy's own parser (gray-matter with js-yaml,
@@ -29,20 +38,19 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { parseCsvRecords, parseCsvTable } from './lib/csv.js';
-import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, VIDEO_COLUMNS, readTranscript, toVideo, transcriptFiles, youtubeIdFromUrl } from './lib/videos.js';
+import { isMain } from './lib/cli.js';
+import { parseCsvTable } from './lib/csv.js';
+import { PLACEHOLDER_FILES, SLUG, TRANSCRIPTS_DIR, VIDEO_COLUMNS, readTranscript, toVideo, transcriptFiles, youtubeIdFromUrl } from './lib/videos.js';
+import { PLACEHOLDER_WORKSHEET, WORKSHEET_COLUMNS, WORKSHEETS_DIR, WORKSHEETS_FILE, toWorksheet } from './lib/worksheets.js';
 
 const require = createRequire(import.meta.url);
 const fromEleventy = createRequire(require.resolve('@11ty/eleventy'));
 const matter = fromEleventy('gray-matter');
 const yaml = fromEleventy('js-yaml');
 
-export const TIMES_OF_DAY = ['evening', 'bedtime', 'night', 'early-morning', 'day', 'any'];
-export const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // the static asset limit (SPEC §9.2)
-export const SOLUTION_LIMITS = { main: [1, 3], extra: [0, 3] };
+const MAX_FILE_BYTES = 25 * 1024 * 1024; // the static asset limit, for every file the site serves (SPEC §9.2)
+const SOLUTION_LIMITS = { main: [1, 3], extra: [0, 3] };
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // m:ss, as YouTube Studio shows a length (no video runs an hour: the audio
 // limit is about 36 minutes, SPEC §9.2). Refusing h:mm:ss also catches
 // Excel turning "6:40" into the time "6:40:00".
@@ -67,11 +75,12 @@ const NOT_UTF8 = '\uFFFD';
 const CP1252_HIGH = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
 const MAC_HIGH = 'ÄÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø';
 const MOJIBAKE = new RegExp(`[\\u0080-\\u009F]|â€|Ã[\\u00A0-\\u00BF${CP1252_HIGH}]|Â[\\u00A0-\\u00BF]|‚Ä|[√¬][${MAC_HIGH}]`);
+const NOT_UTF8_CSV = 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"';
 const GARBLED_CSV = 'has garbled characters (for example â€œ in place of “): Excel opened the file in the wrong encoding. Undo, open it through Data > From Text/CSV with "65001: Unicode (UTF-8)", then save as "CSV UTF-8 (Comma delimited)"';
 
 const VIDEOS_FILE = 'data/videos.csv';
 const PROBLEM_KEYS = [
-  'title', 'statement', 'source_title', 'area', 'time_of_day', 'order', 'new',
+  'title', 'statement', 'source_title', 'area', 'order',
   'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
 ];
 const MEDIA = {
@@ -81,12 +90,16 @@ const MEDIA = {
 };
 
 // Warning codes, with the heading the CLI prints above each group.
-export const WARNINGS = {
+const WARNINGS = {
   'placeholder-video': 'Placeholder videos (no YouTube link yet; SPEC §20 M8 requires none)',
+  'placeholder-worksheet': `Placeholder worksheets (the shared ${PLACEHOLDER_WORKSHEET}; the launch check allows none, SPEC §7.6)`,
   'related-few': 'Problems with fewer than 2 related topics (SPEC §7.2 asks for 2-3)',
   'is-this-you-empty': 'Problems with no "Is this you?" text',
   'bullets-few': 'Problems with fewer than 2 "Is this you?" bullets (SPEC §7.2 asks for 2-4)',
+  'thumbnail-missing': 'Videos with no thumbnail, while other videos have one (their frames will look different; SPEC §7.1)',
   'unused-video': 'Videos not used on any page',
+  'worksheet-not-shown': 'Worksheets no page shows: their video is not a solution on any problem (SPEC §7.6)',
+  'solution-no-worksheet': `Solution videos with no worksheet in ${WORKSHEETS_FILE} (SPEC §7.6)`,
   'keywords-missing': 'Searchable pages with no keywords in data/keywords.csv (SPEC §8.2)',
   'unknown-key': 'Front-matter keys the templates do not read (a typo?)',
 };
@@ -117,8 +130,8 @@ function listMarkdown(dir) {
 
 /**
  * Validate the content in `rootDir` (the repository root).
- * `launch: true` is the launch check (SPEC §20 M8): placeholder videos are
- * errors instead of warnings.
+ * `launch: true` is the launch check (SPEC §20 M8): placeholder videos and
+ * placeholder worksheets are errors instead of warnings.
  * @param {string} rootDir
  * @param {{ launch?: boolean }} [options]
  * @returns {{ errors: object[], warnings: object[], model: object }}
@@ -139,12 +152,73 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     }
   };
 
-  // ---- Areas (data/areas.csv) -------------------------------------------
-  let areas = [];
-  try {
-    areas = parseCsvRecords(readFileSync(at('data/areas.csv'), 'utf8'));
-  } catch (e) {
-    error('data/areas.csv', '', e.message);
+  // track_page_view, where a file sets it, is true or false: YAML reads
+  // `yes` and "true" as text, which base.njk would render as the page-view
+  // marker while the layout left events.js out (SPEC §7.4, §10.2).
+  const checkPageView = (file, data) => {
+    const value = data.track_page_view;
+    if (value !== undefined && typeof value !== 'boolean') {
+      error(file, 'track_page_view', `must be true or false, without quotes (found ${JSON.stringify(value)})`);
+    }
+  };
+  // Start here and each information page: a title (the tab's title, the
+  // heading and the page's name in search results) and a summary (the line
+  // under the heading and the page's description), SPEC §7.3, §7.4.
+  const checkPage = (file, data) => {
+    for (const field of ['title', 'summary']) {
+      if (!isText(data[field])) error(file, field, 'required');
+    }
+    checkPageView(file, data);
+  };
+
+  // Both encoding checks (SPEC §7.1) on one row of any of the team's CSVs;
+  // `where` is the row as its messages name it ("row 12").
+  const checkEncoding = (file, where, record) => {
+    if (Object.values(record).some((value) => String(value ?? '').includes(NOT_UTF8))) error(file, where, NOT_UTF8_CSV);
+    const garbled = garbledFields(record);
+    if (garbled.length) error(file, `${where}: ${garbled.join(', ')}`, GARBLED_CSV);
+  };
+
+  // ---- Areas (data/areas.csv, SPEC §7.2) ----------------------------------
+  // One row per area, edited in Excel; messages name the row as for
+  // data/videos.csv. An area_id is each problem's `area` and, on Home, the
+  // id of the area's group (/#<area_id>), so it is a slug, on one row only.
+  const AREAS_FILE = 'data/areas.csv';
+  const AREA_COLUMNS = ['area_id', 'name', 'description', 'source_name', 'order'];
+  const AREA_ORDER = /^\d+(?:\.\d+)?$/;
+  const areas = [];
+  // False while the file is missing or unreadable: then no problem's `area`
+  // is looked up, so one spreadsheet mistake is one error, not one per problem.
+  let areasRead = false;
+  if (!existsSync(at(AREAS_FILE))) {
+    error(AREAS_FILE, '', `missing: the problem areas, one row per area with the columns ${AREA_COLUMNS.join(',')}`);
+  } else {
+    try {
+      const table = parseCsvTable(readFileSync(at(AREAS_FILE), 'utf8'));
+      if (table.columns.join(',') !== AREA_COLUMNS.join(',')) {
+        error(AREAS_FILE, '', `the columns must be ${AREA_COLUMNS.join(',')}, in that order (found ${table.columns.join(',') || 'none'})`);
+      } else {
+        areasRead = true;
+        const rowOf = new Map();
+        for (const { row, record } of table.rows) {
+          areas.push(record);
+          const id = record.area_id;
+          const where = isText(id) ? `row ${row} (${id})` : `row ${row}`;
+          const fail = (field, message) => error(AREAS_FILE, `${where}: ${field}`, message);
+          checkEncoding(AREAS_FILE, where, record);
+          if (!isText(id)) fail('area_id', 'required: lowercase words joined by hyphens, e.g. body-clock');
+          else if (!SLUG.test(id)) fail('area_id', `"${id}" must be lowercase words joined by hyphens, e.g. body-clock`);
+          else if (rowOf.has(id)) fail('area_id', `"${id}" is already on row ${rowOf.get(id)}; each area has one row`);
+          else rowOf.set(id, row);
+          if (!isText(record.name)) fail('name', 'required');
+          if (!isText(record.order)) fail('order', 'required: a number, e.g. 20 (the areas are listed from the lowest)');
+          else if (!AREA_ORDER.test(record.order)) fail('order', `"${record.order}" must be a number, e.g. 20 (the areas are listed from the lowest)`);
+        }
+      }
+    } catch (e) {
+      error(AREAS_FILE, '', e.message);
+    }
+    if (!areasRead) error(AREAS_FILE, '', "each problem's area was not checked: fix this file first");
   }
   const areaIds = new Set(areas.map((a) => a.area_id));
 
@@ -152,22 +226,22 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   // Optional file: columns name, role, organisation; name and role required.
   const teamFile = 'data/team.csv';
   if (existsSync(at(teamFile))) {
+    // Rows are numbered as Excel shows them (a blank row counts).
     let team = [];
+    let columns = [];
     try {
-      team = parseCsvRecords(readFileSync(at(teamFile), 'utf8'));
+      ({ columns, rows: team } = parseCsvTable(readFileSync(at(teamFile), 'utf8')));
     } catch (e) {
       error(teamFile, '', e.message);
     }
-    const columns = Object.keys(team[0] ?? {});
     if (team.length && columns.join(',') !== 'name,role,organisation') {
       error(teamFile, '', `the columns must be name,role,organisation (found ${columns.join(',')})`);
     } else {
-      team.forEach((person, i) => {
-        const garbled = garbledFields(person);
-        if (garbled.length) error(teamFile, `row ${i + 2}: ${garbled.join(', ')}`, GARBLED_CSV);
-        if (!isText(person.name)) error(teamFile, `row ${i + 2}`, 'name is empty');
-        if (!isText(person.role)) error(teamFile, `row ${i + 2}`, 'role is empty');
-      });
+      for (const { row, record: person } of team) {
+        checkEncoding(teamFile, `row ${row}`, person);
+        if (!isText(person.name)) error(teamFile, `row ${row}`, 'name is empty');
+        if (!isText(person.role)) error(teamFile, `row ${row}`, 'role is empty');
+      }
     }
   }
 
@@ -178,8 +252,8 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   let videoRows = [];
   // False while the file is missing or unreadable (wrong columns, a broken
   // quote, a stray empty column): then the checks that look a video_id up
-  // (problems, Start here, transcripts, unused videos) are skipped, so one
-  // spreadsheet mistake is one error, not one per reference.
+  // (problems, Start here, transcripts, worksheets, unused videos) are
+  // skipped, so one spreadsheet mistake is one error, not one per reference.
   let videoLibraryRead = false;
   if (!existsSync(at(VIDEOS_FILE))) {
     error(VIDEOS_FILE, '', `missing: the video library, one row per video with the columns ${VIDEO_COLUMNS.join(',')}`);
@@ -196,7 +270,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
       error(VIDEOS_FILE, '', e.message);
     }
     if (!videoLibraryRead) {
-      error(VIDEOS_FILE, '', 'video references in problems, Start here and transcripts were not checked: fix this file first');
+      error(VIDEOS_FILE, '', 'video references in problems, Start here, transcripts and worksheets were not checked: fix this file first');
     }
   }
 
@@ -208,6 +282,21 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     if (!dirNames.has(dir)) dirNames.set(dir, new Set(existsSync(at(dir)) ? readdirSync(at(dir)) : []));
     return dirNames.get(dir);
   };
+  // A file a spreadsheet names (a video's media, a worksheet): it is in its
+  // folder under exactly that name and within the static asset limit.
+  // `section` is where SPEC says so for that kind of file.
+  const checkFile = (fail, field, dir, value, section) => {
+    const target = at(dir, value);
+    const names = namesIn(dir);
+    if (!names.has(value) || !statSync(target).isFile()) {
+      const near = [...names].find((name) => name !== value && name.toLowerCase() === value.toLowerCase());
+      fail(field, near
+        ? `${dir}/${value} does not exist: did you mean ${near}? (capitals must match exactly)`
+        : `${dir}/${value} does not exist`);
+    } else if (statSync(target).size > MAX_FILE_BYTES) {
+      fail(field, `${dir}/${value} is over 25 MiB, the most a static file can be (SPEC ${section})`);
+    }
+  };
 
   // Which rows name each audio and handout file, and each YouTube video, for
   // the "its own files" and "its own link" rules below.
@@ -218,11 +307,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     const where = isText(id) ? `row ${row} (${id})` : `row ${row}`;
     const fail = (field, message) => error(VIDEOS_FILE, field ? `${where}: ${field}` : where, message);
 
-    if (Object.values(record).some((value) => value.includes(NOT_UTF8))) {
-      fail('', 'has characters that aren\'t UTF-8: in Excel, save the file as "CSV UTF-8 (Comma delimited)", not "CSV"');
-    }
-    const garbled = garbledFields(record);
-    if (garbled.length) fail(garbled.join(', '), GARBLED_CSV);
+    checkEncoding(VIDEOS_FILE, where, record);
     if (!isText(id)) {
       fail('video_id', 'required: lowercase words joined by hyphens, e.g. sleep-drive');
       continue;
@@ -279,16 +364,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
         fail(field, `"${value}" must be a ${extensions.join(' or ')} file`);
         continue;
       }
-      const target = at(dir, value);
-      const names = namesIn(dir);
-      if (!names.has(value) || !statSync(target).isFile()) {
-        const near = [...names].find((name) => name !== value && name.toLowerCase() === value.toLowerCase());
-        fail(field, near
-          ? `${dir}/${value} does not exist: did you mean ${near}? (capitals must match exactly)`
-          : `${dir}/${value} does not exist`);
-      } else if (field === 'audio' && statSync(target).size > MAX_AUDIO_BYTES) {
-        fail(field, `${dir}/${value} is over 25 MiB, the most a static file can be (SPEC §9.2)`);
-      }
+      checkFile(fail, field, dir, value, '§9.2');
       if (field in filesUsed) {
         if (!filesUsed[field].has(value)) filesUsed[field].set(value, []);
         filesUsed[field].get(value).push({ row, id, placeholder, fail });
@@ -332,6 +408,13 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     }
   }
 
+  // A thumbnail is optional, but a frame with one and a frame without look
+  // different (SPEC §7.1, §9.1): once any video has one, list those that
+  // don't. A warning only, at launch too.
+  if ([...videos.values()].some((video) => video.data.thumbnail !== '')) {
+    for (const [id, video] of videos) if (video.data.thumbnail === '') warn('thumbnail-missing', VIDEOS_FILE, id);
+  }
+
   // ---- Transcripts (data/transcripts/<video_id>.txt, SPEC §7.1) ------------
   // Optional plain text, never shown; the search index reads it (SPEC §8.3).
   for (const { name, id } of transcriptFiles(at(TRANSCRIPTS_DIR))) {
@@ -360,7 +443,99 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     video.transcript = text;
   }
 
+  // ---- Worksheets (data/worksheets.csv, SPEC §7.6) -------------------------
+  // One row per worksheet, edited in Excel like the video library: messages
+  // name the row as Excel shows it and, when it has one, the row's
+  // worksheet_id. A worksheet belongs to a video (video_id), whose open
+  // solution card lists it wherever the video is a solution. The header row
+  // alone is a valid file: no worksheets yet.
+  const worksheets = new Map();
+  let worksheetRows = [];
+  // False while the file is missing or unreadable: then the two warnings
+  // below (a worksheet no page shows, a solution video with none) are
+  // skipped, as they would name every solution video.
+  let worksheetsRead = false;
+  if (!existsSync(at(WORKSHEETS_FILE))) {
+    error(WORKSHEETS_FILE, '', `missing: the worksheets, one row per worksheet with the columns ${WORKSHEET_COLUMNS.join(',')} (the header row alone means there are none yet)`);
+  } else {
+    try {
+      const table = parseCsvTable(readFileSync(at(WORKSHEETS_FILE), 'utf8'));
+      if (table.columns.join(',') !== WORKSHEET_COLUMNS.join(',')) {
+        error(WORKSHEETS_FILE, '', `the columns must be ${WORKSHEET_COLUMNS.join(',')}, in that order (found ${table.columns.join(',') || 'none'})`);
+      } else {
+        worksheetRows = table.rows;
+        worksheetsRead = true;
+      }
+    } catch (e) {
+      error(WORKSHEETS_FILE, '', e.message);
+    }
+  }
+
+  for (const { row, record } of worksheetRows) {
+    const id = record.worksheet_id;
+    const where = isText(id) ? `row ${row} (${id})` : `row ${row}`;
+    const fail = (field, message) => error(WORKSHEETS_FILE, `${where}: ${field}`, message);
+
+    checkEncoding(WORKSHEETS_FILE, where, record);
+    if (!isText(id)) {
+      fail('worksheet_id', 'required: lowercase words joined by hyphens, e.g. sleep-drive-worksheet-1');
+      continue;
+    }
+    if (!SLUG.test(id)) {
+      fail('worksheet_id', `"${id}" must be lowercase words joined by hyphens, e.g. sleep-drive-worksheet-1`);
+      continue;
+    }
+    if (worksheets.has(id)) {
+      fail('worksheet_id', `"${id}" is already on row ${worksheets.get(id).row}; each worksheet has one row`);
+      continue;
+    }
+
+    // Its video: a row of data/videos.csv. While that file can't be read,
+    // its own error is the cause, so the id isn't looked up.
+    const videoId = record.video_id;
+    let video = null;
+    if (!isText(videoId)) {
+      fail('video_id', `required: a video_id from ${VIDEOS_FILE}`);
+    } else if (videoLibraryRead) {
+      video = videos.get(videoId) ?? null;
+      if (!video) fail('video_id', `unknown video "${videoId}" (not in ${VIDEOS_FILE})`);
+    }
+
+    if (!isText(record.title)) fail('title', 'required: the text of the worksheet\'s link');
+
+    // The file, by the handout's rules: a bare PDF name in its folder that
+    // matches a file exactly, capitals included. Two rows may name one file
+    // (one worksheet used with two videos).
+    const file = record.file;
+    if (!isText(file)) {
+      fail('file', `required: a file name in ${WORKSHEETS_DIR}/, e.g. ${id}.pdf (${PLACEHOLDER_WORKSHEET} until the worksheet's own file exists)`);
+    } else if (!FILE_NAME.test(file)) {
+      fail('file', `"${file}" must be a file name in ${WORKSHEETS_DIR}/, e.g. ${id}.pdf`);
+    } else if (path.extname(file).toLowerCase() !== '.pdf') {
+      fail('file', `"${file}" must be a .pdf file`);
+    } else {
+      checkFile(fail, 'file', WORKSHEETS_DIR, file, '§7.6');
+      // The shared stand-in: a video on YouTube has its own worksheets, as
+      // it has its own handout; until then the build lists the stand-ins,
+      // and the launch check allows none.
+      if (file === PLACEHOLDER_WORKSHEET) {
+        if (video && !video.data.placeholder) {
+          fail('file', `a video on YouTube needs its own worksheets, not the shared ${PLACEHOLDER_WORKSHEET}`);
+        } else if (launch) {
+          fail('file', `${PLACEHOLDER_WORKSHEET}: placeholder worksheets are not allowed at launch`);
+        } else {
+          warn('placeholder-worksheet', WORKSHEETS_FILE, id);
+        }
+      }
+    }
+
+    worksheets.set(id, { file: WORKSHEETS_FILE, row, data: toWorksheet(record) });
+  }
+
   const used = new Set();
+  // Every video that some problem lists as a solution: the videos whose
+  // worksheets a page shows (SPEC §7.6).
+  const solutionVideos = new Set();
   const checkVideoRef = (file, field, id) => {
     if (!isText(id)) {
       error(file, field, `required: a video_id from ${VIDEOS_FILE}`);
@@ -391,18 +566,15 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     for (const field of ['title', 'statement']) {
       if (!isText(data[field])) error(file, field, 'required');
     }
+    checkPageView(file, data);
     if (data.source_title !== undefined && typeof data.source_title !== 'string') {
       error(file, 'source_title', 'must be text');
     }
     if (!isText(data.area)) error(file, 'area', `required: one of ${listOf([...areaIds])}`);
-    else if (!areaIds.has(data.area)) error(file, 'area', `unknown area "${data.area}" (not in data/areas.csv)`);
-    if (!TIMES_OF_DAY.includes(data.time_of_day)) {
-      error(file, 'time_of_day', `must be one of ${listOf(TIMES_OF_DAY)}`);
-    }
+    else if (areasRead && !areaIds.has(data.area)) error(file, 'area', `unknown area "${data.area}" (not in data/areas.csv)`);
     if (typeof data.order !== 'number' || !Number.isFinite(data.order)) {
       error(file, 'order', 'required: a number (the order within the area)');
     }
-    if (data.new !== undefined && typeof data.new !== 'boolean') error(file, 'new', 'must be true or false');
 
     // Every video on the page, to catch one used twice (its ids, such as
     // audio-<video_id>, would clash, and ratings couldn't tell them apart).
@@ -460,7 +632,10 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
         }
         if (!(solution.tier in counts)) error(file, `${field}.tier`, 'must be "main" or "extra"');
         else counts[solution.tier] += 1;
-        if (checkVideoRef(file, `${field}.video`, solution.video)) onPage.push([`${field}.video`, solution.video]);
+        if (checkVideoRef(file, `${field}.video`, solution.video)) {
+          onPage.push([`${field}.video`, solution.video]);
+          solutionVideos.add(solution.video);
+        }
         // Optional: shown instead of the video's description on this page
         // only (SPEC §7.2).
         if (solution.blurb !== undefined && solution.blurb !== null && !isText(solution.blurb)) {
@@ -504,6 +679,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     const parsed = read(file);
     if (parsed) {
       start = { file, data: parsed.data };
+      checkPage(file, parsed.data);
       const chapters = parsed.data.chapters;
       if (!Array.isArray(chapters) || chapters.length === 0) {
         error(file, 'chapters', 'required: a list of intro videos, each with a video');
@@ -541,6 +717,24 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     }
   }
 
+  // Worksheets show only in a solution's open card (SPEC §7.6), so the build
+  // lists a worksheet whose video no problem has as a solution (a problem's
+  // own video, an intro video or a video on no page: it would never be
+  // shown), and a solution video with no worksheet (so one that was left
+  // out is noticed). Neither fails. Skipped while either spreadsheet can't
+  // be read: its own error is the cause.
+  if (videoLibraryRead && worksheetsRead) {
+    const withWorksheets = new Set();
+    for (const [id, { data }] of worksheets) {
+      if (!videos.has(data.video_id)) continue; // refused above
+      withWorksheets.add(data.video_id);
+      if (!solutionVideos.has(data.video_id)) warn('worksheet-not-shown', WORKSHEETS_FILE, `${id} (${data.video_id})`);
+    }
+    for (const id of videos.keys()) {
+      if (solutionVideos.has(id) && !withWorksheets.has(id)) warn('solution-no-worksheet', WORKSHEETS_FILE, id);
+    }
+  }
+
   // ---- Search keywords (data/keywords.csv, SPEC §8.2) ---------------------
   // One row per searchable page: every problem, Start here, and every
   // information page without `search: false` (scripts/build-data.js). An
@@ -550,18 +744,20 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   if (start) searchable.push('start');
   for (const name of listMarkdown(at('content/pages'))) {
     const parsed = read(`content/pages/${name}`);
+    if (parsed) checkPage(`content/pages/${name}`, parsed.data);
     if (parsed && parsed.data.search !== false) searchable.push(name.slice(0, -3));
     else if (parsed) notSearched.add(name.slice(0, -3));
   }
   const keywordsFile = 'data/keywords.csv';
+  // Its rows, each with its number as Excel shows it (a blank row counts).
   let keywords = [];
   if (existsSync(at(keywordsFile))) {
     try {
-      keywords = parseCsvRecords(readFileSync(at(keywordsFile), 'utf8'));
+      keywords = parseCsvTable(readFileSync(at(keywordsFile), 'utf8')).rows;
     } catch (e) {
       error(keywordsFile, '', e.message);
     }
-    const columns = Object.keys(keywords[0] ?? {});
+    const columns = Object.keys(keywords[0]?.record ?? {});
     if (keywords.length && (!columns.includes('page_id') || !columns.includes('keywords') || columns.length !== 2)) {
       error(keywordsFile, '', `the columns must be page_id,keywords (found ${columns.join(',')})`);
       keywords = [];
@@ -569,10 +765,9 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   }
   const withKeywords = new Set();
   const rowFor = new Set();
-  keywords.forEach((row, i) => {
-    const line = `row ${i + 2}`;
-    const garbled = garbledFields(row);
-    if (garbled.length) error(keywordsFile, `${line}: ${garbled.join(', ')}`, GARBLED_CSV);
+  keywords.forEach(({ row: number, record: row }) => {
+    const line = `row ${number}`;
+    checkEncoding(keywordsFile, line, row);
     const id = String(row.page_id ?? '').trim();
     if (!id) return error(keywordsFile, line, 'page_id is empty');
     if (notSearched.has(id)) {
@@ -587,7 +782,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
   });
   for (const id of searchable) if (!withKeywords.has(id)) warn('keywords-missing', keywordsFile, id);
 
-  return { errors, warnings, model: { areas, videos, problems, start, keywords } };
+  return { errors, warnings, model: { areas, videos, worksheets, problems, start, keywords: keywords.map(({ record }) => record) } };
 }
 
 /** Group warnings by code for printing: [[heading, [names...]], ...]. */
@@ -616,6 +811,4 @@ function runCli() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  runCli();
-}
+if (isMain(import.meta.url)) runCli();

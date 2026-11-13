@@ -3,9 +3,7 @@ title: "Pain"
 statement: "Pain is affecting my sleep"
 source_title: "I am struggling because of pain affecting my sleep"
 area: med
-time_of_day: night
 order: 10
-new: false
 problem_video: pain-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

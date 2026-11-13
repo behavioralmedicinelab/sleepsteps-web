@@ -1,7 +1,9 @@
 // The feedback dialog (SPEC §11, §13, §15.1, §16.2; M5): what the built site
 // ships, where base.njk renders it and loads src/js/feedback.js, the module's
 // source, and the module run on built pages in the small test DOM
-// (mini-dom.js) with a stand-in for Cloudflare's Turnstile API. Every
+// (mini-dom.js) with a stand-in for Cloudflare's Turnstile API: opened from
+// the footer's "Send feedback" and from each video's "Feedback" button
+// (project lead, 2026-11-13), which makes the dialog about that video. Every
 // request body is also run through the Worker's own check
 // (worker/routes/feedback.js) against the built pages.json, so the browser
 // sends exactly what the Worker accepts. The Worker's side is tested in
@@ -26,7 +28,7 @@ import {
   renderOptions,
 } from '../../src/js/feedback.js';
 import { pageIndex } from '../../worker/lib/pages.js';
-import { FEEDBACK_KEYS, MAX_MESSAGE_LENGTH, cleanMessage, validateFeedback } from '../../worker/routes/feedback.js';
+import { FEEDBACK_KEYS, FEEDBACK_VIDEO_KEY, MAX_MESSAGE_LENGTH, cleanMessage, validateFeedback } from '../../worker/routes/feedback.js';
 import { attr, elementByClass, listFiles, pageAt, readHtmlPages, tags, text } from './helpers.js';
 import { MemoryStorage, VisualViewport, installDom, pressEscape } from './mini-dom.js';
 
@@ -52,6 +54,10 @@ const NOTICE = spec
   .map((p) => p.replace(/^> ?/gm, '').trim());
 
 const pageIdOf = (html) => attr(tags(html, 'body')[0], 'data-page-id');
+/** The page's videos, in page order (each facade names its video once). */
+const videosOf = (html) => [...html.matchAll(/\sdata-video="([^"]*)"/g)].map((m) => m[1]);
+/** The videos the page's "Feedback" buttons name, in page order. */
+const feedbackVideosOf = (html) => [...html.matchAll(/\sdata-feedback-video="([^"]*)"/g)].map((m) => m[1]);
 const scriptsOf = (html) => tags(html, 'script').map((t) => attr(t, 'src'));
 const dialogOf = (html) => elementByClass(html, 'feedback-dialog', 'dialog');
 
@@ -93,19 +99,73 @@ describe('built pages and the feedback dialog (SPEC §13)', () => {
     for (const { file, html } of withDialog) expect(dialogOf(html), file).toBe(first);
   });
 
+  // A video's "Feedback" button (partials/video-block.njk; SPEC §7.5, §13).
+  // video-template.test.js checks its markup and place in every row, in
+  // every combination of the switches.
+  describe('each video\'s "Feedback" button', () => {
+    const withVideos = pages.filter((p) => videosOf(p.html).length);
+
+    it('is on every page with a video, one per video in page order, and on no other page', () => {
+      expect(withVideos).toHaveLength(37);
+      for (const { file, html } of pages) expect(feedbackVideosOf(html), file).toEqual(videosOf(html));
+      expect(pages.filter((p) => feedbackVideosOf(p.html).length).map((p) => p.file)).toEqual(withVideos.map((p) => p.file));
+    });
+
+    it('is a hidden button of the handout\'s look, outside the footer and the dialog, on a page that has the dialog and feedback.js', () => {
+      for (const { file, html } of withVideos) {
+        const buttons = tags(html, 'button').filter((b) => attr(b, 'data-feedback-video') !== undefined);
+        expect(buttons, file).toEqual(videosOf(html).map((id) => `<button type="button" class="format-button" data-feedback-trigger data-feedback-video="${id}" hidden>`));
+        expect(elementByClass(html, 'site-footer', 'footer'), file).not.toMatch(/data-feedback-video/);
+        expect(dialogOf(html), file).not.toMatch(/data-feedback-video/);
+        expect(html.lastIndexOf('data-feedback-video'), file).toBeLessThan(html.indexOf('<footer'));
+        expect(dialogOf(html), file).toBeDefined();
+        expect(scriptsOf(html).at(-1), file).toBe('/js/feedback.js');
+      }
+    });
+
+    it('names only videos pages.json lets that page send, and its title heading is on the page', () => {
+      for (const { file, html } of withVideos) {
+        const page = pageIdOf(html);
+        for (const id of feedbackVideosOf(html)) {
+          expect(pagesJson[page]?.videos, `${file}: ${id}`).toContain(id);
+          expect(html.match(new RegExp(`<h[23] class="video-block__title" id="video-${id}-title"`, 'g')), `${file}: ${id}`).toHaveLength(1);
+        }
+        // And every video the page may send has its button.
+        expect([...feedbackVideosOf(html)].sort(), file).toEqual(pagesJson[page].videos);
+      }
+    });
+
+    it('is the only other control that opens the dialog: a page has its videos\' buttons and the footer link, and nothing else', () => {
+      for (const { file, html } of pages) {
+        const triggers = html.match(/<[a-z0-9]+\b[^>]*\sdata-feedback-trigger\b[^>]*>/g) ?? [];
+        expect(triggers, file).toHaveLength(videosOf(html).length + 1);
+        expect(triggers.at(-1), file).toBe('<a class="site-footer__feedback" href="/contact/" data-feedback-trigger>');
+        for (const tag of triggers.slice(0, -1)) expect(tag, file).toMatch(/^<button type="button" class="format-button" data-feedback-trigger data-feedback-video="[a-z0-9-]+" hidden>$/);
+      }
+    });
+  });
+
   describe('the dialog', () => {
     const html = dialogOf(pageAt(site, PROBLEM));
     const open = tags(html, 'dialog')[0];
     const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
 
-    it('ships hidden and closed, named by its heading and described by the notice', () => {
+    it('ships hidden and closed, named by its heading and described by the line for a video, then the notice', () => {
       expect([attr(open, 'hidden'), attr(open, 'open'), attr(open, 'data-feedback-dialog')]).toEqual(['', undefined, '']);
-      expect([attr(open, 'aria-labelledby'), attr(open, 'aria-describedby')]).toEqual(['feedback-title', 'feedback-notice']);
-      for (const id of [attr(open, 'aria-labelledby'), attr(open, 'aria-describedby')]) expect(ids).toContain(id);
+      expect([attr(open, 'aria-labelledby'), attr(open, 'aria-describedby')]).toEqual(['feedback-title', 'feedback-about feedback-notice']);
+      for (const id of [attr(open, 'aria-labelledby'), ...attr(open, 'aria-describedby').split(' ')]) expect(ids.filter((x) => x === id), id).toHaveLength(1);
       expect(attr(open, 'role')).toBeUndefined();
       expect(attr(open, 'tabindex')).toBeUndefined();
       expect(tags(html, 'h2')).toEqual(['<h2 class="feedback__title" id="feedback-title" tabindex="-1">']);
       expect(text(elementByClass(html, 'feedback__title', 'h2'))).toBe('Send feedback');
+    });
+
+    it('ships the line for a video empty and hidden, directly under the heading and before the notice', () => {
+      // Empty as well as hidden: it is part of the dialog's description,
+      // and a description is read even from a hidden element.
+      expect(elementByClass(html, 'feedback__about', 'p')).toBe('<p class="feedback__about" id="feedback-about" data-feedback-about hidden></p>');
+      expect(html).toMatch(/<\/h2>\s*<p class="feedback__about" id="feedback-about" data-feedback-about hidden><\/p>\s*<div class="feedback__notice" id="feedback-notice">/);
+      expect(html.match(/data-feedback-about/g)).toHaveLength(1);
     });
 
     it('holds the site key from site.config.json, for feedback.js to use only where it is a real one', () => {
@@ -141,8 +201,8 @@ describe('built pages and the feedback dialog (SPEC §13)', () => {
       expect(text(elementByClass(html, 'feedback__hint', 'p'))).toBe('Up to 2,000 characters.');
     });
 
-    it('puts the parts in order: heading, notice, field, hint, Turnstile box, Send and Cancel, status line', () => {
-      const order = ['feedback__title', 'feedback__notice', 'feedback__field', 'feedback__label', 'feedback__message', 'feedback__hint', 'feedback__check', 'feedback__actions', 'feedback__status'];
+    it('puts the parts in order: heading, the line for a video, notice, field, hint, Turnstile box, Send and Cancel, status line', () => {
+      const order = ['feedback__title', 'feedback__about', 'feedback__notice', 'feedback__field', 'feedback__label', 'feedback__message', 'feedback__hint', 'feedback__check', 'feedback__actions', 'feedback__status'];
       const at = order.map((name) => html.indexOf(`class="${name}"`));
       expect(at.every((i) => i > -1)).toBe(true);
       expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -255,7 +315,8 @@ describe('the privacy page and features.feedback (SPEC §15.2, §15.4)', () => {
       site: { features: { ratings: true, events: true, feedback } },
     });
 
-  const ITEM = 'Written feedback, if you choose to send it, and the page you sent it from';
+  // With the video, when sent from a video's "Feedback" button (2026-11-13; draft wording, SPEC §15.2).
+  const ITEM = 'Written feedback, if you choose to send it, and the page you sent it from. If you use the Feedback button under a video, we also store which video it is about';
   // Every time is stored rounded down to the hour (SPEC §14.1), so the note
   // under the list says it once for all of them, feedback on or off.
   const NOTE = '<p>Each of these is stored with the page it came from and the date and hour, never the exact time.</p>';
@@ -304,11 +365,29 @@ describe('feedback.js source (SPEC §13, §15.4, §16.2)', () => {
     expect(code.match(/https?:\/\/[^'"`\s]+/g)).toEqual([TURNSTILE_URL]);
   });
 
-  it('imports only api.js, and sends only to /api/feedback, exactly the keys the Worker requires', () => {
-    expect([...code.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1])).toEqual(['./api.js']);
+  it('imports only api.js and players.js, and sends only to /api/feedback, exactly the keys the Worker requires', () => {
+    expect([...code.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1])).toEqual(['./api.js', './players.js']);
+    // players.js only to pause the page's media, once, as the dialog opens (SPEC §13).
+    expect(code.match(/\bpauseWithin\b[^;\n]*/g)).toEqual(["pauseWithin } from './players.js'", 'pauseWithin(document)']);
+    expect(code).toMatch(/dialog\.showModal\(\);\s*\} catch \{[^}]*\}\s*pauseWithin\(document\);/);
     expect(code.match(/['"`]\/api\/[^'"`]*['"`]/g)).toEqual(["'/api/feedback'"]);
-    expect(code).toMatch(/postJson\(ENDPOINT, \{ page_id: pageId, message, turnstile_token: token \}\)/);
+    // One call, with one of two bodies: the three keys, or, about a video, those and video_id.
+    expect(code.match(/postJson\(/g)).toHaveLength(1);
+    expect(code).toMatch(
+      /postJson\(\s*ENDPOINT,\s*video === null \? \{ page_id: pageId, message, turnstile_token: token \} : \{ page_id: pageId, video_id: video, message, turnstile_token: token \},?\s*\)/,
+    );
     expect(FEEDBACK_KEYS).toEqual(['page_id', 'message', 'turnstile_token']);
+    expect(FEEDBACK_VIDEO_KEY).toBe('video_id');
+    expect([...new Set(code.match(/\b[a-z_]+_id\b/g))].sort()).toEqual(['page_id', 'video_id']);
+  });
+
+  it('writes the line for a video, and everything else it shows, as text', () => {
+    expect(code).toMatch(/about\.textContent = video \? `\$\{MESSAGES\.ABOUT\}\$\{video\.title\}` : '';/);
+    expect(code).toMatch(/about\.hidden = !video;/);
+    // Not "About the video: ": a problem's own video is titled "About: …" (2026-11-13).
+    expect(MESSAGES.ABOUT).toBe('Video: ');
+    // Never markup built from a title (the next test forbids innerHTML and its kin).
+    expect(code.match(/\babout\.[a-zA-Z]+/g)).toEqual(['about.textContent', 'about.hidden']);
   });
 
   it('stores nothing, reports no usage event, logs nothing and styles nothing but the dialog\'s two fit properties', () => {
@@ -407,6 +486,11 @@ describe('the dialog\'s messages and the SPEC §13 table (decision A5)', () => {
     ['CHECK_FAILED', "The spam check isn't working"],
   ])('MESSAGES.%s is the wording in the "%s" row, word for word', (key, state) => {
     expect(row(state)).toContain(`"${MESSAGES[key]}"`);
+  });
+
+  it('gives the line for a video as §13 does: "Video: " and the video\'s title', () => {
+    expect(section).toContain(`"${MESSAGES.ABOUT}<title>"`);
+    expect(MESSAGES.ABOUT.endsWith(': ')).toBe(true);
   });
 
   it('gives the Contact line and its link, and Close, as §13 does', () => {
@@ -605,9 +689,16 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
   /** Let the dialog's "close" event, which comes in a later task, arrive. */
   const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   const $ = (selector) => dom.document.querySelector(selector);
-  const trigger = () => $('[data-feedback-trigger]');
+  // The footer's "Send feedback": a page's last trigger, after its videos' buttons.
+  const trigger = () => $('.site-footer [data-feedback-trigger]');
+  /** The videos' "Feedback" buttons, in page order; and one by its video_id. */
+  const videoButtons = () => dom.document.querySelectorAll('button[data-feedback-video]');
+  const videoButton = (id) => $(`button[data-feedback-video="${id}"]`);
+  /** The title of a video on the page, as its heading gives it. */
+  const titleOf = (id) => dom.document.getElementById(`video-${id}-title`).textContent;
   const dialog = () => $('dialog');
   const title = () => $('#feedback-title');
+  const about = () => $('[data-feedback-about]');
   const textarea = () => $('#feedback-message');
   const check = () => $('[data-feedback-check]');
   const send = () => $('[data-feedback-send]');
@@ -637,6 +728,28 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
     turnstile.last.options.callback(DUMMY_TOKEN);
   }
 
+  // The problem page's videos, in page order: its own, then its solutions'.
+  const VIDEOS = videosOf(pageAt(site, PROBLEM));
+  const [FIRST, SECOND] = VIDEOS;
+
+  /** The same, opened from the "Feedback" button of the video `id`. */
+  async function readyFrom(id, url, options) {
+    await open(url, options);
+    videoButton(id).click();
+    loadTurnstile();
+    turnstile.last.options.callback(DUMMY_TOKEN);
+  }
+
+  /** Close the open dialog, then open it again from `opener` with a new widget's token. */
+  async function reopenFrom(opener) {
+    if (dialog().open) {
+      dialog().close();
+      await tick();
+    }
+    opener.click();
+    turnstile.last.options.callback(DUMMY_TOKEN);
+  }
+
   describe('on load', () => {
     it('swaps the link for a button that looks the same, and unhides the closed dialog, contacting nobody', async () => {
       await open();
@@ -655,6 +768,55 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect(requests).toEqual([]);
     });
 
+    it('shows each video\'s "Feedback" button, as it shipped but for `hidden`, and leaves the line for a video empty and hidden', async () => {
+      const shipped = pageAt(site, PROBLEM);
+      expect(tags(shipped, 'button').filter((b) => attr(b, 'data-feedback-video') !== undefined).every((b) => attr(b, 'hidden') === '')).toBe(true);
+      await open();
+      expect(VIDEOS.length).toBeGreaterThan(3);
+      expect(videoButtons().map((b) => [b.getAttribute('data-feedback-video'), b.hidden])).toEqual(VIDEOS.map((id) => [id, false]));
+      for (const button of videoButtons()) {
+        expect([button.localName, button.getAttribute('type'), button.className]).toEqual(['button', 'button', 'format-button']);
+        expect(button.parentElement.className).toBe('video-controls');
+        expect(button.hasAttribute('data-feedback-trigger')).toBe(true);
+        expect(button.textContent.replace(/\s+/g, ' ')).toBe(`Feedback: ${titleOf(button.getAttribute('data-feedback-video'))}`);
+        // Its only attributes: nothing is added but the missing `hidden`.
+        expect([...button.attributes.keys()].sort()).toEqual(['class', 'data-feedback-trigger', 'data-feedback-video', 'type']);
+      }
+      expect([about().hidden, about().textContent, dialog().open]).toEqual([true, '', false]);
+      expect(turnstileScripts()).toEqual([]);
+      expect(requests).toEqual([]);
+    });
+
+    it('shows the buttons on Start here too, and none where there is no video', async () => {
+      await open('/start/');
+      const chapters = videosOf(pageAt(site, '/start/'));
+      expect(chapters.length).toBeGreaterThan(1);
+      expect(videoButtons().map((b) => [b.getAttribute('data-feedback-video'), b.hidden])).toEqual(chapters.map((id) => [id, false]));
+      for (const url of ['/', '/search/', '/contact/', '/help/']) {
+        await open(url);
+        expect(videoButtons(), url).toEqual([]);
+        expect(trigger().localName, url).toBe('button');
+      }
+    });
+
+    it('leaves hidden a button that can\'t name its video: no title heading, an empty heading, or a video_id that isn\'t one', async () => {
+      const page = pageAt(site, PROBLEM);
+      const heading = (id) => new RegExp(`(<h[23] class="video-block__title" id="video-${id}-title"[^>]*>)[^<]*(</h[23]>)`);
+      const html = page
+        .replace(heading(VIDEOS[0]), '$1 \n $2')
+        .replace(` id="video-${VIDEOS[1]}-title"`, ` id="video-${VIDEOS[1]}-heading"`)
+        .replace(`data-feedback-video="${VIDEOS[2]}"`, 'data-feedback-video="Not A Slug"');
+      expect(html).not.toBe(page);
+      await open(PROBLEM, { html });
+      expect(videoButtons().map((b) => b.hidden)).toEqual(VIDEOS.map((_, i) => i < 3));
+      // A hidden one opens nothing; the others and the footer's still work.
+      for (const button of videoButtons().slice(0, 3)) button.click();
+      expect(dialog().open).toBe(false);
+      videoButtons()[3].click();
+      expect([dialog().open, about().textContent]).toEqual([true, `${MESSAGES.ABOUT}${titleOf(VIDEOS[3])}`]);
+      expect(trigger().localName).toBe('button');
+    });
+
     it('keeps focus on "Send feedback" if the link had it', async () => {
       await open(PROBLEM, { before: (d) => d.document.querySelector('a[data-feedback-trigger]').focus() });
       expect(active()).toBe(trigger());
@@ -665,11 +827,26 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       ['without <dialog> support', { dialog: false }],
       ['without the dialog\'s markup', { html: pageAt(site, PROBLEM).replace(/<dialog[\s\S]*<\/dialog>/, '') }],
       ['when the dialog lacks its status line', { html: pageAt(site, PROBLEM).replace(/<div class="feedback__status"[^>]*><\/div>/, '') }],
-    ])('leaves the link to the Contact page and the dialog hidden %s', async (name, options) => {
-      await open(PROBLEM, options);
-      expect(trigger().localName).toBe('a');
-      expect(trigger().getAttribute('href')).toBe('/contact/');
+      ['when the dialog lacks its line for a video', { html: pageAt(site, PROBLEM).replace(/<p class="feedback__about"[^>]*><\/p>/, '') }],
+      ['without the footer\'s link', { html: pageAt(site, PROBLEM).replace(/<li><a class="site-footer__feedback"[^>]*>[^<]*<\/a><\/li>/, '') }],
+    ])('leaves the link to the Contact page, the dialog hidden and every video\'s "Feedback" button hidden %s', async (name, options) => {
+      const { init } = await open(PROBLEM, options);
+      expect(init()).toBe(false);
+      // The link is there in every case but the last, which took it away.
+      expect(trigger() === null).toBe(name === "without the footer's link");
+      if (trigger()) {
+        expect(trigger().localName).toBe('a');
+        expect(trigger().getAttribute('href')).toBe('/contact/');
+      }
       if (dialog()) expect(dialog().hidden).toBe(true);
+      // As without JavaScript: no video has a "Feedback" button to press.
+      expect(videoButtons()).toHaveLength(VIDEOS.length);
+      for (const button of videoButtons()) {
+        expect(button.hidden).toBe(true);
+        expect(button.getClientRects()).toEqual([]);
+        button.click();
+      }
+      if (dialog()) expect(dialog().hasAttribute('open')).toBe(false);
       expect(turnstileScripts()).toEqual([]);
     });
 
@@ -680,7 +857,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
     });
 
     it('works on every kind of page with the dialog, the search page included (decision A4)', async () => {
-      for (const url of ['/', '/search/', '/start/', '/privacy/', '/problems/']) {
+      for (const url of ['/', '/search/', '/start/', '/privacy/']) {
         await open(url);
         expect(trigger().localName, url).toBe('button');
         dom.restore();
@@ -705,6 +882,29 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect(scripts[0].hasAttribute('integrity') || scripts[0].hasAttribute('crossorigin')).toBe(false);
       expect(said()).toEqual([]);
       expect(requests).toEqual([]);
+    });
+
+    // The page behind the modal dialog is inert, so what plays there can't
+    // be reached: players.js pauses it (the video's side is tested in
+    // browser-modules.test.js).
+    it('pauses the page\'s playing "Audio only" as it opens, from the footer or a video\'s button, and starts nothing when it closes', async () => {
+      await open();
+      const [audio, other] = dom.document.querySelectorAll('audio[data-media]');
+      audio.paused = false;
+      trigger().click();
+      expect(dialog().open).toBe(true);
+      expect(audio.paused).toBe(true);
+      dialog().close();
+      await tick();
+      expect([audio.paused, other.paused]).toEqual([true, true]);
+
+      other.paused = false;
+      videoButton(FIRST).click();
+      expect(dialog().open).toBe(true);
+      expect(other.paused).toBe(true);
+      dialog().close();
+      await tick();
+      expect([audio.paused, other.paused]).toEqual([true, true]);
     });
 
     it('renders the widget into its box when the script loads, with the test key on a local host', async () => {
@@ -869,6 +1069,45 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect(requests).toHaveLength(1);
     });
 
+    // The 15-second timeout may be followed by the script's own error, and
+    // Turnstile retries a failed check, calling the error callback each time.
+    it('says so once: a further failure neither says it again nor replaces the Contact link the visitor may be on', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      await open();
+      trigger().click();
+      await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS);
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      let link = status().querySelector('a');
+      link.focus();
+      turnstileScripts()[0].dispatchEvent(new Event('error'));
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      expect(status().querySelector('a')).toBe(link);
+      expect(active()).toBe(link);
+      expect(vi.getTimerCount()).toBe(0);
+
+      await open();
+      trigger().click();
+      loadTurnstile();
+      turnstile.last.options['error-callback']('300010');
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      link = status().querySelector('a');
+      link.focus();
+      turnstile.last.options['error-callback']('300010');
+      turnstile.last.options['unsupported-callback']();
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      expect(status().querySelector('a')).toBe(link);
+      expect(active()).toBe(link);
+      expect(vi.getTimerCount()).toBe(0);
+
+      // Send still says it again, since the visitor asked.
+      type('Hello');
+      send().click();
+      expect(said()).toEqual([]);
+      await vi.advanceTimersByTimeAsync(REANNOUNCE_MS);
+      expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+      expect(requests).toEqual([]);
+    });
+
     it('says so when the browser is unsupported, or render() throws', async () => {
       await open();
       trigger().click();
@@ -919,6 +1158,23 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect(textarea().hasAttribute('aria-invalid')).toBe(false);
       expect(textarea().getAttribute('aria-describedby')).toBe('feedback-hint');
       expect(said()).toEqual([]);
+    });
+
+    it('drops the invalid mark with its message when the dialog closes, so the field reopens with neither', async () => {
+      await ready();
+      send().click();
+      expect(said()).toEqual([MESSAGES.EMPTY]);
+      expect(textarea().getAttribute('aria-invalid')).toBe('true');
+      expect(pressEscape(dom.document)).toBe(true);
+      await tick();
+      expect(said()).toEqual([]);
+      expect(textarea().hasAttribute('aria-invalid')).toBe(false);
+      expect(textarea().getAttribute('aria-describedby')).toBe('feedback-hint');
+      trigger().click();
+      await afterOpening();
+      expect(said()).toEqual([]);
+      expect(textarea().hasAttribute('aria-invalid')).toBe(false);
+      expect(textarea().getAttribute('aria-describedby')).toBe('feedback-hint');
     });
 
     it('says the spam check is still running when there is no token yet', async () => {
@@ -1002,8 +1258,11 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect([request.init.method, request.init.headers, request.init.keepalive]).toEqual(['POST', { 'Content-Type': 'application/json' }, false]);
       expect(Object.keys(request.body)).toEqual(FEEDBACK_KEYS);
       expect(request.body).toEqual({ page_id: 'tired-but-wired', message, turnstile_token: DUMMY_TOKEN });
+      // From the footer: no video_id key at all (not null), so the Worker stores no video.
+      expect(JSON.parse(request.init.body)).not.toHaveProperty(FEEDBACK_VIDEO_KEY);
+      expect(request.init.body).not.toContain('video');
       const checked = validateFeedback(request.body, index);
-      expect(checked.row).toEqual({ page: 'tired-but-wired', message: cleanMessage(message) });
+      expect(checked.row).toEqual({ page: 'tired-but-wired', video: null, message: cleanMessage(message) });
       expect(checked.token).toBe(DUMMY_TOKEN);
       // While it is in flight.
       expect(said()).toEqual([MESSAGES.SENDING]);
@@ -1026,6 +1285,10 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
         type('Feedback');
         send().click();
         expect(validateFeedback(requests[0].body, index).row?.page, file).toBe(pageIdOf(html));
+        // The footer's "Send feedback" is general feedback, on a page with videos too.
+        expect(Object.keys(requests[0].body), file).toEqual(FEEDBACK_KEYS);
+        expect(validateFeedback(requests[0].body, index).row.video, file).toBeNull();
+        expect([about().hidden, about().textContent], file).toEqual([true, '']);
         await settle();
         dom.restore();
         dom = undefined;
@@ -1406,6 +1669,361 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       elsewhere.focus();
       await tick();
       expect(active()).toBe(elsewhere);
+    });
+  });
+
+  // A video's "Feedback" button opens the same dialog about that video
+  // (project lead, 2026-11-13; SPEC §13): a line under the heading names it,
+  // and its id goes with the message. Everything else is the dialog above.
+  describe('from a video\'s "Feedback" button', () => {
+    const ABOUT = (id) => `${MESSAGES.ABOUT}${titleOf(id)}`;
+
+    describe('opening', () => {
+      it('opens the same modal dialog with focus on its heading, says which video it is about, and only then loads Turnstile, once', async () => {
+        await open();
+        const before = dom.document.querySelectorAll('script');
+        videoButton(FIRST).focus();
+        videoButton(FIRST).click();
+        expect([dialog().open, dialog().modal]).toEqual([true, true]);
+        expect(active()).toBe(title());
+        expect([about().hidden, about().textContent]).toEqual([false, ABOUT(FIRST)]);
+        expect(about().textContent).toBe(`Video: ${titleOf(FIRST)}`);
+        expect(titleOf(FIRST).length).toBeGreaterThan(3);
+        const scripts = dom.document.querySelectorAll('script').filter((s) => !before.includes(s));
+        expect(scripts.map((s) => s.getAttribute('src'))).toEqual([TURNSTILE_URL]);
+        expect(said()).toEqual([]);
+        expect(requests).toEqual([]);
+        // The widget renders as from the footer.
+        loadTurnstile();
+        expect(turnstile.calls).toEqual([['render', 'widget-1']]);
+        expect([turnstile.last.container, turnstile.last.options.sitekey]).toEqual([check(), TEST_SITEKEY]);
+      });
+
+      it('makes the line part of the dialog\'s description, before the notice, directly under the heading', async () => {
+        await open();
+        videoButton(SECOND).click();
+        expect(dialog().getAttribute('aria-describedby')).toBe('feedback-about feedback-notice');
+        expect([about().id, about().localName, about().className]).toEqual(['feedback-about', 'p', 'feedback__about']);
+        const parts = dialog().querySelector('form').children;
+        expect(parts.slice(0, 3).map((el) => el.id)).toEqual(['feedback-title', 'feedback-about', 'feedback-notice']);
+        expect(dialog().getAttribute('aria-labelledby')).toBe('feedback-title');
+        expect(title().textContent).toBe('Send feedback');
+        // The line is rendered; the notice is unchanged.
+        expect(about().getClientRects()).toHaveLength(1);
+        expect($('#feedback-notice').textContent).toContain(NOTICE[0]);
+      });
+
+      it.each(['/problems/tired-but-wired/', '/problems/sharing-a-bed/', '/start/'])('names each video of %s by its own title', async (url) => {
+        const ids = videosOf(pageAt(site, url));
+        await open(url);
+        for (const id of ids) {
+          videoButton(id).click();
+          expect(dialog().open, id).toBe(true);
+          expect(about().textContent, id).toBe(ABOUT(id));
+          expect(about().hidden, id).toBe(false);
+          dialog().close();
+          await tick();
+        }
+        // One line each, all different on a page.
+        expect(new Set(ids.map((id) => titleOf(id))).size).toBe(ids.length);
+      });
+
+      it('writes the title as text, never as markup', async () => {
+        const hostile = '<b>Bold</b> & "quoted" <img src=x onerror=alert(1)>';
+        const escaped = hostile.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const html = pageAt(site, PROBLEM).replace(
+          new RegExp(`(<h2 class="video-block__title" id="video-${FIRST}-title">)[^<]*(</h2>)`),
+          `$1${escaped}$2`,
+        );
+        await open(PROBLEM, { html });
+        expect(titleOf(FIRST)).toBe(hostile);
+        videoButton(FIRST).click();
+        expect(about().textContent).toBe(`Video: ${hostile}`);
+        expect(about().children).toEqual([]);
+        expect(dialog().querySelectorAll('b, img')).toEqual([]);
+      });
+
+      it('goes to the Contact page if the dialog can\'t open', async () => {
+        await open();
+        dialog().remove();
+        videoButton(FIRST).click();
+        expect(dom.window.location.href).toBe('/contact/');
+        expect(turnstileScripts()).toEqual([]);
+      });
+
+      it('with no usable site key (decision A1), still opens about the video, with only Close and the Contact line', async () => {
+        await open(PROBLEM, { hostname: 'sleepsteps.example.org', html: withKey(PLACEHOLDER_KEY) });
+        expect(videoButtons().map((b) => b.hidden)).toEqual(VIDEOS.map(() => false));
+        videoButton(FIRST).click();
+        await afterOpening();
+        expect([dialog().open, about().hidden, about().textContent]).toEqual([true, false, ABOUT(FIRST)]);
+        expect([$('[data-feedback-field]').hidden, check().hidden, send().hidden, cancel().hidden, cancel().textContent]).toEqual([true, true, true, false, MESSAGES.CLOSE]);
+        expect(said()).toEqual([MESSAGES.CHECK_FAILED, CONTACT_LINE]);
+        $('form').requestSubmit();
+        await settle();
+        expect(requests).toEqual([]);
+        expect(turnstileScripts()).toEqual([]);
+        cancel().click();
+        await tick();
+        expect([dialog().open, active()]).toEqual([false, videoButton(FIRST)]);
+      });
+    });
+
+    describe('sending', () => {
+      it('POSTs exactly page_id, video_id, message and the token, once, and the Worker\'s own check accepts it and stores that video', async () => {
+        await readyFrom(SECOND, PROBLEM, { answer: 'manual' });
+        const message = '  About this one.\r\nThanks  ';
+        type(message);
+        send().click();
+        expect(requests).toHaveLength(1);
+        const [request] = requests;
+        expect(request.url).toBe('/api/feedback');
+        expect([request.init.method, request.init.headers, request.init.keepalive]).toEqual(['POST', { 'Content-Type': 'application/json' }, false]);
+        expect(Object.keys(request.body)).toEqual(['page_id', 'video_id', 'message', 'turnstile_token']);
+        expect(Object.keys(request.body).sort()).toEqual([...FEEDBACK_KEYS, FEEDBACK_VIDEO_KEY].sort());
+        expect(request.body).toEqual({ page_id: 'tired-but-wired', video_id: SECOND, message, turnstile_token: DUMMY_TOKEN });
+        const checked = validateFeedback(request.body, index);
+        expect(checked).toEqual({ row: { page: 'tired-but-wired', video: SECOND, message: cleanMessage(message) }, token: DUMMY_TOKEN });
+        // The title is never sent: only the id, which the Worker checks.
+        expect(request.init.body).not.toContain(titleOf(SECOND));
+        expect(said()).toEqual([MESSAGES.SENDING]);
+        send().click();
+        expect(requests).toHaveLength(1);
+        request.answer(204);
+        await settle();
+        // Decision A2: thanks, cleared, Close; the dialog stays open, about the same video.
+        expect([said(), textarea().value, cancel().textContent, dialog().open]).toEqual([[MESSAGES.THANKS], '', 'Close', true]);
+        expect([about().hidden, about().textContent]).toEqual([false, ABOUT(SECOND)]);
+      });
+
+      it('sends, from every video on every page, a body the Worker accepts for that page and video', async () => {
+        let sent = 0;
+        for (const { file, html } of readHtmlPages(site).filter((p) => videosOf(p.html).length)) {
+          await open(null, { html });
+          expect(videoButtons().map((b) => b.getAttribute('data-feedback-video')), file).toEqual(videosOf(html));
+          for (const id of videosOf(html)) {
+            videoButton(id).click();
+            if (turnstileScripts().length && !dom.window.turnstile) loadTurnstile();
+            turnstile.last.options.callback(DUMMY_TOKEN);
+            type(`About ${id}`);
+            send().click();
+            const { body } = requests.at(-1);
+            expect(Object.keys(body), `${file} ${id}`).toEqual(['page_id', 'video_id', 'message', 'turnstile_token']);
+            expect(validateFeedback(body, index), `${file} ${id}`).toEqual({ row: { page: pageIdOf(html), video: id, message: `About ${id}` }, token: DUMMY_TOKEN });
+            await settle();
+            dialog().close();
+            await tick();
+            sent += 1;
+          }
+          expect(requests, file).toHaveLength(videosOf(html).length);
+          dom.restore();
+          dom = undefined;
+        }
+        // Every (page, video) pair of pages.json, once.
+        expect(sent).toBe(Object.values(pagesJson).reduce((n, page) => n + page.videos.length, 0));
+      });
+
+      it('sends the video the dialog is about when Send is pressed: the last button that opened it', async () => {
+        await readyFrom(FIRST);
+        type('A draft');
+        await reopenFrom(videoButton(SECOND));
+        expect(about().textContent).toBe(ABOUT(SECOND));
+        expect(textarea().value).toBe('A draft');
+        send().click();
+        await settle();
+        expect(requests.map((r) => r.body)).toEqual([{ page_id: 'tired-but-wired', video_id: SECOND, message: 'A draft', turnstile_token: DUMMY_TOKEN }]);
+        // Then from the footer: the next message is about no video.
+        await reopenFrom(trigger());
+        type('General');
+        send().click();
+        await settle();
+        expect(requests[1].body).toEqual({ page_id: 'tired-but-wired', message: 'General', turnstile_token: DUMMY_TOKEN });
+        expect(Object.keys(requests[1].body)).toEqual(FEEDBACK_KEYS);
+        // And from the first video again.
+        await reopenFrom(videoButton(FIRST));
+        type('Back to the first');
+        send().click();
+        await settle();
+        expect(requests[2].body).toEqual({ page_id: 'tired-but-wired', video_id: FIRST, message: 'Back to the first', turnstile_token: DUMMY_TOKEN });
+        expect(requests).toHaveLength(3);
+      });
+
+      it('keeps a request in flight about the video it was sent for, when the dialog is reopened from another control before the answer', async () => {
+        await readyFrom(FIRST, PROBLEM, { answer: 'manual' });
+        type('In flight');
+        send().click();
+        expect(requests[0].body.video_id).toBe(FIRST);
+        await reopenFrom(trigger());
+        // Only the line changes; "Sending…" and the read-only text are the dialog's.
+        expect([about().hidden, about().textContent]).toEqual([true, '']);
+        await afterOpening();
+        expect([said(), textarea().readOnly, textarea().value]).toEqual([[MESSAGES.SENDING], true, 'In flight']);
+        send().click();
+        expect(requests).toHaveLength(1);
+        requests[0].answer(204);
+        await settle();
+        expect([said(), textarea().value, cancel().textContent]).toEqual([[MESSAGES.THANKS], '', 'Close']);
+        expect(requests.map((r) => r.body.video_id)).toEqual([FIRST]);
+      });
+
+      it.each([
+        ['400 (as for a video the Worker doesn\'t know)', 400],
+        ['404 (collection off, as in previews)', 404],
+        ['500', 500],
+        ['a network error', 'reject'],
+      ])('on %s, says it couldn\'t send, offers the Contact page and keeps the text and the video', async (name, answer) => {
+        await readyFrom(FIRST, PROBLEM, { answer });
+        type('Keep me');
+        send().click();
+        await settle();
+        expect(said()).toEqual([SEND_FAILED, CONTACT_LINE]);
+        expect([textarea().value, cancel().textContent, about().textContent]).toEqual(['Keep me', 'Cancel', ABOUT(FIRST)]);
+        expect(turnstile.calls.at(-1)).toEqual(['reset', 'widget-1']);
+        // A new token, and the retry is about the same video.
+        turnstile.last.options.callback('second-token');
+        send().click();
+        expect(requests.map((r) => [r.body.video_id, r.body.turnstile_token])).toEqual([[FIRST, DUMMY_TOKEN], [FIRST, 'second-token']]);
+        await settle();
+      });
+
+      it('says what is wrong before sending, as from the footer: a blank message, then no token yet', async () => {
+        await open();
+        videoButton(FIRST).click();
+        send().click();
+        expect(said()).toEqual([MESSAGES.EMPTY]);
+        expect([textarea().getAttribute('aria-invalid'), active()]).toEqual(['true', textarea()]);
+        type('Hello');
+        send().click();
+        expect(said()).toEqual([MESSAGES.WAITING]);
+        expect(requests).toEqual([]);
+      });
+    });
+
+    describe('the footer\'s "Send feedback" afterwards', () => {
+      it('empties and hides the line, and sends exactly the three keys', async () => {
+        await readyFrom(FIRST);
+        expect([about().hidden, about().textContent]).toEqual([false, ABOUT(FIRST)]);
+        await reopenFrom(trigger());
+        // Emptied as well as hidden: a description is read even from a hidden element.
+        expect([about().hidden, about().textContent, about().children]).toEqual([true, '', []]);
+        expect(about().getClientRects()).toEqual([]);
+        expect(dialog().getAttribute('aria-describedby')).toBe('feedback-about feedback-notice');
+        type('General feedback');
+        send().click();
+        await settle();
+        expect(requests).toHaveLength(1);
+        expect(Object.keys(requests[0].body)).toEqual(FEEDBACK_KEYS);
+        expect(requests[0].body).toEqual({ page_id: 'tired-but-wired', message: 'General feedback', turnstile_token: DUMMY_TOKEN });
+        expect(validateFeedback(requests[0].body, index).row).toEqual({ page: 'tired-but-wired', video: null, message: 'General feedback' });
+      });
+
+      it('names the video again when a video\'s button opens it next', async () => {
+        await open();
+        for (const [opener, hidden, line] of [
+          [trigger(), true, ''],
+          [videoButton(SECOND), false, ABOUT(SECOND)],
+          [trigger(), true, ''],
+          [videoButton(FIRST), false, ABOUT(FIRST)],
+        ]) {
+          opener.click();
+          expect([dialog().open, about().hidden, about().textContent]).toEqual([true, hidden, line]);
+          dialog().close();
+          await tick();
+        }
+        expect(turnstileScripts()).toHaveLength(1);
+      });
+    });
+
+    describe('closing', () => {
+      it('returns focus on Escape to the button that opened the dialog, not to "Send feedback", and removes the widget', async () => {
+        await open();
+        videoButton(SECOND).focus();
+        videoButton(SECOND).click();
+        loadTurnstile();
+        textarea().focus();
+        expect(pressEscape(dom.document)).toBe(true);
+        expect(dialog().open).toBe(false);
+        await tick();
+        expect(active()).toBe(videoButton(SECOND));
+        expect(active()).not.toBe(trigger());
+        expect(turnstile.calls).toEqual([['render', 'widget-1'], ['remove', 'widget-1']]);
+      });
+
+      it('returns focus on Cancel even when the browser didn\'t focus the button it was opened from (Safari)', async () => {
+        await open();
+        videoButton(FIRST).click(); // a click that doesn't focus the button
+        expect(active()).toBe(title());
+        cancel().click();
+        await tick();
+        expect([dialog().open, active()]).toEqual([false, videoButton(FIRST)]);
+      });
+
+      it('returns focus to whichever control opened it last', async () => {
+        await open();
+        const openers = [videoButton(FIRST), trigger(), videoButton(SECOND), videoButtons().at(-1), trigger(), videoButton(FIRST)];
+        for (const [i, opener] of openers.entries()) {
+          // Pressed with the keyboard, or clicked in a browser that focuses a
+          // clicked button; or clicked in Safari, which focuses nothing.
+          if (i % 2) opener.focus();
+          else active().blur();
+          opener.click();
+          expect(active()).toBe(title());
+          if (i % 3) cancel().click();
+          else pressEscape(dom.document);
+          await tick();
+          expect(active(), String(i)).toBe(opener);
+        }
+      });
+
+      it('leaves focus alone if it has already moved elsewhere on the page', async () => {
+        await open();
+        videoButton(FIRST).click();
+        const elsewhere = videoButton(SECOND);
+        dialog().close();
+        elsewhere.focus();
+        await tick();
+        expect(active()).toBe(elsewhere);
+      });
+
+      it('returns focus to "Send feedback" if the button it was opened from has left the page', async () => {
+        await open();
+        const button = videoButton(FIRST);
+        button.click();
+        button.remove();
+        cancel().click();
+        await tick();
+        expect(active()).toBe(trigger());
+      });
+
+      it('keeps the draft across Cancel and Escape, whichever control opens the dialog next', async () => {
+        await open();
+        videoButton(FIRST).click();
+        loadTurnstile();
+        type('A draft about the first video');
+        cancel().click();
+        await tick();
+        for (const opener of [trigger(), videoButton(SECOND), videoButton(FIRST)]) {
+          opener.click();
+          expect(textarea().value).toBe('A draft about the first video');
+          expect(said()).toEqual([]);
+          pressEscape(dom.document);
+          await tick();
+        }
+        // Never stored anywhere but the textarea (afterEach checks both storages are empty).
+        expect(textarea().value).toBe('A draft about the first video');
+      });
+
+      it('fits above an on-screen keyboard and puts the dialog back on closing, as from the footer', async () => {
+        const viewport = new VisualViewport({ height: 664 });
+        await open(PROBLEM, { innerHeight: 664, visualViewport: viewport });
+        videoButton(FIRST).click();
+        expect(viewport.listenerCount).toBe(2);
+        viewport.change({ height: 328 });
+        expect([FIT_PROPERTIES.top, FIT_PROPERTIES.height].map((name) => dialog().style.getPropertyValue(name))).toEqual(['0px', '328px']);
+        cancel().click();
+        await tick();
+        expect([viewport.listenerCount, dialog().style.length, active()]).toEqual([0, 0, videoButton(FIRST)]);
+      });
     });
   });
 });

@@ -70,7 +70,7 @@ describe('built pages and the ratings widget (SPEC §12)', () => {
     const rated = pages.filter((p) => ratedIn(p.html).length).map((p) => p.file);
     expect(rated).toHaveLength(37);
     expect(problems.filter(([, p]) => p.data.standalone === true)).toHaveLength(13);
-    expect(pages.filter((p) => p.file === 'start/index.html' && ratedIn(p.html).length === 3)).toHaveLength(1);
+    expect(pages.filter((p) => p.file === 'start/index.html' && ratedIn(p.html).length === 2)).toHaveLength(1);
   });
 
   it('names in data-rating only videos pages.json lets that page rate', () => {
@@ -530,12 +530,12 @@ describe('rating.js in the browser (SPEC §11, §12)', () => {
       expect(requests).toEqual([]);
     });
 
-    it('on Start here, reveals the three widgets', async () => {
+    it('on Start here, reveals the two widgets', async () => {
       await open('/start/', { modules: ['players', 'rating'] });
       expect([...$$('[data-rating]')].map((w) => [w.getAttribute('data-rating'), w.hidden])).toEqual(
         model.start.data.chapters.map((c) => [c.video, false]),
       );
-      expect([...$$('.video-controls')].map((row) => row.hidden)).toEqual([false, false, false]);
+      expect([...$$('.video-controls')].map((row) => row.hidden)).toEqual([false, false]);
       expect($$('[data-rating-reveal]')).toHaveLength(0);
       radio('how-to-use-this-program', 5).click();
       await settle();

@@ -5,10 +5,11 @@
 // switch is off (SPEC §11). features-off.test.js checks the shell and the CSP
 // rules on the site built with each combination of switches, and that the
 // real build matches the one with the same switches.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
-import { attr, readHtmlPages, tags, text } from './helpers.js';
+import { parseFrontMatter } from '../../scripts/validate-content.js';
+import { attr, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
 const site = inject('builtSiteOn');
 const pages = readHtmlPages(site);
@@ -24,24 +25,77 @@ const EXTERNAL_URL = /^\s*(?:[a-z][a-z0-9+.-]*:|\/\/|\\\\)/i;
 // Getting urgent help and Referral info (§7.4).
 const OUTBOUND_HOSTS = ['www.youtube.com', 'policies.google.com', 'creativecommons.org', 'www.cancer.org.au'];
 
+/** The file names in a content folder, without ".md": its page_ids. */
+const contentIds = (dir) => readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+const PROBLEM_IDS = contentIds('content/problems');
+
 describe('build output', () => {
   it('builds every expected page', () => {
     const files = pages.map((p) => p.file);
-    for (const file of [
+    // The main pages and the required information pages (SPEC §7.4).
+    const required = [
       'index.html',
       '404.html',
       'start/index.html',
-      'problems/index.html',
       'search/index.html',
       'help/index.html',
       'about/index.html',
       'contact/index.html',
       'privacy/index.html',
       'urgent-help/index.html',
-    ]) {
+    ];
+    for (const file of required) {
       expect(files).toContain(file);
     }
-    expect(files.filter((f) => /^problems\/[^/]+\/index\.html$/.test(f))).toHaveLength(36);
+    // And no other page than one per file in content/pages/ and
+    // content/problems/, however many the team has added (SPEC §19.2).
+    const expected = [
+      ...required.slice(0, 4),
+      ...contentIds('content/pages').map((id) => `${id}/index.html`),
+      ...PROBLEM_IDS.map((id) => `problems/${id}/index.html`),
+    ];
+    expect(PROBLEM_IDS.length).toBeGreaterThan(0);
+    expect([...files].sort()).toEqual(expected.sort());
+  });
+});
+
+// The Sleep problems page is part of Home (project lead, 2026-11-13; SPEC
+// §7.2, §22). Its old address, /problems/, redirects to Home (dist/_redirects,
+// checked in deploy-config.test.js), so nothing may be built there and no
+// page may still link to it; each problem keeps /problems/<slug>/.
+describe('the old Sleep problems page (/problems/)', () => {
+  /** Every href on every built page: [file, href]. */
+  const hrefs = pages.flatMap(({ file, html }) => tags(html, 'a').map((tag) => [file, attr(tag, 'href') ?? '']));
+
+  it('is not built: no dist/problems/index.html, though every problem page is', () => {
+    expect(existsSync(path.join(site, 'problems/index.html'))).toBe(false);
+    expect(pages.map((p) => p.file)).not.toContain('problems/index.html');
+    expect(statSync(path.join(site, 'problems')).isDirectory()).toBe(true);
+    expect(statSync(path.join(site, 'problems/pain/index.html')).isFile()).toBe(true);
+  });
+
+  it('is linked from no built page, with or without a fragment or the final slash', () => {
+    const old = hrefs.filter(([, href]) => /^\/problems\/?(?:[?#].*)?$/.test(href));
+    expect(old).toEqual([]);
+    // No page names it in any other attribute or in a script's address either.
+    for (const { file, html } of pages) expect(html, file).not.toMatch(/["'=]\/problems\/?["'#?]/);
+  });
+
+  it("links to Home's list as /#sleep-problems and to an area as /#<area_id>, each an id on Home", () => {
+    const home = pageAt(site, '/');
+    const ids = new Set([...home.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+    const toHome = hrefs.filter(([, href]) => href.startsWith('/#'));
+    expect(toHome.length).toBeGreaterThan(0);
+    for (const [file, href] of toHome) expect(ids.has(href.slice(2)), `${file}: ${href}`).toBe(true);
+    const targets = new Set(toHome.map(([, href]) => href));
+    expect(targets.has('/#sleep-problems')).toBe(true);
+    // Every page reaches the list: the footer's "Sleep problems" link.
+    for (const { file } of pages) expect(toHome.some(([f, href]) => f === file && href === '/#sleep-problems'), file).toBe(true);
+    // Each problem page links to its own area on Home (breadcrumb and back
+    // link): one target for each area that has a problem.
+    const areaLinks = [...targets].filter((href) => href !== '/#sleep-problems');
+    const areasInUse = new Set(PROBLEM_IDS.map((id) => `/#${readFileSync(`content/problems/${id}.md`, 'utf8').match(/^area: *["']?([^"'\s#]+)/m)?.[1]}`));
+    expect(areaLinks.sort()).toEqual([...areasInUse].sort());
   });
 });
 
@@ -108,7 +162,7 @@ describe('the site icons (SPEC §7.5)', () => {
 });
 
 // Browser tab titles are the page title alone, with no site name after it
-// (SPEC §7.5, §22, 2026-11-06); Home's is "Sleep during and after cancer".
+// (SPEC §7.5, §22, 2026-11-06); Home's is its own `title`, not its H1.
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const decode = (s) =>
   s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, ref) => {
@@ -122,7 +176,6 @@ function pageTitle(file) {
     'index.html': 'content/index.njk',
     '404.html': 'content/404.njk',
     'start/index.html': 'content/start.md',
-    'problems/index.html': 'content/problems.njk',
     'search/index.html': 'content/search.njk',
   };
   const problem = file.match(/^problems\/([^/]+)\/index\.html$/);
@@ -138,8 +191,11 @@ function pageTitle(file) {
 }
 
 describe('browser tab titles', () => {
-  it('give Home the title "Sleep during and after cancer"', () => {
-    expect(pages.find((p) => p.file === 'index.html').html).toContain('<title>Sleep during and after cancer</title>');
+  // Home's title is its own (content/index.njk's `title`, the team's to
+  // reword), not its H1.
+  it('give Home its own title, from content/index.njk', () => {
+    const { title } = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
+    expect(text(pages.find((p) => p.file === 'index.html').html.match(/<title>([\s\S]*?)<\/title>/)[1])).toBe(title);
   });
 
   it.each(pages.map((p) => [p.file, p.html]))('%s: the page title alone', (file, html) => {

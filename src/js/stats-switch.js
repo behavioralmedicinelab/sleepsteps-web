@@ -38,7 +38,7 @@ function stateText() {
   return statsOff() ? TEXT.off : TEXT.on;
 }
 
-export function initSwitch(root) {
+function initSwitch(root) {
   const status = root.querySelector('[data-stats-status]');
   const button = root.querySelector('[data-stats-toggle]');
   if (!status || !button) return;

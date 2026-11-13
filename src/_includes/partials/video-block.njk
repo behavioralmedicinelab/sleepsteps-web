@@ -7,14 +7,14 @@
   A build test (video-template.test.js) checks every video on every page.
 
     {% from "partials/video-block.njk" import videoBlock %}
-    {{ videoBlock(video, heading=2, ratings=ratingsOn) }}
+    {{ videoBlock(video, heading=2, ratings=ratingsOn, feedback=feedbackOn) }}
     {{ videoBlock(video, heading=3, description=solution.description,
                   label={ num: 1, text: 'Main' }, close=id + '-panel',
-                  bleed='card', ratings=ratingsOn) }}
+                  bleed='card', ratings=ratingsOn, feedback=feedbackOn) }}
 
   In this order, every time:
     0. the label, if the context has one: a step chip ("1 Main", "2 Extra"
-       on a solution card; "1 of 3" on Start here). The problem's own video
+       on a solution card; "1 of 2" on Start here). The problem's own video
        has none. A solution card's Close sits at the label's right.
     1. the title, a heading (h2 on the problem page and Start here, h3 in a
        solution card, under its section's h2), id video-<video_id>-title;
@@ -23,27 +23,36 @@
     3. "Audio only": a native <details> holding <audio controls
        preload="none"> (the video's own soundtrack, SPEC §9.2). First, so
        opening it never moves its own button: open, it takes the row's
-       full width, the player opens under its button, and the handout and
-       the stars move down under the player;
+       full width, the player opens under its button, and the handout,
+       "Feedback" and the stars move down under the player;
     4. "Handout": a link to media/pdf/ (the video's text alternative,
        carrying its full narration, SPEC §9.3). The format is still open
        (SPEC §21), so the label is "Handout" and "(PDF)" is said only to
        screen readers. It is the only handout link near the video;
-    5. "Was this helpful?" and the five stars (partials/rating.njk), while
+    5. "Feedback" (project lead, 2026-11-13; SPEC §13), while `feedback` is
+       exactly true (the callers pass site.features.feedback === true): a
+       button that opens the feedback dialog (partials/feedback-dialog.njk,
+       which base.njk renders on the same condition) about this video. It
+       looks like "Handout", and ships `hidden`, since it needs JavaScript:
+       src/js/feedback.js shows it once it opens the dialog, and sends
+       data-feedback-video, the video_id, with the message;
+    6. "Was this helpful?" and the five stars (partials/rating.njk), while
        `ratings` is exactly true (the callers pass
        site.features.ratings === true); its status line takes a line of
        its own under the row.
   Every row of data/videos.csv names an audio file and a handout (the
   content check fails the build otherwise, SPEC §7.1), so both always render.
 
-  Layout (components.css): decided by the width of the page's main column
-  (.with-sidebar__main, the one query container for every video on the
-  page, so the problem video and an open card switch together). From 768px
-  (the Problem-A open card's 420 + 24 + 280 = 724, plus an open card's
-  border and padding) the video (3fr) and the label, title and description
-  (2fr) sit side by side and the row runs under both; narrower, the label,
-  title and description come first (the DOM order), then the video and the
-  row. Every caller must render inside .with-sidebar__main.
+  Layout (components.css): decided by the width of the page's two-column
+  wrapper (.with-sidebar, the one query container for every video on the
+  site, so every video switches at one window width, and the problem video
+  and an open card switch together). From 1080px (a 768px main column
+  beside a problem page's sidebar: the Problem-A open card's 420 + 24 +
+  280 = 724, plus an open card's border and padding) the video (3fr) and
+  the label, title and description (2fr) sit side by side and the row runs
+  under both; narrower, the label, title and description come first (the
+  DOM order), then the video and the row. Every caller must render inside
+  .with-sidebar__main, the wrapper's main column.
 
   Arguments (keyword arguments, all optional after `video`):
     video        a video from `videoById` (or `introChapters`/`solutionsByTier`)
@@ -60,12 +69,14 @@
     bleed        'page' (default) or 'card': how the frame meets the edges
                  below 600px (partials/video.njk)
     ratings      exactly true: the ratings widget ends the row
+    feedback     exactly true: "Feedback" follows the handout
 
   Without JavaScript the handout and audio work as they are. src/js/players.js
   pauses other media when audio plays and has the event hooks (data-handout
   and the audio's data-media hold the video_id, whatever the handout's
   format or the audio's file name; SPEC §9.4, §10.2). pages.json reads the
-  same attributes (SPEC §8.3), so the Worker accepts exactly these ids.
+  same attributes, and data-feedback-video (SPEC §8.3), so the Worker accepts
+  exactly these ids.
 
   ids: video-<video_id>-title, audio-<video_id>, and the widget's
   rating-<video_id>-*. The validator allows each video once per page, so
@@ -75,7 +86,7 @@
 {%- from "partials/rating.njk" import rating -%}
 {%- from "partials/step-chip.njk" import stepChip -%}
 {%- from "partials/video.njk" import videoEmbed -%}
-{%- macro videoBlock(video, heading=2, description='', label=none, close='', bleed='page', ratings=false) -%}
+{%- macro videoBlock(video, heading=2, description='', label=none, close='', bleed='page', ratings=false, feedback=false) -%}
 {%- set h = 'h3' if heading == 3 else 'h2' -%}
 {%- set id = video.video_id -%}
 <div class="video-block">
@@ -84,7 +95,7 @@
       {%- if label or close %}
       <div class="video-block__top">
         {%- if label %}
-        {{ stepChip(label.num, label.text, variant='sm') }}
+        {{ stepChip(label.num, label.text) }}
         {%- endif %}
         {%- if close %}
         <button type="button" class="video-block__close" aria-expanded="true" aria-controls="{{ close }}">Close<span class="visually-hidden"> {{ video.title }}</span></button>
@@ -105,6 +116,9 @@
         </div>
       </details>
       <a class="format-button" href="/media/pdf/{{ video.handout }}" type="application/pdf" data-handout="{{ id }}">{{ icon('download', 18, 'format-button__icon') }}Handout<span class="visually-hidden">: {{ video.title }} (PDF)</span></a>
+      {%- if feedback === true %}
+      <button type="button" class="format-button" data-feedback-trigger data-feedback-video="{{ id }}" hidden>{{ icon('message', 18, 'format-button__icon') }}Feedback<span class="visually-hidden">: {{ video.title }}</span></button>
+      {%- endif %}
       {%- if ratings === true %}
       {{ rating(video) }}
       {%- endif %}

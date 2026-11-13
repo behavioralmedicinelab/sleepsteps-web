@@ -22,12 +22,13 @@ const areaNames = Object.fromEntries(
 const linkTexts = (html) => [...html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)].map((m) => text(m[1]));
 
 // Page URL -> expected current item in the main nav ([label, aria-current]).
+// The nav has no "Sleep problems" item (project lead, 2026-11-13), so no
+// item is current on Home or on a problem page.
 const NAV_CURRENT = {
   '/': null,
   '/start/': ['Start here', 'page'],
-  '/problems/': ['Sleep problems', 'page'],
-  '/problems/tired-but-wired/': ['Sleep problems', 'true'],
-  '/problems/restless-legs/': ['Sleep problems', 'true'],
+  '/problems/tired-but-wired/': null,
+  '/problems/restless-legs/': null,
   '/about/': null,
   '/contact/': ['Contact', 'page'],
   '/help/': ['Referral info', 'page'],
@@ -50,14 +51,14 @@ describe('SiteHeader and MobileHeader', () => {
     }
   });
 
-  it('has the nav items, search forms and urgent link in the handoff order', () => {
+  it('has the logo, the three nav items, the search forms and the urgent link, in order', () => {
     const html = pageAt(site, '/');
     const desktop = elementByClass(html, 'site-header__desktop', 'div');
-    expect(tags(desktop, 'a').map((t) => attr(t, 'href'))).toEqual([
-      '/', '/start/', '/problems/', '/help/', '/contact/', '/urgent-help/',
-    ]);
+    expect(tags(desktop, 'a').map((t) => attr(t, 'href'))).toEqual(['/', '/start/', '/help/', '/contact/', '/urgent-help/']);
+    expect(linkTexts(elementByClass(desktop, 'site-nav', 'nav'))).toEqual(['Start here', 'Referral info', 'Contact']);
     const grid = elementByClass(html, 'mobile-nav', 'nav');
-    expect(tags(grid, 'a').map((t) => attr(t, 'href'))).toEqual(['/problems/', '/start/', '/help/', '/contact/']);
+    expect(tags(grid, 'a').map((t) => attr(t, 'href'))).toEqual(['/start/', '/help/', '/contact/']);
+    expect(linkTexts(grid)).toEqual(['Start here', 'Referral info', 'Contact']);
 
     // The header's two search forms (the feedback dialog's form is in feedback.test.js).
     const forms = tags(html, 'form').filter((t) => attr(t, 'method') !== 'dialog');
@@ -67,12 +68,72 @@ describe('SiteHeader and MobileHeader', () => {
       expect(attr(form, 'action')).toBe('/search/');
       expect(attr(form, 'method')).toBe('get');
     }
-    for (const input of tags(html, 'input')) {
+    // The header's two fields (Home's other field, the sleep problems
+    // filter, has no name: it submits nothing, page-home-start.test.js).
+    const inputs = tags(elementByClass(html, 'site-header', 'header'), 'input');
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) {
       expect(attr(input, 'name')).toBe('q');
       expect(attr(input, 'type')).toBe('search');
       expect(attr(input, 'autocomplete')).toBe('off');
     }
     expect(text(elementByClass(html, 'header-search__submit', 'button'))).toBe('Search');
+  });
+
+  // Project lead, 2026-11-13 (SPEC §7.5, §8.1, §22): the site search is
+  // "Search this website" (the boards: "Search sleep problems"), so it isn't
+  // taken for the filter over Home's list of sleep problems.
+  it('labels both header search boxes "Search this website", on every page with the site header', () => {
+    for (const { file, html } of readHtmlPages(site)) {
+      const header = elementByClass(html, 'site-header', 'header');
+      if (file === 'urgent-help/index.html') {
+        expect(header, file).toBeUndefined();
+        continue;
+      }
+      // Desktop: a visually hidden label, and the same words as the placeholder.
+      expect(header, file).toContain('<label class="visually-hidden" for="site-q">Search this website</label>');
+      const desktop = tags(header, 'input').find((t) => attr(t, 'id') === 'site-q');
+      expect(attr(desktop, 'placeholder'), file).toBe('Search this website');
+      // Phone menu: a visible label, and the board's example as the placeholder.
+      expect(header, file).toContain('<label class="mobile-search__label" for="ph-q">Search this website</label>');
+      const phone = tags(header, 'input').find((t) => attr(t, 'id') === 'ph-q');
+      expect(attr(phone, 'placeholder'), file).toBe('e.g. waking too early');
+      expect(tags(header, 'label'), file).toHaveLength(2);
+      // The old name is nowhere on the page, in text or in an attribute.
+      expect(html, file).not.toMatch(/Search sleep problems/i);
+    }
+  });
+
+  it('gives the header search the name of the search page\'s own form', () => {
+    expect(pageAt(site, '/search/')).toContain('<label class="search-form__label" id="search-q-label" for="search-q">Search this website</label>');
+  });
+
+  // Project lead, 2026-11-13 (SPEC §7.5, §22): Sleep problems is part of
+  // Home, so the nav has no item for it, and the logo is the way home.
+  it.each(['/', '/start/', '/problems/pain/', '/help/', '/search/', '/404.html'])('has no "Sleep problems" item in either nav on %s, and the logo links home', (url) => {
+    const html = pageAt(site, url);
+    for (const nav of [elementByClass(html, 'site-nav', 'nav'), elementByClass(html, 'mobile-nav', 'nav')]) {
+      expect(linkTexts(nav)).not.toContain('Sleep problems');
+      expect(tags(nav, 'a').map((t) => attr(t, 'href')).filter((href) => /problems/.test(href))).toEqual([]);
+    }
+    const logos = [...html.matchAll(/<a class="site-logo[^"]*" href="([^"]*)">/g)].map((m) => m[1]);
+    expect(logos).toEqual(['/', '/']);
+  });
+
+  // The phone menu's grid had four items in two rows, "Sleep problems"
+  // filled. Now "Start here" has the first row to itself, filled, and the
+  // other two share the second (SPEC §7.5).
+  it('gives "Start here" the first row of the phone menu\'s grid, filled, with the other two under it', () => {
+    const grid = elementByClass(pageAt(site, '/'), 'mobile-nav__grid', 'ul');
+    const items = [...grid.matchAll(/<li([^>]*)>\s*(<a\b[^>]*>)/g)].map(([, li, a]) => [attr(`<li${li}>`, 'class'), attr(a, 'class'), attr(a, 'href')]);
+    expect(items).toEqual([
+      ['mobile-nav__item--primary', 'mobile-nav__link mobile-nav__link--primary', '/start/'],
+      [undefined, 'mobile-nav__link', '/help/'],
+      [undefined, 'mobile-nav__link', '/contact/'],
+    ]);
+    const css = readFileSync('src/css/site.css', 'utf8');
+    expect(css).toMatch(/\n\.mobile-nav__grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(css).toMatch(/\n\.mobile-nav__item--primary \{\s*grid-column: 1 \/ -1;\s*\}/);
   });
 
   it('has one banner, with one "Main" nav per header variant', () => {
@@ -96,6 +157,13 @@ describe('SiteHeader and MobileHeader', () => {
     expect(panel).toMatch(/aria-label="All topics"/);
     expect(panel).toMatch(/<a class="mobile-menu__urgent" href="\/urgent-help\/">Get urgent help<\/a>/);
     expect(html).toMatch(/<script type="module" src="\/js\/menu\.js"><\/script>/);
+  });
+
+  // menu.js swaps the <details> for a <div> with the same classes; nothing
+  // reads a mark of its own on it.
+  it('gives the upgraded phone menu no hook that nothing reads', () => {
+    expect(readFileSync('src/js/menu.js', 'utf8')).not.toMatch(/enhanced/i);
+    for (const file of listFiles('src/css', (f) => f.endsWith('.css'))) expect(readFileSync(`src/css/${file}`, 'utf8'), file).not.toMatch(/data-enhanced/);
   });
 
   it('uses the logo at the handoff sizes', () => {
@@ -136,13 +204,23 @@ describe('TopicNav', () => {
     for (const nav of [sidebarNav(html), panelNav(html)]) {
       expect(currentLinks(nav)).toEqual([{ href: '/start/', value: 'page', label: 'Introduction videos' }]);
       const chapters = elementByClass(nav, 'topic-nav__chapters', 'ol');
-      expect(tags(chapters, 'a').map((t) => attr(t, 'href'))).toEqual(['#v1', '#v2', '#v3']);
+      expect(tags(chapters, 'a').map((t) => attr(t, 'href'))).toEqual(['#v1', '#v2']);
       expect(tags(nav, 'details').filter((t) => attr(t, 'open') !== undefined)).toHaveLength(0);
     }
-    for (const id of ['v1', 'v2', 'v3']) expect(html).toContain(`id="${id}"`);
+    for (const id of ['v1', 'v2']) expect(html).toContain(`id="${id}"`);
+    // Two intro videos, not three (project lead, 2026-11-13, SPEC §7.3).
+    expect(html).not.toContain('id="v3"');
   });
 
-  it.each(['/', '/problems/', '/help/', '/about/', '/contact/', '/privacy/', '/search/', '/404.html'])(
+  // Only Start here has chapters (its `chapters` front matter, SPEC §7.3),
+  // so a problem page's layout doesn't work them out for its sidebar.
+  it('shows the chapter links on Start here only: a problem page has none, and its layout asks for none', () => {
+    const html = pageAt(site, '/problems/pain/');
+    for (const nav of [sidebarNav(html), panelNav(html)]) expect(elementByClass(nav, 'topic-nav__chapters', 'ol')).toBeUndefined();
+    expect(readFileSync('src/_includes/layouts/topics.njk', 'utf8')).not.toMatch(/introChapters|[cC]hapters/);
+  });
+
+  it.each(['/', '/help/', '/about/', '/contact/', '/privacy/', '/search/', '/404.html'])(
     'on %s is only in the menu panel, with all areas closed',
     (url) => {
       const html = pageAt(site, url);
@@ -163,7 +241,7 @@ describe('TopicNav', () => {
   });
 });
 
-describe('problem pages and the Sleep problems page', () => {
+describe("problem pages and Home's list of sleep problems", () => {
   it.each(handoffProblems.map((p) => [p.slug, p]))('/problems/%s/ shows the breadcrumb, title and statement', (slug, p) => {
     const html = pageAt(site, `/problems/${slug}/`);
     expect(html).toContain(`data-page-id="${slug}"`);
@@ -172,13 +250,14 @@ describe('problem pages and the Sleep problems page', () => {
     const statement = text(elementByClass(html, 'problem__statement', 'p'));
     expect(statement).toBe(`“${/[.?!]$/.test(p.statement) ? p.statement : `${p.statement}.`}”`);
     const crumbs = elementByClass(html, 'breadcrumb', 'nav');
-    expect(tags(crumbs, 'a').map((t) => attr(t, 'href'))).toEqual(['/problems/', `/problems/#${p.areaId}`]);
+    // To Home's list of sleep problems, and to the problem's area there.
+    expect(tags(crumbs, 'a').map((t) => attr(t, 'href'))).toEqual(['/#sleep-problems', `/#${p.areaId}`]);
     expect(linkTexts(crumbs)).toEqual(['Sleep problems', areaNames[p.areaId]]);
     expect(crumbs).toContain(`<span aria-current="page">`);
   });
 
-  it('lists every problem under its area, in order, with area anchors', () => {
-    const html = pageAt(site, '/problems/');
+  it('lists every problem under its area on Home, in order, with area anchors', () => {
+    const html = pageAt(site, '/');
     const sections = [...html.matchAll(/<section class="group-list__group" id="([a-z]+)">([\s\S]*?)<\/section>/g)];
     expect(sections.map((m) => m[1])).toEqual(['core', 'day', 'clock', 'mind', 'med', 'env', 'social', 'hard', 'relapse', 'dis']);
     const listed = sections.flatMap(([, area, body]) =>
@@ -221,7 +300,7 @@ describe('information pages', () => {
       const html = pageAt(site, url);
       const siteNav = elementByClass(html, 'site-nav', 'nav');
       expect(attr(tags(siteNav, 'nav')[0], 'aria-label')).toBe('Main');
-      expect(hrefs(siteNav)).toEqual(['/start/', '/problems/', '/help/', '/contact/']);
+      expect(hrefs(siteNav)).toEqual(['/start/', '/help/', '/contact/']);
       expect(hrefs(elementByClass(html, 'site-header__desktop', 'div'))).toContain('/urgent-help/');
       expect(hrefs(menuPanel(html))).toEqual(expect.arrayContaining(['/help/', '/contact/', '/urgent-help/']));
       // About is in the footer only (project lead, 2026-11-07).
@@ -377,6 +456,21 @@ describe('footer', () => {
     );
   });
 
+  it("links Start here, Home's list of sleep problems, About and Contact in its first nav, then \"Send feedback\"", () => {
+    for (const url of ['/', '/about/', '/problems/pain/']) {
+      const nav = elementByClass(elementByClass(pageAt(siteOn, url), 'site-footer', 'footer'), 'site-footer__col', 'nav');
+      expect([...nav.matchAll(/<a\b([^>]*)>([^<]*)<\/a>/g)].map(([, attrs, label]) => [attr(`<a${attrs}>`, 'href'), label]), url).toEqual([
+        ['/start/', 'Start here'],
+        ['/#sleep-problems', 'Sleep problems'],
+        ['/about/', 'About'],
+        ['/contact/', 'Contact'],
+        ['/contact/', 'Send feedback'],
+      ]);
+    }
+    // A link to a part of Home is never "the current page", even on Home.
+    expect(currentLinks(elementByClass(pageAt(siteOn, '/'), 'site-footer', 'footer'))).toEqual([]);
+  });
+
   it('has its wording in site.config.json, as text, and none of it in the template', () => {
     expect(Object.keys(copy).sort()).toEqual(['acknowledgement', 'ethicsApproval', 'licenceExceptions', 'tagline', 'trialRegistration']);
     const partial = readFileSync('src/_includes/partials/site-footer.njk', 'utf8');
@@ -484,10 +578,15 @@ describe('other pages', () => {
   it.each([
     ['/', 'home'],
     ['/start/', 'start'],
-    ['/problems/', 'problems'],
     ['/search/', 'search'],
   ])('%s has page_id %s', (url, id) => {
     expect(pageAt(site, url)).toContain(`data-page-id="${id}"`);
+  });
+
+  // The Sleep problems page is part of Home (project lead, 2026-11-13):
+  // its page_id is gone, and its address redirects (deploy-config.test.js).
+  it('has no page with the page_id "problems"', () => {
+    for (const { file, html } of readHtmlPages(site)) expect(html, file).not.toContain('data-page-id="problems"');
   });
 
   it('serves the 404 page at /404.html with no page_id', () => {
@@ -496,9 +595,34 @@ describe('other pages', () => {
     expect(html).toMatch(/<title>Page not found<\/title>/);
   });
 
-  it('gives the search page a no-JavaScript route to the Sleep problems page', () => {
+  // layouts/page.njk has two users, the search page and the 404 page, and
+  // both have the title band, so the layout has no band-less variant. The
+  // site search indexes only content/pages/ (SPEC §8.3), so neither needs
+  // `search: false`.
+  it('gives the search page and the 404 page the title band, from a layout with no other variant', () => {
+    for (const url of ['/search/', '/404.html']) {
+      const main = elementByClass(pageAt(site, url), 'page-body', 'div');
+      expect(main, url).toBeDefined();
+      expect(elementByClass(pageAt(site, url), 'band', 'div'), url).toMatch(/<h1 class="band__title">/);
+    }
+    const users = listFiles('content', (f) => /\.(njk|md)$/.test(f)).filter((f) => /^layout: layouts\/page\.njk$/m.test(readFileSync(`content/${f}`, 'utf8')));
+    expect(users.sort()).toEqual(['404.njk', 'search.njk']);
+    expect(readFileSync('src/_includes/layouts/page.njk', 'utf8')).not.toMatch(/\bif band\b|'none'/);
+    for (const f of users) expect(readFileSync(`content/${f}`, 'utf8'), f).not.toMatch(/^search:/m);
+  });
+
+  it("gives the search page a no-JavaScript route to Home's list of sleep problems", () => {
     const fallback = elementByClass(pageAt(site, '/search/'), 'search-fallback', 'div');
-    expect(fallback).toMatch(/<a href="\/problems\/">Sleep problems<\/a>/);
+    expect(fallback).toMatch(/<a href="\/#sleep-problems">Sleep problems<\/a>/);
+  });
+
+  it('links the 404 page to the home page, the list of sleep problems and the introduction', () => {
+    const list = elementByClass(pageAt(site, '/404.html'), 'link-list', 'ul');
+    expect([...list.matchAll(/<a href="([^"]*)">([^<]*)<\/a>/g)].map((m) => [m[1], m[2]])).toEqual([
+      ['/', 'Go to the home page'],
+      ['/#sleep-problems', 'Browse sleep problems'],
+      ['/start/', 'Watch the introduction'],
+    ]);
   });
 });
 

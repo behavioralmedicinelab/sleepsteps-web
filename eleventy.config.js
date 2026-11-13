@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { pagesIndex, writeIfChanged } from './scripts/build-data.js';
 import { parseCsvRecords } from './scripts/lib/csv.js';
 import { toVideo } from './scripts/lib/videos.js';
+import { worksheetsByVideo } from './scripts/lib/worksheets.js';
 import { formatIssue, validateContent } from './scripts/validate-content.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -50,7 +51,7 @@ export default function (eleventyConfig) {
 
   // Team-edited CSV files in data/ become global data, one array of row
   // objects per file: data/areas.csv -> `areas` (SPEC §7.2), data/videos.csv
-  // -> `videos` (SPEC §7.1).
+  // -> `videos` (SPEC §7.1), data/worksheets.csv -> `worksheets` (SPEC §7.6).
   eleventyConfig.addDataExtension('csv', {
     parser: (contents) => parseCsvRecords(contents),
   });
@@ -62,6 +63,9 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ media: 'media' });
   // Response headers for static assets, read by Workers (SPEC §16.1).
   eleventyConfig.addPassthroughCopy({ 'src/_headers': '_headers' });
+  // Redirects for addresses that have moved, read by Workers the same way
+  // (SPEC §7.2, §18.2): /problems/ is now part of Home.
+  eleventyConfig.addPassthroughCopy({ 'src/_redirects': '_redirects' });
   // The site icons (the steps motif, from the project lead's files), served
   // from the site root (SPEC §7.5). src/ holds the only copy. base.njk and the
   // admin pages link all three; /favicon.ico is also where a browser looks
@@ -93,18 +97,18 @@ export default function (eleventyConfig) {
     );
   });
 
-  // A problem as a link in a list: the shape groupByArea and groupByTime give.
+  // A problem as a link in a list: the shape groupByArea gives.
   const problemLink = (item) => ({
     slug: item.data.page_id,
     title: item.data.title,
     statement: item.data.statement,
     url: item.url,
-    isNew: item.data.new === true,
   });
 
   // Areas in display order, each with its problems: the shape TopicNav and
-  // the Sleep problems page use. Fails the build on a problem whose `area` is
-  // not in areas.csv. Cached per collection, since every page renders it.
+  // Home's list of sleep problems use. Fails the build on a problem whose
+  // `area` is not in areas.csv. Cached per collection, since every page
+  // renders it.
   const grouped = new WeakMap();
   eleventyConfig.addFilter('groupByArea', (problems, areas) => {
     if (!Array.isArray(problems) || !Array.isArray(areas)) {
@@ -128,25 +132,6 @@ export default function (eleventyConfig) {
     const result = [...byId.values()];
     grouped.set(problems, { areas, result });
     return result;
-  });
-
-  // The Sleep problems page's "When it happens" groups (`time_groups` in
-  // content/problems.njk: [{ id, name }] in display order), each with its
-  // problems in collection order (SPEC §7.2). Fails the build on a problem
-  // whose `time_of_day` has no group. Only that page uses it.
-  eleventyConfig.addFilter('groupByTime', (problems, times) => {
-    if (!Array.isArray(problems) || !Array.isArray(times)) {
-      throw new Error('groupByTime expects the problems collection and the time_groups front matter');
-    }
-    const byId = new Map(times.map((t) => [t.id, { ...t, problems: [] }]));
-    for (const item of problems) {
-      const time = byId.get(item.data.time_of_day);
-      if (!time) {
-        throw new Error(`${item.inputPath}: time_of_day "${item.data.time_of_day}" has no group in content/problems.njk`);
-      }
-      time.problems.push(problemLink(item));
-    }
-    return [...byId.values()];
   });
 
   // The video library (SPEC §7.1) is data/videos.csv, so the global data
@@ -179,26 +164,53 @@ export default function (eleventyConfig) {
   //   thumbnail, placeholder }. Unknown ids fail the build.
   eleventyConfig.addFilter('videoById', lookupVideo);
 
+  // Each video's worksheets (SPEC §7.6), from the global data `worksheets`
+  // (data/worksheets.csv's rows), grouped once per data array.
+  const worksheetIndexes = new WeakMap();
+  const worksheetsOf = (videoId, worksheets) => {
+    if (worksheets === undefined || worksheets === null) return [];
+    if (!Array.isArray(worksheets)) throw new Error('pass the worksheets data (data/worksheets.csv), e.g. solutions | solutionsByTier(videos, worksheets)');
+    let index = worksheetIndexes.get(worksheets);
+    if (!index) {
+      index = worksheetsByVideo(worksheets);
+      worksheetIndexes.set(worksheets, index);
+    }
+    return index.get(videoId) ?? [];
+  };
+
   // A problem's `solutions` split by tier, each with its video resolved:
-  // { main: [{ n, tier, blurb, description, video }], extra: [...] }; n
-  // counts from 1 within each tier (the step chip number). `description` is
-  // the solution's own blurb where it has one, otherwise the video's
-  // description (SPEC §7.2).
-  eleventyConfig.addFilter('solutionsByTier', (solutions, videos) => {
+  // { main: [{ n, tier, blurb, description, video, worksheets }], extra:
+  // [...] }; n counts from 1 within each tier (the step chip number).
+  // `description` is the solution's own blurb where it has one, otherwise
+  // the video's description (SPEC §7.2). `worksheets` are the video's rows
+  // of data/worksheets.csv, in the file's order, each { worksheet_id,
+  // video_id, title, file, placeholder } (toWorksheet() in
+  // scripts/lib/worksheets.js); [] for a video with none, and for every
+  // video when the worksheets data isn't passed. They belong to the video,
+  // so a video has the same worksheets on every problem (SPEC §7.6).
+  eleventyConfig.addFilter('solutionsByTier', (solutions, videos, worksheets) => {
     const tiers = { main: [], extra: [] };
     for (const solution of solutions ?? []) {
       const list = tiers[solution.tier];
       if (!list) throw new Error(`solution tier must be "main" or "extra", not "${solution.tier}"`);
       const video = lookupVideo(solution.video, videos);
       const blurb = typeof solution.blurb === 'string' ? solution.blurb.trim() : '';
-      list.push({ n: list.length + 1, tier: solution.tier, blurb, description: blurb || video.description, video });
+      list.push({
+        n: list.length + 1,
+        tier: solution.tier,
+        blurb,
+        description: blurb || video.description,
+        video,
+        worksheets: worksheetsOf(video.video_id, worksheets),
+      });
     }
     return tiers;
   });
 
   // Start here chapters (SPEC §7.3) with their videos resolved:
-  // [{ n, id: 'v1', video_id, title, duration, description, video }], all
-  // from the video's row. No chapters (any other page) gives [].
+  // [{ n, id: 'v1', video_id, title, video }], all from the video's row (the
+  // template reads the rest from `video`). No chapters (any other page)
+  // gives [].
   eleventyConfig.addFilter('introChapters', (chapters, videos) =>
     (chapters ?? []).map((chapter, i) => {
       const video = lookupVideo(chapter.video, videos);
@@ -207,21 +219,10 @@ export default function (eleventyConfig) {
         id: `v${i + 1}`,
         video_id: video.video_id,
         title: video.title,
-        duration: video.duration,
-        description: video.description,
         video,
       };
     }),
   );
-
-  // Which formats any video in the library has: { handout, audio }.
-  eleventyConfig.addFilter('videoFormats', (videos) => {
-    const all = (videos ?? []).map(toVideo);
-    return {
-      handout: all.some((v) => Boolean(v.handout)),
-      audio: all.some((v) => Boolean(v.audio)),
-    };
-  });
 
   // "cant-get-back-to-sleep" | problemBySlug(collections.problems) ->
   // { slug, title, statement, url, area }. Unknown slugs fail the build.
@@ -232,15 +233,14 @@ export default function (eleventyConfig) {
   });
 
   // "6:40" -> "6 minutes 40 seconds", for screen readers next to a visible
-  // duration. Anything that isn't m:ss or h:mm:ss (a "[mm:ss]" placeholder)
-  // gives "".
+  // duration. Anything that isn't m:ss (a "[mm:ss]" placeholder) gives "".
+  // There are no hours: the content check refuses h:mm:ss (SPEC §7.1).
   eleventyConfig.addFilter('spokenDuration', (duration) => {
-    const m = String(duration ?? '').trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):([0-5]\d)$/);
+    const m = String(duration ?? '').trim().match(/^(\d{1,2}):([0-5]\d)$/);
     if (!m) return '';
     const parts = [
-      [Number(m[1] ?? 0), 'hour'],
-      [Number(m[2]), 'minute'],
-      [Number(m[3]), 'second'],
+      [Number(m[1]), 'minute'],
+      [Number(m[2]), 'second'],
     ]
       .filter(([n]) => n > 0)
       .map(([n, unit]) => `${n} ${unit}${n === 1 ? '' : 's'}`);
@@ -257,14 +257,10 @@ export default function (eleventyConfig) {
 
   // aria-current for navigation links, derived from the page URL so styling
   // and semantics can't drift (styles key off the attribute). Returns
-  // ' aria-current="page"' for the page itself and, with mode 'section',
-  // ' aria-current="true"' for pages below it. Use with `| safe`.
-  eleventyConfig.addFilter('ariaCurrent', (pageUrl, href, mode) => {
-    if (typeof pageUrl !== 'string') return '';
-    if (pageUrl === href) return ' aria-current="page"';
-    if (mode === 'section' && pageUrl.startsWith(href)) return ' aria-current="true"';
-    return '';
-  });
+  // ' aria-current="page"' for the page itself. Use with `| safe`.
+  eleventyConfig.addFilter('ariaCurrent', (pageUrl, href) =>
+    typeof pageUrl === 'string' && pageUrl === href ? ' aria-current="page"' : '',
+  );
 
   // "13 11 14" -> "tel:131114". Keeps digits and a leading +.
   eleventyConfig.addFilter('telHref', (value) => {

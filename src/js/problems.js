@@ -1,24 +1,23 @@
-// Sleep problems page (/problems/): the two views, By area and "When it
-// happens", and the live filter (SPEC §7.2, §8.1; HANDOFF §6.3).
+// The list of sleep problems on Home (/#sleep-problems): the accordion of
+// areas and the live filter (SPEC §7.2, §8.1; HANDOFF §6.3). Until
+// 2026-11-13 the list was a page of its own, /problems/.
 //
-// Both views are the same accordion: one group per area, or one per time of
-// day, each a heading over its list of problems. The HTML works without this
-// module: every area is open under a plain heading, the toolbar and the
-// "When it happens" view carry `hidden`, and the result line is static.
-// This module:
+// Home lists the problems by area: one group per area, each a heading
+// over its list of problems. The HTML works without this module: every area
+// is open under a plain heading, the toolbar carries `hidden`, and the
+// result line is static. This module:
 //
-// - turns each group heading's <span>, in both views, into a <button
-//   aria-expanded aria-controls> (as menu.js does for the Menu) and closes
-//   every group of both views, except the area named in the URL
-//   (/problems/#mind), which it opens, also on hashchange;
-// - shows the toolbar: the filter and the By area / When it happens radios,
-//   and the lede's sentence about them (data-problems-hint);
-// - filters both views as you type, over each problem's short title,
-//   statement, area name and keywords (data-keywords, from
-//   data/keywords.csv when it exists), so switching view keeps the filter.
-//   While some topics match, groups without a match are hidden and groups
-//   with one open. When nothing matches, or the field is cleared, both
-//   views are as they were before the filter narrowed them (every group
+// - turns each area heading's <span> into a <button aria-expanded
+//   aria-controls> (as menu.js does for the Menu) and closes every area,
+//   except the one named in the URL (/#mind), which it opens, also on
+//   hashchange;
+// - shows the toolbar (the filter) and the lede's sentence about it
+//   (data-problems-hint);
+// - filters as you type, over each problem's short title, statement, area
+//   name and keywords (data-keywords, from data/keywords.csv when it
+//   exists). While some topics match, areas without a match are hidden and
+//   areas with one open. When nothing matches, or the field is cleared, the
+//   areas are as they were before the filter narrowed them (every area
 //   shown, one with no topics included, as on load), and the result line
 //   says so;
 // - writes the result line (aria-live="polite") once typing pauses, so a
@@ -28,22 +27,18 @@
 // stored or put in the URL, and reaches the page only through textContent.
 // Nothing is remembered between visits: no storage at all.
 //
-// Focus never moves: not on load, toggling, filtering or switching view.
-// Motion is CSS only (the chevron turn and the toggle's thumb), behind
-// prefers-reduced-motion. Every element is found and checked before
-// anything changes, inside try/catch, so a failure leaves the no-JavaScript
-// page as it was.
+// Focus never moves: not on load, toggling or filtering. Motion is CSS only
+// (the chevron turn), behind prefers-reduced-motion. Every element is found
+// and checked before anything changes, inside try/catch, so a failure
+// leaves the no-JavaScript page as it was.
 //
 // The pure functions below are exported for the unit tests
-// (test/node/page-problems.test.js); nothing touches the DOM until init().
+// (test/node/page-home-start.test.js); nothing touches the DOM until init().
 
 /** Milliseconds without typing before the result line is updated. */
 export const STATUS_DELAY = 400;
 
-export const NO_MATCH = {
-  area: 'Nothing matches yet. Try a different word, or open an area below.',
-  time: 'Nothing matches yet. Try a different word, or open a time of day below.',
-};
+export const NO_MATCH = 'Nothing matches yet. Try a different word, or open an area below.';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -85,101 +80,76 @@ export function displayQuery(raw) {
 }
 
 /**
- * The result line. No query: "36 topics in 10 areas" (By area) or "36
- * topics across 6 times of day" (When it happens). Matches: "4 topics match
- * “night”" or "1 topic matches “pain”". None: NO_MATCH for the view.
+ * The result line. No query: "36 topics in 10 areas". Matches: "4 topics
+ * match “night”" or "1 topic matches “pain”". None: NO_MATCH.
  */
-export function resultMessage({ query, matched, total, groupCount, view }) {
-  const byTime = view === 'time';
+export function resultMessage({ query, matched, total, groupCount }) {
   if (parseQuery(query).length === 0) {
-    const topics = plural(total, 'topic', 'topics');
-    return byTime
-      ? `${topics} across ${plural(groupCount, 'time of day', 'times of day')}`
-      : `${topics} in ${plural(groupCount, 'area', 'areas')}`;
+    return `${plural(total, 'topic', 'topics')} in ${plural(groupCount, 'area', 'areas')}`;
   }
-  if (matched === 0) return byTime ? NO_MATCH.time : NO_MATCH.area;
+  if (matched === 0) return NO_MATCH;
   const q = displayQuery(query);
   return matched === 1 ? `1 topic matches “${q}”` : `${matched} topics match “${q}”`;
 }
 
-/** A group's count: "6", or "2 of 6" while the filter narrows the list. */
+/** An area's count: "6", or "2 of 6" while the filter narrows the list. */
 export function countText(shown, total, filtering) {
   return filtering ? `${shown} of ${total}` : String(total);
 }
 
 // ---- DOM ------------------------------------------------------------------
 
-/** The groups in one view's panel, checked; null if any is malformed. */
-function collectGroups(panel) {
-  const groups = [];
-  for (const header of panel.querySelectorAll('[data-group-header]')) {
-    const section = header.closest('section');
-    const list = section?.querySelector('[data-group-list]');
-    const count = section?.querySelector('[data-group-count]');
-    const name = section?.querySelector('[data-group-name]');
-    const total = Number(count?.dataset.total);
-    if (!section || !list?.id || !count || !name || !Number.isInteger(total)) return null;
-    const items = [...list.children].filter((li) => li.dataset.slug);
-    groups.push({ header, section, list, count, name, total, items, button: null, open: true });
-  }
-  return groups.length > 0 ? groups : null;
-}
-
-/** Find and check every element first; null if the page isn't as expected. */
+/**
+ * Find and check every element first; null if the page isn't as expected.
+ * Each group is an area; each of its items is a problem with the text the
+ * filter searches: its words and the area's name.
+ */
 function collect(doc) {
   const root = doc.querySelector('[data-problems]');
   const tools = doc.querySelector('[data-problems-tools]');
   const hint = doc.querySelector('[data-problems-hint]'); // optional
   const status = doc.querySelector('[data-filter-status]');
   const input = doc.querySelector('[data-problem-filter]');
-  const panels = {
-    area: doc.querySelector('[data-view-panel="area"]'),
-    time: doc.querySelector('[data-view-panel="time"]'),
-  };
-  const radios = [...doc.querySelectorAll('[data-view-choice]')];
-  if (!root || !tools || !status || !input || !panels.area || !panels.time) return null;
-  const choices = {
-    area: radios.find((c) => c.value === 'area'),
-    time: radios.find((c) => c.value === 'time'),
-  };
-  if (radios.length !== 2 || !choices.area || !choices.time) return null;
+  if (!root || !tools || !status || !input) return null;
 
-  const groups = { area: collectGroups(panels.area), time: collectGroups(panels.time) };
-  if (!groups.area || !groups.time) return null;
-
-  // Each problem once, from By area: its words and the area's name. The
-  // "When it happens" view must list exactly the same problems.
-  const problems = new Map();
-  for (const group of groups.area) {
-    for (const li of group.items) {
+  const groups = [];
+  let total = 0; // problems on the page
+  for (const header of root.querySelectorAll('[data-group-header]')) {
+    const section = header.closest('section');
+    const list = section?.querySelector('[data-group-list]');
+    const count = section?.querySelector('[data-group-count]');
+    const name = section?.querySelector('[data-group-name]');
+    const size = Number(count?.dataset.total);
+    if (!section || !list?.id || !count || !name || !Number.isInteger(size)) return null;
+    const items = [];
+    for (const li of list.children) {
+      if (!li.dataset.slug) continue;
       const title = li.querySelector('[data-topic-title]');
       const statement = li.querySelector('[data-topic-statement]');
-      if (!title || !statement || problems.has(li.dataset.slug)) return null;
-      problems.set(li.dataset.slug, {
-        haystack: normalise([title.textContent, statement.textContent, group.name.textContent, li.dataset.keywords].join(' ')),
+      if (!title || !statement) return null;
+      items.push({
+        li,
+        haystack: normalise([title.textContent, statement.textContent, name.textContent, li.dataset.keywords].join(' ')),
         match: false,
       });
     }
+    total += items.length;
+    groups.push({ header, section, list, count, total: size, items, button: null, open: true });
   }
-  const timeSlugs = groups.time.flatMap((g) => g.items.map((li) => li.dataset.slug));
-  if (problems.size === 0 || timeSlugs.length !== problems.size || timeSlugs.some((s) => !problems.has(s))) return null;
+  if (groups.length === 0 || total === 0) return null;
 
-  return { root, tools, hint, status, input, panels, choices, groups, problems };
+  return { root, tools, hint, status, input, groups, total };
 }
 
 function init(doc, win) {
   const page = collect(doc);
   if (!page) return;
-  const { root, tools, hint, status, input, panels, choices, groups, problems } = page;
-  const allGroups = [...groups.area, ...groups.time];
+  const { root, tools, hint, status, input, groups, total } = page;
 
-  let view = 'area';
   let narrowed = false; // the lists show only the matches
-  let snapshot = null; // groups open before the filter narrowed the lists
+  let snapshot = null; // areas open before the filter narrowed the lists
   let matched = 0;
   let statusTimer;
-
-  const isMatch = (li) => problems.get(li.dataset.slug).match;
 
   const setOpen = (group, open) => {
     group.open = open;
@@ -187,8 +157,7 @@ function init(doc, win) {
     group.list.hidden = !open;
   };
 
-  const message = () =>
-    resultMessage({ query: input.value, matched, total: problems.size, groupCount: groups[view].length, view });
+  const message = () => resultMessage({ query: input.value, matched, total, groupCount: groups.length });
 
   // The live region is written once typing pauses, and only when its text
   // changes, so each pause is announced once.
@@ -203,41 +172,34 @@ function init(doc, win) {
   const applyFilter = () => {
     const query = parseQuery(input.value);
     matched = 0;
-    for (const problem of problems.values()) {
-      problem.match = query.length > 0 && matches(problem.haystack, query);
-      if (problem.match) matched += 1;
+    for (const group of groups) {
+      for (const item of group.items) {
+        item.match = query.length > 0 && matches(item.haystack, query);
+        if (item.match) matched += 1;
+      }
     }
     const narrow = matched > 0;
-    if (narrow && !narrowed) snapshot = new Set(allGroups.filter((g) => g.open));
+    if (narrow && !narrowed) snapshot = new Set(groups.filter((g) => g.open));
 
-    for (const group of allGroups) {
+    for (const group of groups) {
       let shown = 0;
-      for (const li of group.items) {
-        li.hidden = narrow && !isMatch(li);
-        if (!li.hidden) shown += 1;
+      for (const item of group.items) {
+        item.li.hidden = narrow && !item.match;
+        if (!item.li.hidden) shown += 1;
       }
-      // Only while narrowing: otherwise a group with no topics at all would
+      // Only while narrowing: otherwise an area with no topics at all would
       // vanish after typing and clearing, though it shows on load.
       group.section.hidden = narrow && shown === 0;
       group.count.textContent = countText(shown, group.total, narrow);
       if (narrow && shown > 0) setOpen(group, true);
     }
     // When the lists stop narrowing (the query is cleared, or nothing
-    // matches), the groups go back to how they were before.
+    // matches), the areas go back to how they were before.
     if (!narrow && narrowed && snapshot) {
-      for (const group of allGroups) setOpen(group, snapshot.has(group));
+      for (const group of groups) setOpen(group, snapshot.has(group));
       snapshot = null;
     }
     narrowed = narrow;
-    scheduleStatus();
-  };
-
-  // The result line names the view's groups ("in 10 areas") or, when
-  // nothing matches, how to browse them, so it follows the view.
-  const setView = (next) => {
-    view = next === 'time' ? 'time' : 'area';
-    panels.area.hidden = view !== 'area';
-    panels.time.hidden = view !== 'time';
     scheduleStatus();
   };
 
@@ -248,12 +210,12 @@ function init(doc, win) {
     } catch {
       return null;
     }
-    return (id && groups.area.find((g) => g.section.id === id)) || null;
+    return (id && groups.find((g) => g.section.id === id)) || null;
   };
 
   // ---- Change the page (nothing above has touched it) ----
 
-  for (const group of allGroups) {
+  for (const group of groups) {
     const button = doc.createElement('button');
     button.type = 'button';
     button.className = group.header.className;
@@ -265,14 +227,11 @@ function init(doc, win) {
     button.addEventListener('click', () => setOpen(group, !group.open));
   }
 
-  // Every group starts closed, in both views (project lead, 2026-11-07),
-  // except an area named in the URL, which someone chose to go to.
+  // Every area starts closed (project lead, 2026-11-07), except one named
+  // in the URL, which someone chose to go to.
   const target = areaFromHash();
-  for (const group of allGroups) setOpen(group, group === target);
+  for (const group of groups) setOpen(group, group === target);
 
-  choices.area.checked = true;
-  panels.area.hidden = false;
-  panels.time.hidden = true;
   tools.hidden = false;
   if (hint) hint.hidden = false;
   root.classList.add('is-enhanced');
@@ -294,25 +253,15 @@ function init(doc, win) {
     applyFilter();
   });
 
-  for (const choice of [choices.area, choices.time]) {
-    choice.addEventListener('change', () => {
-      if (choice.checked) setView(choice.value);
-    });
-  }
-
   // An area link on this page, or Back/Forward between them, opens that
-  // area in the By area view. Other fragments (such as the skip link's
-  // #main) are left alone.
+  // area, clearing a filter that hides it. Other fragments (such as the
+  // skip link's #main, or #sleep-problems) are left alone.
   win.addEventListener('hashchange', () => {
     const area = areaFromHash();
     if (!area) return;
     if (area.section.hidden) {
       input.value = '';
       applyFilter();
-    }
-    if (view !== 'area') {
-      choices.area.checked = true;
-      setView('area');
     }
     setOpen(area, true);
     area.section.scrollIntoView({ block: 'start' });

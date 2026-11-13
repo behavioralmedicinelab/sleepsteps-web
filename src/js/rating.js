@@ -52,7 +52,7 @@
 // browser restoring form state can't show one. Ratings send no usage event
 // and ignore the usage statistics switch (SPEC §10.1). No console calls.
 
-import { SEND_FAILED, postJson, succeeded } from './api.js';
+import { REANNOUNCE_MS, SEND_FAILED, SLUG, postJson, succeeded } from './api.js';
 
 const ENDPOINT = '/api/rate';
 
@@ -65,8 +65,8 @@ export const HOLD_MS = 2000;
 /** Decision a2: the status line before a rating ('' is B; A was "Ratings are anonymous."). */
 export const READY_TEXT = '';
 
-/** The pause before a repeated message is set again, so it is announced. */
-export const REANNOUNCE_MS = 100;
+/** The pause before a repeated message is set again, so it is announced (api.js). */
+export { REANNOUNCE_MS };
 
 /** The scale (SPEC §12; the Worker checks 1 to 5). */
 export const STARS = 5;
@@ -74,7 +74,6 @@ export const STARS = 5;
 export const thanksText = (n) => `Thanks. You rated this ${n} of ${STARS}.`;
 
 const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Each widget's root element -> its state. */
 const widgets = new Map();

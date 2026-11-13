@@ -18,7 +18,7 @@
   --teal-wash: #e8f1ed;     /* quiet panels; selected menu item */
   --warm-clay: #c4714e;     /* fills only (filled stars) */
   --clay-deep: #8a4a2c;     /* text form of clay: "Get urgent help" */
-  --clay-wash: #f0e4d6;     /* "New" badge, star hover, urgent notices */
+  --clay-wash: #f0e4d6;     /* star hover, urgent notices */
   --sand: #e7d9c4;          /* warm panels */
   --paper: #fbf9f5;         /* page background; text on teal */
   --white: #ffffff;         /* cards, header, inputs */
@@ -117,7 +117,6 @@
   --logo-height: 68px;       /* HANDOFF §4: 68px desktop, 56px phones */
   --logo-height-phone: 56px;
   --icon-sm: 16px;
-  --icon-md: 18px;
   --header-search-width: 220px;
   --target-xl: 52px;         /* large buttons: home hero, Start here end card */
   --play-disc: 72px;         /* video play button (boards: 72-76px) */

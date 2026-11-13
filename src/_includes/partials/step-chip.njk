@@ -1,25 +1,18 @@
 {#-
   Step chip (HANDOFF §4 "Brand devices"): a numbered disc plus a label.
-  Used on the home "How it works" cards ("1 Step 1") and on solution cards
-  ("1 Main", "2 Extra").
+  Used on solution cards ("1 Main", "2 Extra") and as the video template's
+  label ("1 of 2" on Start here).
 
     {% from "partials/step-chip.njk" import stepChip %}
-    {{ stepChip(1, 'Step 1', tag='p', hideNum=true) }}
-    {{ stepChip(2, 'Main', variant='sm paper') }}
+    {{ stepChip(2, 'Main', variant='paper') }}
 
   Arguments:
     num       the number in the disc
     label     the text after it
-    variant   space-separated modifiers: 'sm' (20px disc, for solution
-              cards), 'paper' (paper ground, for a chip on a coloured band).
-              Default: teal-wash ground, 24px disc
-    tag       the element ('span' by default; 'p' when it stands alone)
-    hideNum   true hides the disc from screen readers when the label already
-              says the number ("Step 1")
-
-  The label is in .step-chip__label, so a page can show the disc alone and
-  keep the label for screen readers (Home's phone step rows).
+    variant   'paper': a paper ground, for a chip on a coloured band.
+              Default: the teal-wash ground. Every chip has the solution
+              cards' 20px disc
 -#}
-{%- macro stepChip(num, label, variant='', tag='span', hideNum=false) -%}
-<{{ tag }} class="step-chip{% for v in variant.split(' ') %}{% if v %} step-chip--{{ v }}{% endif %}{% endfor %}"><span class="step-chip__num"{% if hideNum %} aria-hidden="true"{% endif %}>{{ num }}</span> <span class="step-chip__label">{{ label }}</span></{{ tag }}>
+{%- macro stepChip(num, label, variant='') -%}
+<span class="step-chip{% for v in variant.split(' ') %}{% if v %} step-chip--{{ v }}{% endif %}{% endfor %}"><span class="step-chip__num">{{ num }}</span> <span class="step-chip__label">{{ label }}</span></span>
 {%- endmacro -%}

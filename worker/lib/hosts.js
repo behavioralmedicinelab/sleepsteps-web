@@ -24,7 +24,7 @@ const LABEL = '[a-z0-9-]+';
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** API_HOSTS -> one anchored RegExp per usable entry. */
-export function hostPatterns(list) {
+function hostPatterns(list) {
   if (typeof list !== 'string') return [];
   return list
     .split(',')

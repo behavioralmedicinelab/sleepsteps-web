@@ -35,11 +35,26 @@ export function tags(html, name) {
   return html.match(new RegExp(`<${name}(?=[\\s>/])[^>]*>`, 'gi')) ?? [];
 }
 
-/** The value of an attribute in an opening tag, or undefined. */
+// An opening tag, up to the ">" that ends it (one inside a quoted value
+// doesn't), and one attribute: a name, then perhaps = and a quoted or bare
+// value.
+const OPENING_TAG = /^<[^\s>/]+(?:[^>"']|"[^"]*"|'[^']*')*/;
+const ATTRIBUTE = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+
+/**
+ * The value of an attribute in an opening tag, as written (not decoded),
+ * '' for one without a value, or undefined. The tag's attributes are read
+ * one at a time, so a word inside another attribute's value (a keyword
+ * such as "hidden", "for" in a description) is never taken for an
+ * attribute. Given a whole element, only its opening tag is read.
+ */
 export function attr(tag, name) {
-  const m = tag.match(new RegExp(`\\s${name}(?:\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+)))?(?=[\\s>/])`, 'i'));
-  if (!m) return undefined;
-  return m[1] ?? m[2] ?? m[3] ?? '';
+  const opening = tag.match(OPENING_TAG)?.[0] ?? tag;
+  const wanted = name.toLowerCase();
+  for (const m of opening.replace(/^<[^\s>/]+/, '').matchAll(ATTRIBUTE)) {
+    if (m[1].toLowerCase() === wanted) return m[2] ?? m[3] ?? m[4] ?? '';
+  }
+  return undefined;
 }
 
 /** The first element (opening tag to its matching close) with this class. */
@@ -59,16 +74,36 @@ export function elementByClass(html, className, tagName = '[a-z0-9]+') {
   return undefined;
 }
 
-/** Text content with tags stripped and whitespace collapsed. */
+/**
+ * Text content with tags stripped, the template's escapes decoded and
+ * whitespace collapsed: the words as a reader gets them. Nunjucks escapes
+ * & < > " and ' in a title or description from a spreadsheet, so a title
+ * such as "Sleep under 6 hours -> plan" comes back as the team typed it.
+ * (&amp; last, so "&amp;lt;" is the text "&lt;", not "<".)
+ */
 export function text(html) {
   return html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/**
+ * The worksheets section's markup (SPEC §7.6; problem/solutions.njk), as an
+ * attribute inside a tag: one of its classes (worksheets, worksheets__*),
+ * a link's data-worksheet, or an address in /media/worksheets/. What "no
+ * worksheets here" means in the tests of the built pages: the section, its
+ * links and their files, never the word. The team may write "worksheet" in
+ * any page's text, a solution's blurb or a video's title or description
+ * (and the template escapes a title's < > and quotes, so even markup typed
+ * into one is text).
+ */
+export const WORKSHEET_MARKUP = /<[^<>]*\s(?:class="(?:[^"]*\s)?worksheets[\s"_]|data-worksheet[\s=>]|[a-z-]+="\/media\/worksheets\/)/;
 
 /** Links with an aria-current attribute: [{ href, value, label }]. */
 export function currentLinks(html) {

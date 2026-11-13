@@ -14,7 +14,7 @@
 //   width (problem.css), so the header names it and Close closes it;
 // - one card is open at a time across both sections. Opening one closes the
 //   other and pauses its media (players.js), and moves focus to the opened
-//   card's title (or to its button, should the title not be rendered);
+//   card's title;
 // - Close returns focus to the card's button.
 //
 // Escape doesn't close a card: that isn't a disclosure convention, and the
@@ -47,11 +47,10 @@ function openCard(card) {
     if (other !== card) closeCard(other);
   }
   setOpen(card, true);
-  // The title, unless something keeps it from rendering (then the face).
-  const target = card.heading.getClientRects().length ? card.heading : card.face;
-  target.focus({ preventScroll: true });
+  // The title: the open card's face is hidden at every width (problem.css).
+  card.heading.focus({ preventScroll: true });
   // Closing a card above this one may have moved it out of view.
-  target.scrollIntoView({ block: 'nearest' });
+  card.heading.scrollIntoView({ block: 'nearest' });
 }
 
 function enhance(li) {
@@ -81,7 +80,6 @@ function enhance(li) {
 
   const wrapper = document.createElement('div');
   wrapper.className = details.className;
-  wrapper.dataset.enhanced = '';
 
   panel.setAttribute('role', 'region');
   panel.setAttribute('aria-labelledby', heading.id);

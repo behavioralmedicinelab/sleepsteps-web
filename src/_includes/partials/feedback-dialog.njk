@@ -15,6 +15,14 @@
   (decision A1) it hides the field, the widget's box and Send, so the dialog
   holds the notice, Close and the line offering the Contact page.
 
+  Each video's "Feedback" button (partials/video-block.njk; project lead,
+  2026-11-13) opens this same dialog. feedback.js then writes "Video:
+  <title>" in the line under the heading (data-feedback-about) and
+  shows it, and sends that video's id with the message. The line is part of
+  the dialog's description, before the notice, and ships empty and `hidden`:
+  opened from the footer's "Send feedback", it is emptied as well as hidden,
+  since a description is read even from a hidden element.
+
   The form never submits anywhere: method="dialog" (a native submit, if the
   script's handler ever failed, only closes the dialog) and no `name` on the
   textarea, so the message can't end up in an address. novalidate: the
@@ -26,9 +34,10 @@
   through the CSSOM, which style-src 'self' allows, and site.css fits the
   dialog above the keyboard with them (SPEC §13).
 -#}
-<dialog class="feedback-dialog" id="feedback-dialog" data-feedback-dialog aria-labelledby="feedback-title" aria-describedby="feedback-notice" data-sitekey="{{ site.turnstileSiteKey }}" hidden>
+<dialog class="feedback-dialog" id="feedback-dialog" data-feedback-dialog aria-labelledby="feedback-title" aria-describedby="feedback-about feedback-notice" data-sitekey="{{ site.turnstileSiteKey }}" hidden>
   <form class="feedback" method="dialog" novalidate>
     <h2 class="feedback__title" id="feedback-title" tabindex="-1">Send feedback</h2>
+    <p class="feedback__about" id="feedback-about" data-feedback-about hidden></p>
     <div class="feedback__notice" id="feedback-notice">{% include "notices/feedback.njk" %}</div>
     <div class="feedback__field" data-feedback-field>
       <label class="feedback__label" for="feedback-message">Your message</label>

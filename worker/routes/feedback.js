@@ -1,13 +1,18 @@
 // POST /api/feedback (SPEC §13, §14.1-§14.3). Imports no JSON, so Node can
 // load this module too.
 //
-// The body is exactly { page_id, message, turnstile_token }. Checks, in
-// order; the first that fails answers:
-//   400 body       not a JSON object; not exactly those three keys (so a
-//                  page_title, a client `ts`, a session_id and a "__proto__"
-//                  key are all refused)
+// The body is exactly { page_id, message, turnstile_token }, or those three
+// and video_id: feedback.js adds it only when the dialog was opened from a
+// video's "Feedback" button (project lead, 2026-11-13). Checks, in order;
+// the first that fails answers:
+//   400 body       not a JSON object; not exactly those three keys, with or
+//                  without video_id (so a page_title, a client `ts`, a
+//                  session_id and a "__proto__" key are all refused)
 //   400 page       page_id not a page in pages.json (the 404 page has none,
 //                  and a path is never accepted)
+//   400 video      video_id is there and isn't one of that page's videos in
+//                  pages.json (so null, a number and a video of another page
+//                  are refused, and a page without videos accepts none)
 //   400 message    not a string, or 0 or over 2000 UTF-16 code units (what
 //                  the textarea's maxlength counts) once cleaned (below)
 //   403 turnstile  turnstile_token not a string of 1-2048 characters
@@ -25,10 +30,11 @@
 // A message is one `feedback` row: `ts` the server's time rounded down to the
 // hour (lib/time.js, as for every row the API writes); `page` the checked
 // page_id, and no title (the admin page shows the page's current title from
-// pages.json, SPEC §14.4); `message` the cleaned text. No events row and no
-// session_id. Nothing from the request is ever logged: not the message, the
-// token, the IP address passed to Siteverify or the secret. The log lines
-// are fixed texts plus a code from a closed list.
+// pages.json, SPEC §14.4); `video` the checked video_id, or NULL when the
+// body has none (migration 0003); `message` the cleaned text. No events row
+// and no session_id. Nothing from the request is ever logged: not the
+// message, the token, the IP address passed to Siteverify or the secret. The
+// log lines are fixed texts plus a code from a closed list.
 
 import { insertRow } from '../lib/d1.js';
 import { apiError, hasExactKeys, isPlainObject } from '../lib/http.js';
@@ -37,6 +43,10 @@ import { verifyTurnstile } from '../lib/turnstile.js';
 
 /** The body's exact keys (SPEC §13). feedback.js sends the same. */
 export const FEEDBACK_KEYS = Object.freeze(['page_id', 'message', 'turnstile_token']);
+
+/** The one optional key: the video a message is about (SPEC §13). The body's keys are FEEDBACK_KEYS, or those and this. */
+export const FEEDBACK_VIDEO_KEY = 'video_id';
+const FEEDBACK_KEYS_WITH_VIDEO = Object.freeze([...FEEDBACK_KEYS, FEEDBACK_VIDEO_KEY]);
 
 /** The longest message stored, in UTF-16 code units: the textarea's maxlength (SPEC §13). */
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -64,14 +74,21 @@ export function cleanMessage(message) {
  * Check a parsed body against the rules above, up to Siteverify. Pure.
  * @param {unknown} body  the parsed JSON
  * @param {Map} index     pageIndex(pages.json)
- * @returns {{ row: { page: string, message: string }, token: string }
- *   | { status: 400 | 403, error: string }}
+ * @returns {{ row: { page: string, video: string | null, message: string }, token: string }
+ *   | { status: 400 | 403, error: string }}  `video` is null when the body has no video_id
  */
 export function validateFeedback(body, index) {
-  if (!isPlainObject(body) || !hasExactKeys(body, FEEDBACK_KEYS)) return { status: 400, error: 'body' };
+  if (!isPlainObject(body)) return { status: 400, error: 'body' };
+  const hasVideo = Object.hasOwn(body, FEEDBACK_VIDEO_KEY);
+  if (!hasExactKeys(body, hasVideo ? FEEDBACK_KEYS_WITH_VIDEO : FEEDBACK_KEYS)) return { status: 400, error: 'body' };
   const { page_id: page, message, turnstile_token: token } = body;
 
-  if (typeof page !== 'string' || !index.has(page)) return { status: 400, error: 'page' };
+  const entry = typeof page === 'string' ? index.get(page) : undefined;
+  if (!entry) return { status: 400, error: 'page' };
+
+  // No key: no video (stored as NULL). A key, even with null, must name one.
+  const video = hasVideo ? body[FEEDBACK_VIDEO_KEY] : null;
+  if (hasVideo && (typeof video !== 'string' || !entry.videos.has(video))) return { status: 400, error: 'video' };
 
   if (typeof message !== 'string') return { status: 400, error: 'message' };
   const cleaned = cleanMessage(message);
@@ -81,7 +98,7 @@ export function validateFeedback(body, index) {
     return { status: 403, error: 'turnstile' };
   }
 
-  return { row: { page, message: cleaned }, token };
+  return { row: { page, video, message: cleaned }, token };
 }
 
 /**
@@ -113,6 +130,7 @@ export async function handleFeedback(body, env, index, { remoteIp = null, now = 
     return apiError(500, 'server');
   }
 
-  const { page, message } = result.row;
-  return insertRow(env, LOG, 'INSERT INTO feedback (ts, page, message) VALUES (?, ?, ?)', [hourTimestamp(now), page, message]);
+  // `video` is the checked id or null, never undefined (lib/d1.js).
+  const { page, video, message } = result.row;
+  return insertRow(env, LOG, 'INSERT INTO feedback (ts, page, video, message) VALUES (?, ?, ?, ?)', [hourTimestamp(now), page, video, message]);
 }

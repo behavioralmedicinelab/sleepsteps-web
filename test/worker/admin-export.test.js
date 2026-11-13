@@ -110,6 +110,10 @@ function sampleEvents(ids) {
     ev('video_play', '2026-10-03T09:00:00.000Z', 'pain', A, { media: 'settling-your-body', furthest: 75 }),
     ev('audio_play', '2026-10-04T09:00:00.000Z', 'pain', B, { media: 'pain-about', furthest: 100 }),
     ev('handout_open', '2026-10-31T23:59:59.999Z', 'start', B, { media: 'how-sleep-works' }),
+    // Two worksheets opened in one hour by one visit on one page, and one of them again on another page.
+    ev('worksheet_open', '2026-10-05T09:00:00.000Z', 'pain', A, { worksheet: 'settling-worksheet-2' }),
+    ev('worksheet_open', '2026-10-05T09:00:00.000Z', 'pain', A, { worksheet: 'settling-worksheet-1' }),
+    ev('worksheet_open', '2026-10-05T09:00:00.000Z', 'start', A, { worksheet: 'settling-worksheet-1' }),
     // Five searches in one hour.
     search('restless legs', 0, '2026-10-15T10:00:00.000Z'),
     search('pain at night', 3, '2026-10-15T10:00:00.000Z'),
@@ -128,8 +132,11 @@ describe('columns (SPEC §14.4, decision B1)', () => {
     expect([...EXPORT_TABLES.keys()]).toEqual(['ratings', 'feedback', 'events', 'searches']);
     expect(EXPORT_TABLES.get('ratings').columns).toEqual(['id', 'ts', 'page', 'video', 'stars']);
     // No page_title: feedback stores the page id only (migration 0002).
-    expect(EXPORT_TABLES.get('feedback').columns).toEqual(['id', 'ts', 'page', 'message']);
-    expect(EXPORT_TABLES.get('events').columns).toEqual(['ts', 'session_id', 'page', 'type', 'media', 'furthest']);
+    // `video`, directly after `page`, is the video a message is about
+    // (migration 0003), as in the ratings file.
+    expect(EXPORT_TABLES.get('feedback').columns).toEqual(['id', 'ts', 'page', 'video', 'message']);
+    // `worksheet`, last, is the worksheet_id of a worksheet_open (SPEC §7.6): added at the end, so the earlier columns keep their places.
+    expect(EXPORT_TABLES.get('events').columns).toEqual(['ts', 'session_id', 'page', 'type', 'media', 'furthest', 'worksheet']);
     expect(EXPORT_TABLES.get('searches').columns).toEqual(['ts', 'q', 'results']);
     for (const table of EXPORT_TABLES.keys()) {
       const res = await get(`table=${table}&from=2026-10-01&to=2026-10-31`);
@@ -139,9 +146,11 @@ describe('columns (SPEC §14.4, decision B1)', () => {
   });
 
   it('leaves search rows out of the events file, and the events file holds no free text', async () => {
-    expect(EVENT_TYPE_ORDER).toEqual(['page_view', 'video_play', 'audio_play', 'handout_open']);
+    expect(EVENT_TYPE_ORDER).toEqual(['page_view', 'video_play', 'audio_play', 'handout_open', 'worksheet_open']);
     expect(EXPORT_TABLES.get('events').types).toEqual(EVENT_TYPE_ORDER);
     expect(EXPORT_TABLES.get('searches').types).toEqual(['search']);
+    // Between them the two files hold every type the Worker stores, each once (SPEC §10.2).
+    expect([...EVENT_TYPE_ORDER, 'search'].sort()).toEqual([...SHAPES.keys()].sort());
     await insert('events', sampleEvents((i) => 900_000_001 + i));
     const events = await whole('events');
     expect(events).not.toContain('search');
@@ -158,12 +167,50 @@ describe('columns (SPEC §14.4, decision B1)', () => {
     expect(columns.has('detail')).toBe(false);
     expect(columns.has('id')).toBe(false);
   });
+
+  it('counts every usage-event type the events file lists, so a download of worksheets alone is counted and capped too', async () => {
+    // The capped count names the same types as the file, in the same order.
+    const listed = EXPORT_TABLES.get('events').countSql.match(/type IN \(([^)]*)\)/)[1].split(', ').map((t) => t.replace(/'/g, ''));
+    expect(listed).toEqual(EVENT_TYPE_ORDER);
+    await insert('events', Array.from({ length: 5 }, (_, i) => ev('worksheet_open', `2026-10-0${i + 1}T10:00:00.000Z`, 'pain', A, { worksheet: 'settling-worksheet-1' })));
+    const count = await testEnv.DB.prepare(EXPORT_TABLES.get('events').countSql).bind('2026-10-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z', 100).first();
+    expect(count).toEqual({ n: 5 });
+    const capped = makeRouter({ maxExportRows: 4, pageRows: 2 });
+    const res = await get('table=events&from=2026-10-01&to=2026-10-31', { on: capped });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe(EXPORT_ERRORS['too-many-rows']);
+  });
+
+  it('gives a worksheet opened its worksheet_id in the last column, with media and furthest empty, and every other type an empty worksheet', async () => {
+    await insert('events', sampleEvents((i) => 900_000_001 + i));
+    const text = await whole('events');
+    const rows = parseCsv(text).slice(1);
+    expect(parseCsv(text)[0]).toEqual(['ts', 'session_id', 'page', 'type', 'media', 'furthest', 'worksheet']);
+    const opened = rows.filter((r) => r[3] === 'worksheet_open');
+    // In one hour: by page, then the visit code, then the stored detail (so by worksheet id).
+    expect(opened).toEqual([
+      ['2026-10-05T09:00:00.000Z', A, 'pain', 'worksheet_open', '', '', 'settling-worksheet-1'],
+      ['2026-10-05T09:00:00.000Z', A, 'pain', 'worksheet_open', '', '', 'settling-worksheet-2'],
+      ['2026-10-05T09:00:00.000Z', A, 'start', 'worksheet_open', '', '', 'settling-worksheet-1'],
+    ]);
+    // The raw line: quoted text, and NULL as empty fields.
+    expect(text).toContain(`"2026-10-05T09:00:00.000Z","${A}","pain","worksheet_open",,,"settling-worksheet-1"\r\n`);
+    for (const row of rows) {
+      expect(row).toHaveLength(7);
+      if (row[3] !== 'worksheet_open') expect(row[6], row.join()).toBe('');
+    }
+    // A handout's media stays where it was, and its worksheet cell is empty.
+    expect(rows.filter((r) => r[3] === 'handout_open')).toEqual([['2026-10-31T23:59:59.999Z', B, 'start', 'handout_open', 'how-sleep-works', '', '']]);
+    expect(text).not.toContain('{');
+  });
 });
 
 describe('the order never follows events.id (SPEC §10.1, §14.4)', () => {
   it('gives byte-identical files whatever order the ids are in, and no id', async () => {
     const files = [];
-    for (const ids of [(i) => 900_000_001 + i, (i, n) => 900_000_001 + (n - 1 - i), (i) => 900_000_001 + ((i * 7) % 15)]) {
+    // In insert order, reversed, and shuffled (7 shares no factor with the 18 rows, so every id is used once).
+    expect(sampleEvents((i) => i)).toHaveLength(18);
+    for (const ids of [(i) => 900_000_001 + i, (i, n) => 900_000_001 + (n - 1 - i), (i, n) => 900_000_001 + ((i * 7) % n)]) {
       await testEnv.DB.prepare('DELETE FROM events').run();
       await insert('events', sampleEvents(ids));
       files.push([await whole('events'), await whole('searches'), await joined('events', undefined, makeRouter({ pageRows: 2 }))]);
@@ -176,7 +223,11 @@ describe('the order never follows events.id (SPEC §10.1, §14.4)', () => {
   it('orders events by type, then ts, page, session_id and detail', async () => {
     await insert('events', sampleEvents((i) => 900_000_001 + i));
     const rows = parseCsv(await whole('events')).slice(1);
-    expect(rows.map((r) => r[3])).toEqual(['page_view', 'page_view', 'page_view', 'page_view', 'video_play', 'video_play', 'audio_play', 'handout_open']);
+    expect(rows.map((r) => r[3])).toEqual([
+      'page_view', 'page_view', 'page_view', 'page_view', 'video_play', 'video_play', 'audio_play', 'handout_open',
+      // The newest type comes last, after every earlier one (EVENT_TYPE_ORDER).
+      'worksheet_open', 'worksheet_open', 'worksheet_open',
+    ]);
     expect(rows.slice(1, 4).map((r) => [r[2], r[1]])).toEqual([
       ['pain', A],
       ['pain', B],
@@ -197,7 +248,8 @@ describe('parts (paged=1)', () => {
   it('joins parts of 2 and of 3 rows into exactly the one-file export', async () => {
     await insert('events', sampleEvents((i) => 900_000_001 + i));
     await insert('ratings', Array.from({ length: 7 }, (_, i) => ({ ts: `2026-10-0${1 + (i % 3)}T10:00:00.000Z`, page: 'pain', video: 'pain-about', stars: 1 + (i % 5) })));
-    await insert('feedback', Array.from({ length: 5 }, (_, i) => ({ ts: '2026-10-09T10:00:00.000Z', page: 'pain', message: `m${i}` })));
+    // Messages with and without a video, in one hour.
+    await insert('feedback', Array.from({ length: 5 }, (_, i) => ({ ts: '2026-10-09T10:00:00.000Z', page: 'pain', video: i % 2 ? 'pain-about' : null, message: `m${i}` })));
     for (const table of EXPORT_TABLES.keys()) {
       const reference = await whole(table);
       for (const pageRows of [1, 2, 3]) expect(await joined(table, undefined, makeRouter({ pageRows })), `${table} ${pageRows}`).toBe(reference);
@@ -264,14 +316,17 @@ describe('parts (paged=1)', () => {
   it('puts the BOM and header in the first part only, ends every part with CRLF, and leaves X-Export-Next off the last', async () => {
     await insert('events', sampleEvents((i) => 900_000_001 + i));
     const got = await parts('events', undefined, makeRouter({ pageRows: 3 }));
-    expect(got).toHaveLength(3);
+    // 11 rows: 8 of the first four types, then 3 worksheets opened.
+    expect(got).toHaveLength(4);
     expect(got[0].text.startsWith(BOM + header('events'))).toBe(true);
     for (const part of got.slice(1)) {
       expect(part.text.startsWith(BOM)).toBe(false);
       expect(part.text).not.toContain('session_id');
     }
     for (const part of got) expect(part.text.endsWith('\r\n')).toBe(true);
-    expect(got.map((p) => p.res.headers.get('X-Export-Rows'))).toEqual(['3', '3', '2']);
+    expect(got.map((p) => p.res.headers.get('X-Export-Rows'))).toEqual(['3', '3', '3', '2']);
+    // The third part ends inside the hour's worksheets: one of its three is sent.
+    expect(got[2].res.headers.get('X-Export-Next')).toBe('type=worksheet_open&ts=2026-10-05T09%3A00%3A00.000Z&skip=1');
     expect(got.at(-1).res.headers.has('X-Export-Next')).toBe(false);
     for (const part of got) {
       expect(part.res.headers.get('Content-Type')).toBe('text/csv; charset=utf-8; header=present');
@@ -291,6 +346,32 @@ describe('parts (paged=1)', () => {
     const only = await parts('events', undefined, makeRouter({ pageRows: 2 }));
     expect(only).toHaveLength(1);
     expect(only[0].res.headers.get('X-Export-Rows')).toBe('2');
+  });
+
+  it('moves on from handouts to worksheets, the last type, and accepts a cursor that names it', async () => {
+    await insert('events', [
+      ev('handout_open', '2026-10-01T10:00:00.000Z', 'pain', A, { media: 'pain-about' }),
+      ev('handout_open', '2026-10-01T11:00:00.000Z', 'pain', A, { media: 'pain-about' }),
+      ev('worksheet_open', '2026-10-01T09:00:00.000Z', 'pain', A, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-10-02T09:00:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-10-02T09:00:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-1' }),
+    ]);
+    const got = await parts('events', undefined, makeRouter({ pageRows: 2 }));
+    expect(got.map((p) => p.res.headers.get('X-Export-Next'))).toEqual([
+      'type=worksheet_open&ts=2026-10-01T00%3A00%3A00.000Z&skip=0',
+      // Two identical rows in one hour: one sent, one to come.
+      'type=worksheet_open&ts=2026-10-02T09%3A00%3A00.000Z&skip=1',
+      null,
+    ]);
+    expect(got.map((p) => p.res.headers.get('X-Export-Rows'))).toEqual(['2', '2', '1']);
+    expect(got.map((p) => p.text).join('')).toBe(await whole('events'));
+    const cursor = await get('table=events&from=2026-10-01&to=2026-10-31&paged=1&type=worksheet_open&ts=2026-10-02T09:00:00.000Z&skip=1');
+    expect(cursor.status).toBe(200);
+    expect(cursor.headers.get('X-Export-Rows')).toBe('1');
+    // The searches file takes no such cursor: a worksheet is never a search.
+    const searches = await get('table=searches&from=2026-10-01&to=2026-10-31&paged=1&type=worksheet_open&ts=2026-10-02T09:00:00.000Z&skip=0');
+    expect(searches.status).toBe(400);
+    expect(await searches.text()).toBe(EXPORT_ERRORS.cursor);
   });
 
   it('refuses a bad cursor with 400 and a fixed message', async () => {
@@ -491,7 +572,11 @@ describe('dates', () => {
 
 describe('the CSV (RFC 4180, OWASP)', () => {
   it('starts with the UTF-8 BOM bytes, ends records with CRLF, leaves NULL empty and numbers bare', async () => {
-    await insert('feedback', [{ id: 12, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message: 'a "quoted", line\nbreak' }]);
+    await insert('feedback', [
+      { id: 12, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message: 'a "quoted", line\nbreak' },
+      { id: 13, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: 'settling-your-body', message: 'about a video' },
+      { id: 14, ts: '2026-10-05T10:00:00.000Z', page: 'start', video: null, message: 'no video' },
+    ]);
     await insert('ratings', [{ id: 3, ts: '2026-10-05T10:00:00.000Z', page: 'start', video: 'how-sleep-works', stars: 4 }]);
     await insert('events', [ev('page_view', '2026-10-05T10:00:00.000Z', 'pain', A)]);
     const res = await get('table=feedback&from=2026-10-01&to=2026-10-31');
@@ -499,9 +584,16 @@ describe('the CSV (RFC 4180, OWASP)', () => {
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
     // The header's cells are text, so they are quoted too.
-    expect(text).toBe(`${BOM}"id","ts","page","message"\r\n12,"2026-10-05T10:00:00.000Z","pain","a ""quoted"", line\nbreak"\r\n`);
-    // NULL is an empty field: a page view has no media or furthest.
-    expect(await whole('events')).toBe(`${BOM}"ts","session_id","page","type","media","furthest"\r\n"2026-10-05T10:00:00.000Z","${A}","pain","page_view",,\r\n`);
+    // `video` comes directly after `page`: the video_id, or an empty field
+    // for NULL (a message sent from the footer, or stored before migration 0003).
+    expect(text).toBe(
+      `${BOM}"id","ts","page","video","message"\r\n` +
+        '12,"2026-10-05T10:00:00.000Z","pain",,"a ""quoted"", line\nbreak"\r\n' +
+        '13,"2026-10-05T10:00:00.000Z","pain","settling-your-body","about a video"\r\n' +
+        '14,"2026-10-05T10:00:00.000Z","start",,"no video"\r\n',
+    );
+    // NULL is an empty field: a page view has no media, furthest or worksheet.
+    expect(await whole('events')).toBe(`${BOM}"ts","session_id","page","type","media","furthest","worksheet"\r\n"2026-10-05T10:00:00.000Z","${A}","pain","page_view",,,\r\n`);
     expect(await whole('ratings')).toBe(`${BOM}"id","ts","page","video","stars"\r\n3,"2026-10-05T10:00:00.000Z","start","how-sleep-works",4\r\n`);
   });
 
@@ -510,10 +602,39 @@ describe('the CSV (RFC 4180, OWASP)', () => {
     await insert('feedback', starts.map((message, i) => ({ id: 100 + i, ts: '2026-10-05T10:00:00.000Z', page: 'pain', message })));
     await insert('events', [search('=HYPERLINK("http://x")', 0), search('plain', 1)]);
     const feedback = parseCsv(await whole('feedback')).slice(1);
-    expect(feedback.map((r) => r[3])).toEqual(starts.map((s) => `'${s}`));
+    expect(feedback.map((r) => r[4])).toEqual(starts.map((s) => `'${s}`));
+    expect(feedback.map((r) => r[3])).toEqual(starts.map(() => ''));
     const searches = parseCsv(await whole('searches')).slice(1);
     expect(searches.map((r) => r[1])).toEqual(['\'=HYPERLINK("http://x")', 'plain']);
     for (const message of starts) expect(FORMULA_START.test(message), JSON.stringify(message)).toBe(true);
+  });
+
+  it('defuses the video cell like any text cell (the API stores only a video_id from pages.json, which starts with none of these)', async () => {
+    // Rows written straight to the database, as a mistaken manual edit could.
+    await insert('feedback', [
+      { id: 300, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: '=SUM(1)', message: 'x' },
+      { id: 301, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: '@x', message: 'y' },
+      { id: 302, ts: '2026-10-05T10:00:00.000Z', page: 'pain', video: 'a "quoted", id', message: 'z' },
+    ]);
+    const text = await whole('feedback');
+    expect(text).toContain(`300,"2026-10-05T10:00:00.000Z","pain","'=SUM(1)","x"\r\n`);
+    expect(text).toContain(`301,"2026-10-05T10:00:00.000Z","pain","'@x","y"\r\n`);
+    expect(text).toContain('302,"2026-10-05T10:00:00.000Z","pain","a ""quoted"", id","z"\r\n');
+    expect(parseCsv(text).slice(1).map((r) => r[3])).toEqual(["'=SUM(1)", "'@x", 'a "quoted", id']);
+  });
+
+  it('defuses the worksheet cell like any text cell (the API stores only a worksheet_id from pages.json, which starts with none of these)', async () => {
+    // Rows written straight to the database, as a mistaken manual edit could.
+    await insert('events', [
+      ev('worksheet_open', '2026-10-05T10:00:00.000Z', 'pain', A, { worksheet: '=SUM(1)' }),
+      ev('worksheet_open', '2026-10-05T11:00:00.000Z', 'pain', A, { worksheet: '@x' }),
+      ev('worksheet_open', '2026-10-05T12:00:00.000Z', 'pain', A, { worksheet: 'a "quoted", id' }),
+    ]);
+    const text = await whole('events');
+    expect(text).toContain(`"2026-10-05T10:00:00.000Z","${A}","pain","worksheet_open",,,"'=SUM(1)"\r\n`);
+    expect(text).toContain(`"2026-10-05T11:00:00.000Z","${A}","pain","worksheet_open",,,"'@x"\r\n`);
+    expect(text).toContain(`"2026-10-05T12:00:00.000Z","${A}","pain","worksheet_open",,,"a ""quoted"", id"\r\n`);
+    expect(parseCsv(text).slice(1).map((r) => r[6])).toEqual(["'=SUM(1)", "'@x", 'a "quoted", id']);
   });
 
   it('round-trips the stored text: parse, then remove one leading apostrophe', async () => {
@@ -522,7 +643,7 @@ describe('the CSV (RFC 4180, OWASP)', () => {
     await insert('events', texts.map((q, i) => search(q, i, '2026-10-07T10:00:00.000Z')));
     const unguard = (cell) => (cell.startsWith("'") ? cell.slice(1) : cell);
     const feedback = parseCsv(await whole('feedback')).slice(1);
-    expect(feedback.map((r) => unguard(r[3]))).toEqual(texts);
+    expect(feedback.map((r) => unguard(r[4]))).toEqual(texts);
     const searches = parseCsv(await whole('searches')).slice(1).map((r) => unguard(r[1]));
     expect(searches.sort()).toEqual([...texts].sort());
   });
@@ -551,6 +672,32 @@ describe('query plans (SPEC §17)', () => {
       expect(detail, table).toMatch(/LAST 3 TERMS OF ORDER BY/);
       expect(detail, table).not.toMatch(/SCAN events\b(?! USING)/);
     }
+    // The same for each type the events file pages, worksheet_open included.
+    for (const type of EVENT_TYPE_ORDER) {
+      const detail = await plan(EXPORT_TABLES.get('events').partSql, [type, S, E, 11, 0]);
+      expect(detail, type).toMatch(/idx_events_type_ts/);
+      expect(detail, type).not.toMatch(/SCAN events\b(?! USING)/);
+    }
+  });
+
+  it('reads the worksheets opened through the (type, ts) index: a search of the index, never a scan of events', async () => {
+    const sql = Object.fromEntries(SUMMARY_QUERIES).worksheets;
+    expect(sql).toMatch(/^SELECT page, json_extract\(detail, '\$\.worksheet'\) AS worksheet, COUNT\(\*\) AS clicks, COUNT\(DISTINCT session_id\) AS visits FROM events WHERE type = 'worksheet_open' AND ts >= \?1 AND ts < \?2 GROUP BY page, worksheet$/);
+    const detail = await plan(sql, [S, E]);
+    expect(detail).toMatch(/SEARCH events USING INDEX idx_events_type_ts \(type=\? AND ts>\? AND ts<\?\)/);
+    expect(detail).not.toMatch(/SCAN events\b(?! USING)/);
+    // Its two bindings are the range, like every summary statement: nothing else reaches the SQL.
+    expect(sql.match(/\?\d+/g)).toEqual(['?1', '?2']);
+    // It reads only the range's worksheet rows, however many other events there are.
+    await insert('events', [
+      ...Array.from({ length: 40 }, (_, i) => ev('page_view', `2026-10-10T10:00:${String(i).padStart(2, '0')}.000Z`, 'pain', A)),
+      ev('worksheet_open', '2026-10-10T10:00:00.000Z', 'pain', A, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-10-10T10:00:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-09-10T10:00:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-1' }),
+    ]);
+    const { results, meta } = await testEnv.DB.prepare(sql).bind(S, E).all();
+    expect(results).toEqual([{ page: 'pain', worksheet: 'settling-worksheet-1', clicks: 2, visits: 2 }]);
+    expect(meta.rows_read).toBeLessThanOrEqual(2 * 2);
   });
 
   it('pages ratings and feedback in index order, with no sort', async () => {

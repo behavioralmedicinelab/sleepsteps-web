@@ -13,7 +13,8 @@
 //   session_id  search: the key is present at all (null too); any other
 //               type: not a lowercase v4 UUID
 //   detail      not an object with exactly the type's keys; a value that
-//               fails its rule (media must be a video on that page)
+//               fails its rule (media must be a video on that page, and
+//               worksheet one of that page's worksheets)
 //
 // The server sets `ts`: its own time rounded down to the hour for every type
 // (lib/time.js), so no event carries an exact time. It stores a detail
@@ -34,13 +35,14 @@ export const SHAPES = new Map([
   ['video_play', ['media', 'furthest']],
   ['audio_play', ['media', 'furthest']],
   ['handout_open', ['media']],
+  ['worksheet_open', ['worksheet']],
 ]);
 
 /** A v4 UUID as crypto.randomUUID() writes it: lowercase, version 4, RFC 4122 variant. */
 export const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** The furthest points a play can report (SPEC §9.4). */
-export const FURTHEST = Object.freeze([0, 25, 50, 75, 100]);
+const FURTHEST = Object.freeze([0, 25, 50, 75, 100]);
 
 /** The longest search text kept, in UTF-16 code units (search.js sends at most this). */
 export const MAX_QUERY_LENGTH = 100;
@@ -69,6 +71,11 @@ function checkedDetail(type, detail, page) {
     }
     case 'handout_open':
       return isMedia(detail.media) ? { media: detail.media } : undefined;
+    case 'worksheet_open': {
+      // One of the worksheets this page's open solution cards link (SPEC §7.6).
+      const { worksheet } = detail;
+      return typeof worksheet === 'string' && page.worksheets.has(worksheet) ? { worksheet } : undefined;
+    }
     default:
       return undefined;
   }
@@ -90,7 +97,7 @@ export function validateEvent(body, index) {
   if (typeof type !== 'string' || !SHAPES.has(type)) return { error: 'type' };
 
   const entry = typeof page === 'string' ? index.get(page) : undefined;
-  if (type === 'search' ? page !== 'search' : !entry) return { error: 'page' };
+  if (!entry || (type === 'search' && page !== 'search')) return { error: 'page' };
   if (type === 'page_view' && !entry.pageView) return { error: 'page' };
 
   if (type === 'search') {

@@ -35,6 +35,16 @@ const VISIT_KEY = 'sleepsteps-visit';
 const OFF_KEY = 'sleepsteps-stats-off';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PROBLEM = '/problems/tired-but-wired/';
+// A problem page whose solution cards list worksheets: the one that lists
+// the most. While data/worksheets.csv has none for a solution video (a valid
+// file, SPEC §7.6), PROBLEM, where the worksheet tests then find no link and
+// check that nothing is sent.
+const SHEETS_ID =
+  Object.entries(pagesJson)
+    .filter(([, page]) => page.worksheets.length > 0)
+    .sort(([, a], [, b]) => b.worksheets.length - a.worksheets.length)[0]?.[0] ?? 'tired-but-wired';
+const SHEETS_URL = pagesJson[SHEETS_ID].url;
+const LISTED = pagesJson[SHEETS_ID].worksheets;
 
 const CONSOLE = ['log', 'info', 'warn', 'error', 'debug', 'trace'];
 let dom;
@@ -188,6 +198,72 @@ describe('events.js sends what players.js reports', () => {
     }
   });
 
+  // Opening a worksheet is counted as opening a handout is (project lead,
+  // 2026-11-13; SPEC §7.6, §9.4, §10.2): players.js reports a click on a
+  // link marked data-worksheet, and events.js sends it with the visit code.
+  it('sends a worksheet_open for each worksheet link on a real problem page, in the shape the Worker accepts for that page, with the visit code', async () => {
+    const session = new MemoryStorage();
+    await open(SHEETS_URL, { modules: ['events', 'players'], session });
+    const { document } = dom;
+    const code = session.getItem(VISIT_KEY);
+    const links = document.querySelectorAll('.solution .worksheets a[data-worksheet]');
+    // Every link marked data-worksheet is one of these, and the page's
+    // worksheets are exactly theirs (pages.json reads them).
+    expect(document.querySelectorAll('[data-worksheet]')).toEqual(links);
+    expect([...new Set(links.map((a) => a.dataset.worksheet))].sort()).toEqual(LISTED);
+    expect(links.length).toBeGreaterThanOrEqual(LISTED.length);
+    for (const link of links) link.click();
+
+    expect(sent.map((e) => e.type)).toEqual(['page_view', ...links.map(() => 'worksheet_open')]);
+    expect(sent.slice(1).map((e) => e.detail)).toEqual(links.map((a) => ({ worksheet: a.dataset.worksheet })));
+    for (const event of sent.slice(1)) {
+      expect(Object.keys(event)).toEqual(['type', 'page', 'session_id', 'detail']);
+      expect(event.page).toBe(SHEETS_ID);
+      expect(event.session_id).toBe(code);
+      expect(verdict(event)).toEqual({
+        row: { session_id: code, page: SHEETS_ID, type: 'worksheet_open', detail: JSON.stringify({ worksheet: event.detail.worksheet }) },
+      });
+    }
+    // Each is its own request, sent at once (a click may be the page's last act).
+    expect(calls).toHaveLength(1 + links.length);
+    expect(calls.every((c) => c.via === 'beacon' && c.url === '/api/event')).toBe(true);
+  });
+
+  it('sends a handout and a worksheet opened in the same card as two events, each with its own key', async () => {
+    await open(SHEETS_URL, { modules: ['events', 'players'] });
+    const card = dom.document.querySelectorAll('.solution').find((el) => el.querySelector('.worksheets'));
+    // No card has worksheets only while the page lists none.
+    expect(card === undefined).toBe(LISTED.length === 0);
+    if (!card) return;
+    const handout = card.querySelector('.video-controls a[data-handout]');
+    const worksheet = card.querySelector('.worksheets a[data-worksheet]');
+    handout.click();
+    worksheet.click();
+    expect(sent.slice(1).map((e) => [e.type, e.detail])).toEqual([
+      ['handout_open', { media: handout.dataset.handout }],
+      ['worksheet_open', { worksheet: worksheet.dataset.worksheet }],
+    ]);
+    for (const event of sent) expect(verdict(event).error, JSON.stringify(event)).toBeUndefined();
+  });
+
+  it('sends a reported worksheet_open that the Worker accepts only from a page that lists the worksheet', async () => {
+    await open(SHEETS_URL);
+    // events.js sends what it is given; the Worker decides. A made-up id, one of the page's videos, and a page with no worksheets are refused.
+    report('worksheet_open', { worksheet: 'no-such-worksheet' });
+    expect(sent[1]).toEqual({ type: 'worksheet_open', page: SHEETS_ID, session_id: sent[0].session_id, detail: { worksheet: 'no-such-worksheet' } });
+    expect(verdict(sent[1])).toEqual({ error: 'detail' });
+    // (A video's id is refused unless the spreadsheet gives a worksheet that very id.)
+    for (const video of pagesJson[SHEETS_ID].videos.filter((id) => !LISTED.includes(id))) {
+      expect(verdict({ ...sent[1], detail: { worksheet: video } }), video).toEqual({ error: 'detail' });
+    }
+    for (const worksheet of LISTED) {
+      report('worksheet_open', { worksheet });
+      expect(verdict(sent.at(-1)).error, worksheet).toBeUndefined();
+      expect(verdict({ ...sent.at(-1), page: 'start' }), worksheet).toEqual({ error: 'detail' });
+    }
+    expect(sent).toHaveLength(2 + LISTED.length);
+  });
+
   it('sends a video_play for each furthest point players.js can report, for each video on the page', async () => {
     await open(PROBLEM, { modules: ['events', 'players'] });
     const videos = dom.document.querySelectorAll('[data-video]').map((el) => el.dataset.video);
@@ -201,6 +277,8 @@ describe('events.js sends what players.js reports', () => {
     await open(PROBLEM);
     report('handout_open', { media: 'wind-down-hour', file: 'wind-down-hour.pdf', page: 'x', ts: 1 });
     expect(sent[1]).toEqual({ type: 'handout_open', page: 'tired-but-wired', session_id: sent[0].session_id, detail: { media: 'wind-down-hour' } });
+    report('worksheet_open', { worksheet: 'a-worksheet', media: 'wind-down-hour', file: 'a-worksheet.pdf', title: 'A worksheet', page: 'x', ts: 1 });
+    expect(sent[2]).toEqual({ type: 'worksheet_open', page: 'tired-but-wired', session_id: sent[0].session_id, detail: { worksheet: 'a-worksheet' } });
   });
 
   it('sends nothing for an unknown type, a detail without its keys, or a report that is not an object', async () => {
@@ -211,6 +289,13 @@ describe('events.js sends what players.js reports', () => {
     report('search', { q: 'pain' });
     report('handout_open', null);
     report('handout_open', 'wind-down-hour');
+    // A worksheet_open needs its own key: a handout's `media` is not it.
+    report('worksheet_open', { media: 'wind-down-hour' });
+    report('worksheet_open', { worksheet_id: 'a-worksheet' });
+    report('worksheet_open', {});
+    report('worksheet_open', null);
+    report('worksheet_open', 'a-worksheet');
+    report('worksheet_download', { worksheet: 'a-worksheet' });
     // No longer a type (SPEC §10.2): nothing reports it, and the Worker refuses it.
     report('transcript_open', { media: 'wind-down-hour' });
     dom.document.dispatchEvent(new CustomEvent('sleepsteps:event', { detail: 'page_view' }));
@@ -279,9 +364,12 @@ describe('events.js with usage statistics turned off', () => {
   it('sends nothing at all, and deletes the visit code left in the tab, when they are off at load', async () => {
     const local = new MemoryStorage({ [OFF_KEY]: '1' });
     const session = new MemoryStorage({ [VISIT_KEY]: '2f1c4e1e-9a51-4b0e-8a39-2f0d1c7a6b5e' });
-    await open(PROBLEM, { modules: ['events', 'players'], local, session });
+    await open(SHEETS_URL, { modules: ['events', 'players'], local, session });
     report('handout_open', { media: 'wind-down-hour' });
     dom.document.querySelector('a[data-handout]').click();
+    // A worksheet link too, on a page that has one, and a report of one.
+    dom.document.querySelector('a[data-worksheet]')?.click();
+    report('worksheet_open', { worksheet: 'a-worksheet' });
     dom.window.dispatchEvent(new Event('pagehide'));
     expect(calls).toEqual([]);
     expect(session.length).toBe(0);
@@ -402,7 +490,8 @@ describe('events.js visit codes', () => {
     const { SHAPES, UUID_V4 } = await import('../../src/js/events.js');
     expect(SHAPES).toEqual(WORKER_SHAPES);
     // The SPEC §10.2 list: no transcript_open, as the site has no transcripts (SPEC §9.3).
-    expect([...SHAPES.keys()]).toEqual(['page_view', 'search', 'video_play', 'audio_play', 'handout_open']);
+    expect([...SHAPES.keys()]).toEqual(['page_view', 'search', 'video_play', 'audio_play', 'handout_open', 'worksheet_open']);
+    expect(SHAPES.get('worksheet_open')).toEqual(['worksheet']);
     expect(UUID_V4.source).toBe(WORKER_UUID_V4.source);
     expect(UUID_V4.flags).toBe(WORKER_UUID_V4.flags);
   });
@@ -504,6 +593,22 @@ describe('built pages and the usage statistics modules (SPEC §10.1, §11)', () 
         expect(library.has(id), `${file}: data-${name}="${id}"`).toBe(true);
       }
     }
+  });
+
+  it('names only real worksheets in data-worksheet, and only on pages that load players.js and events.js, which report and send the click', () => {
+    const sheets = new Set(parseCsvRecords(readFileSync('data/worksheets.csv', 'utf8')).map((row) => row.worksheet_id));
+    let count = 0;
+    for (const { file, html } of pages) {
+      const named = [...html.matchAll(/\sdata-worksheet="([^"]*)"/g)].map((m) => m[1]);
+      for (const id of named) expect(sheets.has(id), `${file}: data-worksheet="${id}"`).toBe(true);
+      if (named.length === 0) continue;
+      count += named.length;
+      const scripts = scriptsOf(html);
+      expect(scripts, file).toContain('/js/players.js');
+      expect(scripts.indexOf('/js/events.js'), file).toBeGreaterThanOrEqual(0);
+      expect(scripts.indexOf('/js/events.js'), file).toBeLessThan(scripts.indexOf('/js/players.js'));
+    }
+    expect(count > 0).toBe(Object.values(pagesJson).some((page) => page.worksheets.length > 0));
   });
 
   it('sets a referrer policy only on the search page, and never no-referrer (sendBeacon would then send Origin: null)', () => {

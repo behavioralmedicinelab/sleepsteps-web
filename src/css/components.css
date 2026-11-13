@@ -28,9 +28,6 @@
      phones, 14px -> 16px from 600px), the same on every frame. */
   --video-inset: var(--space-4);
   --disc: var(--play-disc-phone);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
 /* The 16:9 frame. A grid, so the error message (in the flow) fills it and
@@ -271,13 +268,18 @@ button.video__facade[aria-disabled="true"] {
    2026-11-09): the label (a step chip, where the context has one) with a
    solution card's Close at its right, the title and the description; the
    video; then the row of controls. One layout everywhere, decided by the
-   width of the page's main column (.with-sidebar__main in site.css, the one
-   query container for every video on the page), so the problem video and
-   an open card below it always switch together: narrower than 768px, one
-   column in the DOM's order (the label, title and description above the
-   video); from 768px the video (3fr) and the label, title and description
-   (2fr) side by side, and the row under both, across the block, so "Audio
-   only", the handout and the rating share one line. 768 is the Problem-A
+   width of the page's two-column wrapper (.with-sidebar in site.css, the
+   one query container for every video on the site, as wide on Start here
+   as on a problem page), so every video switches at one window width
+   (about 1130px) and never back, and the problem video and an open card
+   below it always switch together: narrower than 1080px, one column in
+   the DOM's order (the label, title and description above the video);
+   from 1080px the video (3fr) and the label, title and description (2fr)
+   side by side, and the row under both, across the block ("Audio only",
+   the handout, "Feedback" and the rating share one line once the row is
+   about 800px wide; narrower, the stars take the line under the buttons,
+   SPEC §7.5). 1080 is a problem page's sidebar (280) and gap (32) and a
+   768px main column (Start here's is then 780px); 768 is the Problem-A
    open card's 420 + 24 + 280 = 724 (not tokens) plus an open card's 2px
    border and 20px panel padding on each side, so the narrowest template,
    the open card's, still has 724px when it goes to two columns. */
@@ -347,7 +349,7 @@ button.video__facade[aria-disabled="true"] {
   min-width: 0;
 }
 
-@container video-context (min-width: 768px) {
+@container video-context (min-width: 1080px) {
   .video-block__grid {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     grid-template-areas:
@@ -376,11 +378,11 @@ button.video__facade[aria-disabled="true"] {
   }
 }
 
-/* The row of controls under every video: "Audio only", the handout, then
-   "Was this helpful?" with its stars. They share one line where there is
-   room and wrap, each whole, where there isn't (the stars drop below the
-   buttons on phones and in narrow columns). Left-aligned at every width
-   (SPEC §7.5). */
+/* The row of controls under every video: "Audio only", the handout,
+   "Feedback" (SPEC §13), then "Was this helpful?" with its stars. They
+   share one line where there is room and wrap, each whole, where there
+   isn't (the stars drop below the buttons on phones and in narrow
+   columns). Left-aligned at every width (SPEC §7.5). */
 .video-controls {
   display: flex;
   flex-wrap: wrap;
@@ -395,10 +397,11 @@ button.video__facade[aria-disabled="true"] {
   flex-basis: 100%;
 }
 
-/* An outlined button: the handout link, and the inside of the "Audio only"
-   <summary> (the summary itself keeps its default display, so browsers keep
-   its button semantics, as with the phone Menu). 48px tall on phones
-   (Problem-Phone.dc.html), 44px from 600px. */
+/* An outlined button: the handout link, a video's "Feedback" button, and
+   the inside of the "Audio only" <summary> (the summary itself keeps its
+   default display, so browsers keep its button semantics, as with the
+   phone Menu). 48px tall on phones (Problem-Phone.dc.html), 44px from
+   600px. */
 .format-button {
   display: inline-flex;
   align-items: center;
@@ -418,9 +421,19 @@ button.video__facade[aria-disabled="true"] {
 }
 
 a.format-button:hover,
+button.format-button:hover,
 .format-disclosure__toggle:hover > .format-button {
   background: var(--teal-wash);
   color: var(--deep-teal);
+}
+
+/* A video's "Feedback" is a <button> (it opens the feedback dialog, SPEC
+   §13) and must look like the handout link beside it. It ships [hidden],
+   and site.css's [hidden] rule wins over the display above, so it shows
+   only once feedback.js has made it work. */
+button.format-button {
+  margin: 0;
+  cursor: pointer;
 }
 
 .format-button .icon {
@@ -467,10 +480,10 @@ a.format-button:hover,
 /* 3. Step chip ---------------------------------------------------------------- */
 
 .step-chip {
-  --step-disc: 24px; /* non-token: the boards' disc (20px on solution cards) */
+  --step-disc: 20px; /* non-token: the boards' disc on solution cards */
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-4) var(--space-1) var(--space-1);
   border: var(--border-width) solid transparent;
   border-radius: var(--radius-pill);
@@ -496,11 +509,6 @@ a.format-button:hover,
   line-height: 1;
 }
 
-.step-chip--sm {
-  --step-disc: 20px;
-  gap: var(--space-2);
-}
-
 /* On a coloured band (a solution card's thumbnail band). */
 .step-chip--paper {
   background: var(--paper);
@@ -508,10 +516,12 @@ a.format-button:hover,
 
 /* 4. Buttons ------------------------------------------------------------------ */
 
-/* Links styled as large buttons (home hero, Start here end card, the phone
-   "Back to all sleep problems"). Full width on phones; 52px tall. Variants
-   use two classes, which beat `.on-dark a` (0,1,1) and `.on-dark a:hover`
-   (0,2,1) in site.css. */
+/* Large buttons, links and <button>s alike: Home's hero and Start here's
+   end card (links), the feedback dialog's Send and Cancel, the search
+   page's Search and the Privacy page's statistics switch. Full width on
+   phones; 52px tall. Variants use two classes, which beat `.on-dark a`
+   (0,1,1) and `.on-dark a:hover` (0,2,1) in site.css. (The phone "Back to
+   all sleep problems" is its own rule in pages/problem.css.) */
 .button {
   display: flex;
   align-items: center;
@@ -562,18 +572,6 @@ a.format-button:hover,
   color: var(--deep-teal);
 }
 
-/* Ghost, on teal: a paper outline with paper text. */
-.button.button--ghost {
-  border-color: var(--paper);
-  background: transparent;
-  color: var(--paper);
-}
-
-.button.button--ghost:hover {
-  background: var(--night-teal);
-  color: var(--paper);
-}
-
 /* Outline, on light grounds (the feedback dialog's Cancel): paper with a
    deep-teal border and text (5.9:1; 5.4:1 on the teal-wash hover). */
 .button.button--outline {
@@ -612,8 +610,8 @@ a.format-button:hover,
   }
 }
 
-/* A link to a problem: its short title and first-person line (the Sleep
-   problems page, Related topics). Spans inside the link, with a space between
+/* A link to a problem: its short title and first-person line (Home's list of
+   sleep problems, Related topics). Spans inside the link, with a space between
    them, so the link reads as one name. */
 .topic-card {
   display: block;
@@ -782,8 +780,14 @@ a.format-button:hover,
 }
 
 /* Forced colours: fill the chosen stars with the system text colour, so
-   they stand out on the system ground whatever becomes of warm-clay. */
+   they stand out on the system ground whatever becomes of warm-clay. And
+   no arc in a video frame, as on the bands (site.css, whose `.arc` rule
+   the 600px rule above outweighs). */
 @media (forced-colors: active) {
+  .video__media .arc {
+    display: none;
+  }
+
   .rating__input:checked + .rating__star .rating__icon {
     fill: currentColor;
   }
@@ -793,9 +797,12 @@ a.format-button:hover,
   }
 }
 
-/* A video can't play on paper, nor a handout open, nor a rating be given. */
+/* A video can't play on paper, nor a handout open, nor a rating be given,
+   nor a solution card be closed: the title and description stay, without
+   the label chip and Close above them. */
 @media print {
   .video,
+  .video-block__top,
   .video-controls {
     display: none;
   }

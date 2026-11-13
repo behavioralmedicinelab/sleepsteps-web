@@ -169,14 +169,9 @@
   }
 }
 
-/* Backgrounds don't print, so paper text on the band would vanish. Videos
-   are hidden by components.css. */
+/* The band's paper text turns ink with every teal ground's (site.css), and
+   videos are hidden by components.css. */
 @media print {
-  .start-band {
-    background: none;
-    color: var(--ink);
-  }
-
   .chapter-pills,
   .start-next {
     display: none;

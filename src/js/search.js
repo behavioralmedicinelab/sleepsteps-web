@@ -7,8 +7,8 @@
 // top MAX_RESULTS: title (linked), type and summary, built with textContent
 // only. The count goes to the page's status region (role="status"). With no
 // results, or if the index or MiniSearch fails to load, the page says so and
-// links to the Sleep problems page. Without JavaScript, the static page says
-// that results need it.
+// links to the list of sleep problems on Home. Without JavaScript, the static
+// page says that results need it.
 //
 // Usage statistics: report() only dispatches a `sleepsteps:event`
 // CustomEvent, `search` with { q, results }, as players.js does: q is the
