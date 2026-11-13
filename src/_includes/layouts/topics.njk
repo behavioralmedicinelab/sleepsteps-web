@@ -16,10 +16,9 @@ layout: layouts/base.njk
 -#}
 {%- from "partials/topic-nav.njk" import topicNav -%}
 {%- set topicAreas = collections.problems | groupByArea(areas) -%}
-{%- set navChapters = chapters | introChapters(videos) -%}
 <div class="with-sidebar container">
   <div class="with-sidebar__side">
-    {{ topicNav(topicAreas, page_id, area, navChapters, 's-', page.url) }}
+    {{ topicNav(topicAreas, page_id, area, idPrefix='s-', pageUrl=page.url) }}
   </div>
   <main id="main" class="with-sidebar__main">
     {{ content | safe }}

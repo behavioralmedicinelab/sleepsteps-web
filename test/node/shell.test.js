@@ -205,6 +205,14 @@ describe('TopicNav', () => {
     expect(html).not.toContain('id="v3"');
   });
 
+  // Only Start here has chapters (its `chapters` front matter, SPEC §7.3),
+  // so a problem page's layout doesn't work them out for its sidebar.
+  it('shows the chapter links on Start here only: a problem page has none, and its layout asks for none', () => {
+    const html = pageAt(site, '/problems/pain/');
+    for (const nav of [sidebarNav(html), panelNav(html)]) expect(elementByClass(nav, 'topic-nav__chapters', 'ol')).toBeUndefined();
+    expect(readFileSync('src/_includes/layouts/topics.njk', 'utf8')).not.toMatch(/introChapters|[cC]hapters/);
+  });
+
   it.each(['/', '/help/', '/about/', '/contact/', '/privacy/', '/search/', '/404.html'])(
     'on %s is only in the menu panel, with all areas closed',
     (url) => {
@@ -578,6 +586,22 @@ describe('other pages', () => {
     const html = pageAt(site, '/404.html');
     expect(html).not.toContain('data-page-id');
     expect(html).toMatch(/<title>Page not found<\/title>/);
+  });
+
+  // layouts/page.njk has two users, the search page and the 404 page, and
+  // both have the title band, so the layout has no band-less variant. The
+  // site search indexes only content/pages/ (SPEC §8.3), so neither needs
+  // `search: false`.
+  it('gives the search page and the 404 page the title band, from a layout with no other variant', () => {
+    for (const url of ['/search/', '/404.html']) {
+      const main = elementByClass(pageAt(site, url), 'page-body', 'div');
+      expect(main, url).toBeDefined();
+      expect(elementByClass(pageAt(site, url), 'band', 'div'), url).toMatch(/<h1 class="band__title">/);
+    }
+    const users = listFiles('content', (f) => /\.(njk|md)$/.test(f)).filter((f) => /^layout: layouts\/page\.njk$/m.test(readFileSync(`content/${f}`, 'utf8')));
+    expect(users.sort()).toEqual(['404.njk', 'search.njk']);
+    expect(readFileSync('src/_includes/layouts/page.njk', 'utf8')).not.toMatch(/\bif band\b|'none'/);
+    for (const f of users) expect(readFileSync(`content/${f}`, 'utf8'), f).not.toMatch(/^search:/m);
   });
 
   it("gives the search page a no-JavaScript route to Home's list of sleep problems", () => {

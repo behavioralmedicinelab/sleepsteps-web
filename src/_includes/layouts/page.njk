@@ -2,18 +2,15 @@
 layout: layouts/base.njk
 ---
 {#-
-  General page layout: optional teal title band, then the content in the
-  page container. Used by Search and the 404 page.
+  General page layout: the teal title band, then the content in the page
+  container. Used by Search and the 404 page.
 
   Front matter (plus everything base.njk reads):
-    band      "standard" or "hero" to show the title band (see
-              partials/title-band.njk for eyebrow, heading and summary);
-              omit it and put the H1 in the content instead
+    band      "standard" (default) or "hero": the title band's variant (see
+              partials/title-band.njk, also for eyebrow, heading and summary)
 -#}
 <main id="main">
-  {%- if band and band != 'none' %}
   {% include "partials/title-band.njk" %}
-  {%- endif %}
   <div class="page-body container">
     {{ content | safe }}
   </div>

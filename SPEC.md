@@ -105,6 +105,7 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   ├── search.njk             # Search results page (§8.1)
 │   ├── 404.njk                # "Page not found", built as /404.html, with no page_id (§7.4)
 │   ├── search-index.11ty.js   # /search-index.json, built with scripts/build-data.js (§8.3)
+│   ├── 404.njk                # "Page not found", served for any unknown path (§18.2)
 │   └── index.njk              # Home page: the hero, then the list of sleep problems with its filter (§7.2, §7.5)
 ├── data/                      # Eleventy global data: each CSV becomes an array of row objects
 │   ├── videos.csv             # The video library: one row per video, no page of its own (§7.1)
