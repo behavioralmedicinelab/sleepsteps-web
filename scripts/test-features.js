@@ -23,6 +23,7 @@ import { constants, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from './lib/cli.js';
 import { FEATURE_VARIANTS } from './lib/feature-variants.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -163,4 +164,4 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (isMain(import.meta.url)) await main();

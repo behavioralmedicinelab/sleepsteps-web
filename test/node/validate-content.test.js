@@ -2,11 +2,13 @@
 // small content trees in temporary directories, never the real content
 // (except one check that the real content passes).
 import { execFile } from 'node:child_process';
-import { closeSync, mkdirSync, mkdtempSync, openSync, ftruncateSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, mkdtempSync, openSync, ftruncateSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
+import { isMain } from '../../scripts/lib/cli.js';
 import { formatIssue, groupWarnings, validateContent } from '../../scripts/validate-content.js';
 import { VIDEO_COLUMNS, readTranscripts, transcriptFiles, youtubeIdFromUrl } from '../../scripts/lib/videos.js';
 import { PLACEHOLDER_WORKSHEET, WORKSHEET_COLUMNS, WORKSHEETS_DIR, WORKSHEETS_FILE, toWorksheet, worksheetsByVideo } from '../../scripts/lib/worksheets.js';
@@ -1158,5 +1160,35 @@ describe('the CLI', () => {
     const error = await exec(process.execPath, [SCRIPT, '--no-placeholders'], { cwd: dir }).catch((e) => e);
     expect(error.code).toBe(1);
     expect(error.stderr).toContain('data/videos.csv: row 6 (m2): youtube_url: blank: placeholder videos (no YouTube link yet) are not allowed at launch');
+  });
+
+  // The launch check must never pass by not running (SPEC §20 M8). Node gives
+  // a script its path as typed, so a checkout reached through a symlink, or
+  // the file named without ".js", didn't look like "this script": the CLI
+  // printed nothing and exited 0.
+  describe('reached through a symlink, or named without .js', () => {
+    const linkDir = mkdtempSync(path.join(tmpdir(), 'sleepsteps-link-'));
+    const link = path.join(linkDir, 'repo');
+    symlinkSync(process.cwd(), link, 'dir');
+    afterAll(() => {
+      unlinkSync(link); // the link, never the checkout it points to
+      rmSync(linkDir, { recursive: true, force: true });
+    });
+    const spellings = [path.join(link, 'scripts/validate-content.js'), SCRIPT.replace(/\.js$/, '')];
+
+    it.each(spellings)('still runs the launch check: %s', async (script) => {
+      const { dir } = run(videosCsv({ m2: PH }));
+      const error = await exec(process.execPath, [script, '--no-placeholders'], { cwd: dir }).catch((e) => e);
+      expect(error.code).toBe(1);
+      expect(error.stderr).toContain('placeholder videos (no YouTube link yet) are not allowed at launch');
+    });
+
+    it('isMain (scripts/lib/cli.js) knows its own script by any of its paths, and no other', () => {
+      const self = pathToFileURL(SCRIPT).href;
+      for (const script of [SCRIPT, ...spellings]) expect(isMain(self, script), script).toBe(true);
+      for (const other of [path.resolve('scripts/test-features.js'), path.join(link, 'eleventy.config.js'), '/nowhere/validate-content.js', '', undefined]) {
+        expect(isMain(self, other), String(other)).toBe(false);
+      }
+    });
   });
 });

@@ -38,7 +38,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './lib/cli.js';
 import { parseCsvTable } from './lib/csv.js';
 import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, VIDEO_COLUMNS, readTranscript, toVideo, transcriptFiles, youtubeIdFromUrl } from './lib/videos.js';
 import { PLACEHOLDER_WORKSHEET, WORKSHEET_COLUMNS, WORKSHEETS_DIR, WORKSHEETS_FILE, toWorksheet } from './lib/worksheets.js';
@@ -787,6 +787,4 @@ function runCli() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  runCli();
-}
+if (isMain(import.meta.url)) runCli();

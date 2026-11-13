@@ -127,7 +127,7 @@ Do not add dependencies beyond these without recording the reason in §22 (Decis
 │   ├── validate-content.js    # Front matter, media file and CSV checks (videos, worksheets, transcripts, areas, team, keywords)
 │   ├── test-features.js       # npm run test:features: the whole suite and the build with each combination of the feature switches (§11)
 │   ├── a11y/                  # npm run test:a11y: the local accessibility check in Chrome, with axe-core (§18.1, §20 M7)
-│   └── lib/                   # csv.js: dependency-free RFC 4180 CSV parser (Excel CSV UTF-8 exports, with each row's number as Excel shows it; the admin export tests read files back with it); videos.js: reading data/videos.csv rows and transcripts, shared by the content check, the filters and the search index (§7.1); worksheets.js: reading data/worksheets.csv rows, shared the same way (§7.6); feature-variants.js: the switch combinations the tests build (§11)
+│   └── lib/                   # csv.js: dependency-free RFC 4180 CSV parser (Excel CSV UTF-8 exports, with each row's number as Excel shows it; the admin export tests read files back with it); videos.js: reading data/videos.csv rows and transcripts, shared by the content check, the filters and the search index (§7.1); worksheets.js: reading data/worksheets.csv rows, shared the same way (§7.6); feature-variants.js: the switch combinations the tests build (§11); cli.js: whether a script was started as a command or imported, whatever path it was started by
 ├── worker/
 │   ├── index.js               # Default export only: createRouter() with pages.json and site.config.json
 │   ├── router.js              # Routing and the /api/* checks, in order (§14.1)
