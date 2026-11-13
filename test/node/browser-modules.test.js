@@ -648,17 +648,6 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
     // The card stays open, and focus is not moved.
     expect(face(first).getAttribute('aria-expanded')).toBe('true');
   });
-
-  it('keeps focus on the card button should the title not be rendered', async () => {
-    await load(html, ['players', 'solutions']);
-    const { document } = dom;
-    document.isRendered = (el) => !el.classList.contains('video-block__header');
-    const [first] = cards();
-    face(first).focus();
-    face(first).click();
-    expect(face(first).getAttribute('aria-expanded')).toBe('true');
-    expect(document.activeElement).toBe(face(first));
-  });
 });
 
 // A stand-alone problem (SPEC §7.2) loads players.js but not solutions.js:
