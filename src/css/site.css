@@ -15,8 +15,9 @@
  *   3. Desktop header  7. Title band, arc    11. Urgent help shell
  *   4. Phone header    8. Page layouts       12. Motion, forced colours, print
  *
- * The problem page, Start here and Home (with its list of sleep problems)
- * have their own stylesheets in pages/ (SPEC §7.5).
+ * Every page with styles of its own has a stylesheet in pages/ (SPEC §7.5):
+ * Home (home.css and, for its list of sleep problems, problems.css), Start
+ * here, the problem page, the search page and each information page.
  */
 
 /* 1. Base ------------------------------------------------------------------ */

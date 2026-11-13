@@ -6,7 +6,7 @@
  * text is 17px body (SPEC §7.5).
  *
  * The minimal header, the 880px column and its padding come from site.css
- * (§14, layouts/urgent.njk).
+ * (its section 11; layouts/urgent.njk).
  *
  * Colour pairs are the listed ones: paper on ink and on deep-teal (the
  * board's on-teal-muted description on ink is not listed), ink,

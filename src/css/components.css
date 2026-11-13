@@ -516,10 +516,12 @@ button.format-button {
 
 /* 4. Buttons ------------------------------------------------------------------ */
 
-/* Links styled as large buttons (home hero, Start here end card, the phone
-   "Back to all sleep problems"). Full width on phones; 52px tall. Variants
-   use two classes, which beat `.on-dark a` (0,1,1) and `.on-dark a:hover`
-   (0,2,1) in site.css. */
+/* Large buttons, links and <button>s alike: Home's hero and Start here's
+   end card (links), the feedback dialog's Send and Cancel, the search
+   page's Search and the Privacy page's statistics switch. Full width on
+   phones; 52px tall. Variants use two classes, which beat `.on-dark a`
+   (0,1,1) and `.on-dark a:hover` (0,2,1) in site.css. (The phone "Back to
+   all sleep problems" is its own rule in pages/problem.css.) */
 .button {
   display: flex;
   align-items: center;
