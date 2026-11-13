@@ -44,7 +44,7 @@ const WATCH_URL = 'https://www.youtube.com/watch?v=';
 const LOAD_TIMEOUT_MS = 15000;
 const POLL_MS = 5000; // SPEC §9.4: poll while playing
 
-const players = new Map(); // .video wrapper -> { player, videoId, poll }
+const players = new Map(); // .video wrapper -> { player, videoId, poll, started }
 
 // ---- Reports, sent by events.js ---------------------------------------------
 
@@ -111,7 +111,8 @@ function pauseOthers(except) {
 /**
  * Pause every video and audio inside `root` (e.g. a card being closed). A
  * video that is still loading isn't playing yet, so there is nothing to
- * pause: outOfReach() keeps it from starting once it is ready.
+ * pause: onReady and onStateChange keep it from starting where the visitor
+ * can't get to it (outOfReach).
  */
 export function pauseWithin(root) {
   players.forEach((entry, wrapper) => {
@@ -123,7 +124,7 @@ export function pauseWithin(root) {
 /**
  * Whether the visitor can't get to this video: it is inside something
  * hidden, as when its solution card was closed while it loaded
- * (solutions.js). A video there must not start playing.
+ * (solutions.js). A video must not start playing there by itself.
  */
 function outOfReach(wrapper) {
   return wrapper.closest('[hidden]') !== null;
@@ -198,11 +199,11 @@ function onStateChange(wrapper, state) {
   const entry = players.get(wrapper);
   const states = window.YT?.PlayerState;
   if (!entry || !states) return;
-  // Starting where the visitor can't get to it (`autoplay: 1` starts a video
-  // that was still loading when its card closed): pause it, pause nothing
-  // else and report no play.
-  if ((state === states.PLAYING || state === states.BUFFERING) && outOfReach(wrapper)) {
-    clearInterval(entry.poll);
+  // Its first start, where the visitor can't get to it (`autoplay: 1` starts
+  // a video that was still loading when its card closed): pause it, pause
+  // nothing else and report no play. Once the visitor has played it, a later
+  // start there is theirs (the browser's media controls, a media key).
+  if (!entry.started && (state === states.PLAYING || state === states.BUFFERING) && outOfReach(wrapper)) {
     try {
       entry.player.pauseVideo();
     } catch {
@@ -212,6 +213,7 @@ function onStateChange(wrapper, state) {
   }
   // video_play is reported from here and from the 5-second poll.
   if (state === states.PLAYING) {
+    entry.started = true;
     pauseOthers(wrapper);
     sample(entry);
     clearInterval(entry.poll);
@@ -279,7 +281,7 @@ function play(wrapper, button) {
           },
         },
       });
-      players.set(wrapper, { player, videoId, poll: 0 });
+      players.set(wrapper, { player, videoId, poll: 0, started: false });
     })
     .catch(() => {
       // Creating the player may have thrown with its timer already running,

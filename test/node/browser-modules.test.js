@@ -559,6 +559,15 @@ describe('players.js', () => {
     expect(player.calls).toEqual([]);
     window.dispatchEvent(new Event('pagehide'));
     expect(reported.filter((r) => r.type === 'video_play')).toEqual([{ type: 'video_play', detail: { media: 'full', furthest: 0 } }]);
+
+    // Only that first, automatic start is held back. Once the visitor has
+    // played the video, starting it again while its card is closed (the
+    // browser's own media controls, a media key, picture-in-picture) is
+    // theirs to do.
+    first.querySelector('.video-block__close').click();
+    player.becomes(PLAYING);
+    player.becomes(PAUSED);
+    expect(player.calls).toEqual([]);
   });
 });
 
