@@ -195,6 +195,14 @@ describe.each(Object.entries(STATES))('the %s page', (name, page) => {
     }
   });
 
+  it('gives every list role="list": admin.css removes their markers, and Safari then stops announcing a plain list as one', () => {
+    // As every such list on the public pages has (start.css, home.css).
+    const lists = all(doc, 'ul, ol');
+    for (const list of lists) expect(list.getAttribute('role'), list.getAttribute('class') ?? list.localName).toBe('list');
+    // The contents, last month's and this range's links and the messages; the error summary.
+    expect(lists).toHaveLength({ ok: 4, 'ok, empty': 3, invalid: 1 }[name] ?? 0);
+  });
+
   it('has no inline style, inline script or event-handler attribute', () => {
     expect(page).not.toMatch(/\sstyle\s*=|<style[\s>]/i);
     expect(page).not.toMatch(/<[^>]+\son[a-z]+\s*=/i);

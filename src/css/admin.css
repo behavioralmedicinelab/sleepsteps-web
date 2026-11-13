@@ -249,6 +249,9 @@ body.admin {
   min-height: var(--target-min);
 }
 
+/* These lists and the feedback list have no markers, so each has
+   role="list" in the HTML (lib/admin-page.js): Safari stops announcing a
+   list without markers as a list. */
 .admin-links,
 .admin-toc ul,
 .error-summary ul {

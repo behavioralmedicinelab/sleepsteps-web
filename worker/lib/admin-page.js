@@ -162,7 +162,7 @@ const errorText = (error, view) => (ERROR_TEXT[error.code] ?? (() => 'Check this
 function errorSummary(view) {
   return html`<section class="error-summary" aria-labelledby="error-summary-title">
 <h2 id="error-summary-title">There is a problem</h2>
-<ul>
+<ul role="list">
 ${view.errors.map((error) => html`<li><a href="${`#${error.field}`}"><span>${errorText(error, view)}</span></a></li>\n`)}</ul>
 </section>`;
 }
@@ -217,7 +217,7 @@ const SECTIONS = [
 
 function contents() {
   return html`<nav class="admin-toc" aria-label="On this page">
-<ul>
+<ul role="list">
 ${SECTIONS.map(([id, title]) => html`<li><a href="${`#${id}`}">${title}</a></li>\n`)}</ul>
 </nav>`;
 }
@@ -232,7 +232,7 @@ ${body}
 
 /** The four links for checked days. `label` names the days; each link adds that they are UTC. */
 function exportLinks(from, to, label) {
-  return html`<ul class="admin-links">
+  return html`<ul class="admin-links" role="list">
 ${DOWNLOAD_TABLES.map(({ table, name }) => html`<li><a href="${exportHref(table, from, to)}">${name}, ${label} UTC (CSV)</a></li>\n`)}</ul>`;
 }
 
@@ -394,7 +394,7 @@ function feedback(s) {
   return section(
     'feedback',
     html`<p>${lead} Times are UTC, rounded down to the hour. Messages are shown as stored: as sent, except that line breaks are made uniform, control characters are removed and spaces are trimmed from each end. Feedback comes from anyone and can hold health or identifying details.</p>
-<ol class="feedback-list">
+<ol class="feedback-list" role="list">
 ${items}</ol>${more}`,
   );
 }
