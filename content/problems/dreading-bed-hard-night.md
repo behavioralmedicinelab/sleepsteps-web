@@ -4,7 +4,6 @@ statement: "I dread bed because I expect another difficult night"
 source_title: "I dread going to bed because: 1) I expect another difficult night of sleep"
 area: mind
 order: 40
-new: false
 problem_video: dreading-bed-hard-night-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

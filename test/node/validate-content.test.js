@@ -83,7 +83,6 @@ const problem = (title, extra = {}) => ({
   source_title: 'The team wording',
   area: 'core',
   order: 10,
-  new: false,
   problem_video: 'about',
   is_this_you: { summary: 'One sentence.', bullets: ['one', 'two'] },
   solutions: [{ tier: 'main', video: 'm1', blurb: 'Try this if...' }],
@@ -628,14 +627,15 @@ describe('validateContent warns, without failing, about', () => {
   it('videos used nowhere, and problem fields the templates do not read', () => {
     const result = run({
       ...videosCsv({}, [vid('spare', 'Spare', PH)]),
-      // `time_of_day` went with the "When it happens" view (SPEC §7.2, §22):
-      // a file that still has it builds, with this warning.
-      'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', keywords: 'x', time_of_day: 'night' })),
+      // `time_of_day` went with the "When it happens" view, and `new` with
+      // the "New" pill (SPEC §7.2, §22): a file that still has either
+      // builds, with this warning.
+      'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', keywords: 'x', time_of_day: 'night', new: true })),
     });
     expect(messages(result)).toEqual([]);
     expect(codes(result)).toEqual(['placeholder-video', 'unknown-key', 'unused-video']);
     expect(groupWarnings(result.warnings).slice(1)).toEqual([
-      ['Front-matter keys the templates do not read (a typo?)', ['content/problems/two.md: keywords', 'content/problems/two.md: time_of_day']],
+      ['Front-matter keys the templates do not read (a typo?)', ['content/problems/two.md: keywords', 'content/problems/two.md: time_of_day', 'content/problems/two.md: new']],
       ['Videos not used on any page', ['spare']],
     ]);
   });

@@ -4,7 +4,6 @@ statement: "Even when I sleep, I don't feel refreshed"
 source_title: "Even when I sleep fine, I do not feel refreshed in the morning"
 area: core
 order: 60
-new: false
 problem_video: not-refreshed-in-the-morning-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

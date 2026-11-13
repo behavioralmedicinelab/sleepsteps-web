@@ -4,7 +4,6 @@ statement: "Distressing, vivid dreams or nightmares"
 source_title: "I am struggling with distressing, vivid dreams or nightmares"
 area: dis
 order: 10
-new: false
 problem_video: dreams-and-nightmares-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

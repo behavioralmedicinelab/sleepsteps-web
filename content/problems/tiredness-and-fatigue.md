@@ -4,7 +4,6 @@ statement: "Tiredness or fatigue affects how I function during the day"
 source_title: "Tiredness or fatigue affecting my ability to function during the day"
 area: day
 order: 10
-new: false
 problem_video: tiredness-and-fatigue-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

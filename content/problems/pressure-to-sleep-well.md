@@ -4,7 +4,6 @@ statement: "I feel I must sleep well for my recovery, and like I'm failing when 
 source_title: "I feel pressure to sleep well for my health or recovery, and feel discouraged or like I am failing when sleep is difficult"
 area: mind
 order: 90
-new: false
 problem_video: pressure-to-sleep-well-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

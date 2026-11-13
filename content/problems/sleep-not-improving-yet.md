@@ -4,7 +4,6 @@ statement: "I've been trying, but my sleep isn't better yet"
 source_title: "My sleep is not improving yet"
 area: hard
 order: 10
-new: false
 problem_video: sleep-not-improving-yet-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

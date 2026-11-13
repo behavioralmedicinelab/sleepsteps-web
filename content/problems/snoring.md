@@ -4,7 +4,6 @@ statement: "I'm concerned about snoring"
 source_title: "I am concerned about snoring"
 area: dis
 order: 20
-new: false
 problem_video: snoring-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

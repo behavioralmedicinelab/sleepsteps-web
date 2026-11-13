@@ -4,7 +4,6 @@ statement: "My mind gets busier or more emotional at night"
 source_title: "I dread going to bed because: 3) my mind becomes more active or emotional at night"
 area: mind
 order: 60
-new: false
 problem_video: dreading-bed-active-mind-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

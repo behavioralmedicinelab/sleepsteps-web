@@ -82,7 +82,6 @@ describe('content/problems', () => {
       source_title: p.sourceTitle,
       area: p.areaId,
       order: order * 10,
-      new: p.isNew === true,
       problem_video: `${slug}-about`,
       ...(STANDALONE.includes(slug) ? { standalone: true } : {}),
     });

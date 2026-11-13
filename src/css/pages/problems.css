@@ -264,31 +264,9 @@ button.group-list__header[aria-expanded="true"] {
   min-width: 0;
 }
 
-/* The title and the "New" pill share a line, wrapping when narrow. */
+/* A long word in a title breaks, so it can't widen the card. */
 .topic-card__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
   overflow-wrap: break-word;
-}
-
-.topic-card__title > span {
-  min-width: 0;
-}
-
-/* clay-deep on clay-wash, 5.4:1. Not uppercase: only eyebrows are. */
-.topic-card__new {
-  display: inline-block;
-  padding: var(--space-1) var(--space-3);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-pill);
-  background: var(--clay-wash);
-  color: var(--clay-deep);
-  font-family: var(--font-body);
-  font-size: var(--fs-eyebrow);
-  line-height: var(--lh-eyebrow);
-  font-weight: var(--weight-semibold);
 }
 
 .topic-card__arrow {

@@ -30,7 +30,7 @@ const keywordRows = existsSync(KEYWORDS_FILE) ? parseCsvRecords(readFileSync(KEY
 function frontMatter(slug) {
   const fm = readFileSync(`content/problems/${slug}.md`, 'utf8').match(/^---\n([\s\S]*?)\n---/)[1];
   const field = (name) => fm.match(new RegExp(`^${name}:\\s*"?([^"\\n]*)"?`, 'm'))?.[1].trim();
-  return { slug, area: field('area'), order: Number(field('order')), isNew: field('new') === 'true' };
+  return { slug, area: field('area'), order: Number(field('order')) };
 }
 const areaOrder = new Map(areas.map((a, i) => [a.area_id, i]));
 const problems = handoffProblems
@@ -110,8 +110,9 @@ describe('the Sleep problems page (built HTML, no JavaScript)', () => {
     expect(cards).toHaveLength(problems.length);
     cards.forEach((card, i) => {
       expect(card).toContain('class="topic-card topic-card--row"');
+      expect(text(elementByClass(card, 'topic-card__title', 'span'))).toBe(problems[i].title);
       expect(text(elementByClass(card, 'topic-card__statement', 'span'))).toBe(problems[i].statement);
-      expect(text(card).replace(/ New /, ' ')).toBe(`${problems[i].title} ${problems[i].statement}`);
+      expect(text(card)).toBe(`${problems[i].title} ${problems[i].statement}`);
       expect(card).toMatch(/class="icon topic-card__arrow"/);
     });
   });
@@ -167,14 +168,23 @@ describe('the Sleep problems page (built HTML, no JavaScript)', () => {
     expect(html).not.toMatch(/\blane\b|lane--|time-lanes|topic-card--lane|data-lane/);
   });
 
-  it('shows the "New" pill only on new problems', () => {
-    const newSlugs = problems.filter((p) => p.isNew).map((p) => p.slug);
-    expect(newSlugs).toEqual(['accepting-changes-to-my-sleep']);
-    const withPill = [...groupList.matchAll(/<li data-slug="([^"]+)"[^>]*>((?:(?!<\/li>)[\s\S])*)<\/li>/g)]
-      .filter(([, , body]) => body.includes('topic-card__new'))
-      .map(([, slug]) => slug);
-    expect(withPill).toEqual(newSlugs);
-    expect(main.match(/<span class="topic-card__new">New<\/span>/g)).toHaveLength(1);
+  // Project lead, 2026-11-13 (SPEC §7.5, §22): no "New" pill, though the
+  // handoff marks one problem as new (HANDOFF §6.3).
+  it('makes every topic card the same, with no "New" pill', () => {
+    expect(handoffProblems.filter((p) => p.isNew).map((p) => p.slug)).toEqual(['accepting-changes-to-my-sleep']);
+    expect(main).not.toMatch(/topic-card__new|>\s*New\s*</);
+    // The same elements, classes and hooks in every card: only the address
+    // and the words differ.
+    const shape = (card) => (card.match(/<[a-z][^>]*>/gi) ?? []).map((tag) => tag.replace(/ href="[^"]*"/, ''));
+    const cards = allByClass(groupList, 'topic-card', 'a');
+    expect(cards).toHaveLength(problems.length);
+    expect(shape(cards[0]).slice(0, 4)).toEqual([
+      '<a class="topic-card topic-card--row">',
+      '<span class="topic-card__text">',
+      '<span class="topic-card__title" data-topic-title>',
+      '<span class="topic-card__statement" data-topic-statement>',
+    ]);
+    for (const card of cards) expect(shape(card), attr(card, 'href')).toEqual(shape(cards[0]));
   });
 
   it('ends with the nudge to the introduction', () => {
@@ -234,8 +244,8 @@ describe('the Sleep problems stylesheet (src/css/pages/problems.css)', () => {
     expect(block('@media (prefers-reduced-motion: no-preference)')).toMatch(/\.group-list__chevron \.icon \{\s*transition: transform/);
   });
 
-  it('drops the view toggle\'s styles, the lane styles and the "Open all areas" button\'s', () => {
-    expect(css).not.toMatch(/view-toggle/);
+  it('drops the view toggle\'s styles, the "New" pill\'s, the lane styles and the "Open all areas" button\'s', () => {
+    expect(css).not.toMatch(/view-toggle|topic-card__new/);
     expect(css).not.toMatch(/\.lane|time-lanes|topic-card--lane|problems-tools__all|--fs-topic-lane/);
     expect(readFileSync('src/css/tokens.css', 'utf8')).not.toMatch(/radius-lane/);
   });

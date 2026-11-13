@@ -4,7 +4,6 @@ statement: "Stress or worry about cancer or life is affecting my sleep"
 source_title: "I am struggling with stress/worries affecting my sleep (about cancer or life)"
 area: mind
 order: 100
-new: false
 problem_video: stress-and-worries-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

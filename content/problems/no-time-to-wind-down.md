@@ -4,7 +4,6 @@ statement: "I'm busy right up until bedtime"
 source_title: "I struggle to find time to wind down before sleep (busy right up to bed time)"
 area: mind
 order: 80
-new: false
 problem_video: no-time-to-wind-down-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

@@ -4,7 +4,6 @@ statement: "I'm tired, but I can't fall asleep"
 source_title: "I am struggling to fall asleep at night: 1) I am tired but can't sleep ('tired but wired')"
 area: core
 order: 10
-new: false
 problem_video: tired-but-wired-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

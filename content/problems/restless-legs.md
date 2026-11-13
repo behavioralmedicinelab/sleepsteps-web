@@ -4,7 +4,6 @@ statement: "My legs feel restless at night"
 source_title: "I am struggling with restless legs"
 area: dis
 order: 30
-new: false
 problem_video: restless-legs-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

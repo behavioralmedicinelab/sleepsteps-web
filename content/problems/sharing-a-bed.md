@@ -4,7 +4,6 @@ statement: "Managing sleep when you have a bed partner"
 source_title: "Managing sleep when you have a bedpartner"
 area: social
 order: 10
-new: false
 problem_video: sharing-a-bed-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

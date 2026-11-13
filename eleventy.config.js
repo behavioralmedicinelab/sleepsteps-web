@@ -99,7 +99,6 @@ export default function (eleventyConfig) {
     title: item.data.title,
     statement: item.data.statement,
     url: item.url,
-    isNew: item.data.new === true,
   });
 
   // Areas in display order, each with its problems: the shape TopicNav and

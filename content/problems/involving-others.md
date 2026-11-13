@@ -4,7 +4,6 @@ statement: "Bringing others into your sleep and recovery"
 source_title: "Involving others in your sleep and recovery"
 area: social
 order: 30
-new: false
 problem_video: involving-others-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

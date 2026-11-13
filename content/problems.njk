@@ -53,14 +53,14 @@ scripts: ["problems.js"]
 {%- for row in keywords -%}{%- if row.page_id == slug -%}{{ row.keywords }}{%- endif -%}{%- endfor -%}
 {%- endmacro -%}
 
-{#- A link to a problem: short title (with the "New" pill), first-person
-    line and an arrow. Built on .topic-card (components.css). The spaces
-    between the spans keep the link's accessible name readable ("Tired but
-    wired I'm tired, ..."). -#}
+{#- A link to a problem: short title, first-person line and an arrow, the
+    same on every card (no "New" pill, SPEC §7.5). Built on .topic-card
+    (components.css). The spaces between the spans keep the link's
+    accessible name readable ("Tired but wired I'm tired, ..."). -#}
 {%- macro topicCard(p) -%}
 <a class="topic-card topic-card--row" href="{{ p.url }}">
   <span class="topic-card__text">
-    <span class="topic-card__title"><span data-topic-title>{{ p.title }}</span>{% if p.isNew %} <span class="topic-card__new">New</span>{% endif %}</span>
+    <span class="topic-card__title" data-topic-title>{{ p.title }}</span>
     <span class="topic-card__statement" data-topic-statement>{{ p.statement }}</span>
   </span>
   {{ icon('arrow-right', 20, 'topic-card__arrow') }}

@@ -4,7 +4,6 @@ statement: "What if my sleep problems come back?"
 source_title: "What if my sleep problems return? - A guide to relapse prevention"
 area: relapse
 order: 10
-new: false
 problem_video: if-sleep-problems-return-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

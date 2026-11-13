@@ -4,7 +4,6 @@ statement: "Treatment or medicines are affecting my sleep"
 source_title: "I am struggling from treatment or medication side effects impacting my sleep"
 area: med
 order: 20
-new: false
 problem_video: treatment-or-medication-side-effects-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

@@ -4,7 +4,6 @@ statement: "I find it hard to follow the sleep advice"
 source_title: "I am struggling to follow sleep advice"
 area: hard
 order: 30
-new: false
 problem_video: following-sleep-advice-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

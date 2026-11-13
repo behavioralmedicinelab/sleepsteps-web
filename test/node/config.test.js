@@ -56,6 +56,7 @@ describe('eleventy.config.js', () => {
       { area_id: 'day', name: 'Day', order: '20' },
       { area_id: 'core', name: 'Core', order: '10' },
     ];
+    // `new` is a leftover field: the "New" pill is gone (SPEC §7.5, §22), so it adds nothing.
     const item = (slug, area) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, statement: `${slug}.`, area, new: slug === 'c' } });
     const grouped = f.groupByArea([item('a', 'day'), item('b', 'core'), item('c', 'core')], areas);
     expect(grouped.map((a) => [a.area_id, a.name, a.problems.map((p) => p.slug)])).toEqual([
@@ -64,8 +65,8 @@ describe('eleventy.config.js', () => {
     ]);
     // A problem as the templates read it.
     expect(grouped[0].problems).toEqual([
-      { slug: 'b', title: 'b', statement: 'b.', url: '/problems/b/', isNew: false },
-      { slug: 'c', title: 'c', statement: 'c.', url: '/problems/c/', isNew: true },
+      { slug: 'b', title: 'b', statement: 'b.', url: '/problems/b/' },
+      { slug: 'c', title: 'c', statement: 'c.', url: '/problems/c/' },
     ]);
     expect(() => f.groupByArea([item('x', 'nope')], areas)).toThrow(/x\.md: unknown area "nope"/);
     expect(() => f.groupByArea(undefined, areas)).toThrow(/groupByArea expects/);

@@ -4,7 +4,6 @@ statement: "I dread bed because symptoms feel worse at night"
 source_title: "I dread going to bed because: 2) symptoms or physical sensations feel worse at night"
 area: mind
 order: 50
-new: false
 problem_video: dreading-bed-symptoms-about
 # "Is this you?" text is a placeholder for the team to write.
 is_this_you:

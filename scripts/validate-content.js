@@ -70,7 +70,7 @@ const GARBLED_CSV = 'has garbled characters (for example â€œ in place of “
 
 const VIDEOS_FILE = 'data/videos.csv';
 const PROBLEM_KEYS = [
-  'title', 'statement', 'source_title', 'area', 'order', 'new',
+  'title', 'statement', 'source_title', 'area', 'order',
   'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
 ];
 const MEDIA = {
@@ -398,7 +398,6 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     if (typeof data.order !== 'number' || !Number.isFinite(data.order)) {
       error(file, 'order', 'required: a number (the order within the area)');
     }
-    if (data.new !== undefined && typeof data.new !== 'boolean') error(file, 'new', 'must be true or false');
 
     // Every video on the page, to catch one used twice (its ids, such as
     // audio-<video_id>, would clash, and ratings couldn't tell them apart).
