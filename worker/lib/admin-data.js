@@ -190,11 +190,13 @@ export function summaryModel(results, index) {
 
 /**
  * The most rows one download may hold (decision B5). An export reads about
- * 2 rows per row sent, and each download start counts its rows first (one
- * index entry each, twice when it opens the download page), so a download
- * at the cap reads about 400,000 rows: 8% of the free plan's 5 M a day for
- * the whole account. At the free plan's write ceiling (about 50,000 events
- * a day) one day still fits.
+ * 2 rows per row sent, more where an hour holds many rows of one type, and
+ * each download start counts its rows first (one index entry each, twice
+ * when it opens the download page), so a download at the cap reads about
+ * 430,000 rows at the traffic expected: 9% of the free plan's 5 M a day for
+ * the whole account. SPEC §14.4, "The D1 read budget", has the busier
+ * cases. At the free plan's write ceiling (about 50,000 events a day) one
+ * day still fits.
  */
 export const MAX_EXPORT_ROWS = 100_000;
 

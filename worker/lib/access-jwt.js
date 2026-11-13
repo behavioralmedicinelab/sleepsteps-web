@@ -121,7 +121,7 @@ function isTimeout(error) {
   }
 }
 
-/** The checks that need no key (steps 1-5 above); undefined if all pass. */
+/** The header and claim checks, which need no key and no I/O; undefined if all pass. */
 function claimFailure(header, payload, env, nowS) {
   if (header.alg !== 'RS256' || Object.hasOwn(header, 'crit')) return 'alg';
   if (Object.hasOwn(header, 'typ') && (typeof header.typ !== 'string' || header.typ.toUpperCase() !== 'JWT')) return 'malformed';
