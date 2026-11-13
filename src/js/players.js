@@ -181,7 +181,7 @@ function showError(wrapper) {
   link.textContent = 'Watch on YouTube';
   message.append("The video couldn't load here. ", link);
   frame.replaceChildren(message);
-  wrapper.classList.remove('is-loading', 'is-playing');
+  wrapper.classList.remove('is-loading');
   if (hadFocus) link.focus();
 }
 
@@ -266,7 +266,6 @@ function play(wrapper, button) {
             const moveFocus = !active || active === document.body || wrapper.contains(active);
             frame.querySelectorAll('.video__media, .video__facade, .video__status').forEach((el) => el.remove());
             wrapper.classList.remove('is-loading');
-            wrapper.classList.add('is-playing');
             // Autoplay may be blocked (iOS); YouTube then shows its own play
             // button, which the focused iframe makes the next thing to press.
             // Not if the visitor has closed its card meanwhile.
