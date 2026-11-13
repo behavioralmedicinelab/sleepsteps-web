@@ -788,7 +788,7 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       const chapters = videosOf(pageAt(site, '/start/'));
       expect(chapters.length).toBeGreaterThan(1);
       expect(videoButtons().map((b) => [b.getAttribute('data-feedback-video'), b.hidden])).toEqual(chapters.map((id) => [id, false]));
-      for (const url of ['/', '/problems/', '/search/', '/contact/']) {
+      for (const url of ['/', '/search/', '/contact/', '/help/']) {
         await open(url);
         expect(videoButtons(), url).toEqual([]);
         expect(trigger().localName, url).toBe('button');

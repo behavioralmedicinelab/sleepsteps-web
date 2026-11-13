@@ -6,6 +6,7 @@
 // nullable `video`, the video a message is about (project lead, 2026-11-13).
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
+import { FEEDBACK_PART_SQL, RECENT_FEEDBACK_SQL } from '../../worker/lib/admin-queries.js';
 
 const all = async (sql) => (await env.DB.prepare(sql).all()).results;
 
@@ -77,7 +78,7 @@ describe('migrations (SPEC §17)', () => {
     await apply('0003_feedback_add_video.sql');
   });
 
-  it('0003 adds feedback.video to a database that holds 0002 rows: NULL in each, every row and its other columns kept, and the statements of the code before it still work', async () => {
+  it('0003 adds feedback.video to a database that holds 0002 rows: NULL in each, every row and its other columns kept, the statements of the code before it still work, and this change\'s fail until it is applied', async () => {
     // Back to 0002's shape, with rows as the code before this change wrote
     // them, then 0003's own statement, as on the production and preview
     // databases (SPEC §17, §18.4).
@@ -91,6 +92,16 @@ describe('migrations (SPEC §17)', () => {
     // One statement, under its header comment: nullable, no default, no index.
     expect(add.queries).toHaveLength(1);
     expect(add.queries[0].replace(/^--.*$/gm, '').trim()).toMatch(/^ALTER TABLE feedback ADD COLUMN video TEXT;?$/);
+    // Why the migration goes first (SPEC §17, §18.4): on a database still
+    // without it, this change's INSERT (the route's, word for word), its
+    // summary query and its export query all fail, and nothing is written.
+    const window = ['2026-11-01T00:00:00.000Z', '2026-12-01T00:00:00.000Z'];
+    await expect(
+      env.DB.prepare('INSERT INTO feedback (ts, page, video, message) VALUES (?, ?, ?, ?)').bind('2026-11-13T01:00:00.000Z', 'home', null, 'too early').run(),
+    ).rejects.toThrow(/video/);
+    await expect(env.DB.prepare(RECENT_FEEDBACK_SQL).bind(...window).all()).rejects.toThrow(/video/);
+    await expect(env.DB.prepare(FEEDBACK_PART_SQL).bind(...window, 500, 0).all()).rejects.toThrow(/video/);
+    expect((await all('SELECT id FROM feedback ORDER BY id')).map((r) => r.id)).toEqual([7, 9]);
     await apply('0003_feedback_add_video.sql');
     expect(await all('SELECT id, ts, page, video, message FROM feedback ORDER BY id')).toEqual([
       { id: 7, ts: '2026-11-10T10:00:00.000Z', page: 'pain', video: null, message: 'first' },
@@ -111,7 +122,6 @@ describe('migrations (SPEC §17)', () => {
     // working between the migration and the merge: its INSERT (the route), its
     // summary query and its export query, word for word.
     await env.DB.prepare('INSERT INTO feedback (ts, page, message) VALUES (?, ?, ?)').bind('2026-11-13T02:00:00.000Z', 'home', 'third').run();
-    const window = ['2026-11-01T00:00:00.000Z', '2026-12-01T00:00:00.000Z'];
     expect(
       (await env.DB.prepare('SELECT ts, page, message FROM feedback WHERE ts >= ?1 AND ts < ?2 ORDER BY ts DESC, id DESC LIMIT 20').bind(...window).all()).results,
     ).toEqual([

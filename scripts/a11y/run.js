@@ -24,7 +24,8 @@
 //    shows a 2px ring, is at least 44px, ends up wholly on screen, the order
 //    is the same both ways and the walk comes back round, so nothing traps
 //    focus), and works the phone menu, a solution card and the feedback
-//    dialog (from the footer and from a video's button) from the keyboard;
+//    dialog (from the footer, from a video's button and from an open
+//    solution card's) from the keyboard;
 // 5. counts the site's own errors in every state (C2, SPEC §20 M7): CSP
 //    violations, uncaught exceptions, console calls from our scripts, and
 //    failed requests to this site other than the ones a state causes on
@@ -124,6 +125,8 @@ const openCardAndAudio = async (tab) => {
 // has one, before the footer in the page, so the footer's is named.
 const FOOTER_TRIGGER = '.site-footer [data-feedback-trigger]';
 const VIDEO_TRIGGER = '.problem-video button[data-feedback-video]';
+// The same button in the open solution card.
+const CARD_TRIGGER = '.solution.is-open button[data-feedback-video]';
 const openDialog = async (tab) => {
   await tab.click(FOOTER_TRIGGER);
   await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000);
@@ -300,7 +303,7 @@ function states() {
       path: '/problems/tired-but-wired/',
       setup: async (tab) => {
         await openFirstCard(tab);
-        await tab.click('.solution.is-open button[data-feedback-video]');
+        await tab.click(CARD_TRIGGER);
         if (!(await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000))) throw new Error("the card's Feedback button didn't open the dialog");
         return (await waitForTurnstile(tab)) ? undefined : "Turnstile didn't load (offline?): checked without its widget";
       },
@@ -628,6 +631,45 @@ function walks() {
         const end = await js(tab, state);
         if (end.open || !end.onFooter) problems.push(`Escape didn't return focus to "Send feedback" (${JSON.stringify(end)})`);
         return { stops: walk.stops, problems, note: turnstile ? undefined : "Turnstile didn't load (offline?)" };
+      },
+    },
+    {
+      // A button inside an open solution card: the dialog is about the
+      // card's video, and Escape puts focus back on that button, with the
+      // card still open. On a1.localhost the dialog has no site key (A1), so
+      // nothing here waits for Cloudflare.
+      name: "keys: the feedback dialog from a solution card's button",
+      feature: 'feedback',
+      path: '/problems/tired-but-wired/',
+      host: 'a1.localhost',
+      run: async (tab) => {
+        const problems = [];
+        if (!(await js(tab, `!!document.querySelector('.solution button.solution__face')`))) return { problems: ["solutions.js didn't enhance the cards"] };
+        await js(tab, `document.querySelector('.solution button.solution__face').focus()`);
+        await tab.key('Enter');
+        if (!(await tab.waitFor(`document.querySelector('.solution button.solution__face[aria-expanded="true"]')`, 2000))) return { problems: ["Enter didn't open the card"] };
+        const state = `(() => {
+          const button = document.querySelector(${JSON.stringify(CARD_TRIGGER)});
+          const about = document.querySelector('[data-feedback-about]');
+          return {
+            shown: Boolean(button) && !button.hidden && button.getClientRects().length > 0,
+            open: document.querySelector('[data-feedback-dialog]').open,
+            onButton: Boolean(button) && document.activeElement === button,
+            about: about.hidden ? null : about.textContent,
+            expected: 'About the video: ' + (document.querySelector('.solution.is-open .video-block__title')?.textContent.trim() ?? ''),
+          };
+        })()`;
+        if (!(await js(tab, state)).shown) return { problems: ["feedback.js didn't show the open card's Feedback button"] };
+        await js(tab, `document.querySelector(${JSON.stringify(CARD_TRIGGER)}).focus()`);
+        await tab.key('Enter');
+        if (!(await tab.waitFor(`document.querySelector('[data-feedback-dialog]')?.open`, 3000))) return { problems: ["Enter didn't open the dialog"] };
+        const opened = await js(tab, state);
+        if (opened.about !== opened.expected) problems.push(`The dialog says "${opened.about}", not "${opened.expected}"`);
+        await tab.key('Escape');
+        await tab.sleep(200);
+        const closed = await js(tab, state);
+        if (closed.open || !closed.onButton) problems.push(`Escape didn't close the dialog and return focus to the open card's "Feedback" button (${JSON.stringify(closed)})`);
+        return { problems };
       },
     },
     {

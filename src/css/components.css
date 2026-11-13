@@ -276,8 +276,10 @@ button.video__facade[aria-disabled="true"] {
    an open card below it always switch together: narrower than 768px, one
    column in the DOM's order (the label, title and description above the
    video); from 768px the video (3fr) and the label, title and description
-   (2fr) side by side, and the row under both, across the block, so "Audio
-   only", the handout and the rating share one line. 768 is the Problem-A
+   (2fr) side by side, and the row under both, across the block ("Audio
+   only", the handout, "Feedback" and the rating share one line once the
+   row is about 800px wide; narrower, the stars take the line under the
+   buttons, SPEC §7.5). 768 is the Problem-A
    open card's 420 + 24 + 280 = 724 (not tokens) plus an open card's 2px
    border and 20px panel padding on each side, so the narrowest template,
    the open card's, still has 724px when it goes to two columns. */
