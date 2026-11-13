@@ -406,7 +406,7 @@ describe('built site', () => {
     const html = pageAt(site, '/start/');
     const chapters = elementByClass(elementByClass(html, 'with-sidebar__side', 'div'), 'topic-nav__chapters', 'ol');
     expect([...chapters.matchAll(/<a[^>]*>([^<]*)<\/a>/g)].map((m) => m[1])).toEqual([
-      '1. [How sleep works]', '2. [Why cancer can change sleep]', '3. [How to use this program]',
+      '1. [How sleep works and why cancer can change it]', '2. [How to use this program]',
     ]);
   });
 });

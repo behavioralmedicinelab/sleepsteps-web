@@ -8,7 +8,7 @@ page_width: medium
 title: Start here
 eyebrow: Start here
 heading: The introduction
-summary: Three short videos everyone watches first. Watch them in order, in one sitting or over a few days.
+summary: Two short videos everyone watches first. Watch them in order, in one sitting or over a few days.
 styles: ["pages/start.css"]
 # rating.js: the ratings widgets (SPEC §12), dropped by the moduleScripts
 # filter unless features.ratings is exactly true.
@@ -20,7 +20,6 @@ track_page_view: true
 # data/videos.csv; its title, description, duration and formats come from
 # that row.
 chapters:
-  - video: how-sleep-works
-  - video: why-cancer-can-change-sleep
+  - video: sleep-and-cancer
   - video: how-to-use-this-program
 ---

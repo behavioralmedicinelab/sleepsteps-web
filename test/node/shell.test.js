@@ -136,10 +136,12 @@ describe('TopicNav', () => {
     for (const nav of [sidebarNav(html), panelNav(html)]) {
       expect(currentLinks(nav)).toEqual([{ href: '/start/', value: 'page', label: 'Introduction videos' }]);
       const chapters = elementByClass(nav, 'topic-nav__chapters', 'ol');
-      expect(tags(chapters, 'a').map((t) => attr(t, 'href'))).toEqual(['#v1', '#v2', '#v3']);
+      expect(tags(chapters, 'a').map((t) => attr(t, 'href'))).toEqual(['#v1', '#v2']);
       expect(tags(nav, 'details').filter((t) => attr(t, 'open') !== undefined)).toHaveLength(0);
     }
-    for (const id of ['v1', 'v2', 'v3']) expect(html).toContain(`id="${id}"`);
+    for (const id of ['v1', 'v2']) expect(html).toContain(`id="${id}"`);
+    // Two intro videos, not three (project lead, 2026-11-13, SPEC §7.3).
+    expect(html).not.toContain('id="v3"');
   });
 
   it.each(['/', '/problems/', '/help/', '/about/', '/contact/', '/privacy/', '/search/', '/404.html'])(

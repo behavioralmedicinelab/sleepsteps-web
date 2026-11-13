@@ -172,8 +172,8 @@ describe('M1b content (SPEC §7.1-§7.3)', () => {
     },
   );
 
-  it('lists the three Start here videos in order, each with only its video (the rest is its row)', () => {
-    expect(model.start.data.chapters).toEqual([{ video: 'how-sleep-works' }, { video: 'why-cancer-can-change-sleep' }, { video: 'how-to-use-this-program' }]);
+  it('lists the two Start here videos in order, each with only its video (the rest is its row)', () => {
+    expect(model.start.data.chapters).toEqual([{ video: 'sleep-and-cancer' }, { video: 'how-to-use-this-program' }]);
   });
 });
 
@@ -186,7 +186,10 @@ describe('data/videos.csv', () => {
   const { model, warnings } = validateContent(process.cwd());
   const bytes = readFileSync('data/videos.csv');
   const { columns, rows } = parseCsvTable(bytes.toString('utf8'));
-  const INTRO = ['how-sleep-works', 'why-cancer-can-change-sleep', 'how-to-use-this-program'];
+  // sleep-and-cancer replaced the placeholders how-sleep-works and
+  // why-cancer-can-change-sleep: two intro videos, not three (project lead,
+  // 2026-11-13, SPEC §7.3, §22).
+  const INTRO = ['sleep-and-cancer', 'how-to-use-this-program'];
   const problemVideos = handoffProblems.map((p) => `${p.slug}-about`);
 
   it('has the SPEC §7.1 columns, in order', () => {
@@ -202,7 +205,7 @@ describe('data/videos.csv', () => {
 
   // video_ids are permanent (SPEC §7.1): ratings, events and pages.json use
   // them. Any order, and more rows, are fine.
-  it('keeps every video_id migrated from content/videos (the intro, mechanism and problem videos)', () => {
+  it('keeps the video_id of every intro, mechanism and problem video', () => {
     const ids = rows.map((r) => r.record.video_id);
     expect(ids).toEqual(expect.arrayContaining([...INTRO, ...MECHANISMS, ...problemVideos]));
     expect(new Set(ids).size).toBe(ids.length);

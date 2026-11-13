@@ -86,7 +86,7 @@ Every column but `youtube_url` and `thumbnail` needs something in it. The build 
 
 The rows can be in any order; the pages follow the problem files and `content/start.md`, not the spreadsheet. To use a video on a page, name its `video_id` there (below).
 
-**Every video looks the same** wherever it is (the problem's own video, an open solution card, a Start here chapter): its label where it has one ("1 Main", "2 Extra" on a solution, "1 of 3" on Start here), its title and description, the video, then one row: "Audio only", "Handout" and "Was this helpful?" with its stars. A closed solution card shows its label, length, title and description (on a phone, its number, title and description). All of it comes from the video's row (a solution's `blurb` can replace the description, below); the layout is one template, `src/_includes/partials/video-block.njk`, and a test checks that every video on the site matches it (`SPEC.md` §7.5).
+**Every video looks the same** wherever it is (the problem's own video, an open solution card, a Start here chapter): its label where it has one ("1 Main", "2 Extra" on a solution, "1 of 2" on Start here), its title and description, the video, then one row: "Audio only", "Handout" and "Was this helpful?" with its stars. A closed solution card shows its label, length, title and description (on a phone, its number, title and description). All of it comes from the video's row (a solution's `blurb` can replace the description, below); the layout is one template, `src/_includes/partials/video-block.njk`, and a test checks that every video on the site matches it (`SPEC.md` §7.5).
 
 **The handout carries the narration.** There are no transcripts on the site: the handout is each video's text version (the text alternative for people who can't hear the audio), so it has the video's full narration, word for word, naming the speakers, plus anything that matters on screen. The "Handout" button under each video links to it. Make it accessible: for a PDF, export it from Word as a tagged PDF and check it (`SPEC.md` §9.3). The handout's format (PDF, Word or a web page) is still being decided; until then it is a PDF.
 
@@ -196,7 +196,7 @@ A video can appear on several pages, but only once on each page. Leave the lines
 
 ### Start here
 
-The intro videos are `chapters` in `content/start.md`, in order, each a `video` (a `video_id`). Their titles, descriptions and durations come from their rows in `data/videos.csv`, so change an intro video's description there: a chapter has only its `video`, and the build stops on a `description` line in `content/start.md`.
+The intro videos are `chapters` in `content/start.md`, in order, each a `video` (a `video_id`). There are two: `sleep-and-cancer` (how sleep works and why cancer can change it) and `how-to-use-this-program`. Their titles, descriptions and durations come from their rows in `data/videos.csv`, so change an intro video's description there: a chapter has only its `video`, and the build stops on a `description` line in `content/start.md`. The labels "1 of 2" and "2 of 2" are counted for you, but the `summary` line in `content/start.md` ("Two short videos everyone watches first…") is typed by hand, so change its number if you add or remove an intro video.
 
 ### Other content
 
