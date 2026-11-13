@@ -333,8 +333,8 @@ function setUpAudio(audio) {
 function onClick(event) {
   const link = event.target.closest?.('a[href]');
   // handout_open { media: video_id } when a handout link is clicked
-  // (whatever the format): the row's "Handout" or a closed card's quick
-  // link.
+  // (whatever the format): the row's "Handout", the only one (a closed card
+  // has no quick link, SPEC §9.4).
   if (link?.dataset.handout) report('handout_open', { media: link.dataset.handout });
   // worksheet_open { worksheet: worksheet_id } when a worksheet link in an
   // open solution card is clicked (SPEC §7.6), in the same way.
