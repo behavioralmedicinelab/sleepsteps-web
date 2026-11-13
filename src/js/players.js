@@ -207,8 +207,9 @@ function onStateChange(wrapper, state) {
   if (!entry || !states) return;
   // Its first start, where the visitor can't get to it (`autoplay: 1` starts
   // a video that was still loading when its card closed, or when the
-  // feedback dialog opened): pause it, pause nothing else and report no play. Once the visitor has played it, a later
-  // start there is theirs (the browser's media controls, a media key).
+  // feedback dialog opened): pause it, pause nothing else and report no
+  // play. Once the visitor has played it, a later start there is theirs (the
+  // browser's media controls, a media key).
   if (!entry.started && (state === states.PLAYING || state === states.BUFFERING) && outOfReach(wrapper)) {
     try {
       entry.player.pauseVideo();
