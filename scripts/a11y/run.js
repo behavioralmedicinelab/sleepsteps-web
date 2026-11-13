@@ -191,16 +191,8 @@ function states() {
         await js(tab, `document.querySelector('.topic-nav details')?.setAttribute('open', '')`);
       },
     },
-    { name: 'problems: an area open', path: '/problems/', setup: (tab) => tab.click('[data-view-panel]:not([hidden]) button[aria-expanded]') },
+    { name: 'problems: an area open', path: '/problems/', setup: (tab) => tab.click('[data-problems] button[aria-expanded]') },
     { name: 'problems: area named in the address', path: '/problems/#mind' },
-    {
-      name: 'problems: When it happens, a group open',
-      path: '/problems/',
-      setup: async (tab) => {
-        await tab.click('label[for="view-time"]');
-        await tab.click('[data-view-panel="time"] button[aria-expanded]');
-      },
-    },
     {
       name: 'problems: the filter matches',
       path: '/problems/',

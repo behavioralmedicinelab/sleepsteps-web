@@ -81,7 +81,6 @@ describe('content/problems', () => {
       statement: p.statement,
       source_title: p.sourceTitle,
       area: p.areaId,
-      time_of_day: p.timeOfDay,
       order: order * 10,
       new: p.isNew === true,
       problem_video: `${slug}-about`,

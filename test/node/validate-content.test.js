@@ -82,7 +82,6 @@ const problem = (title, extra = {}) => ({
   statement: `${title}, in the first person`,
   source_title: 'The team wording',
   area: 'core',
-  time_of_day: 'night',
   order: 10,
   new: false,
   problem_video: 'about',
@@ -299,7 +298,6 @@ describe('validateContent fails the build on', () => {
     ['a problem without a title', { 'content/problems/two.md': md(problem('Two', { title: '', problem_video: 'about-two' })) }, 'content/problems/two.md: title: required'],
     ['a problem without a statement', { 'content/problems/two.md': md(problem('Two', { statement: undefined, problem_video: 'about-two' })) }, 'two.md: statement: required'],
     ['an unknown area', { 'content/problems/two.md': md(problem('Two', { area: 'sleepy', problem_video: 'about-two' })) }, 'two.md: area: unknown area "sleepy"'],
-    ['an unknown time_of_day', { 'content/problems/two.md': md(problem('Two', { time_of_day: 'midnight', problem_video: 'about-two' })) }, 'two.md: time_of_day: must be one of'],
     ['a missing order', { 'content/problems/two.md': md(problem('Two', { order: 'first', problem_video: 'about-two' })) }, 'two.md: order: required'],
     ['a missing problem_video', { 'content/problems/two.md': md(problem('Two', { problem_video: undefined })) }, 'two.md: problem_video: required'],
     ['an unknown problem_video', { 'content/problems/two.md': md(problem('Two', { problem_video: 'gone' })) }, 'two.md: problem_video: unknown video "gone" (not in data/videos.csv)'],
@@ -630,12 +628,14 @@ describe('validateContent warns, without failing, about', () => {
   it('videos used nowhere, and problem fields the templates do not read', () => {
     const result = run({
       ...videosCsv({}, [vid('spare', 'Spare', PH)]),
-      'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', keywords: 'x' })),
+      // `time_of_day` went with the "When it happens" view (SPEC §7.2, §22):
+      // a file that still has it builds, with this warning.
+      'content/problems/two.md': md(problem('Two', { problem_video: 'about-two', keywords: 'x', time_of_day: 'night' })),
     });
     expect(messages(result)).toEqual([]);
     expect(codes(result)).toEqual(['placeholder-video', 'unknown-key', 'unused-video']);
     expect(groupWarnings(result.warnings).slice(1)).toEqual([
-      ['Front-matter keys the templates do not read (a typo?)', ['content/problems/two.md: keywords']],
+      ['Front-matter keys the templates do not read (a typo?)', ['content/problems/two.md: keywords', 'content/problems/two.md: time_of_day']],
       ['Videos not used on any page', ['spare']],
     ]);
   });

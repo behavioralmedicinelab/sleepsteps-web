@@ -38,7 +38,6 @@ const fromEleventy = createRequire(require.resolve('@11ty/eleventy'));
 const matter = fromEleventy('gray-matter');
 const yaml = fromEleventy('js-yaml');
 
-export const TIMES_OF_DAY = ['evening', 'bedtime', 'night', 'early-morning', 'day', 'any'];
 export const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // the static asset limit (SPEC §9.2)
 export const SOLUTION_LIMITS = { main: [1, 3], extra: [0, 3] };
 
@@ -71,7 +70,7 @@ const GARBLED_CSV = 'has garbled characters (for example â€œ in place of “
 
 const VIDEOS_FILE = 'data/videos.csv';
 const PROBLEM_KEYS = [
-  'title', 'statement', 'source_title', 'area', 'time_of_day', 'order', 'new',
+  'title', 'statement', 'source_title', 'area', 'order', 'new',
   'problem_video', 'standalone', 'is_this_you', 'solutions', 'related',
 ];
 const MEDIA = {
@@ -396,9 +395,6 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     }
     if (!isText(data.area)) error(file, 'area', `required: one of ${listOf([...areaIds])}`);
     else if (!areaIds.has(data.area)) error(file, 'area', `unknown area "${data.area}" (not in data/areas.csv)`);
-    if (!TIMES_OF_DAY.includes(data.time_of_day)) {
-      error(file, 'time_of_day', `must be one of ${listOf(TIMES_OF_DAY)}`);
-    }
     if (typeof data.order !== 'number' || !Number.isFinite(data.order)) {
       error(file, 'order', 'required: a number (the order within the area)');
     }

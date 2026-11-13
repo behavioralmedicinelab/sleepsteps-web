@@ -56,32 +56,21 @@ describe('eleventy.config.js', () => {
       { area_id: 'day', name: 'Day', order: '20' },
       { area_id: 'core', name: 'Core', order: '10' },
     ];
-    const item = (slug, area) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, area } });
+    const item = (slug, area) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, statement: `${slug}.`, area, new: slug === 'c' } });
     const grouped = f.groupByArea([item('a', 'day'), item('b', 'core'), item('c', 'core')], areas);
-    expect(grouped.map((a) => [a.area_id, a.problems.map((p) => p.slug)])).toEqual([
-      ['core', ['b', 'c']],
-      ['day', ['a']],
+    expect(grouped.map((a) => [a.area_id, a.name, a.problems.map((p) => p.slug)])).toEqual([
+      ['core', 'Core', ['b', 'c']],
+      ['day', 'Day', ['a']],
     ]);
-    expect(() => f.groupByArea([item('x', 'nope')], areas)).toThrow(/unknown area "nope"/);
-  });
-
-  it('groupByTime keeps the given order and the collection order, and fails on a time with no group', () => {
-    const times = [
-      { id: 'evening', name: 'In the evening' },
-      { id: 'night', name: 'During the night' },
-      { id: 'any', name: 'Any time' },
-    ];
-    const item = (slug, time) => ({ url: `/problems/${slug}/`, inputPath: `${slug}.md`, data: { page_id: slug, title: slug, statement: `${slug}.`, time_of_day: time, new: slug === 'c' } });
-    const grouped = f.groupByTime([item('a', 'night'), item('b', 'evening'), item('c', 'night')], times);
-    expect(grouped.map((t) => [t.id, t.name, t.problems.map((p) => p.slug)])).toEqual([
-      ['evening', 'In the evening', ['b']],
-      ['night', 'During the night', ['a', 'c']],
-      ['any', 'Any time', []],
+    // A problem as the templates read it.
+    expect(grouped[0].problems).toEqual([
+      { slug: 'b', title: 'b', statement: 'b.', url: '/problems/b/', isNew: false },
+      { slug: 'c', title: 'c', statement: 'c.', url: '/problems/c/', isNew: true },
     ]);
-    // The same shape as groupByArea's problems.
-    expect(grouped[1].problems[1]).toEqual({ slug: 'c', title: 'c', statement: 'c.', url: '/problems/c/', isNew: true });
-    expect(() => f.groupByTime([item('x', 'noon')], times)).toThrow(/x\.md: time_of_day "noon" has no group/);
-    expect(() => f.groupByTime(undefined, times)).toThrow(/groupByTime expects/);
+    expect(() => f.groupByArea([item('x', 'nope')], areas)).toThrow(/x\.md: unknown area "nope"/);
+    expect(() => f.groupByArea(undefined, areas)).toThrow(/groupByArea expects/);
+    // The "When it happens" view's filter is gone (SPEC §7.2, §22).
+    expect(f.groupByTime).toBeUndefined();
   });
 
   // The templates, the moduleScripts filter and the Worker (worker/router.js)

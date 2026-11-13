@@ -93,7 +93,7 @@ export default function (eleventyConfig) {
     );
   });
 
-  // A problem as a link in a list: the shape groupByArea and groupByTime give.
+  // A problem as a link in a list: the shape groupByArea gives.
   const problemLink = (item) => ({
     slug: item.data.page_id,
     title: item.data.title,
@@ -128,25 +128,6 @@ export default function (eleventyConfig) {
     const result = [...byId.values()];
     grouped.set(problems, { areas, result });
     return result;
-  });
-
-  // The Sleep problems page's "When it happens" groups (`time_groups` in
-  // content/problems.njk: [{ id, name }] in display order), each with its
-  // problems in collection order (SPEC §7.2). Fails the build on a problem
-  // whose `time_of_day` has no group. Only that page uses it.
-  eleventyConfig.addFilter('groupByTime', (problems, times) => {
-    if (!Array.isArray(problems) || !Array.isArray(times)) {
-      throw new Error('groupByTime expects the problems collection and the time_groups front matter');
-    }
-    const byId = new Map(times.map((t) => [t.id, { ...t, problems: [] }]));
-    for (const item of problems) {
-      const time = byId.get(item.data.time_of_day);
-      if (!time) {
-        throw new Error(`${item.inputPath}: time_of_day "${item.data.time_of_day}" has no group in content/problems.njk`);
-      }
-      time.problems.push(problemLink(item));
-    }
-    return [...byId.values()];
   });
 
   // The video library (SPEC §7.1) is data/videos.csv, so the global data

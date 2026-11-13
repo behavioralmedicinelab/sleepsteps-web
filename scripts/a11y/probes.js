@@ -4,15 +4,14 @@
 /**
  * What has focus, and how it looks: { none } when nothing in the page has
  * it; otherwise the element, the box that carries its ring (a star's label
- * for a rating radio, the slider's track for the view radios), the ring's
- * style, and the ring's box against the viewport.
+ * for a rating radio), the ring's style, and the ring's box against the
+ * viewport.
  */
 export const FOCUS_INFO = `(() => {
   const el = document.activeElement;
   if (!el || el === document.body || el === document.documentElement) return { none: true };
   let ring = el;
   if (el.matches('input[type=radio]')) ring = (el.id && document.querySelector('label[for="' + el.id + '"]')) || el.closest('label') || el.nextElementSibling || el;
-  if (el.matches('.view-toggle__input')) ring = document.querySelector('.view-toggle__track') || ring;
   const cs = getComputedStyle(ring);
   const r = ring.getBoundingClientRect();
   const width = parseFloat(cs.outlineWidth) || 0;

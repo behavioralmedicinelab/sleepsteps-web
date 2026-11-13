@@ -439,30 +439,27 @@ describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => 
 
 describe('problems.js on /problems/', () => {
   const html = pageAt(site, '/problems/');
-  const panel = (view) => dom.document.querySelector(`[data-view-panel="${view}"]`);
-  const groups = (view) => panel(view).querySelectorAll('section.group-list__group');
-  const areaSections = () => groups('area');
+  const areaSections = () => dom.document.querySelectorAll('[data-problems] section.group-list__group');
   const button = (section) => section.querySelector('button.group-list__header');
-  const expanded = (view) => groups(view).map((s) => button(s).getAttribute('aria-expanded'));
+  const expanded = () => areaSections().map((s) => button(s).getAttribute('aria-expanded'));
   const visibleItems = (section) => section.querySelectorAll('li[data-slug]').filter((li) => !li.hidden);
   const typeQuery = (value) => {
     const input = dom.document.getElementById('problem-filter');
     input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
   };
-  const slugs = (items) => items.map((li) => li.dataset.slug).sort();
-  /** Each group of a view: its name, whether it is hidden or open, and its count. */
-  const viewState = (view) =>
-    groups(view).map((s) => [
+  /** Each area: its name, whether it is hidden or open, and its count. */
+  const pageState = () =>
+    areaSections().map((s) => [
       s.querySelector('[data-group-name]').textContent,
       s.hidden,
       button(s).getAttribute('aria-expanded'),
       s.querySelector('[data-group-list]').hidden,
       s.querySelector('[data-group-count]').textContent,
     ]);
-  /** Check a view is narrowed: only groups with a match show, each open, counting "n of total". Returns the shown slugs. */
-  const expectNarrowed = (view) => {
-    for (const section of groups(view)) {
+  /** Check the page is narrowed: only areas with a match show, each open, counting "n of total". Returns the shown slugs. */
+  const expectNarrowed = () => {
+    for (const section of areaSections()) {
       const items = visibleItems(section);
       expect(section.hidden).toBe(items.length === 0);
       if (items.length === 0) continue;
@@ -471,36 +468,35 @@ describe('problems.js on /problems/', () => {
       const total = section.querySelectorAll('li[data-slug]').length;
       expect(section.querySelector('[data-group-count]').textContent).toBe(`${items.length} of ${total}`);
     }
-    return slugs(groups(view).filter((s) => !s.hidden).flatMap(visibleItems));
+    return areaSections()
+      .filter((s) => !s.hidden)
+      .flatMap(visibleItems)
+      .map((li) => li.dataset.slug)
+      .sort();
   };
 
-  // The page with a group that has no topics, second in each view (an area
-  // with no problems yet, or a time of day none has): a copy of the view's
-  // first group, renamed, with its list emptied.
-  const withEmptyGroups = (source) => {
-    let out = source;
-    for (const view of ['area', 'time']) {
-      const first = out.indexOf('<section', out.indexOf(`data-view-panel="${view}"`));
-      const end = out.indexOf('</section>', first) + '</section>'.length;
-      const empty = out
-        .slice(first, end)
-        .replace(/^<section([^>]*?) id="[^"]*"/, '<section$1 id="empty"')
-        .replace(/(data-group-name>)[^<]*/, '$1Nothing here yet')
-        .replace(/data-total="\d+">\d+</, 'data-total="0">0<')
-        .replace(/(group-list__count-unit">) topics?/, '$1 topics')
-        .replace(/(<ul\b[^>]*\bid=")[^"]*("[^>]*>)[\s\S]*<\/ul>/, `$1${view}-empty-problems$2</ul>`);
-      expect(empty).not.toContain('<li');
-      const second = out.indexOf('<section', end);
-      out = out.slice(0, second) + empty + out.slice(second);
-    }
-    return out;
+  // The page with an area that has no topics yet, second in the list: a
+  // copy of the first area, renamed, with its list emptied.
+  const withEmptyArea = (source) => {
+    const first = source.indexOf('<section', source.indexOf('data-problems'));
+    const end = source.indexOf('</section>', first) + '</section>'.length;
+    const empty = source
+      .slice(first, end)
+      .replace(/^<section([^>]*?) id="[^"]*"/, '<section$1 id="empty"')
+      .replace(/(data-group-name>)[^<]*/, '$1Nothing here yet')
+      .replace(/data-total="\d+">\d+</, 'data-total="0">0<')
+      .replace(/(group-list__count-unit">) topics?/, '$1 topics')
+      .replace(/(<ul\b[^>]*\bid=")[^"]*("[^>]*>)[\s\S]*<\/ul>/, '$1area-empty-problems$2</ul>');
+    expect(empty).not.toContain('<li');
+    const second = source.indexOf('<section', end);
+    return source.slice(0, second) + empty + source.slice(second);
   };
 
   beforeEach(() => {
     vi.useFakeTimers();
   });
 
-  it('shows the toolbar (the filter and the view toggle, no "Open all areas") and its lede sentence', async () => {
+  it('shows the toolbar (the filter alone: no view toggle, no "Open all areas") and its lede sentence', async () => {
     await load(html, ['problems']);
     const { document } = dom;
     const tools = document.querySelector('[data-problems-tools]');
@@ -508,62 +504,41 @@ describe('problems.js on /problems/', () => {
     expect(document.querySelector('[data-problems-hint]').hidden).toBe(false);
     expect(tools.querySelectorAll('button')).toHaveLength(0);
     expect(document.querySelector('[data-toggle-all]')).toBeNull();
-    const radios = tools.querySelectorAll('fieldset input[type="radio"]');
-    expect(radios.map((r) => [r.value, r.checked])).toEqual([['area', true], ['time', false]]);
+    expect(tools.querySelectorAll('input').map((i) => i.id)).toEqual(['problem-filter']);
+    expect(document.querySelectorAll('main fieldset, main input[type="radio"]')).toHaveLength(0);
   });
 
-  it('makes every group in both views a button, all closed (project lead, 2026-11-07)', async () => {
+  it('makes every area a button, all closed (project lead, 2026-11-07)', async () => {
     await load(html, ['problems']);
-    for (const [view, n] of [['area', 10], ['time', 6]]) {
-      const sections = groups(view);
-      expect(sections).toHaveLength(n);
-      sections.forEach((section, i) => {
-        const list = section.querySelector('[data-group-list]');
-        const header = button(section);
-        expect(header.parentNode.tagName.toLowerCase()).toBe('h2');
-        expect(header.getAttribute('type')).toBe('button');
-        expect(header.getAttribute('aria-controls')).toBe(list.id);
-        expect(header.getAttribute('aria-expanded')).toBe('false');
-        expect(list.hidden).toBe(true);
-        expect(section.querySelector('span.group-list__header')).toBeNull();
-      });
+    const sections = areaSections();
+    expect(sections).toHaveLength(10);
+    for (const section of sections) {
+      const list = section.querySelector('[data-group-list]');
+      const header = button(section);
+      expect(header.parentNode.tagName.toLowerCase()).toBe('h2');
+      expect(header.getAttribute('type')).toBe('button');
+      expect(header.getAttribute('aria-controls')).toBe(list.id);
+      expect(header.getAttribute('aria-expanded')).toBe('false');
+      expect(list.hidden).toBe(true);
+      expect(section.hidden).toBe(false);
+      expect(section.querySelector('span.group-list__header')).toBeNull();
     }
-    expect(panel('area').hidden).toBe(false);
-    expect(panel('time').hidden).toBe(true);
     expect(dom.document.querySelector('[data-problems]').classList.contains('is-enhanced')).toBe(true);
 
-    for (const view of ['area', 'time']) {
-      const second = groups(view)[1];
-      button(second).click();
-      expect(button(second).getAttribute('aria-expanded')).toBe('true');
-      expect(second.querySelector('[data-group-list]').hidden).toBe(false);
-      button(second).click();
-      expect(second.querySelector('[data-group-list]').hidden).toBe(true);
-    }
+    const second = sections[1];
+    button(second).click();
+    expect(button(second).getAttribute('aria-expanded')).toBe('true');
+    expect(second.querySelector('[data-group-list]').hidden).toBe(false);
+    button(second).click();
+    expect(button(second).getAttribute('aria-expanded')).toBe('false');
+    expect(second.querySelector('[data-group-list]').hidden).toBe(true);
   });
 
-  it('opens only the area named in the URL, leaving every time of day closed', async () => {
+  it('opens only the area named in the URL', async () => {
     await load(html, ['problems'], { hash: '#mind' });
     const open = areaSections().filter((s) => button(s).getAttribute('aria-expanded') === 'true');
     expect(open.map((s) => s.id)).toEqual(['mind']);
-    expect(expanded('time')).toEqual(Array(6).fill('false'));
-  });
-
-  it('switches to "When it happens" and back, and the result line follows the view', async () => {
-    const [{ STATUS_DELAY }] = await load(html, ['problems']);
-    const { document } = dom;
-    const status = document.querySelector('[data-filter-status]');
-    expect(status.textContent).toBe('36 topics in 10 areas');
-    document.getElementById('view-time').click();
-    expect(panel('time').hidden).toBe(false);
-    expect(panel('area').hidden).toBe(true);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe('36 topics across 6 times of day');
-    document.getElementById('view-area').click();
-    expect(panel('area').hidden).toBe(false);
-    expect(panel('time').hidden).toBe(true);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe('36 topics in 10 areas');
+    expect(expanded().filter((value) => value === 'false')).toHaveLength(9);
   });
 
   it('filters as you type: hides areas without matches, opens the rest, and announces the count once typing pauses', async () => {
@@ -571,6 +546,7 @@ describe('problems.js on /problems/', () => {
     const { document } = dom;
     const status = document.querySelector('[data-filter-status]');
     const before = status.textContent;
+    expect(before).toBe('36 topics in 10 areas');
 
     typeQuery('night');
     const shown = areaSections().filter((s) => !s.hidden);
@@ -598,119 +574,65 @@ describe('problems.js on /problems/', () => {
     vi.advanceTimersByTime(STATUS_DELAY);
     expect(status.textContent).toBe(before);
     expect(areaSections().filter((s) => s.hidden)).toEqual([]);
-    expect(expanded('area')).toEqual(Array(10).fill('false'));
+    expect(expanded()).toEqual(Array(10).fill('false'));
   });
 
-  it('filters "When it happens" the same way: "3am" hides the times without matches and opens the rest', async () => {
+  it('puts the areas back as they were when the field is cleared: one opened by hand stays open, the rest close', async () => {
     const [{ STATUS_DELAY }] = await load(html, ['problems']);
-    const { document } = dom;
-    const status = document.querySelector('[data-filter-status]');
-    document.getElementById('view-time').click();
-    button(groups('time')[2]).click(); // open "During the night" by hand too
+    const status = dom.document.querySelector('[data-filter-status]');
+    button(areaSections()[2]).click(); // open the third area by hand
 
     typeQuery('3am');
-    const areaMatches = areaSections().flatMap(visibleItems).filter((li) => !li.closest('section').hidden);
-    const matchedSlugs = areaMatches.map((li) => li.dataset.slug).sort();
-    expect(matchedSlugs.length).toBeGreaterThan(0);
-    const timeShown = groups('time').filter((s) => !s.hidden);
-    expect(timeShown.length).toBeGreaterThan(0);
-    expect(timeShown.length).toBeLessThan(6);
-    expect(timeShown.flatMap(visibleItems).map((li) => li.dataset.slug).sort()).toEqual(matchedSlugs);
-    for (const section of groups('time')) {
-      const items = visibleItems(section);
-      expect(section.hidden).toBe(items.length === 0);
-      if (items.length) {
-        expect(button(section).getAttribute('aria-expanded')).toBe('true');
-        expect(section.querySelector('[data-group-list]').hidden).toBe(false);
-        const total = section.querySelectorAll('li[data-slug]').length;
-        expect(section.querySelector('[data-group-count]').textContent).toBe(`${items.length} of ${total}`);
-      }
-    }
+    const matched = expectNarrowed();
+    expect(matched.length).toBeGreaterThan(0);
+    const shown = areaSections().filter((s) => !s.hidden);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.length).toBeLessThan(10);
     vi.advanceTimersByTime(STATUS_DELAY);
-    const n = matchedSlugs.length;
+    const n = matched.length;
     expect(status.textContent).toBe(n === 1 ? '1 topic matches “3am”' : `${n} topics match “3am”`);
 
-    // Clearing it puts the times of day back as they were.
+    // A second query narrows again: the state to return to is still the one
+    // before the first.
+    typeQuery('night');
+    expect(expectNarrowed()).not.toEqual(matched);
+
     typeQuery('');
     vi.advanceTimersByTime(STATUS_DELAY);
-    expect(groups('time').filter((s) => s.hidden)).toEqual([]);
-    expect(expanded('time')).toEqual(['false', 'false', 'true', 'false', 'false', 'false']);
-    expect(groups('time').map((s) => s.querySelector('[data-group-count]').textContent)).toEqual(
-      groups('time').map((s) => String(s.querySelectorAll('li[data-slug]').length)),
+    expect(areaSections().filter((s) => s.hidden)).toEqual([]);
+    expect(expanded()).toEqual(['false', 'false', 'true', 'false', 'false', 'false', 'false', 'false', 'false', 'false']);
+    expect(areaSections().flatMap((s) => s.querySelectorAll('li[data-slug]')).filter((li) => li.hidden)).toEqual([]);
+    expect(areaSections().map((s) => s.querySelector('[data-group-count]').textContent)).toEqual(
+      areaSections().map((s) => String(s.querySelectorAll('li[data-slug]').length)),
     );
-    expect(status.textContent).toBe('36 topics across 6 times of day');
+    expect(status.textContent).toBe('36 topics in 10 areas');
   });
 
-  it('says so when nothing matches, keeping every topic in view, in either view', async () => {
+  it('says so when nothing matches, keeping every topic in view', async () => {
     const [{ STATUS_DELAY, NO_MATCH }] = await load(html, ['problems']);
     const status = dom.document.querySelector('[data-filter-status]');
     typeQuery('zzzz');
     vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(NO_MATCH.area);
+    expect(NO_MATCH).toBe('Nothing matches yet. Try a different word, or open an area below.');
+    expect(status.textContent).toBe(NO_MATCH);
     expect(areaSections().filter((s) => s.hidden)).toEqual([]);
-    dom.document.getElementById('view-time').click();
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(NO_MATCH.time);
-    expect(groups('time').filter((s) => s.hidden)).toEqual([]);
+    expect(areaSections().flatMap((s) => s.querySelectorAll('li[data-slug]')).filter((li) => li.hidden)).toEqual([]);
   });
 
-  it('keeps the filter when switching view: typed in By area, "When it happens" is narrowed to the same topics, and back again', async () => {
-    const [{ STATUS_DELAY }] = await load(html, ['problems']);
-    const { document } = dom;
-    const status = document.querySelector('[data-filter-status]');
-
-    typeQuery('night');
-    vi.advanceTimersByTime(STATUS_DELAY);
-    const matched = expectNarrowed('area');
-    expect(matched.length).toBeGreaterThan(1);
-    const line = `${matched.length} topics match “night”`;
-    expect(status.textContent).toBe(line);
-    const areaNarrowed = viewState('area');
-
-    document.getElementById('view-time').click();
-    expect(panel('time').hidden).toBe(false);
-    expect(document.getElementById('problem-filter').value).toBe('night');
-    expect(expectNarrowed('time')).toEqual(matched);
-    expect(groups('time').filter((s) => s.hidden).length).toBeGreaterThan(0);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(line);
-
-    document.getElementById('view-area').click();
-    expect(panel('area').hidden).toBe(false);
-    expect(viewState('area')).toEqual(areaNarrowed);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(line);
-
-    // And the other way: typed in "When it happens", By area follows.
-    document.getElementById('view-time').click();
-    typeQuery('3am');
-    const fromTime = expectNarrowed('time');
-    expect(fromTime.length).toBeGreaterThan(0);
-    expect(fromTime).not.toEqual(matched);
-    document.getElementById('view-area').click();
-    expect(expectNarrowed('area')).toEqual(fromTime);
-    vi.advanceTimersByTime(STATUS_DELAY);
-    const n = fromTime.length;
-    expect(status.textContent).toBe(n === 1 ? '1 topic matches “3am”' : `${n} topics match “3am”`);
-  });
-
-  it('hides a group with no topics only while the filter narrows: cleared or with no match, both views are as on load', async () => {
-    const [{ STATUS_DELAY, NO_MATCH }] = await load(withEmptyGroups(html), ['problems']);
+  it('hides an area with no topics only while the filter narrows: cleared or with no match, the page is as on load', async () => {
+    const [{ STATUS_DELAY, NO_MATCH }] = await load(withEmptyArea(html), ['problems']);
     const status = dom.document.querySelector('[data-filter-status]');
-    const empties = () => ['area', 'time'].map((view) => groups(view)[1]);
-    expect(groups('area')).toHaveLength(11);
-    expect(groups('time')).toHaveLength(7);
-    for (const section of empties()) {
-      expect(section.querySelector('[data-group-name]').textContent).toBe('Nothing here yet');
-      expect(section.hidden).toBe(false);
-      expect(section.querySelector('[data-group-count]').textContent).toBe('0');
-      expect(button(section).getAttribute('aria-expanded')).toBe('false');
-    }
-    const onLoad = { area: viewState('area'), time: viewState('time') };
-    const asOnLoad = () => expect({ area: viewState('area'), time: viewState('time') }).toEqual(onLoad);
+    const empty = () => areaSections()[1];
+    expect(areaSections()).toHaveLength(11);
+    expect(empty().querySelector('[data-group-name]').textContent).toBe('Nothing here yet');
+    expect(empty().hidden).toBe(false);
+    expect(empty().querySelector('[data-group-count]').textContent).toBe('0');
+    expect(button(empty()).getAttribute('aria-expanded')).toBe('false');
+    const onLoad = pageState();
+    const asOnLoad = () => expect(pageState()).toEqual(onLoad);
 
     typeQuery('night');
-    for (const section of empties()) expect(section.hidden).toBe(true);
+    expect(empty().hidden).toBe(true);
 
     typeQuery('');
     asOnLoad();
@@ -723,23 +645,29 @@ describe('problems.js on /problems/', () => {
     typeQuery('nightzzzz'); // narrowed, then nothing matches
     asOnLoad();
     vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe(NO_MATCH.area);
-
-    dom.document.getElementById('view-time').click();
-    typeQuery('');
-    asOnLoad();
-    vi.advanceTimersByTime(STATUS_DELAY);
-    expect(status.textContent).toBe('36 topics across 7 times of day');
+    expect(status.textContent).toBe(NO_MATCH);
   });
 
-  it('opens an area on hashchange, switching back to By area', async () => {
-    await load(html, ['problems']);
+  it('opens an area on hashchange, clearing a filter that hides it', async () => {
+    const [{ STATUS_DELAY }] = await load(html, ['problems']);
     const { document, window } = dom;
-    document.getElementById('view-time').click();
     window.location.hash = '#social';
     window.dispatchEvent(new Event('hashchange'));
-    expect(panel('area').hidden).toBe(false);
-    expect(document.getElementById('view-area').checked).toBe(true);
-    expect(button(document.getElementById('social')).getAttribute('aria-expanded')).toBe('true');
+    const social = document.getElementById('social');
+    expect(button(social).getAttribute('aria-expanded')).toBe('true');
+    expect(expanded().filter((value) => value === 'true')).toHaveLength(1);
+
+    // A filter that hides the area is cleared, so the area can show.
+    button(social).click();
+    typeQuery('night sweats');
+    expect(expectNarrowed()).toEqual(['hot-flushes-and-night-sweats']);
+    expect(social.hidden).toBe(true);
+    window.dispatchEvent(new Event('hashchange'));
+    expect(document.getElementById('problem-filter').value).toBe('');
+    expect(social.hidden).toBe(false);
+    expect(button(social).getAttribute('aria-expanded')).toBe('true');
+    expect(areaSections().filter((s) => s.hidden)).toEqual([]);
+    vi.advanceTimersByTime(STATUS_DELAY);
+    expect(document.querySelector('[data-filter-status]').textContent).toBe('36 topics in 10 areas');
   });
 });

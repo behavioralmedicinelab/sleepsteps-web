@@ -252,8 +252,8 @@ export async function openTab(browser) {
   async function navigate(url, { width = 1280, height = 900, js = true } = {}) {
     await send('Emulation.setScriptExecutionDisabled', { value: !js });
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-    // Animations (the view slider, menus) end at once, so axe never meets
-    // a colour half-way through a transition.
+    // Animations (menus, colour fades) end at once, so axe never meets a
+    // colour half-way through a transition.
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     const loaded = once('Page.loadEventFired');
     const { errorText } = await send('Page.navigate', { url });
