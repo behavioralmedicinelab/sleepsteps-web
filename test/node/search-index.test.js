@@ -227,10 +227,31 @@ describe('/search-index.json, built from the real content', () => {
   it('indexes the titles of each solution video\'s worksheets with that solution, on every problem that has it, and nowhere else', () => {
     const sheets = [...model.worksheets.values()].map((w) => w.data);
     const titlesOf = (id) => sheets.filter((w) => w.video_id === id).map((w) => w.title.replace(/\s+/g, ' ').trim());
+    // "Nowhere else", without counting on the titles' words: the index's
+    // text for a problem and for Start here is exactly what the index
+    // builder makes of the content as the content check read it, with the
+    // worksheets and (to compare) without them. A title may be words the
+    // site also uses elsewhere ("Sleep diary" in a blurb, a transcript or
+    // an information page), so "this page's text doesn't hold another
+    // video's worksheet title" would stop the team's edits, not a bug.
+    const transcripts = readTranscripts(TRANSCRIPTS_DIR);
+    const input = {
+      problems: [...model.problems].map(([slug, { data }]) => ({ url: `/problems/${slug}/`, data: { ...data, page_id: slug } })),
+      videos: [...model.videos.values()].map((v) => v.data),
+      transcripts,
+      start: { url: '/start/', data: { ...model.start.data, page_id: 'start' } },
+    };
+    const expected = new Map(searchIndex({ ...input, worksheets: sheets }).map((e) => [e.id, e.transcript]));
+    const bare = new Map(searchIndex({ ...input, worksheets: [] }).map((e) => [e.id, e.transcript]));
     let checked = 0;
     for (const [slug, { data }] of model.problems) {
       const e = byId.get(slug);
-      const shown = new Set();
+      expect(e.transcript, slug).toBe(expected.get(slug));
+      const listed = (data.solutions ?? []).flatMap((s) => titlesOf(s.video));
+      // The titles are all that the worksheets add: as many characters as
+      // they and their spaces take, and none on a page that lists none.
+      expect(e.transcript.length - bare.get(slug).length, slug).toBe(listed.reduce((n, title) => n + title.length + 1, 0));
+      if (!listed.length) expect(e.transcript, slug).toBe(bare.get(slug));
       for (const s of data.solutions ?? []) {
         const v = model.videos.get(s.video).data;
         const titles = titlesOf(s.video);
@@ -241,13 +262,8 @@ describe('/search-index.json, built from the real content', () => {
         }
         for (const title of titles) {
           expect(e.transcript, `${slug}: ${title}`).toContain(title);
-          shown.add(title);
           checked += 1;
         }
-      }
-      // No worksheet of a video that isn't a solution here: the page doesn't list it.
-      for (const title of new Set(sheets.map((w) => w.title.replace(/\s+/g, ' ').trim()))) {
-        if (!shown.has(title)) expect(e.transcript, `${slug}: ${title}`).not.toContain(title);
       }
       // And the page itself shows each one it indexes.
       const page = readFileSync(path.join(site, 'problems', slug, 'index.html'), 'utf8');
@@ -255,10 +271,13 @@ describe('/search-index.json, built from the real content', () => {
         for (const w of sheets.filter((x) => x.video_id === s.video)) expect(page, `${slug}: ${w.worksheet_id}`).toContain(`data-worksheet="${w.worksheet_id}"`);
       }
     }
-    for (const title of sheets.map((w) => w.title)) {
-      expect(byId.get('start').transcript, title).not.toContain(title);
-      for (const id of infoPages) expect(byId.get(id).transcript, `${id}: ${title}`).not.toContain(title);
-    }
+    // Start here lists no worksheets: its text is the intro videos' alone.
+    expect(byId.get('start').transcript).toBe(expected.get('start'));
+    expect(expected.get('start')).toBe(bare.get('start'));
+    // An information page's text is its own rendered body (below), which
+    // the worksheets never reach: no page but a problem's lists them
+    // (video-template.test.js), and the builder gives them to problems
+    // only ("changes nothing else", above).
     // The sample worksheets are on solution videos, so some were checked.
     const solutionVideos = new Set([...model.problems.values()].flatMap(({ data }) => (data.solutions ?? []).map((s) => s.video)));
     if (sheets.some((w) => solutionVideos.has(w.video_id))) expect(checked).toBeGreaterThan(0);
@@ -302,8 +321,21 @@ describe('/search-index.json, built from the real content', () => {
     expect(byId.get('urgent-help').transcript).toMatch(/000/);
   });
 
+  // Markup is a tag from a template or a page's HTML. A title or a
+  // description typed into a spreadsheet is plain text, whatever it holds
+  // ("Bed & sleep <plan>", "Sleep under 6 hours -> plan"): the index has
+  // it as typed, and the pages escape it (page-problem.test.js), so the
+  // spreadsheets' own text is taken out before looking for tags.
   it('has no markup in any field', () => {
-    for (const e of entries) for (const [field, value] of Object.entries(e)) expect(value, `${e.id} ${field}`).not.toMatch(/<\/?[a-z][^>]*>/i);
+    const squash = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
+    const typed = [
+      ...[...model.worksheets.values()].map((w) => w.data.title),
+      ...[...model.videos.values()].flatMap((v) => [v.data.title, v.data.description]),
+    ].map(squash).filter((words) => /[<>]/.test(words)).sort((a, b) => b.length - a.length);
+    const withoutTyped = (value) => typed.reduce((rest, words) => rest.split(words).join(' '), value);
+    for (const e of entries) for (const [field, value] of Object.entries(e)) expect(withoutTyped(value), `${e.id} ${field}`).not.toMatch(/<\/?[a-z][^>]*>/i);
+    // The check still sees a tag beside such text.
+    expect(withoutTyped('<p>Body</p>')).toMatch(/<\/?[a-z][^>]*>/i);
   });
 
   it('carries each page\'s keywords from data/keywords.csv', () => {

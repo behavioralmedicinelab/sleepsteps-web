@@ -5,9 +5,10 @@
 // chapters and the problems that exercise each layout; and the worksheets of
 // the solution videos (SPEC §7.6). Full validation is in
 // validate-content.test.js.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { parseCsvRecords, parseCsvTable } from '../../scripts/lib/csv.js';
 import { PLACEHOLDER_FILES, TRANSCRIPTS_DIR, readTranscripts } from '../../scripts/lib/videos.js';
 import { PLACEHOLDER_WORKSHEET, WORKSHEETS_DIR, WORKSHEETS_FILE } from '../../scripts/lib/worksheets.js';
@@ -246,15 +247,36 @@ describe('data/videos.csv', () => {
 
 // The worksheets of the solution videos (project lead, 2026-11-13; SPEC
 // §7.6). The team edits the file in Excel, so, as for data/videos.csv, these
-// check rules, not the sample rows, except while every row is still a
-// placeholder: then the samples must show each layout (one, two and three
-// worksheets in a card).
-describe('data/worksheets.csv', () => {
-  const { model, warnings } = validateContent(process.cwd());
-  const bytes = readFileSync(WORKSHEETS_FILE);
+// check rules, never the sample rows: how many there are, which video has
+// how many, their ids' numbering and their titles are the team's (README
+// "Worksheets"). The rules are checked on the files as committed and again
+// after each kind of edit the team makes ("after the team's edits", below),
+// so a rule that pinned the samples would fail here, not on the team's
+// push. (That the page the accessibility check opens shows a worksheet is
+// that check's own rule: scripts/a11y/run.js.)
+
+/** CSV text as Excel's "CSV UTF-8" save writes it: the byte-order mark, then the rows, each ended CRLF. */
+const csvText = (columns, records) => {
+  const cell = (value) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+  const lines = [columns, ...records.map((record) => columns.map((c) => record[c] ?? ''))].map((cells) => `${cells.map(cell).join(',')}\r\n`);
+  return `${String.fromCharCode(0xfeff)}${lines.join('')}`;
+};
+
+/**
+ * The rules of data/worksheets.csv (SPEC §7.6), as tests of the content in
+ * `root`: the repository, or a copy of its content with one edit.
+ */
+function worksheetRules(root) {
+  const at = (...parts) => path.join(root, ...parts);
+  const { errors, model, warnings } = validateContent(root);
+  const bytes = readFileSync(at(WORKSHEETS_FILE));
   const { columns, rows } = parseCsvTable(bytes.toString('utf8'));
   const solutionVideos = new Set([...model.problems.values()].flatMap(({ data }) => (data.solutions ?? []).map((s) => s.video)));
   const countFor = (video) => rows.filter((r) => r.record.video_id === video).length;
+
+  it('passes the content check', () => {
+    expect(errors).toEqual([]);
+  });
 
   it('is data/worksheets.csv, with the SPEC §7.6 columns, in order', () => {
     expect(WORKSHEETS_FILE).toBe('data/worksheets.csv');
@@ -266,13 +288,13 @@ describe('data/worksheets.csv', () => {
   it('starts with a UTF-8 byte-order mark, so Excel opens it as UTF-8', () => {
     expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     // The same mark as the video library, and no second one.
-    expect([...readFileSync('data/videos.csv').subarray(0, 3)]).toEqual([...bytes.subarray(0, 3)]);
+    expect([...readFileSync(at('data/videos.csv')).subarray(0, 3)]).toEqual([...bytes.subarray(0, 3)]);
     expect(bytes.subarray(3).includes(Buffer.from([0xef, 0xbb, 0xbf]))).toBe(false);
   });
 
   // No test of its line endings: the committed file has data/videos.csv's
   // (LF), and Excel's "CSV UTF-8" save writes CRLF, which the parser reads
-  // as well (validate-content.test.js).
+  // as well (validate-content.test.js; the edited copies below are CRLF).
 
   // worksheet_ids are permanent, like video_ids (SPEC §7.6): the links carry them.
   it('gives every row its own lowercase-hyphenated worksheet_id, and the model holds each row in the file\'s order', () => {
@@ -285,33 +307,33 @@ describe('data/worksheets.csv', () => {
 
   it('names a video in the library, a title and a PDF in media/worksheets/ of 25 MiB at most on every row', () => {
     // No folder is no worksheets: git keeps no empty folder.
-    const names = new Set(existsSync(WORKSHEETS_DIR) ? readdirSync(WORKSHEETS_DIR) : []);
+    const names = new Set(existsSync(at(WORKSHEETS_DIR)) ? readdirSync(at(WORKSHEETS_DIR)) : []);
     for (const { record } of rows) {
       expect(model.videos.has(record.video_id), record.worksheet_id).toBe(true);
       expect(record.title, record.worksheet_id).toMatch(/\S/);
       expect(record.file, record.worksheet_id).toMatch(/^[A-Za-z0-9][A-Za-z0-9._-]*\.pdf$/i);
       // The exact name, capitals included (the host is case-sensitive).
       expect(names.has(record.file), record.worksheet_id).toBe(true);
-      expect(statSync(`${WORKSHEETS_DIR}/${record.file}`).size, record.worksheet_id).toBeLessThanOrEqual(25 * 1024 * 1024);
+      expect(statSync(at(WORKSHEETS_DIR, record.file)).size, record.worksheet_id).toBeLessThanOrEqual(25 * 1024 * 1024);
     }
   });
 
   // The stand-in may be deleted once no row names it.
   it('has the placeholder worksheet while a row names it: a small one-page PDF that says what it is', () => {
     expect(PLACEHOLDER_WORKSHEET).toBe('placeholder-worksheet.pdf');
-    if (!existsSync(`${WORKSHEETS_DIR}/${PLACEHOLDER_WORKSHEET}`)) {
+    if (!existsSync(at(WORKSHEETS_DIR, PLACEHOLDER_WORKSHEET))) {
       expect(rows.filter((r) => r.record.file === PLACEHOLDER_WORKSHEET)).toEqual([]);
       return;
     }
-    const pdf = readFileSync(`${WORKSHEETS_DIR}/${PLACEHOLDER_WORKSHEET}`).toString('latin1');
+    const pdf = readFileSync(at(WORKSHEETS_DIR, PLACEHOLDER_WORKSHEET)).toString('latin1');
     expect(pdf.startsWith('%PDF-1.')).toBe(true);
     expect(pdf.trimEnd().endsWith('%%EOF')).toBe(true);
     expect(pdf).toMatch(/\/Type \/Pages \/Kids \[3 0 R\] \/Count 1\b/);
     expect(pdf).toContain('([Placeholder worksheet]) Tj');
     expect(pdf.length).toBeLessThan(2048);
     // Made as media/pdf/placeholder-handout.pdf was: the same file but for its words.
-    if (existsSync(`media/pdf/${PLACEHOLDER_FILES.handout}`)) {
-      const handout = readFileSync(`media/pdf/${PLACEHOLDER_FILES.handout}`).toString('latin1');
+    if (existsSync(at('media/pdf', PLACEHOLDER_FILES.handout))) {
+      const handout = readFileSync(at('media/pdf', PLACEHOLDER_FILES.handout)).toString('latin1');
       const frame = (text) => text.replace(/\/Length \d+/, '/Length N').replace(/stream\n[\s\S]*?endstream/, 'stream').replace(/startxref\n\d+/, 'startxref');
       expect(frame(pdf)).toBe(frame(handout));
     }
@@ -324,6 +346,9 @@ describe('data/worksheets.csv', () => {
     expect(stream.length).toBe(Number(pdf.match(/\/Length (\d+)/)[1]));
   });
 
+  // What a placeholder row must keep (SPEC §7): the brackets round its
+  // title, which say on the page that the words are not final. Nothing
+  // about the words inside them, the row's id or how many rows a video has.
   it('marks each row that names the placeholder file as a placeholder, with a [bracketed] title, and the build lists them', () => {
     const placeholders = rows.filter((r) => r.record.file === PLACEHOLDER_WORKSHEET).map((r) => r.record.worksheet_id);
     for (const { record } of rows) {
@@ -346,33 +371,107 @@ describe('data/worksheets.csv', () => {
     const none = [...model.videos.keys()].filter((id) => solutionVideos.has(id) && countFor(id) === 0);
     expect(warnings.filter((w) => w.code === 'solution-no-worksheet').map((w) => w.message)).toEqual(none);
   });
+}
 
-  // The sample rows (SPEC §7): different counts, so every layout of the
-  // section shows. Checked only while every row is still a placeholder; the
-  // team's real worksheets decide the counts after that.
-  it('shows one, two and three worksheets in a card while every worksheet is still a placeholder', () => {
-    if (!rows.length || rows.some((r) => r.record.file !== PLACEHOLDER_WORKSHEET)) return;
-    expect(Object.fromEntries(MECHANISMS.map((id) => [id, countFor(id)]))).toEqual({
-      'sleep-drive': 2,
-      'circadian-rhythm': 1,
-      conditioning: 3,
-      'cognitive-arousal': 2,
-      'physiological-arousal': 1,
-      'sleep-effort-and-control': 1,
-      'treatment-symptoms-and-sleep': 2,
-      'daytime-rhythms-and-sleep': 1,
+describe('data/worksheets.csv', () => {
+  worksheetRules(process.cwd());
+});
+
+// The edits the team makes (README "Worksheets"), each made to a copy of the
+// committed content: every rule above still holds, so `npm test`, and with
+// it the deploy, doesn't stop on any of them. Each edit is worked out from
+// the files as they are, not from the sample rows, so these keep checking
+// something once the team's own worksheets replace the samples.
+describe('data/worksheets.csv after the team\'s edits', () => {
+  const copies = [];
+  afterAll(() => copies.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+  const table = (root, file) => parseCsvTable(readFileSync(path.join(root, file), 'utf8'));
+  /** A copy of the content (data/, content/ and media/) with `change(dir, sheets, videos)` made to it. */
+  const edited = (change) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sleepsteps-content-'));
+    copies.push(dir);
+    for (const folder of ['data', 'content', 'media']) cpSync(folder, path.join(dir, folder), { recursive: true });
+    const sheets = table(dir, WORKSHEETS_FILE);
+    const videos = table(dir, 'data/videos.csv');
+    change(dir, sheets, videos);
+    writeFileSync(path.join(dir, WORKSHEETS_FILE), csvText(sheets.columns, sheets.rows.map((r) => r.record)));
+    writeFileSync(path.join(dir, 'data/videos.csv'), csvText(videos.columns, videos.rows.map((r) => r.record)));
+    return dir;
+  };
+  const records = (root) => table(root, WORKSHEETS_FILE).rows.map((r) => r.record);
+  const committed = records(process.cwd());
+  // A title in the brackets of a placeholder, or without them.
+  const retitled = (title, words) => (/^\[.*\]$/.test(title) ? `[${words}]` : words);
+
+  describe('saved again from Excel, unchanged', () => {
+    const dir = edited(() => {});
+    worksheetRules(dir);
+    it('holds the same rows', () => {
+      expect(records(dir)).toEqual(committed);
     });
-    expect(rows).toHaveLength(13);
-    // Only the mechanism videos, the solution library, have worksheets.
-    expect(rows.every((r) => MECHANISMS.includes(r.record.video_id))).toBe(true);
-    for (const { record } of rows) {
-      const n = rows.filter((r) => r.record.video_id === record.video_id).findIndex((r) => r.record.worksheet_id === record.worksheet_id) + 1;
-      const title = model.videos.get(record.video_id).data.title.replace(/^\[(.*)\]$/, '$1');
-      expect([record.worksheet_id, record.title]).toEqual([`${record.video_id}-worksheet-${n}`, `[Worksheet ${n} for “${title}”]`]);
-    }
-    // tired-but-wired, the page the screenshots and the accessibility check
-    // open, has all three counts: conditioning, cognitive arousal, physiological arousal.
-    expect(model.problems.get('tired-but-wired').data.solutions.slice(0, 3).map((s) => countFor(s.video))).toEqual([3, 2, 1]);
+  });
+
+  // "Delete a sample row a video doesn't need."
+  describe('with a row deleted', () => {
+    const dir = edited((_, sheets) => sheets.rows.pop());
+    worksheetRules(dir);
+    it('holds every row but that one', () => {
+      expect(records(dir)).toEqual(committed.slice(0, -1));
+    });
+  });
+
+  describe('with every row deleted: the header alone, no worksheets yet', () => {
+    const dir = edited((_, sheets) => sheets.rows.splice(0));
+    worksheetRules(dir);
+    it('holds no row', () => {
+      expect(records(dir)).toEqual([]);
+    });
+  });
+
+  describe('with a worksheet\'s title reworded', () => {
+    const dir = edited((_, sheets) => {
+      for (const { record } of sheets.rows.slice(0, 1)) record.title = retitled(record.title, 'Sleep under 6 hours -> a plan for “bed & sleep”, part 1');
+    });
+    worksheetRules(dir);
+    it('holds the new title, as typed', () => {
+      expect(records(dir).map((r) => r.title)).toEqual(committed.map((r, i) => (i ? r.title : retitled(r.title, 'Sleep under 6 hours -> a plan for “bed & sleep”, part 1'))));
+    });
+  });
+
+  // A worksheet's title doesn't follow its video's: renaming the video in
+  // data/videos.csv changes the section's hidden heading text and nothing
+  // in this file.
+  describe('with the video of a worksheet renamed in data/videos.csv', () => {
+    const renamed = committed[0]?.video_id;
+    const dir = edited((_, sheets, videos) => {
+      for (const { record } of videos.rows.filter((r) => r.record.video_id === renamed)) record.title = retitled(record.title, 'Another name for this video');
+    });
+    worksheetRules(dir);
+    it('holds the same rows, and the video its new title', () => {
+      expect(records(dir)).toEqual(committed);
+      if (renamed === undefined) return;
+      const { model } = validateContent(dir);
+      expect(model.videos.get(renamed).data.title).toMatch(/^\[?Another name for this video\]?$/);
+      expect(model.videos.get(renamed).data.title).not.toBe(validateContent(process.cwd()).model.videos.get(renamed).data.title);
+    });
+  });
+
+  // "Give a row its own PDF": the row stops being a placeholder, and its
+  // title loses its brackets.
+  describe('with a worksheet\'s own PDF and title', () => {
+    const dir = edited((root, sheets) => {
+      // (No folder is no worksheets yet: git keeps no empty folder.)
+      mkdirSync(path.join(root, WORKSHEETS_DIR), { recursive: true });
+      writeFileSync(path.join(root, WORKSHEETS_DIR, 'Sleep-Diary.pdf'), '%PDF-1.4\n%%EOF\n');
+      // On a video that isn't on YouTube yet a real worksheet is fine too.
+      for (const { record } of sheets.rows.slice(0, 1)) Object.assign(record, { title: 'Sleep diary: a two-week record of your nights', file: 'Sleep-Diary.pdf' });
+    });
+    worksheetRules(dir);
+    it('holds the row with its own file, no longer a placeholder', () => {
+      if (!committed.length) return;
+      const { model } = validateContent(dir);
+      expect(model.worksheets.get(committed[0].worksheet_id).data).toMatchObject({ title: 'Sleep diary: a two-week record of your nights', file: 'Sleep-Diary.pdf', placeholder: false });
+    });
   });
 });
 

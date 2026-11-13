@@ -245,6 +245,27 @@ describe('the worksheets of an open solution card (pages/problem.css)', () => {
     expect(rule(css, '.worksheets')).toBe('margin-top: var(--space-5); padding-top: var(--space-5); border-top: var(--border-width) solid var(--keyline);');
   });
 
+  // While the rating shows, the row ends with its status line, kept blank
+  // until there is an answer (SPEC §11): with the section's whole margin
+  // under it, the blank above the keyline was 52px (80px on a phone)
+  // against 16px below. The section then adds only the row's own gap,
+  // which keeps an answer off the keyline; nothing changes while the
+  // rating is hidden (no JavaScript) or absent (ratings off).
+  it('adds only the row\'s own gap above the keyline while the rating\'s status line is there', () => {
+    const selector = '.video-block:has(.rating:not([hidden])) + .worksheets';
+    expect(rule(css, selector)).toBe('margin-top: var(--space-3);');
+    // The gap between the row's lines: the stars and the status line.
+    expect(rule(components, '.video-controls')).toMatch(/gap: var\(--space-3\) /);
+    // Never none: an answer would sit on the keyline.
+    expect(rule(css, selector)).not.toMatch(/margin-top: 0/);
+    // After the section's own rule, which it overrides, and outside any media query.
+    const plain = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(plain.indexOf(`\n${selector} {`)).toBeGreaterThan(plain.indexOf('\n.worksheets {'));
+    // The status line it counts on: the rating's last part, an item of the row (display: contents).
+    expect(rule(components, '.rating')).toBe('display: contents;');
+    expect(rule(components, '.rating__status-box')).toMatch(/flex: 1 1 100%;/);
+  });
+
   it('gives the heading the card\'s own title style: the closed card\'s title', () => {
     const title = rule(css, '.worksheets__title');
     expect(title).toBe('margin-bottom: var(--space-4); font-family: var(--font-heading); font-size: var(--fs-card-title); line-height: var(--lh-card-title); color: var(--night-teal);');
@@ -259,7 +280,24 @@ describe('the worksheets of an open solution card (pages/problem.css)', () => {
   });
 
   it('lets a long title wrap inside its button, and a long word break, so the card never scrolls sideways', () => {
-    expect(rule(css, '.worksheets__list .format-button')).toBe('justify-content: flex-start; min-width: 0; text-align: start; overflow-wrap: anywhere;');
+    expect(rule(css, '.worksheets__list .format-button')).toBe('justify-content: flex-start; min-width: 0; padding-block: var(--space-3); text-align: start; overflow-wrap: anywhere;');
+  });
+
+  // A title on two lines had 6px above and below it in a 50px button (the
+  // row's buttons pad 4px); with 8px it has 10px, in 58px. One line and
+  // that padding come to less than the button's own height, so a one-line
+  // title's button is still 44px (48px on a phone), like the row's.
+  it('gives a wrapped title room above and below, and leaves a one-line title\'s button at .format-button\'s height', () => {
+    const px = (name) => {
+      const value = tokensCss.match(new RegExp(`--${name}:\\s*([^;]+);`))[1].trim();
+      const rem = value.match(/^calc\((\d+)rem \/ 16\)$/);
+      return rem ? Number(rem[1]) : Number(value.match(/^(\d+)px$/)[1]);
+    };
+    expect(rule(components, '.format-button')).toMatch(/padding: var\(--space-1\) var\(--space-5\);[\s\S]*line-height: var\(--lh-label\);/);
+    expect(px('space-3')).toBeGreaterThan(px('space-1'));
+    const oneLine = px('lh-label') + 2 * px('space-3') + 2 * px('border-width');
+    expect(oneLine).toBeLessThanOrEqual(px('target-min'));
+    expect(px('target-min')).toBeLessThan(px('target-lg'));
   });
 
   it('leaves the links\' size and colours to .format-button: 48px tall on phones, 44px from 600px', () => {
@@ -267,11 +305,17 @@ describe('the worksheets of an open solution card (pages/problem.css)', () => {
     // Every rule that styles the section or anything in it.
     const rules = [...all.matchAll(/(?:^|\n)\s*([^{}@\n][^{}]*?) \{([^}]*)\}/g)].filter(([, selector]) => /\.worksheets/.test(selector));
     expect(rules.map(([, selector]) => selector.replace(/\s+/g, ' ').trim())).toEqual([
-      '.worksheets', '.worksheets__title', '.worksheets__list', '.worksheets__list > li', '.worksheets__list .format-button', '.problem__back, .on-this-page, .worksheets',
+      '.worksheets', '.video-block:has(.rating:not([hidden])) + .worksheets', '.worksheets__title', '.worksheets__list', '.worksheets__list > li', '.worksheets__list .format-button',
+      '.problem__back, .on-this-page, .worksheets',
     ]);
     for (const [, selector, body] of rules) {
-      if (/format-button|__list/.test(selector)) expect(body, selector).not.toMatch(/(?:min-|max-)?height|font-size|line-height|color|background|border|padding: (?!0;)/);
+      // No height, type, colour or border of their own, and no padding
+      // but the links' room above and below a wrapped title (above).
+      if (/format-button|__list/.test(selector)) {
+        expect(body.replace(/padding-block: var\(--space-3\);/, ''), selector).not.toMatch(/(?:min-|max-)?height|font-size|line-height|color|background|border|padding(?!: 0;)/);
+      }
     }
+    expect(rules.filter(([, , body]) => /padding-block/.test(body)).map(([, selector]) => selector.trim())).toEqual(['.worksheets__list .format-button']);
     expect(rule(components, '.format-button')).toMatch(/min-height: var\(--target-lg\);/);
     expect(components).toMatch(/@media \(min-width: 37\.5em\) \{\s*\.format-button \{\s*min-height: var\(--target-min\);/);
   });

@@ -584,6 +584,19 @@ button.solution__face {
   border-top: var(--border-width) solid var(--keyline);
 }
 
+/* While the rating shows, the row above ends with its status line: a
+   line kept blank until there is an answer (two lines on a phone), so the
+   answer never moves the page (SPEC §11). That blank is already space
+   above the keyline, so the section adds only the row's own gap, which
+   keeps an answer off the keyline, as far from it as from the stars. With
+   the whole margin the blank was 52px above the keyline (80px on a phone)
+   against 16px below it; it is 44px (72px) now, and the rest is the
+   status line's (SPEC §21). Without the rating (no JavaScript, or ratings
+   off) the margin above stands, as it does in a browser without :has(). */
+.video-block:has(.rating:not([hidden])) + .worksheets {
+  margin-top: var(--space-3);
+}
+
 .worksheets__title {
   margin-bottom: var(--space-4);
   font-family: var(--font-heading);
@@ -605,9 +618,14 @@ button.solution__face {
   max-width: 100%;
 }
 
+/* A title that wraps (a real one will on a phone) gets room above and
+   below its two lines: 8px, where the row's buttons have 4px. A one-line
+   title's button is still .format-button's height (48px, 44px from
+   600px): its line and this padding come to less. */
 .worksheets__list .format-button {
   justify-content: flex-start;
   min-width: 0;
+  padding-block: var(--space-3);
   text-align: start;
   overflow-wrap: anywhere;
 }

@@ -722,6 +722,23 @@ describe('data/worksheets.csv (SPEC §7.6)', () => {
       expect(result.model.worksheets.get('m2-sheet').data.title).toBe(title);
     });
 
+    // A title is plain text, whatever the team types: the pages escape it
+    // (page-problem.test.js) and the search index holds it as typed
+    // (search-index.test.js), so none of these is refused or changed.
+    it.each([
+      'Sleep under 6 hours -> plan',
+      '[Sleep under 6 hours -> plan]',
+      'Bed & sleep <plan>',
+      'Fewer than 5 hours < most nights > 8 hours',
+      'It’s 3 a.m. & I’m awake: "now what?"',
+    ])('accepts the title %j, as typed', (title) => {
+      const result = run(worksheetsCsv({ 'm2-sheet': { title } }));
+      expect(messages(result)).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.model.worksheets.get('m2-sheet').data.title).toBe(title);
+      expect(messages(run(worksheetsCsv({ 'm2-sheet': { title } }), { launch: true }))).toEqual([]);
+    });
+
     it('counts rows as Excel numbers them: a blank row counts', () => {
       const lines = worksheetsCsv({ 'm3-sheet': { title: '' } })[WS].split('\n');
       lines.splice(2, 0, ''); // a blank row after row 2: m3-sheet moves from row 4 to row 5

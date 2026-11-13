@@ -17,6 +17,9 @@
 // - the template holds no worksheets (SPEC §7.6; project lead, 2026-11-13):
 //   they are a section a solution card adds after its template, so the
 //   template is the same for every video, with or without worksheets.
+//   "No worksheets" is about the markup (the section, its links and their
+//   files; WORKSHEET_MARKUP), never the word: the team may write
+//   "worksheet" in a page's text, a blurb or a video's description.
 //
 // The templates' parts are checked in detail in components.test.js,
 // page-problem.test.js and page-home-start.test.js.
@@ -24,7 +27,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import { validateContent } from '../../scripts/validate-content.js';
-import { attr, elementByClass, listFiles, readHtmlPages, tags, text } from './helpers.js';
+import { WORKSHEET_MARKUP, attr, elementByClass, listFiles, readHtmlPages, tags, text } from './helpers.js';
 
 const builds = inject('featureBuilds');
 const { model } = validateContent(process.cwd());
@@ -256,7 +259,7 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
   const worksheetsOf = (id) => [...model.worksheets.values()].map((w) => w.data).filter((w) => w.video_id === id);
 
   it('keeps the worksheets out of every template: each section is a solution card\'s, after its template, and no other page has one', () => {
-    for (const b of blocks) expect(b.html, `${b.file} ${videoIdOf(b.html)}`).not.toMatch(/worksheet/i);
+    for (const b of blocks) expect(b.html, `${b.file} ${videoIdOf(b.html)}`).not.toMatch(WORKSHEET_MARKUP);
     let sections = 0;
     for (const { file, html, node } of cards) {
       const id = videoIdOf(html);
@@ -282,16 +285,19 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     const solutionVideos = new Set(cards.map(({ html }) => videoIdOf(html)));
     expect(sections > 0).toBe([...model.worksheets.values()].some((w) => solutionVideos.has(w.data.video_id)));
     // Pages without solution cards have no worksheets section, link or file:
-    // Start here, Home, the stand-alone problems and the rest. None of them
-    // even has the word, except the privacy page, whose text says that
-    // worksheets opened are counted, while usage statistics are on (SPEC
-    // §15.2).
-    const eventsOn = features.events === true;
+    // Start here, Home, the stand-alone problems and the rest. Their text
+    // may speak of worksheets, as the privacy page's does (SPEC §15.2;
+    // features-off.test.js checks its two sentences).
     for (const { file, html } of pages) {
       if (cards.some((c) => c.file === file)) continue;
-      expect(html, file).not.toMatch(/class="[^"]*worksheet|\sdata-worksheet|media\/worksheets/i);
-      if (file === 'privacy/index.html' && eventsOn) expect(text(html).match(/\w*worksheet\w*/gi), file).toEqual(['worksheets', 'worksheets']);
-      else expect(html, file).not.toMatch(/worksheet/i);
+      expect(html, file).not.toMatch(WORKSHEET_MARKUP);
+    }
+    // And on a page with cards, all of it is inside their panels.
+    for (const { file, html } of pages) {
+      const own = cards.filter((c) => c.file === file);
+      if (!own.length) continue;
+      const outside = own.reduce((rest, c) => rest.replace(elementByClass(c.html, 'solution__panel', 'div'), ''), html);
+      expect(outside, file).not.toMatch(WORKSHEET_MARKUP);
     }
   });
 
@@ -324,18 +330,26 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
 
 // The sources (SPEC §7.6): the video template doesn't change for worksheets
 // and knows nothing of them, so no video outside a solution card can gain a
-// worksheets section by accident.
+// worksheets section by accident. "Knows nothing" is about the templates'
+// code (a Nunjucks tag that names the data, or the section's markup), not
+// their words: a layout's own text, such as Home's steps, may say
+// "worksheet", as the content may.
 describe('worksheets in the templates', () => {
   const INCLUDES = 'src/_includes';
   const sources = listFiles(INCLUDES, (f) => f.endsWith('.njk')).map((file) => ({ file, source: readFileSync(path.join(INCLUDES, file), 'utf8') }));
   const code = (source) => source.replace(/\{#[\s\S]*?#\}/g, '');
+  /** The template's Nunjucks tags, {{ … }} and {% … %}: where it reads data. */
+  const logic = (source) => (code(source).match(/\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}/g) ?? []).join('\n');
+  /** Does the template read the worksheets data, or write the section's markup? */
+  const uses = (source) => /worksheet/i.test(logic(source)) || WORKSHEET_MARKUP.test(code(source));
 
-  it('are rendered by the solution card alone: the video template, the facade and Start here never mention them', () => {
-    expect(sources.filter(({ source }) => /worksheet/i.test(source)).map(({ file }) => file)).toEqual(['layouts/problem.njk', 'problem/solutions.njk']);
+  it('are rendered by the solution card alone: the video template, the facade and Start here never read or render them', () => {
+    expect(sources.filter(({ source }) => uses(source)).map(({ file }) => file)).toEqual(['layouts/problem.njk', 'problem/solutions.njk']);
     // The problem layout only passes the data to solutionsByTier; the markup is the card's.
     const layout = code(sources.find(({ file }) => file === 'layouts/problem.njk').source);
-    expect(layout.match(/worksheet\w*/gi)).toEqual(['worksheets']);
+    expect(logic(layout).match(/worksheet\w*/gi)).toEqual(['worksheets']);
     expect(layout).toContain('{%- set tiers = solutions | solutionsByTier(videos, worksheets) -%}');
+    expect(layout).not.toMatch(WORKSHEET_MARKUP);
     const card = code(sources.find(({ file }) => file === 'problem/solutions.njk').source);
     expect(card.match(/<section class="worksheets"/g)).toHaveLength(1);
     // After the videoBlock call, inside the panel.
@@ -343,8 +357,20 @@ describe('worksheets in the templates', () => {
     expect(card.indexOf('<section class="worksheets"')).toBeGreaterThan(card.indexOf('<div class="solution__panel"'));
   });
 
+  it('tell a template\'s words from its code', () => {
+    // Words: a step on Home, a comment.
+    expect(uses('<li>Print the worksheet, then watch the video.</li>{# worksheets: see solutions.njk #}')).toBe(false);
+    // Code: the data in a tag, or the section's markup.
+    expect(uses('{% for sheet in solution.worksheets %}{% endfor %}')).toBe(true);
+    expect(uses('{{ videoBlock(video, worksheets=sheets) }}')).toBe(true);
+    expect(uses('<section class="worksheets">')).toBe(true);
+    expect(uses('<a href="/media/worksheets/{{ file }}">')).toBe(true);
+    expect(uses('<a href="/x.pdf" data-worksheet="{{ id }}">')).toBe(true);
+  });
+
   it('leave the video template\'s macro as it was: no worksheets argument', () => {
     const template = code(sources.find(({ file }) => file === 'partials/video-block.njk').source);
     expect(template).toContain("{%- macro videoBlock(video, heading=2, description='', label=none, close='', bleed='page', ratings=false, feedback=false) -%}");
+    expect(uses(template)).toBe(false);
   });
 });

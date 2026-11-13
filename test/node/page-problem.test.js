@@ -9,7 +9,7 @@ import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
 import configure from '../../eleventy.config.js';
 import { validateContent } from '../../scripts/validate-content.js';
-import { attr, elementByClass, pageAt, readHtmlPages, tags, text, videoRow } from './helpers.js';
+import { WORKSHEET_MARKUP, attr, elementByClass, pageAt, readHtmlPages, tags, text, videoRow } from './helpers.js';
 
 // The site built with every feature on, whatever site.config.json says, so
 // none of these checks changes while features.ratings is off (SPEC §11). The
@@ -189,7 +189,9 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       expect(sections, id).toHaveLength(sheets.length ? 1 : 0);
       expect((card.match(/\sdata-worksheet="/g) ?? []), id).toHaveLength(sheets.length);
       if (!sheets.length) {
-        expect(card, id).not.toMatch(/worksheet/i);
+        // None of the section's markup. (The word is the team's to use: a
+        // blurb may say "the worksheets below".)
+        expect(card, id).not.toMatch(WORKSHEET_MARKUP);
         return;
       }
       const [section] = sections;
@@ -200,8 +202,8 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
       const panel = elementByClass(card, 'solution__panel', 'div');
       const block = elementByClass(panel, 'video-block', 'div');
       expect(squeeze(panel).endsWith(`${squeeze(block)}${squeeze(section)}</div>`), id).toBe(true);
-      expect(block, id).not.toMatch(/worksheet/i);
-      expect(card.match(/<summary[\s\S]*?<\/summary>/)[0], id).not.toMatch(/worksheet/i);
+      expect(block, id).not.toMatch(WORKSHEET_MARKUP);
+      expect(card.match(/<summary[\s\S]*?<\/summary>/)[0], id).not.toMatch(WORKSHEET_MARKUP);
       expect(panel.indexOf(section), id).toBeGreaterThan(panel.indexOf('class="video-controls"'));
     });
   });
@@ -263,10 +265,11 @@ describe.each(problems)('/problems/%s/', (slug, { data }) => {
     expect(new Set(named).size).toBe(named.length);
     expect(html.match(/<section class="worksheets"/g) ?? []).toHaveLength(solutions.filter((s) => worksheetsOf(s.video).length).length);
     // The problem's own video has none, whatever data/worksheets.csv says of it.
-    expect(elementByClass(main, 'problem-video', 'div')).not.toMatch(/worksheet/i);
-    // Nothing outside the cards' panels mentions them.
+    expect(elementByClass(main, 'problem-video', 'div')).not.toMatch(WORKSHEET_MARKUP);
+    // Nothing outside the cards' panels has the section, a link or a file
+    // (the page's words may speak of worksheets).
     const outside = cards.reduce((rest, card) => rest.replace(elementByClass(card, 'solution__panel', 'div'), ''), html);
-    expect(outside).not.toMatch(/worksheet/i);
+    expect(outside).not.toMatch(WORKSHEET_MARKUP);
     expect(html.match(/\/media\/worksheets\//g) ?? []).toHaveLength(named.length);
   });
 
@@ -679,26 +682,56 @@ describe('solutionsSection with a playable video', () => {
       // Take the sections out, and the cards are as they are without worksheets.
       const stripped = elements(withSheets, 'worksheets', 'section').reduce((html, section) => html.replace(section, ''), withSheets);
       expect(squeeze(stripped)).toBe(squeeze(without));
-      expect(without).not.toMatch(/worksheet/i);
+      expect(without).not.toMatch(WORKSHEET_MARKUP);
       for (const card of [sheetsFull, sheetsBare]) {
         const panel = elementByClass(card, 'solution__panel', 'div');
         const block = elementByClass(panel, 'video-block', 'div');
         expect(squeeze(panel).endsWith(`${squeeze(block)}${squeeze(sectionOf(card))}</div>`)).toBe(true);
-        expect(block).not.toMatch(/worksheet/i);
-        expect(card.match(/<summary[\s\S]*?<\/summary>/)[0]).not.toMatch(/worksheet/i);
+        expect(block).not.toMatch(WORKSHEET_MARKUP);
+        expect(card.match(/<summary[\s\S]*?<\/summary>/)[0]).not.toMatch(WORKSHEET_MARKUP);
       }
     });
 
     it('renders no section, and no heading, for a video with no worksheets', () => {
       for (const rows of [[], undefined, [row('elsewhere', 'not-on-this-page', 'Another video')]]) {
         const html = renderWith(rows);
-        expect(html).not.toMatch(/worksheet|<h4\b|<section class="worksheets"/i);
+        expect(html).not.toMatch(WORKSHEET_MARKUP);
+        expect(html).not.toMatch(/<h4\b/i);
         expect(html).toBe(renderWith([]));
       }
       // One card with, one without: only the first has the section.
       const [first, second] = elements(renderWith([row('full-one', 'full', 'One')]), 'solution', 'li');
       expect(elements(first, 'worksheets', 'section')).toHaveLength(1);
-      expect(second).not.toMatch(/worksheet/i);
+      expect(second).not.toMatch(WORKSHEET_MARKUP);
+      expect(second).not.toMatch(/<h4\b/i);
+    });
+
+    // The word is the team's to use (a blurb, a video's title or
+    // description, any page's text): only the section's markup means
+    // "worksheets here", in these tests and in those of the built pages.
+    it('leaves the word "worksheet" in a blurb, a title or a description alone: no section without a row, and the same section with one', () => {
+      const wordy = [
+        videoRow('full', { title: 'Your worksheet plan', description: 'Fill in the worksheet as you watch.', youtube_url: 'https://youtu.be/AbCdEfGhIjK', duration: '6:40', handout: 'full.pdf', audio: 'full.mp3' }),
+        videoRow('bare', { title: 'Bare', description: 'This video has worksheets too.', youtube_url: 'https://www.youtube.com/watch?v=Zz_-9yXwVu0', duration: '1:05', handout: 'bare.pdf', audio: 'bare.mp3' }),
+      ];
+      const list = [{ tier: 'main', video: 'full', blurb: 'Try this. The worksheets below help you plan.' }, { tier: 'main', video: 'bare' }];
+      const renderWordy = (rows) =>
+        env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page") }}', {
+          items: filters.solutionsByTier(list, wordy, rows).main,
+        });
+      const none = renderWordy([]);
+      // The words are on the cards, and no section, link or file is.
+      expect(text(none)).toContain('Try this. The worksheets below help you plan.');
+      expect(text(none)).toContain('This video has worksheets too.');
+      expect(text(none)).toContain('Your worksheet plan');
+      expect(none).not.toMatch(WORKSHEET_MARKUP);
+      expect(none).not.toMatch(/<h4\b/i);
+      // With a row, the section is the card's last part, as for any video.
+      const [first, second] = elements(renderWordy([row('full-one', 'full', 'A worksheet to print')]), 'solution', 'li');
+      expect(squeeze(sectionOf(first))).toBe(worksheetsSection('full', 'Your worksheet plan', [{ worksheet_id: 'full-one', title: 'A worksheet to print', file: 'full-one.pdf' }], handoutIcon(first)));
+      expect(elementByClass(first, 'video-block', 'div')).not.toMatch(WORKSHEET_MARKUP);
+      expect(first.match(/<summary[\s\S]*?<\/summary>/)[0]).not.toMatch(WORKSHEET_MARKUP);
+      expect(second).not.toMatch(WORKSHEET_MARKUP);
     });
 
     it('is the same section whatever the ratings and feedback switches say', () => {

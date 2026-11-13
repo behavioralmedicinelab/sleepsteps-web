@@ -285,9 +285,12 @@ describe.each(builds)('$name', ({ features, dir }) => {
       const stop = 'You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts and worksheets opened, and searches.';
       expect(items.includes(usage)).toBe(on('events'));
       expect(privacyText.includes(stop)).toBe(on('events'));
-      expect((privacyText.match(/handouts and worksheets opened/g) ?? []).length).toBe(on('events') ? 2 : 0);
-      // Nowhere else does the page speak of worksheets.
-      expect((privacyText.match(/worksheet/gi) ?? []).length).toBe(on('events') ? 2 : 0);
+      // Those two sentences are in the parts of the page that show only
+      // while usage statistics are on, so nothing says worksheets opened
+      // are counted while they are off. The page's other words are the
+      // team's (the wording is a draft, SPEC §21): nothing here counts the
+      // word "worksheet" across the page.
+      expect(privacyText.includes('handouts and worksheets opened')).toBe(on('events'));
     });
 
     it('names in "still reach us" only the features that are on', () => {
