@@ -310,6 +310,45 @@ describe('players.js', () => {
     expect(scripts()).toEqual([]);
   });
 
+  // A worksheet link is handled exactly as the handout link is (SPEC §7.6,
+  // §9.4): any click inside an <a href> marked data-worksheet is reported
+  // once, with the worksheet_id, and the link still opens.
+  it('reports clicks on a worksheet link only as DOM events, with the worksheet_id, and lets the link open', async () => {
+    await load(
+      videoPage.replace(
+        '<a id="elsewhere"',
+        '<section class="worksheets"><ul role="list">' +
+          '<li><a class="format-button" id="sheet" href="/media/worksheets/File Name.pdf" type="application/pdf" data-worksheet="settling-worksheet-1">' +
+          '<svg class="format-button__icon" id="sheet-icon"></svg>A worksheet<span class="visually-hidden" id="sheet-format"> (PDF)</span></a></li>' +
+          // Not a link, an empty id, and no href: none is a worksheet to open.
+          '<li><button type="button" id="not-a-link" data-worksheet="settling-worksheet-2">B</button></li>' +
+          '<li><a id="empty" href="/media/worksheets/c.pdf" data-worksheet="">C</a></li>' +
+          '<li><a id="no-href" data-worksheet="settling-worksheet-3">D</a></li>' +
+          '<li><a id="unmarked" href="/media/worksheets/e.pdf">E</a></li>' +
+          '</ul></section><a id="elsewhere"',
+      ),
+      ['players'],
+    );
+    const { document } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const press = (id) => {
+      const click = new Event('click', { bubbles: true, cancelable: true });
+      document.getElementById(id).dispatchEvent(click);
+      return click.defaultPrevented;
+    };
+    // The link itself, its icon and its hidden "(PDF)": one report each, by id, never the file name.
+    expect([press('sheet'), press('sheet-icon'), press('sheet-format')]).toEqual([false, false, false]);
+    expect(reported).toEqual([1, 2, 3].map(() => ({ type: 'worksheet_open', detail: { worksheet: 'settling-worksheet-1' } })));
+    for (const id of ['not-a-link', 'empty', 'no-href', 'unmarked', 'elsewhere']) expect(press(id), id).toBe(false);
+    expect(reported).toHaveLength(3);
+    // The handout beside it is still a handout_open, and nothing else.
+    document.querySelector('.video-controls a[data-handout]').click();
+    expect(reported.slice(3)).toEqual([{ type: 'handout_open', detail: { media: 'full' } }]);
+    // players.js sends and stores nothing itself.
+    expect(scripts()).toEqual([]);
+  });
+
   it('has no transcripts to open, print or report (SPEC §9.3): nothing but the native "Audio only" disclosure', async () => {
     await load(videoPage, ['players'], { hash: '#transcript-full' });
     const { document, window } = dom;
@@ -402,6 +441,42 @@ describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', 
     expect(document.activeElement).toBe(face(firstExtra));
   });
 
+  // The worksheets of an open card (SPEC §7.6) are the page's only links
+  // marked data-worksheet; players.js reports each click, open card or not
+  // (without JavaScript nothing is reported: the links are plain links).
+  it('reports a click on each worksheet link of a card as a worksheet_open with its worksheet_id, and nothing for the card\'s other controls', async () => {
+    await load(html, ['players', 'solutions']);
+    const { document } = dom;
+    const reported = [];
+    document.addEventListener('sleepsteps:event', (event) => reported.push(event.detail));
+    const withSheets = cards().filter((card) => card.querySelector('.worksheets'));
+    const links = document.querySelectorAll('[data-worksheet]');
+    expect(links.length).toBeGreaterThanOrEqual(withSheets.length);
+    // Nothing to click while none of this page's solution videos has a
+    // worksheet in data/worksheets.csv (a valid file, SPEC §7.6): then no
+    // element is marked at all.
+    expect(links.length > 0).toBe(withSheets.length > 0);
+    if (withSheets.length === 0) return;
+    // Every one is in a card's worksheets section, under its video template.
+    expect(links).toEqual(withSheets.flatMap((card) => card.querySelectorAll('.solution__panel > .worksheets a.format-button')));
+    const [first] = withSheets;
+    face(first).click();
+    first.querySelector('.video-block__close').click();
+    expect(reported).toEqual([]);
+    face(first).click();
+    for (const link of first.querySelectorAll('.worksheets a')) {
+      const click = new Event('click', { bubbles: true, cancelable: true });
+      link.dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(false);
+      expect(link.getAttribute('href')).toMatch(/^\/media\/worksheets\/[^/]+\.pdf$/i);
+    }
+    expect(reported).toEqual(first.querySelectorAll('.worksheets a').map((a) => ({ type: 'worksheet_open', detail: { worksheet: a.dataset.worksheet } })));
+    expect(reported.length).toBeGreaterThan(0);
+    for (const { detail } of reported) expect(detail.worksheet).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+    // The card stays open, and focus is not moved.
+    expect(face(first).getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('keeps focus on the card button should the title not be rendered', async () => {
     await load(html, ['players', 'solutions']);
     const { document } = dom;
@@ -434,6 +509,8 @@ describe('players.js on a stand-alone problem, /problems/sharing-a-bed/', () => 
     handout.dispatchEvent(click);
     expect(click.defaultPrevented).toBe(false);
     expect(reported).toEqual([{ type: 'handout_open', detail: { media: 'sharing-a-bed-about' } }]);
+    // No solution cards, so no worksheet to open or report (SPEC §7.6).
+    expect(document.querySelectorAll('[data-worksheet]')).toEqual([]);
   });
 });
 

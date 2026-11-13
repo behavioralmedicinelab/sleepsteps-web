@@ -29,7 +29,7 @@ npm run db:migrate:local   # once, and again after each new file in migrations/
 npm run dev:collect        # like npm run dev, with collection on for this run
 ```
 
-Open http://localhost:8787 (the API answers only on port 8787, at `localhost` or `127.0.0.1`). Open a sleep problem page, play an audio-only version, open a handout, rate a video or search, then look at what was stored (every time is rounded down to the hour, so rows from the same hour share a `ts`; these queries list the newest first by id):
+Open http://localhost:8787 (the API answers only on port 8787, at `localhost` or `127.0.0.1`). Open a sleep problem page, play an audio-only version, open a handout or a worksheet, rate a video or search, then look at what was stored (every time is rounded down to the hour, so rows from the same hour share a `ts`; these queries list the newest first by id):
 
 ```sh
 npx wrangler d1 execute sleepsteps --local --command "SELECT ts, session_id, page, type, detail FROM events ORDER BY id DESC LIMIT 20"
@@ -215,6 +215,8 @@ sleep-drive-worksheet-2,sleep-drive,Sleep diary,sleep-diary.pdf
 
 To add a worksheet, put its PDF in `media/worksheets/` and add a row. A video's worksheets show in the order of their rows. For a video with several, add a row for each; for one worksheet that goes with two videos, add two rows that name the same file. To remove one, delete its row. Nothing changes in the problem files.
 
+The site counts how often each worksheet is opened, in the anonymous usage statistics, as it does for handouts (`SPEC.md` §10.2). It counts by `worksheet_id`, so a worksheet keeps its count when you change its title or replace its file, as long as its `worksheet_id` stays the same.
+
 The build checks every row and stops, naming the row as Excel numbers it, on a missing cell, a `worksheet_id` used twice, a `video_id` that isn't in `data/videos.csv`, or a file that isn't a PDF in `media/worksheets/` (the name must match exactly, capitals included, as for the videos' files). It only warns, without stopping, about a worksheet whose video isn't a solution on any problem (nobody would see it) and about a solution video with no worksheet.
 
 **Placeholder worksheets.** For now the eight solution videos have sample rows with `[bracketed]` titles, which all name the stand-in file `placeholder-worksheet.pdf`. Replace each with a real one by changing its `title` and `file` (keep its `worksheet_id`), and delete the sample rows a video doesn't need. Once a video has its YouTube link, the build stops if one of its worksheets still names the stand-in, and there must be none at launch (`node scripts/validate-content.js --no-placeholders` checks). The worksheets are PDFs for now; whether another format would suit worksheets people fill in is still being decided (`SPEC.md` §21). Make a PDF accessible as you would a handout (`SPEC.md` §9.3).
@@ -297,9 +299,10 @@ Where Access isn't set up for them (`SPEC.md` §18.4 step 6), the `/admin` addre
 - the 20 most recent feedback messages, and how many there were in the range;
 - plays of each video and audio-only version, and how far people got;
 - handout clicks;
+- worksheet clicks, for each page and worksheet (a worksheet shows on every problem page where its video is a solution);
 - how many database rows the page read.
 
-It shows exact counts, never row numbers or visit codes. Videos are shown by their `video_id`.
+It shows exact counts, never row numbers or visit codes. Videos are shown by their `video_id`, and worksheets by their `worksheet_id`.
 
 **Dates are UTC.** Every date on the page and in the files is a UTC calendar day, and both ends of a range are included. A UTC day runs from 10:00 on that date to 10:00 the next morning, Melbourne time (11:00 to 11:00 during daylight saving). Its figures include that evening and the early hours of the next day, but not the date's own early morning, which counts in the day before. Likewise, a month's file runs from 10 or 11 am on the 1st to the same time on the 1st of the next month, Melbourne time. Times are UTC too.
 
@@ -321,7 +324,7 @@ These limits protect the free plan's 5 million database rows read a day, which t
 - The columns:
   - ratings: `id, ts, page, video, stars`;
   - feedback: `id, ts, page, video, message` (`page` is a page id; the summary page shows each page's current title; `video` is the `video_id` of the video a message is about when it was sent from that video's "Feedback" button, and empty otherwise);
-  - usage events: `ts, session_id, page, type, media, furthest` (`media` is a `video_id`; `furthest` is 0, 25, 50, 75 or 100 for plays, and empty otherwise);
+  - usage events: `ts, session_id, page, type, media, furthest, worksheet` (`type` is `page_view`, `video_play`, `audio_play`, `handout_open` or `worksheet_open`; `media` is a `video_id`, for plays and handouts; `furthest` is 0, 25, 50, 75 or 100 for plays, and empty otherwise; `worksheet` is the `worksheet_id` of a worksheet that was opened, and empty otherwise. Files downloaded before worksheets were counted, in November 2026, have no `worksheet` column);
   - searches: `ts, q, results`.
 - A ratings or feedback `id` is unique within its table, so it finds duplicates across files and a row to delete (a deleted row's id can be reused). Usage events and searches have no id, on purpose: ids run in order, so a search's id would link it to the visit it came from. Rows are in a fixed order: usage events by type, then hour, page and visit code; searches by hour, then by their stored content (a fixed order, but not alphabetical: sort the `q` column for that); ratings and feedback by hour, then id. Usage events and searches never come in the order they were stored.
 - A `session_id` is one browser tab's random visit code, not a person.

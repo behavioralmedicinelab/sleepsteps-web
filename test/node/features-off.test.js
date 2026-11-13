@@ -277,6 +277,19 @@ describe.each(builds)('$name', ({ features, dir }) => {
       expect(privacyText.includes('You can stop your browser sending us anonymous usage information')).toBe(on('events'));
     });
 
+    // Every usage event type but the search has its words in both places
+    // (SPEC §10.2, §15.2): page views, plays, and handouts and worksheets
+    // opened (worksheet_open, project lead, 2026-11-13).
+    it(`${on('events') ? 'names' : "doesn't name"} handouts and worksheets opened among the usage it counts, and among what turning statistics off stops`, () => {
+      const usage = 'Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts and worksheets opened';
+      const stop = 'You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts and worksheets opened, and searches.';
+      expect(items.includes(usage)).toBe(on('events'));
+      expect(privacyText.includes(stop)).toBe(on('events'));
+      expect((privacyText.match(/handouts and worksheets opened/g) ?? []).length).toBe(on('events') ? 2 : 0);
+      // Nowhere else does the page speak of worksheets.
+      expect((privacyText.match(/worksheet/gi) ?? []).length).toBe(on('events') ? 2 : 0);
+    });
+
     it('names in "still reach us" only the features that are on', () => {
       const sentences = ['Ratings and feedback you choose to send still reach us.', 'Ratings you choose to give still reach us.', 'Feedback you choose to send still reaches us.'];
       let expected = [];

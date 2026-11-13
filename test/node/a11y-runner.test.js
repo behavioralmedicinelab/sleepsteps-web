@@ -166,6 +166,26 @@ describe('the D1 stand-in (scripts/a11y/d1-sqlite.js)', () => {
     for (const { page, video } of about) expect(pages[page].videos, `${page} ${video}`).toContain(video);
     expect((await db.prepare('SELECT COUNT(*) AS n FROM feedback WHERE video IS NULL').first()).n).toBeGreaterThan(about.length);
     expect(new Set(byName.recentFeedback.map((row) => row.video === null)).size).toBe(2);
+    // Worksheets opened, each one its page lists, as the Worker stores them
+    // (SPEC §10.2), so "Worksheets opened" has a table to check, while any
+    // page lists a worksheet.
+    const opened = (await db.prepare("SELECT page, session_id, detail FROM events WHERE type = 'worksheet_open'").all()).results;
+    const anyListed = Object.values(pages).some((page) => page.worksheets.length > 0);
+    expect(opened.length > 10).toBe(anyListed);
+    for (const { page, session_id: session, detail } of opened) {
+      expect(Object.keys(JSON.parse(detail)), page).toEqual(['worksheet']);
+      expect(pages[page].worksheets, `${page} ${detail}`).toContain(JSON.parse(detail).worksheet);
+      expect(session).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    }
+    expect(byName.worksheets.length > 0).toBe(anyListed);
+    for (const row of byName.worksheets) expect(pages[row.page].worksheets, row.page).toContain(row.worksheet);
+    // Seeded after everything else: the sample's other rows are unchanged by them.
+    const without = createD1('migrations');
+    await seedD1(without, pages, now, { worksheets: 0 });
+    const dump = async (d1) => (await d1.prepare("SELECT ts, session_id, page, type, detail FROM events WHERE type != 'worksheet_open' ORDER BY id").all()).results;
+    expect(await dump(without)).toEqual(await dump(db));
+    expect((await without.prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'worksheet_open'").first()).n).toBe(0);
+    without.close();
     db.close();
   });
 });

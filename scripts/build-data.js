@@ -144,6 +144,9 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // (data-rating), SPEC §12, and a video's "Feedback" button
 // (data-feedback-video), SPEC §13.
 const VIDEO_ATTRIBUTES = /\sdata-(?:video|handout|media|rating|feedback-video)="([^"]*)"/g;
+// The attribute that names a worksheet, holding its worksheet_id: a worksheet
+// link in an open solution card (data-worksheet), SPEC §7.6, §9.4.
+const WORKSHEET_ATTRIBUTE = /\sdata-worksheet="([^"]*)"/g;
 
 /** The value of an attribute in an opening tag, or undefined if it isn't there. */
 function attribute(tag, name) {
@@ -156,15 +159,19 @@ function attribute(tag, name) {
  * The Worker's list of pages, read from the rendered HTML, so it holds
  * exactly what the browser modules can send:
  *
- *   { page_id: { url, title, page_view, videos: [video_id, ...] } }
+ *   { page_id: { url, title, page_view, videos: [video_id, ...], worksheets: [worksheet_id, ...] } }
  *
  * - every page whose <body> has a data-page-id (so not the 404 page);
  * - title: the <title> text;
  * - page_view: whether <body> has data-page-view (track_page_view, SPEC §10.2);
- * - videos: every video_id the page names (VIDEO_ATTRIBUTES), sorted.
+ * - videos: every video_id the page names (VIDEO_ATTRIBUTES), sorted;
+ * - worksheets: every worksheet_id the page names (WORKSHEET_ATTRIBUTE),
+ *   sorted: the worksheets of its solution videos, so empty on every page
+ *   without solution cards (SPEC §7.6). A worksheet_open event must name one
+ *   of them (SPEC §10.2).
  *
- * Throws, failing the build, on a page_id or video_id that isn't a slug, a
- * page_id on two pages, or no page with a page_id at all.
+ * Throws, failing the build, on a page_id, video_id or worksheet_id that
+ * isn't a slug, a page_id on two pages, or no page with a page_id at all.
  * Keys are sorted, so the file only changes when the site does.
  * @param {{ outputPath: string, url: string, content: string }[]} results
  *   the rendered templates, as Eleventy passes them to eleventy.after
@@ -186,6 +193,11 @@ export function pagesIndex(results = []) {
       if (!SLUG.test(video)) throw new Error(`pages.json: ${where}: "${video}" is not a video_id`);
       videos.add(video);
     }
+    const worksheets = new Set();
+    for (const [, worksheet] of html.matchAll(WORKSHEET_ATTRIBUTE)) {
+      if (!SLUG.test(worksheet)) throw new Error(`pages.json: ${where}: "${worksheet}" is not a worksheet_id`);
+      worksheets.add(worksheet);
+    }
     pages.set(id, {
       where,
       entry: {
@@ -193,6 +205,7 @@ export function pagesIndex(results = []) {
         title: htmlToText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]),
         page_view: attribute(body, 'data-page-view') !== undefined,
         videos: [...videos].sort(),
+        worksheets: [...worksheets].sort(),
       },
     });
   }

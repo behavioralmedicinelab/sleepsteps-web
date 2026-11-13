@@ -281,10 +281,17 @@ describe.each(builds.map((b) => [b.name, b]))('every video, built with %s', (nam
     // Say so if there is nothing to check: no solution video has a worksheet.
     const solutionVideos = new Set(cards.map(({ html }) => videoIdOf(html)));
     expect(sections > 0).toBe([...model.worksheets.values()].some((w) => solutionVideos.has(w.data.video_id)));
-    // Pages without solution cards never mention worksheets: Start here,
-    // Home, the stand-alone problems and the rest.
+    // Pages without solution cards have no worksheets section, link or file:
+    // Start here, Home, the stand-alone problems and the rest. None of them
+    // even has the word, except the privacy page, whose text says that
+    // worksheets opened are counted, while usage statistics are on (SPEC
+    // §15.2).
+    const eventsOn = features.events === true;
     for (const { file, html } of pages) {
-      if (!cards.some((c) => c.file === file)) expect(html, file).not.toMatch(/worksheet/i);
+      if (cards.some((c) => c.file === file)) continue;
+      expect(html, file).not.toMatch(/class="[^"]*worksheet|\sdata-worksheet|media\/worksheets/i);
+      if (file === 'privacy/index.html' && eventsOn) expect(text(html).match(/\w*worksheet\w*/gi), file).toEqual(['worksheets', 'worksheets']);
+      else expect(html, file).not.toMatch(/worksheet/i);
     }
   });
 

@@ -2,8 +2,8 @@
 //
 // The HTML works without this module (SPEC §2, §11): each video facade is a
 // "Watch on YouTube" link, "Audio only" is a native <details>, and handouts
-// are plain links. There are no transcripts on the site (SPEC §9.3). This
-// module:
+// and worksheets are plain links. There are no transcripts on the site
+// (SPEC §9.3). This module:
 //
 // - turns each facade link into a "Play video" button of the same size. Only
 //   when it is pressed does it load the YouTube IFrame Player API (once per
@@ -12,8 +12,9 @@
 //   frame says so and links to the video on YouTube;
 // - pauses every other video and audio when one starts;
 // - keeps the furthest point reached per media item (0/25/50/75/100) and
-//   reports it, plus handout clicks, through report() (SPEC §9.4, §10.2),
-//   for events.js to send: see below.
+//   reports it, plus handout clicks and clicks on a solution card's
+//   worksheet links (SPEC §7.6), through report() (SPEC §9.4, §10.2), for
+//   events.js to send: see below.
 //
 // Exports, for page scripts (solutions.js): pauseWithin(root).
 //
@@ -22,7 +23,8 @@
 // shapes, which worker/routes/event.js accepts: video_play / audio_play
 // { media, furthest } (furthest 0, 25, 50, 75 or 100) and handout_open
 // { media }, where media is always the video_id (data-video, data-media,
-// data-handout). events.js, loaded before this module whenever
+// data-handout); and worksheet_open { worksheet }, the worksheet_id
+// (data-worksheet). events.js, loaded before this module whenever
 // features.events is on, listens and sends them (SPEC §10.1). Nothing is
 // sent or stored here.
 
@@ -302,6 +304,9 @@ function onClick(event) {
   // (whatever the format): the row's "Handout" or a closed card's quick
   // link.
   if (link?.dataset.handout) report('handout_open', { media: link.dataset.handout });
+  // worksheet_open { worksheet: worksheet_id } when a worksheet link in an
+  // open solution card is clicked (SPEC §7.6), in the same way.
+  if (link?.dataset.worksheet) report('worksheet_open', { worksheet: link.dataset.worksheet });
 }
 
 function init() {

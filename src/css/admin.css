@@ -460,6 +460,7 @@ body.admin {
 .page-name,
 .page-id,
 .video-id,
+.worksheet-id,
 .search-text {
   overflow-wrap: break-word;
 }
@@ -574,6 +575,7 @@ body.admin {
   .page-name,
   .page-id,
   .video-id,
+  .worksheet-id,
   .search-text {
     overflow-wrap: anywhere;
   }

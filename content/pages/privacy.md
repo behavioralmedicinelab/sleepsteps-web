@@ -20,7 +20,7 @@ collect:
   - feature: events
     text: "Words you type into the site search. We store these without the code that groups your visit"
   - feature: events
-    text: "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts opened"
+    text: "Anonymous usage: views of the sleep problem, introduction and urgent help pages, videos and audio played (and how far), and handouts and worksheets opened"
 collect_note: "Each of these is stored with the page it came from and the date and hour, never the exact time."
 collect_none: "Nothing at the moment: ratings, feedback and usage statistics are all turned off. Anything collected before is kept as “How long we keep it” below says."
 not_collect:
@@ -152,7 +152,7 @@ We don't use cookies to track you or show you ads, and we don't set any cookies 
 {% if site.features.events === true %}
 {%- set ratingsOn = site.features.ratings === true %}
 {%- set feedbackOn = site.features.feedback === true %}
-You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts opened, and searches.
+You can stop your browser sending us anonymous usage information: views of the sleep problem, introduction and urgent help pages, videos and audio played, handouts and worksheets opened, and searches.
 {%- if ratingsOn and feedbackOn %} Ratings and feedback you choose to send still reach us.
 {%- elif ratingsOn %} Ratings you choose to give still reach us.
 {%- elif feedbackOn %} Feedback you choose to send still reaches us.

@@ -13,7 +13,8 @@
 //   session_id  search: the key is present at all (null too); any other
 //               type: not a lowercase v4 UUID
 //   detail      not an object with exactly the type's keys; a value that
-//               fails its rule (media must be a video on that page)
+//               fails its rule (media must be a video on that page, and
+//               worksheet one of that page's worksheets)
 //
 // The server sets `ts`: its own time rounded down to the hour for every type
 // (lib/time.js), so no event carries an exact time. It stores a detail
@@ -34,6 +35,7 @@ export const SHAPES = new Map([
   ['video_play', ['media', 'furthest']],
   ['audio_play', ['media', 'furthest']],
   ['handout_open', ['media']],
+  ['worksheet_open', ['worksheet']],
 ]);
 
 /** A v4 UUID as crypto.randomUUID() writes it: lowercase, version 4, RFC 4122 variant. */
@@ -69,6 +71,11 @@ function checkedDetail(type, detail, page) {
     }
     case 'handout_open':
       return isMedia(detail.media) ? { media: detail.media } : undefined;
+    case 'worksheet_open': {
+      // One of the worksheets this page's open solution cards link (SPEC §7.6).
+      const { worksheet } = detail;
+      return typeof worksheet === 'string' && page.worksheets.has(worksheet) ? { worksheet } : undefined;
+    }
     default:
       return undefined;
   }

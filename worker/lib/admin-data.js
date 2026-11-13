@@ -79,6 +79,7 @@ const meanOf = (row) => (row.n > 0 ? row.total / row.n : null);
  *   feedback: { total: number, recent: Array<{ ts, page, title, known, video, message }> },
  *   plays: { video: Array<{ media, plays, f0, f25, f50, f75, f100 }>, audio: Array<same> },
  *   handouts: Array<{ media, clicks, visits }>,
+ *   worksheets: Array<{ page, title, known, worksheet, clicks, visits }>,
  * }}
  *   views.rows: every tracked page in pages.json (page_view true), with 0
  *   for those with no views, plus any page with views that is no longer in
@@ -91,6 +92,10 @@ const meanOf = (row) => (row.n > 0 ? row.total / row.n : null);
  *   its id when it is no longer there (known false), and its `video` is the
  *   video_id it is about, or null (sent from the footer, or stored before
  *   migration 0003). plays and handouts by count, then video id.
+ *   worksheets: one row per page and worksheet_id, by clicks, then the
+ *   page's title and id, then the worksheet id; a page no longer in
+ *   pages.json shows by its id (known false), and a worksheet by the id
+ *   stored, whether or not the page still lists it.
  */
 export function summaryModel(results, index) {
   const rowsOf = (name) => (Array.isArray(results?.[name]) ? results[name] : []);
@@ -173,6 +178,11 @@ export function summaryModel(results, index) {
     handouts: rowsOf('handouts')
       .map((row) => ({ media: String(row.media), clicks: count(row.clicks), visits: count(row.visits) }))
       .sort((a, b) => b.clicks - a.clicks || compareCode(a.media, b.media)),
+    worksheets: rowsOf('worksheets')
+      .map((row) => ({ ...pageOf(index, String(row.page)), worksheet: String(row.worksheet), clicks: count(row.clicks), visits: count(row.visits) }))
+      .sort(
+        (a, b) => b.clicks - a.clicks || compareText(a.title, b.title) || compareCode(a.page, b.page) || compareCode(a.worksheet, b.worksheet),
+      ),
   };
 }
 

@@ -278,8 +278,14 @@ describe('the worksheets of an open solution card (pages/problem.css)', () => {
 
   it('is styled by the problem page\'s stylesheet alone', () => {
     for (const s of sheets) {
+      // The staff pages' sheet, which no public page loads (below), names
+      // worksheets too: only the id cell of its "Worksheets opened" table
+      // (SPEC §14.4), which wraps as its other ids do.
+      if (s.file === 'admin.css') continue;
       if (s.file !== 'pages/problem.css') expect(s.css.replace(/\/\*[\s\S]*?\*\//g, ''), s.file).not.toMatch(/worksheet/i);
     }
+    const admin = sheets.find((s) => s.file === 'admin.css').css.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(admin.match(/[^\s{},]*worksheet[^\s{},]*/gi)).toEqual(['.worksheet-id', '.worksheet-id']);
   });
 
   // On paper a link can't open: the section goes wherever the row of
@@ -320,6 +326,15 @@ describe('admin.css', () => {
   it('scrolls a wide table inside its region, never the page, and keeps messages as stored', () => {
     expect(css).toMatch(/\.table-scroll \{\s*max-width: 100%;\s*overflow-x: auto;\s*\}/);
     expect(css).toMatch(/\.feedback-item__message \{[^}]*white-space: pre-wrap;[^}]*overflow-wrap: anywhere;/);
+  });
+
+  // Ids and search text in a table: a worksheet's id (SPEC §14.4, "Worksheets
+  // opened") wraps exactly as a page's or a video's does.
+  it('breaks ids and search text at their hyphens on screen, and anywhere on paper, a worksheet id included', () => {
+    // The selector list as it is written, one selector a line, at `indent`.
+    const list = (indent) => ['page-name', 'page-id', 'video-id', 'worksheet-id', 'search-text'].map((name) => `${indent}\\.${name}`).join(',\\n');
+    expect(css).toMatch(new RegExp(`\\n${list('')} \\{\\s*overflow-wrap: break-word;\\s*\\}`));
+    expect(print).toMatch(new RegExp(`\\n${list('  ')} \\{\\s*overflow-wrap: anywhere;\\s*\\}`));
   });
 
   it('keeps every control and link at least 44px tall', () => {

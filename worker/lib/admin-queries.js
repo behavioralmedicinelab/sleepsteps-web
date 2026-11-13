@@ -65,6 +65,14 @@ export const PLAYS_SQL =
 export const HANDOUTS_SQL =
   "SELECT json_extract(detail, '$.media') AS media, COUNT(*) AS clicks, COUNT(DISTINCT session_id) AS visits FROM events WHERE type = 'handout_open' AND ts >= ?1 AND ts < ?2 GROUP BY media";
 
+/**
+ * Worksheet clicks and the visits that clicked, per page and worksheet
+ * (SPEC §7.6): a worksheet shows on every page where its video is a
+ * solution, so the page says where it was opened.
+ */
+export const WORKSHEETS_SQL =
+  "SELECT page, json_extract(detail, '$.worksheet') AS worksheet, COUNT(*) AS clicks, COUNT(DISTINCT session_id) AS visits FROM events WHERE type = 'worksheet_open' AND ts >= ?1 AND ts < ?2 GROUP BY page, worksheet";
+
 /** The summary batch, in order: [name, sql]. */
 export const SUMMARY_QUERIES = Object.freeze([
   ['views', VIEWS_SQL],
@@ -76,6 +84,7 @@ export const SUMMARY_QUERIES = Object.freeze([
   ['recentFeedback', RECENT_FEEDBACK_SQL],
   ['plays', PLAYS_SQL],
   ['handouts', HANDOUTS_SQL],
+  ['worksheets', WORKSHEETS_SQL],
 ]);
 
 /** After a failed batch only: are the site's tables there at all? (3 when migrated.) */
@@ -99,11 +108,16 @@ export const TABLES_PRESENT_SQL =
 // §21).
 
 /** The usage-event types in the events file, in file order. Searches have a file of their own. */
-export const EVENT_TYPE_ORDER = Object.freeze(['page_view', 'video_play', 'audio_play', 'handout_open']);
+export const EVENT_TYPE_ORDER = Object.freeze(['page_view', 'video_play', 'audio_play', 'handout_open', 'worksheet_open']);
 
-/** Events: no id, never the raw detail; detail is split into columns. */
+/**
+ * Events: no id, never the raw detail; detail is split into columns, one for
+ * each key of the usage events' details (SPEC §10.2): `media` and `furthest`,
+ * and `worksheet`, the worksheet_id of a worksheet_open (NULL, an empty
+ * cell, on every other type).
+ */
 export const EVENTS_PART_SQL =
-  "SELECT ts, session_id, page, type, json_extract(detail, '$.media') AS media, json_extract(detail, '$.furthest') AS furthest FROM events WHERE type = ?1 AND ts >= ?2 AND ts < ?3 ORDER BY ts, page, session_id, detail LIMIT ?4 OFFSET ?5";
+  "SELECT ts, session_id, page, type, json_extract(detail, '$.media') AS media, json_extract(detail, '$.furthest') AS furthest, json_extract(detail, '$.worksheet') AS worksheet FROM events WHERE type = ?1 AND ts >= ?2 AND ts < ?3 ORDER BY ts, page, session_id, detail LIMIT ?4 OFFSET ?5";
 
 /** Searches: their own file (decision B1), so the events file holds no free text. */
 export const SEARCHES_PART_SQL =
@@ -130,7 +144,7 @@ export const FEEDBACK_PART_SQL =
 // entries.
 
 export const EVENTS_COUNT_SQL =
-  "SELECT COUNT(*) AS n FROM (SELECT 1 FROM events WHERE type IN ('page_view', 'video_play', 'audio_play', 'handout_open') AND ts >= ?1 AND ts < ?2 LIMIT ?3)";
+  "SELECT COUNT(*) AS n FROM (SELECT 1 FROM events WHERE type IN ('page_view', 'video_play', 'audio_play', 'handout_open', 'worksheet_open') AND ts >= ?1 AND ts < ?2 LIMIT ?3)";
 export const SEARCHES_COUNT_SQL =
   "SELECT COUNT(*) AS n FROM (SELECT 1 FROM events WHERE type = 'search' AND ts >= ?1 AND ts < ?2 LIMIT ?3)";
 export const RATINGS_COUNT_SQL = 'SELECT COUNT(*) AS n FROM (SELECT 1 FROM ratings WHERE ts >= ?1 AND ts < ?2 LIMIT ?3)';
@@ -148,6 +162,6 @@ export const FEEDBACK_COUNT_CAPPED_SQL = 'SELECT COUNT(*) AS n FROM (SELECT 1 FR
 export const EXPORT_TABLES = new Map([
   ['ratings', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'video', 'stars']), partSql: RATINGS_PART_SQL, countSql: RATINGS_COUNT_SQL, pageRows: 2000 })],
   ['feedback', Object.freeze({ types: null, columns: Object.freeze(['id', 'ts', 'page', 'video', 'message']), partSql: FEEDBACK_PART_SQL, countSql: FEEDBACK_COUNT_CAPPED_SQL, pageRows: 500 })],
-  ['events', Object.freeze({ types: EVENT_TYPE_ORDER, columns: Object.freeze(['ts', 'session_id', 'page', 'type', 'media', 'furthest']), partSql: EVENTS_PART_SQL, countSql: EVENTS_COUNT_SQL, pageRows: 2000 })],
+  ['events', Object.freeze({ types: EVENT_TYPE_ORDER, columns: Object.freeze(['ts', 'session_id', 'page', 'type', 'media', 'furthest', 'worksheet']), partSql: EVENTS_PART_SQL, countSql: EVENTS_COUNT_SQL, pageRows: 2000 })],
   ['searches', Object.freeze({ types: Object.freeze(['search']), columns: Object.freeze(['ts', 'q', 'results']), partSql: SEARCHES_PART_SQL, countSql: SEARCHES_COUNT_SQL, pageRows: 2000 })],
 ]);

@@ -212,6 +212,7 @@ const SECTIONS = [
   ['feedback', 'Feedback'],
   ['plays', 'Plays and how far people got'],
   ['handouts', 'Handouts opened'],
+  ['worksheets', 'Worksheets opened'],
 ];
 
 function contents() {
@@ -431,6 +432,24 @@ function handouts(s) {
   return section('handouts', html`${intro}\n${table}`);
 }
 
+/**
+ * Worksheets (SPEC §7.6, §14.4): a worksheet belongs to a video and shows on
+ * every page where that video is a solution, so each row is a page and a
+ * worksheet. The worksheet shows by its worksheet_id, as stored, as videos
+ * show by their video_id.
+ */
+function worksheets(s) {
+  const intro = html`<p>Each click on a worksheet link in an open solution card, whether the browser opened the worksheet or saved it, and the number of visits that clicked, for each page and worksheet. A worksheet goes with its video, so it can be opened from every page where that video is a solution. Worksheets are shown by their worksheet_id.</p>`;
+  if (s.worksheets.length === 0) return section('worksheets', html`${intro}\n${empty('No worksheets opened in this range.')}`);
+  const table = dataTable(
+    'worksheets-caption',
+    'Worksheet clicks per page and worksheet',
+    [{ label: 'Page' }, { label: 'Worksheet' }, { label: 'Clicks', num: true }, { label: 'Visits', num: true }],
+    s.worksheets.map((row) => html`<tr>${pageHeader(row)}<td class="worksheet-id">${row.worksheet}</td>${num(row.clicks)}${num(row.visits)}</tr>\n`),
+  );
+  return section('worksheets', html`${intro}\n${table}`);
+}
+
 // ---------------------------------------------------------------- the pages
 
 const ALERTS = {
@@ -478,7 +497,8 @@ ${ratings(view.summary)}
 ${searches(view.summary)}
 ${feedback(view.summary)}
 ${plays(view.summary)}
-${handouts(view.summary)}`
+${handouts(view.summary)}
+${worksheets(view.summary)}`
     : '';
 
   return html`${head(title)}

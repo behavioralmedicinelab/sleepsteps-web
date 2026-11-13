@@ -60,6 +60,14 @@ function sampleResults() {
       { type: 'audio_play', media: 'how-sleep-works', plays: 1, f0: 0, f25: 0, f50: 0, f75: 0, f100: 1, ...ids(14) },
     ],
     handouts: [{ media: 'pain-about', clicks: 4, visits: 3, ...ids(15) }],
+    // Per page and worksheet (SPEC §7.6): one worksheet opened from two
+    // pages, one of them no longer on the site, and a tie on clicks.
+    worksheets: [
+      { page: 'start', worksheet: 'settling-worksheet-2', clicks: 2, visits: 2, ...ids(17) },
+      { page: 'pain', worksheet: 'settling-worksheet-1', clicks: 1234, visits: 1001, ...ids(18) },
+      { page: 'old-slug', worksheet: 'settling-worksheet-1', clicks: 5, visits: 4, ...ids(19) },
+      { page: 'pain', worksheet: 'settling-worksheet-2', clicks: 2, visits: 1, ...ids(20) },
+    ],
   };
 }
 
@@ -234,7 +242,8 @@ describe('the summary page with data', () => {
 
   it('titles the page with its range, and lists the sections it has, in order', () => {
     expect(doc.querySelector('title').textContent).toBe('Site data, 8 Oct to 6 Nov 2026 (UTC)');
-    expect(sectionIds).toEqual(['downloads', 'views', 'ratings', 'searches', 'feedback', 'plays', 'handouts']);
+    expect(sectionIds).toEqual(['downloads', 'views', 'ratings', 'searches', 'feedback', 'plays', 'handouts', 'worksheets']);
+    expect(all(doc, 'section > h2').map(textOf).slice(-2)).toEqual(['Handouts opened', 'Worksheets opened']);
     expect(all(doc, '.admin-toc a').map((a) => a.getAttribute('href'))).toEqual(sectionIds.map((id) => `#${id}`));
     expect(doc.querySelector('.admin-toc').getAttribute('aria-label')).toBe('On this page');
   });
@@ -390,6 +399,56 @@ describe('the summary page with data', () => {
     ]);
   });
 
+  // "Worksheets opened" (SPEC §14.4), in the handouts table's style: the
+  // page as the row header, then the worksheet by its id, clicks and visits.
+  it('gives worksheet clicks and visits per page and worksheet, by clicks, then page and worksheet id, in the handouts table\'s style', () => {
+    const region = doc.querySelector('[aria-labelledby="worksheets-caption"]');
+    expect([region.getAttribute('class'), region.getAttribute('role'), region.getAttribute('tabindex')]).toEqual(['table-scroll', 'region', '0']);
+    expect(textOf(region.querySelector('caption'))).toBe('Worksheet clicks per page and worksheet');
+    expect(region.querySelectorAll('thead th').map((th) => [textOf(th), th.getAttribute('scope'), th.getAttribute('class')])).toEqual([
+      ['Page', 'col', null],
+      ['Worksheet', 'col', null],
+      ['Clicks', 'col', 'num'],
+      ['Visits', 'col', 'num'],
+    ]);
+    expect(region.querySelectorAll('tbody tr').map((tr) => tr.querySelectorAll('th, td').map(textOf))).toEqual([
+      ['Pain pain', 'settling-worksheet-1', '1,234', '1,001'],
+      ['old-slug No longer on the site', 'settling-worksheet-1', '5', '4'],
+      ['Pain pain', 'settling-worksheet-2', '2', '1'],
+      ['Start here start', 'settling-worksheet-2', '2', '2'],
+    ]);
+    // Each row: the page as its header, the id in its own cell, two numbers.
+    for (const tr of region.querySelectorAll('tbody tr')) {
+      expect(tr.children.map((cell) => [cell.localName, cell.getAttribute('class'), cell.getAttribute('scope')])).toEqual([
+        ['th', null, 'row'],
+        ['td', 'worksheet-id', null],
+        ['td', 'num', null],
+        ['td', 'num', null],
+      ]);
+    }
+    expect(region.querySelector('tfoot')).toBeNull();
+    const section = doc.querySelector('section[aria-labelledby="worksheets"]');
+    expect(textOf(section.querySelector('h2'))).toBe('Worksheets opened');
+    expect(textOf(section.querySelector('p'))).toBe(
+      'Each click on a worksheet link in an open solution card, whether the browser opened the worksheet or saved it, and the number of visits that clicked, for each page and worksheet. A worksheet goes with its video, so it can be opened from every page where that video is a solution. Worksheets are shown by their worksheet_id.',
+    );
+    // The handouts table has the same shape: a caption, a scroll region, clicks and visits.
+    expect(all(doc, '[aria-labelledby="handouts-caption"] thead th').map(textOf).slice(-2)).toEqual(['Clicks', 'Visits']);
+    expect(summaryModel(sampleResults(), INDEX).worksheets).toEqual([
+      { page: 'pain', title: 'Pain', known: true, worksheet: 'settling-worksheet-1', clicks: 1234, visits: 1001 },
+      { page: 'old-slug', title: 'old-slug', known: false, worksheet: 'settling-worksheet-1', clicks: 5, visits: 4 },
+      { page: 'pain', title: 'Pain', known: true, worksheet: 'settling-worksheet-2', clicks: 2, visits: 1 },
+      { page: 'start', title: 'Start here', known: true, worksheet: 'settling-worksheet-2', clicks: 2, visits: 2 },
+    ]);
+  });
+
+  it('reads odd worksheet rows as text and numbers: a missing count is 0, and results without the statement give no rows', () => {
+    const { worksheets: none } = summaryModel({ ...emptyResults(), worksheets: undefined }, INDEX);
+    expect(none).toEqual([]);
+    const { worksheets: odd } = summaryModel({ ...emptyResults(), worksheets: [{ page: 7, worksheet: 12, clicks: '3', visits: null }] }, INDEX);
+    expect(odd).toEqual([{ page: '7', title: '7', known: false, worksheet: '12', clicks: 3, visits: 0 }]);
+  });
+
   it('shows the rows read, and a note once a load reads more than a tenth of the daily allowance', () => {
     expect(textOf(doc.querySelector('.admin-footer'))).toContain(
       'This page read 12,345 rows from the database. The free plan allows 5 million rows read a day for the whole account',
@@ -472,7 +531,12 @@ describe('the summary page, more ranges and lists', () => {
       'No video plays in this range.',
       'No audio-only plays in this range.',
       'No handouts opened in this range.',
+      'No worksheets opened in this range.',
     ]);
+    // The section keeps its heading and its line of explanation.
+    const worksheets = doc.querySelector('section[aria-labelledby="worksheets"]');
+    expect(textOf(worksheets.querySelector('h2'))).toBe('Worksheets opened');
+    expect(textOf(worksheets.querySelector('p'))).toMatch(/^Each click on a worksheet link in an open solution card, /);
     const searched = { ...emptyResults(), searchTotals: [{ searches: 3, zero: 0 }] };
     expect(textOf(parseHtml(renderSummary(summaryView('', { results: searched }))).querySelector('section[aria-labelledby="searches"]'))).toBe(
       'Searches that found nothing 3 searches in this range, 0 of which found nothing. Every search in this range found something.',
@@ -499,6 +563,8 @@ describe('escaping', () => {
       recentFeedback: texts.map((text) => ({ ts: '2026-11-01T03:00:00.000Z', page: text, video: text, message: text })),
       plays: texts.map((text) => ({ type: 'video_play', media: text, plays: 1, f0: 1, f25: 0, f50: 0, f75: 0, f100: 0 })),
       handouts: texts.map((text) => ({ media: text, clicks: 1, visits: 1 })),
+      // A hostile page id and worksheet id, as rows written straight to the database could hold.
+      worksheets: texts.map((text) => ({ page: text, worksheet: text, clicks: 1, visits: 1 })),
     };
     return renderSummary(summaryView('', { results, host: texts[0] }));
   }
@@ -506,7 +572,7 @@ describe('escaping', () => {
   const dirty = seeded(PAYLOADS);
   const clean = seeded(PAYLOADS.map((_, i) => `plain text ${i}`));
 
-  it('renders feedback, page ids, search text, video ids and the host as text, never as markup', () => {
+  it('renders feedback, page ids, search text, video ids, worksheet ids and the host as text, never as markup', () => {
     expect(dirty).not.toMatch(/<script|<img|<b>/i);
     for (const tag of dirty.match(/<[^>]*>/g)) expect(tag).not.toMatch(/\son\w+\s*=/i);
     expect(dirty).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
@@ -522,6 +588,9 @@ describe('escaping', () => {
     expect(all(doc, '.feedback-item__message').map((b) => b.textContent)).toEqual(PAYLOADS);
     expect(all(doc, '.feedback-item__video').map((span) => span.textContent)).toEqual(PAYLOADS);
     expect(all(doc, '.search-text').map((th) => th.textContent)).toEqual(PAYLOADS);
+    // By clicks (all 1), then the page's title, which here is the payload itself.
+    expect(all(doc, '.worksheet-id').map((td) => td.textContent).sort()).toEqual([...PAYLOADS].sort());
+    expect(all(doc, '[aria-labelledby="worksheets-caption"] .page-name').map((span) => span.textContent).sort()).toEqual([...PAYLOADS].sort());
   });
 
   it('shows a stored time that isn\'t toISOString() output as text, with no <time>', () => {
@@ -753,7 +822,8 @@ describe('the answers (worker/routes/admin.js)', () => {
 
   it('shows the rows the batch read', async () => {
     const body = await (await answer('/admin/', fakeDb({ rowsRead: 1500 }))).text();
-    // Nine statements at 1,500 rows each.
-    expect(body).toContain(`This page read ${thousands(9 * 1500)} rows from the database.`);
+    // Ten statements at 1,500 rows each: the worksheets one is in the same batch.
+    expect(SUMMARY_QUERIES.map(([name]) => name)).toEqual(['views', 'viewTotals', 'ratings', 'searchTotals', 'zeroSearches', 'feedbackCount', 'recentFeedback', 'plays', 'handouts', 'worksheets']);
+    expect(body).toContain(`This page read ${thousands(10 * 1500)} rows from the database.`);
   });
 });

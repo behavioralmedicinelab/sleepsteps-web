@@ -376,6 +376,10 @@ describe('the summary data (SPEC §14.4)', () => {
       ev('page_view', START, 'pain', A),
       ev('page_view', '2026-11-06T23:59:59.999Z', 'pain', B),
       ev('page_view', END, 'pain', C),
+      ev('worksheet_open', '2026-10-07T23:59:59.999Z', 'pain', A, { worksheet: 'sheet-before' }),
+      ev('worksheet_open', START, 'pain', A, { worksheet: 'sheet-first' }),
+      ev('worksheet_open', '2026-11-06T23:59:59.999Z', 'pain', B, { worksheet: 'sheet-last' }),
+      ev('worksheet_open', END, 'pain', C, { worksheet: 'sheet-after' }),
     ]);
     await insert('ratings', [
       { ts: '2026-10-07T23:59:59.999Z', page: 'pain', video: 'pain-about', stars: 1 },
@@ -392,6 +396,7 @@ describe('the summary data (SPEC §14.4)', () => {
     expect(m.ratings.byVideo).toEqual([{ video: 'pain-about', n: 1, total: 5, mean: 5 }]);
     expect(m.feedback.total).toBe(1);
     expect(m.feedback.recent.map((r) => r.message)).toEqual(['first']);
+    expect(m.worksheets.map((r) => r.worksheet)).toEqual(['sheet-first', 'sheet-last']);
   });
 
   it('counts ratings and means per video, per page, and per page and video (a changed rating counts twice)', async () => {
@@ -542,6 +547,66 @@ describe('the summary data (SPEC §14.4)', () => {
     ]);
   });
 
+  // Worksheets (SPEC §7.6, §14.4): a worksheet shows on every page where its
+  // video is a solution, so the count is per page and worksheet.
+  it('counts worksheet clicks and the visits that clicked, per page and worksheet', async () => {
+    await insert('events', [
+      ev('worksheet_open', '2026-11-01T10:00:00.000Z', 'pain', A, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-11-01T10:00:00.000Z', 'pain', A, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-11-02T10:00:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-11-01T10:00:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-2' }),
+      // The same worksheet opened from another page: its own row.
+      ev('worksheet_open', '2026-11-01T11:00:00.000Z', 'start', C, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-11-01T11:00:00.000Z', 'start', C, { worksheet: 'settling-worksheet-1' }),
+      // A page no longer on the site keeps its rows, by its id.
+      ev('worksheet_open', '2026-11-03T10:00:00.000Z', 'old-page', C, { worksheet: 'old-worksheet' }),
+      // Other types are not worksheets opened, whatever their detail.
+      ev('handout_open', '2026-11-01T10:00:00.000Z', 'pain', A, { media: 'pain-about' }),
+      ev('page_view', '2026-11-01T10:00:00.000Z', 'pain', A),
+      ev('video_play', '2026-11-01T10:00:00.000Z', 'pain', A, { media: 'settling-your-body', furthest: 25 }),
+      search('settling-worksheet-1', 0),
+    ]);
+    const { worksheets, handouts } = await model();
+    // By clicks, then the page's title and id, then the worksheet's id.
+    expect(worksheets).toEqual([
+      { page: 'pain', title: 'Pain', known: true, worksheet: 'settling-worksheet-1', clicks: 3, visits: 2 },
+      { page: 'start', title: 'Start here', known: true, worksheet: 'settling-worksheet-1', clicks: 2, visits: 1 },
+      { page: 'old-page', title: 'old-page', known: false, worksheet: 'old-worksheet', clicks: 1, visits: 1 },
+      { page: 'pain', title: 'Pain', known: true, worksheet: 'settling-worksheet-2', clicks: 1, visits: 1 },
+    ]);
+    // A worksheet opened is not a handout opened, and the other way round.
+    expect(handouts).toEqual([{ media: 'pain-about', clicks: 1, visits: 1 }]);
+  });
+
+  it('has no worksheets without worksheet_open rows, and leaves the handouts as they were', async () => {
+    await insert('events', [ev('handout_open', '2026-11-01T10:00:00.000Z', 'pain', A, { media: 'pain-about' })]);
+    const { worksheets, handouts } = await model();
+    expect(worksheets).toEqual([]);
+    expect(handouts).toEqual([{ media: 'pain-about', clicks: 1, visits: 1 }]);
+  });
+
+  it('shows worksheets opened as a table of page, worksheet id, clicks and visits, and its empty state without any', async () => {
+    const empty = await (await get('/admin/')).text();
+    expect(empty).toContain('<h2 id="worksheets">Worksheets opened</h2>');
+    expect(empty).toContain('<p class="empty">No worksheets opened in this range.</p>');
+    expect(empty).not.toContain('worksheets-caption');
+    await insert('events', [
+      ev('worksheet_open', '2026-11-01T10:00:00.000Z', 'pain', A, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-11-01T10:00:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-1' }),
+      ev('worksheet_open', '2026-11-01T10:00:00.000Z', 'gone', B, { worksheet: 'old-worksheet' }),
+    ]);
+    const body = await (await get('/admin/')).text();
+    expect(body).not.toContain('No worksheets opened in this range.');
+    expect(body).toContain('<caption id="worksheets-caption">Worksheet clicks per page and worksheet</caption>');
+    expect(body).toContain(
+      '<tr><th scope="row"><span class="page-name">Pain</span> <span class="page-id">pain</span></th><td class="worksheet-id">settling-worksheet-1</td><td class="num">2</td><td class="num">2</td></tr>',
+    );
+    expect(body).toContain(
+      '<tr><th scope="row"><span class="page-name">gone</span> <span class="page-id">No longer on the site</span></th><td class="worksheet-id">old-worksheet</td><td class="num">1</td><td class="num">1</td></tr>',
+    );
+    expect(body.match(/<td class="worksheet-id">/g)).toHaveLength(2);
+  });
+
   it('gives the same data whatever order D1 returns the grouped rows in', () => {
     const results = {
       views: [{ page: 'start', views: 2, visits: 2 }, { page: 'pain', views: 2, visits: 1 }],
@@ -555,7 +620,22 @@ describe('the summary data (SPEC §14.4)', () => {
         { type: 'video_play', media: 'a', plays: 1, f0: 1, f25: 0, f50: 0, f75: 0, f100: 0 },
       ],
       handouts: [{ media: 'b', clicks: 1, visits: 1 }, { media: 'a', clicks: 1, visits: 1 }],
+      // Ties on clicks: by page title, then page id, then worksheet id.
+      worksheets: [
+        { page: 'start', worksheet: 'b', clicks: 1, visits: 1 },
+        { page: 'pain', worksheet: 'b', clicks: 1, visits: 1 },
+        { page: 'pain', worksheet: 'a', clicks: 1, visits: 1 },
+        { page: 'gone', worksheet: 'a', clicks: 1, visits: 1 },
+        { page: 'start', worksheet: 'c', clicks: 2, visits: 1 },
+      ],
     };
+    expect(summaryModel(results, INDEX).worksheets.map((r) => [r.page, r.worksheet, r.clicks])).toEqual([
+      ['start', 'c', 2],
+      ['gone', 'a', 1],
+      ['pain', 'a', 1],
+      ['pain', 'b', 1],
+      ['start', 'b', 1],
+    ]);
     const reversed = Object.fromEntries(Object.entries(results).map(([k, v]) => [k, [...v].reverse()]));
     expect(summaryModel(reversed, INDEX)).toEqual(summaryModel(results, INDEX));
   });
@@ -577,12 +657,14 @@ describe('the summary page', () => {
       ev('video_play', '2026-11-01T10:01:00.000Z', 'pain', A, { media: 'pain-about', furthest: 50 }, 987_654_322),
       search('nothing here', 0, '2026-11-01T10:00:00.000Z', 987_654_323),
       ev('handout_open', '2026-11-01T10:02:00.000Z', 'pain', B, { media: 'pain-about' }, 987_654_324),
+      ev('worksheet_open', '2026-11-01T10:02:00.000Z', 'pain', B, { worksheet: 'settling-worksheet-1' }, 987_654_325),
     ]);
     await insert('ratings', [{ id: 987_654_331, ts: '2026-11-01T10:00:00.000Z', page: 'pain', video: 'pain-about', stars: 4 }]);
     await insert('feedback', [{ id: 987_654_341, ts: '2026-11-01T10:00:00.000Z', page: 'pain', message: 'hello' }]);
     const body = await (await get('/admin/')).text();
     expect(body).toContain('hello');
     expect(body).toContain('nothing here');
+    expect(body).toContain('<td class="worksheet-id">settling-worksheet-1</td>');
     expect(body).not.toMatch(/98765\d{4}/);
     for (const session of [A, B]) expect(body).not.toContain(session);
   });
@@ -602,7 +684,7 @@ describe('the summary page', () => {
     expect(on).not.toContain('Data collection is off');
   });
 
-  it('escapes feedback, page ids, a message\'s video and search text: they render as text, never as markup', async () => {
+  it('escapes feedback, page ids, a message\'s video, a worksheet\'s id and search text: they render as text, never as markup', async () => {
     const payloads = ['<script>alert(1)</script>', '"><img src=x onerror=alert(1)>', "' onfocus='x", '</blockquote><b>x', '&lt;b&gt;'];
     const seed = async (texts) => {
       await testEnv.DB.batch(['events', 'feedback'].map((t) => testEnv.DB.prepare(`DELETE FROM ${t}`)));
@@ -610,6 +692,9 @@ describe('the summary page', () => {
       // hostile too, and so is a stored video, shown as it is.
       await insert('feedback', texts.map((text, i) => ({ ts: `2026-11-0${i + 1}T10:00:00.000Z`, page: text, video: text, message: text })));
       await insert('events', texts.map((text) => search(text, 0)));
+      // Rows written straight to the database: the API stores only a
+      // worksheet_id from pages.json, but the page shows what is stored.
+      await insert('events', texts.map((text) => ev('worksheet_open', '2026-11-01T10:00:00.000Z', text, A, { worksheet: text })));
       return (await get('/admin/')).text();
     };
     const dirty = await seed(payloads);
@@ -621,6 +706,10 @@ describe('the summary page', () => {
     expect(dirty).toContain('&amp;lt;b&amp;gt;');
     const tagCount = (text) => (text.match(/<[a-z!/]/gi) ?? []).length;
     expect(tagCount(dirty)).toBe(tagCount(clean));
+    // Each hostile worksheet id is a cell's whole text.
+    expect(dirty).toContain('<td class="worksheet-id">&lt;script&gt;alert(1)&lt;/script&gt;</td>');
+    expect(dirty).toContain('<td class="worksheet-id">&quot;&gt;&lt;img src=x onerror=alert(1)&gt;</td>');
+    expect(dirty.match(/<td class="worksheet-id">/g)).toHaveLength(payloads.length);
   });
 
   it('never echoes a raw date parameter', async () => {

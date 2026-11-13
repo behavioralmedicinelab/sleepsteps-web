@@ -13,13 +13,31 @@ import { pageIndex } from '../../worker/lib/pages.js';
 import { createRouter } from '../../worker/router.js';
 import { handleEvent, SHAPES, validateEvent } from '../../worker/routes/event.js';
 
+// Worksheets (SPEC §7.6): `pain` lists two of its solution video's, and
+// `fatigue` another video's and one that `pain` lists too (a video that is a
+// solution on both pages). Start here has a video and an empty list, as the
+// build writes it; the other pages have no `worksheets` key at all, as a
+// pages.json built before the key existed.
 const PAGES = {
   home: { url: '/', title: 'Home', page_view: false, videos: [] },
   // A page that sends no page view but has a video: plays are still logged.
   about: { url: '/about/', title: 'About us', page_view: false, videos: ['how-sleep-works'] },
   search: { url: '/search/', title: 'Search', page_view: false, videos: [] },
-  pain: { url: '/problems/pain/', title: 'Pain', page_view: true, videos: ['pain-about', 'settling-your-body'] },
-  start: { url: '/start/', title: 'Start here', page_view: true, videos: ['how-sleep-works'] },
+  pain: {
+    url: '/problems/pain/',
+    title: 'Pain',
+    page_view: true,
+    videos: ['pain-about', 'settling-your-body'],
+    worksheets: ['settling-worksheet-1', 'settling-worksheet-2'],
+  },
+  fatigue: {
+    url: '/problems/fatigue/',
+    title: 'Fatigue',
+    page_view: true,
+    videos: ['fatigue-about', 'pacing', 'settling-your-body'],
+    worksheets: ['pacing-worksheet-1', 'settling-worksheet-1'],
+  },
+  start: { url: '/start/', title: 'Start here', page_view: true, videos: ['how-sleep-works'], worksheets: [] },
   'urgent-help': { url: '/urgent-help/', title: 'Getting urgent help', page_view: true, videos: [] },
 };
 const SITE = { features: { ratings: true, feedback: true, events: true } };
@@ -37,6 +55,7 @@ const valid = {
   video_play: () => ({ type: 'video_play', page: 'pain', session_id: SESSION, detail: { media: 'settling-your-body', furthest: 50 } }),
   audio_play: () => ({ type: 'audio_play', page: 'pain', session_id: SESSION, detail: { media: 'pain-about', furthest: 100 } }),
   handout_open: () => ({ type: 'handout_open', page: 'pain', session_id: SESSION, detail: { media: 'pain-about' } }),
+  worksheet_open: () => ({ type: 'worksheet_open', page: 'pain', session_id: SESSION, detail: { worksheet: 'settling-worksheet-1' } }),
 };
 
 // What a test sent that must never reach a log line (SPEC §14.1): every
@@ -124,13 +143,15 @@ async function expectNotFound(res) {
 }
 
 describe('the closed list of events (SPEC §10.2)', () => {
-  it('has exactly the five types, each with its detail keys (no transcript_open: the site shows no transcripts, SPEC §9.3)', () => {
+  it('has exactly the six types, each with its detail keys (no transcript_open: the site shows no transcripts, SPEC §9.3)', () => {
     expect([...SHAPES]).toEqual([
       ['page_view', []],
       ['search', ['q', 'results']],
       ['video_play', ['media', 'furthest']],
       ['audio_play', ['media', 'furthest']],
       ['handout_open', ['media']],
+      // Project lead, 2026-11-13: opening a worksheet is counted, as opening a handout is (SPEC §7.6).
+      ['worksheet_open', ['worksheet']],
     ]);
     expect(Object.keys(valid)).toEqual([...SHAPES.keys()]);
   });
@@ -142,6 +163,7 @@ describe('storing each type', () => {
     ['video_play', valid.video_play(), { media: 'settling-your-body', furthest: 50 }],
     ['audio_play', valid.audio_play(), { media: 'pain-about', furthest: 100 }],
     ['handout_open', valid.handout_open(), { media: 'pain-about' }],
+    ['worksheet_open', valid.worksheet_open(), { worksheet: 'settling-worksheet-1' }],
   ])('%s: 204, and one row with the server time rounded down to the hour, the visit code and the detail', async (type, body, detail) => {
     const before = Date.now();
     const res = await send(body);
@@ -203,11 +225,11 @@ describe('storing each type', () => {
       Referer: 'https://example.com/search/?q=zq-referrer',
     };
     secrets.push(...Object.values(headers));
-    for (const body of [valid.page_view(), valid.search(), valid.video_play()]) {
+    for (const body of [valid.page_view(), valid.search(), valid.video_play(), valid.worksheet_open()]) {
       expect((await send(body, { headers })).status).toBe(204);
     }
     const stored = await rows();
-    expect(stored).toHaveLength(3);
+    expect(stored).toHaveLength(4);
     const text = JSON.stringify(stored);
     for (const value of Object.values(headers)) expect(text).not.toContain(value);
     for (const row of stored) expect(Object.keys(row).sort()).toEqual(['detail', 'id', 'page', 'session_id', 'ts', 'type']);
@@ -219,6 +241,23 @@ describe('storing each type', () => {
     const search = { ...valid.search(), detail: { results: 0, q: '  hot flushes zq  ' } };
     expect((await send(search)).status).toBe(204);
     expect((await rows()).map((r) => r.detail)).toEqual(['{"media":"pain-about","furthest":25}', '{"q":"hot flushes zq","results":0}']);
+  });
+
+  it('stores a worksheet_open as the worksheet_id alone, rebuilt from the page\'s own list, with the page it was opened on', async () => {
+    expect((await send(valid.worksheet_open())).status).toBe(204);
+    // The same worksheet opened on the other page that lists it: its own row.
+    expect((await send({ ...valid.worksheet_open(), page: 'fatigue' })).status).toBe(204);
+    expect((await send({ ...valid.worksheet_open(), detail: { worksheet: 'settling-worksheet-2' } })).status).toBe(204);
+    expect((await rows()).map((r) => [r.type, r.page, r.session_id, r.detail])).toEqual([
+      ['worksheet_open', 'pain', SESSION, '{"worksheet":"settling-worksheet-1"}'],
+      ['worksheet_open', 'fatigue', SESSION, '{"worksheet":"settling-worksheet-1"}'],
+      ['worksheet_open', 'pain', SESSION, '{"worksheet":"settling-worksheet-2"}'],
+    ]);
+    // Nothing of the file: no name, title or video, and no key but `worksheet`.
+    for (const row of await rows()) expect(Object.keys(JSON.parse(row.detail))).toEqual(['worksheet']);
+    expect(validateEvent(valid.worksheet_open(), index)).toEqual({
+      row: { session_id: SESSION, page: 'pain', type: 'worksheet_open', detail: '{"worksheet":"settling-worksheet-1"}' },
+    });
   });
 
   it('replaces a lone surrogate (an emoji split by search.js) in the search text', async () => {
@@ -236,6 +275,9 @@ describe('storing each type', () => {
     ['a page view from Start here', { ...valid.page_view(), page: 'start' }],
     ['a page view from Getting urgent help', { ...valid.page_view(), page: 'urgent-help' }],
     ['a handout opened on Start here', { ...valid.handout_open(), page: 'start', detail: { media: 'how-sleep-works' } }],
+    ['the second worksheet a page lists', { ...valid.worksheet_open(), detail: { worksheet: 'settling-worksheet-2' } }],
+    ['a worksheet opened on another page that lists it too', { ...valid.worksheet_open(), page: 'fatigue' }],
+    ['a worksheet only the other page lists, opened there', { ...valid.worksheet_open(), page: 'fatigue', detail: { worksheet: 'pacing-worksheet-1' } }],
     ['a play from a page that sends no page views', { ...valid.video_play(), page: 'about', detail: { media: 'how-sleep-works', furthest: 0 } }],
     ['furthest 0', { ...valid.audio_play(), detail: { media: 'pain-about', furthest: 0 } }],
     ['furthest 25', { ...valid.audio_play(), detail: { media: 'pain-about', furthest: 25 } }],
@@ -257,6 +299,8 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
   const vp = valid.video_play();
   const ap = valid.audio_play();
   const ho = valid.handout_open();
+  const wo = valid.worksheet_open();
+  const sheet = (value, body = wo) => ({ ...structuredClone(body), detail: { worksheet: value } });
   // A transcript_open as events.js sent it before transcripts were removed (2026-11-06), with
   // a detail that was valid then.
   const to = { type: 'transcript_open', page: 'pain', session_id: SESSION, detail: { media: 'settling-your-body' } };
@@ -288,6 +332,8 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
     ['an uppercase type', set(pv, 'type', 'PAGE_VIEW'), 'type'],
     ['the old pdf_download type', set(ho, 'type', 'pdf_download'), 'type'],
     ['the removed transcript_open type', to, 'type'],
+    ['a worksheet type that is not in the list', set(wo, 'type', 'worksheet_download'), 'type'],
+    ['an uppercase worksheet type', set(wo, 'type', 'Worksheet_Open'), 'type'],
     ['a type in an array', set(pv, 'type', ['page_view']), 'type'],
     ['a null type', set(pv, 'type', null), 'type'],
     ['type "constructor"', set(pv, 'type', 'constructor'), 'type'],
@@ -304,9 +350,14 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
     ['a search from Home', set(se, 'page', 'home'), 'page'],
     ['a search from a problem page', set(se, 'page', 'pain'), 'page'],
     ['a play from an unknown page', set(vp, 'page', 'no-such-page'), 'page'],
+    ['a worksheet opened on an unknown page', set(wo, 'page', 'no-such-page'), 'page'],
+    ['a worksheet opened on a page URL', set(wo, 'page', '/problems/pain/'), 'page'],
     // session_id
     ['a page view without a session_id', drop(pv, 'session_id'), 'session_id'],
     ['a play without a session_id', drop(vp, 'session_id'), 'session_id'],
+    ['a worksheet opened without a session_id', drop(wo, 'session_id'), 'session_id'],
+    ['a worksheet opened with a null session_id', set(wo, 'session_id', null), 'session_id'],
+    ['a worksheet opened with an uppercase UUID', set(wo, 'session_id', SESSION.toUpperCase()), 'session_id'],
     ['an uppercase UUID', set(pv, 'session_id', SESSION.toUpperCase()), 'session_id'],
     ['the nil UUID', set(pv, 'session_id', '00000000-0000-0000-0000-000000000000'), 'session_id'],
     ['a version 1 UUID', set(pv, 'session_id', '6ba7b810-9dad-11d1-80b4-00c04fd430c8'), 'session_id'],
@@ -330,6 +381,37 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
     ['an audio file name as media', detail(ap, { media: 'placeholder-audio.mp3', furthest: 0 }), 'detail'],
     ['a number as media', detail(ho, { media: 1 }), 'detail'],
     ['a handout from another page', detail(ho, { media: 'how-sleep-works' }), 'detail'],
+    // worksheet_open: exactly { worksheet }, one of that page's worksheets.
+    ['a worksheet from another page', sheet('pacing-worksheet-1'), 'detail'],
+    ['a worksheet the other page does not list, opened there', sheet('settling-worksheet-2', set(wo, 'page', 'fatigue')), 'detail'],
+    ['an unknown worksheet', sheet('no-such-worksheet'), 'detail'],
+    ['a worksheet on a page with videos and an empty list (Start here)', sheet('settling-worksheet-1', set(wo, 'page', 'start')), 'detail'],
+    ['a worksheet on a page whose entry has no list (an information page)', sheet('settling-worksheet-1', set(wo, 'page', 'about')), 'detail'],
+    ['a worksheet on Home', sheet('settling-worksheet-1', set(wo, 'page', 'home')), 'detail'],
+    ['a worksheet on the search page', sheet('settling-worksheet-1', set(wo, 'page', 'search')), 'detail'],
+    ['an extra key on a worksheet detail', detail(wo, { worksheet: 'settling-worksheet-1', media: 'settling-your-body' }), 'detail'],
+    ['a worksheet detail with its file name too', detail(wo, { worksheet: 'settling-worksheet-1', file: 'settling.pdf' }), 'detail'],
+    ['an empty worksheet detail', detail(wo, {}), 'detail'],
+    ['a worksheet named as media', detail(wo, { media: 'settling-worksheet-1' }), 'detail'],
+    ['a worksheet named as worksheet_id', detail(wo, { worksheet_id: 'settling-worksheet-1' }), 'detail'],
+    ['a worksheet\'s file name', sheet('settling-worksheet-1.pdf'), 'detail'],
+    ['a worksheet\'s address', sheet('/media/worksheets/settling-worksheet-1.pdf'), 'detail'],
+    ['a worksheet id in capitals', sheet('Settling-Worksheet-1'), 'detail'],
+    ['a worksheet id with a trailing space', sheet('settling-worksheet-1 '), 'detail'],
+    ['one of the page\'s videos as a worksheet', sheet('settling-your-body'), 'detail'],
+    ['an empty worksheet', sheet(''), 'detail'],
+    ['a null worksheet', sheet(null), 'detail'],
+    ['a number as worksheet', sheet(1), 'detail'],
+    ['a worksheet in an array', sheet(['settling-worksheet-1']), 'detail'],
+    ['a worksheet in an object', sheet({ id: 'settling-worksheet-1' }), 'detail'],
+    ['worksheet "__proto__"', sheet('__proto__'), 'detail'],
+    ['worksheet "constructor"', sheet('constructor'), 'detail'],
+    ['worksheet "has" (a Set method)', sheet('has'), 'detail'],
+    ['a __proto__ key on a worksheet detail', `{"type":"worksheet_open","page":"pain","session_id":"${SESSION}","detail":{"worksheet":"settling-worksheet-1","__proto__":{}}}`, 'detail'],
+    ['a worksheet as a handout\'s media', detail(ho, { media: 'settling-worksheet-1' }), 'detail'],
+    ['a worksheet as a play\'s media', detail(vp, { media: 'settling-worksheet-1', furthest: 50 }), 'detail'],
+    ['a worksheet detail that is JSON text', detail(wo, '{"worksheet":"settling-worksheet-1"}'), 'detail'],
+    ['a worksheet detail that is an array', detail(wo, ['settling-worksheet-1']), 'detail'],
     ['furthest 30', furthest(30), 'detail'],
     ['furthest "25"', furthest('25'), 'detail'],
     ['furthest null', furthest(null), 'detail'],
@@ -351,6 +433,37 @@ describe('validation: 400 with the failed rule, and nothing stored (SPEC §14.2)
     await expectError(await send(body), 400, code);
     expect(await rows()).toEqual([]);
     expect(logged).toEqual([]);
+  });
+
+  it('checks a worksheet\'s body in the same order as every other type: body, type, page, session_id, then detail', () => {
+    const bad = { type: 'worksheet_open', page: 'no-such-page', session_id: 'nope', detail: { worksheet: 'no-such-worksheet' } };
+    expect(validateEvent({ ...bad, extra: 1 }, index)).toEqual({ error: 'body' });
+    expect(validateEvent(bad, index)).toEqual({ error: 'page' });
+    expect(validateEvent({ ...bad, page: 'pain' }, index)).toEqual({ error: 'session_id' });
+    expect(validateEvent({ ...bad, page: 'pain', session_id: SESSION }, index)).toEqual({ error: 'detail' });
+    expect(validateEvent({ ...bad, page: 'pain', session_id: SESSION, detail: { worksheet: 'settling-worksheet-1' } }, index).row).toBeTruthy();
+  });
+
+  it('reads a page\'s worksheets from pages.json as a list of strings, and anything else as none (lib/pages.js)', () => {
+    const odd = pageIndex({
+      list: { url: '/a/', title: 'A', page_view: true, videos: [], worksheets: ['sheet-a', 7, null, ['sheet-b'], { id: 'sheet-c' }, 'sheet-d'] },
+      text: { url: '/b/', title: 'B', page_view: true, videos: [], worksheets: 'sheet-a' },
+      object: { url: '/c/', title: 'C', page_view: true, videos: [], worksheets: { 'sheet-a': true } },
+      missing: { url: '/d/', title: 'D', page_view: true, videos: ['sheet-a'] },
+      nothing: null,
+    });
+    expect([...odd.get('list').worksheets]).toEqual(['sheet-a', 'sheet-d']);
+    for (const id of ['text', 'object', 'missing', 'nothing']) expect([...odd.get(id).worksheets], id).toEqual([]);
+    // A video's id is not a worksheet, and a worksheet's not a video.
+    expect([...odd.get('missing').videos]).toEqual(['sheet-a']);
+    const open = (page, worksheet) => validateEvent({ type: 'worksheet_open', page, session_id: SESSION, detail: { worksheet } }, odd);
+    expect(open('list', 'sheet-a').row).toBeTruthy();
+    expect(open('list', 'sheet-b')).toEqual({ error: 'detail' });
+    for (const id of ['text', 'object', 'missing', 'nothing']) expect(open(id, 'sheet-a'), id).toEqual({ error: 'detail' });
+    // The fixture's pages, with and without the key.
+    expect([...index.get('pain').worksheets]).toEqual(['settling-worksheet-1', 'settling-worksheet-2']);
+    expect([...index.get('start').worksheets]).toEqual([]);
+    expect([...index.get('about').worksheets]).toEqual([]);
   });
 
   it('checks without changing the body it was given', () => {
@@ -608,6 +721,46 @@ describe('the Worker as deployed: the real pages.json and site.config.json', () 
     const play = { ...valid.video_play(), page: pageId, detail: { media: page.videos[0], furthest: 25 } };
     expect((await deployed(play)).status).toBe(expected);
     expect(await rows()).toHaveLength(expected === 204 ? 2 : 0);
+  });
+
+  it('lets every worksheet a page lists be opened from that page, and from no other page', () => {
+    const real = pageIndex(realPages);
+    const all = new Set([...real.values()].flatMap((entry) => [...entry.worksheets]));
+    const withSome = [...real].filter(([, entry]) => entry.worksheets.size > 0);
+    // Only problem pages list worksheets (SPEC §7.6): never Start here, Home or an information page.
+    for (const [id] of withSome) expect(realPages[id].url, id).toMatch(/^\/problems\//);
+    for (const [id, entry] of real) {
+      for (const worksheet of all) {
+        const result = validateEvent({ type: 'worksheet_open', page: id, session_id: SESSION, detail: { worksheet } }, real);
+        const want = entry.worksheets.has(worksheet)
+          ? { row: { session_id: SESSION, page: id, type: 'worksheet_open', detail: JSON.stringify({ worksheet }) } }
+          : { error: 'detail' };
+        expect(result, `${id} / ${worksheet}`).toEqual(want);
+      }
+      // And none of the page's videos is a worksheet to open, unless the
+      // spreadsheet gives a worksheet that very id.
+      for (const video of entry.videos) {
+        if (entry.worksheets.has(video)) continue;
+        expect(validateEvent({ type: 'worksheet_open', page: id, session_id: SESSION, detail: { worksheet: video } }, real), `${id} / ${video}`).toEqual({ error: 'detail' });
+      }
+    }
+  });
+
+  it('accepts a worksheet opened on a page that lists it, and refuses it from Start here', async () => {
+    const withSheets = Object.entries(realPages).find(([, p]) => p.worksheets.length > 0);
+    // Nothing to send while no solution video has a worksheet.
+    if (!withSheets) return;
+    const [id, { worksheets }] = withSheets;
+    const open = { type: 'worksheet_open', page: id, session_id: SESSION, detail: { worksheet: worksheets[0] } };
+    expect((await deployed(open)).status).toBe(expected);
+    const elsewhere = await deployed({ ...open, page: 'start' });
+    if (expected === 204) {
+      await expectError(elsewhere, 400, 'detail');
+      expect((await rows()).map((r) => [r.page, r.type, r.detail])).toEqual([[id, 'worksheet_open', JSON.stringify({ worksheet: worksheets[0] })]]);
+    } else {
+      expect(elsewhere.status).toBe(404);
+      expect(await rows()).toEqual([]);
+    }
   });
 
   it('accepts a search, and refuses a page view from Home', async () => {
