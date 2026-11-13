@@ -238,6 +238,7 @@ function play(wrapper, button) {
   // Text set after the live region is in the page, so it is announced.
   status.textContent = 'Loading video…';
 
+  let readyTimer;
   loadApi()
     .then((YT) => {
       const mount = document.createElement('div');
@@ -246,7 +247,7 @@ function play(wrapper, button) {
       mount.append(target);
       frame.append(mount);
 
-      const readyTimer = setTimeout(() => showError(wrapper), LOAD_TIMEOUT_MS);
+      readyTimer = setTimeout(() => showError(wrapper), LOAD_TIMEOUT_MS);
       const player = new YT.Player(target, {
         host: PLAYER_HOST,
         videoId: youtubeId,
@@ -281,7 +282,12 @@ function play(wrapper, button) {
       });
       players.set(wrapper, { player, videoId, poll: 0 });
     })
-    .catch(() => showError(wrapper));
+    .catch(() => {
+      // Creating the player may have thrown with its timer already running,
+      // which would show the error a second time.
+      clearTimeout(readyTimer);
+      showError(wrapper);
+    });
 }
 
 /** Swap a facade link for a button with the same classes and contents. */

@@ -274,6 +274,34 @@ describe('players.js', () => {
     expect(dom.document.querySelector('iframe')).toBeNull();
   });
 
+  it('says the video couldn\'t load once, and not again 15 seconds later, when creating the player throws', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await load(videoPage, ['players']);
+    const button = dom.document.querySelector('button.video__facade');
+    button.focus();
+    button.click();
+    dom.window.YT = {
+      ...fakeYouTube(dom.document),
+      Player: class {
+        constructor() {
+          throw new Error('The player could not be created');
+        }
+      },
+    };
+    dom.window.onYouTubeIframeAPIReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(errorShown()).toEqual(SHOWN);
+    const message = dom.document.querySelector('.video__error');
+    // No readiness timer is left to put the alert in again, and move focus back to its link.
+    expect(vi.getTimerCount()).toBe(0);
+    const elsewhere = dom.document.getElementById('elsewhere');
+    elsewhere.focus();
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS);
+    expect(dom.document.querySelector('.video__error')).toBe(message);
+    expect(dom.document.querySelectorAll('.video__error')).toHaveLength(1);
+    expect(dom.document.activeElement).toBe(elsewhere);
+  });
+
   it('leaves focus where the visitor moved it when a video fails', async () => {
     await load(videoPage, ['players']);
     const button = dom.document.querySelector('button.video__facade');
