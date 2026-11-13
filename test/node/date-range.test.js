@@ -128,8 +128,6 @@ describe('exportRange', () => {
       to: '2026-10-31',
       start: '2026-10-01T00:00:00.000Z',
       end: '2026-11-01T00:00:00.000Z',
-      days: 31,
-      isDefault: true,
     });
   });
 
@@ -141,7 +139,8 @@ describe('exportRange', () => {
 
   it(`accepts at most ${MAX_EXPORT_DAYS} days, so any calendar month fits`, () => {
     expect(MAX_EXPORT_DAYS).toBe(31);
-    expect(exportRange(q('from=2026-08-01&to=2026-08-31'), NOW)).toMatchObject({ ok: true, days: 31 });
+    expect(daysIncluding('2026-08-01', '2026-08-31')).toBe(31);
+    expect(exportRange(q('from=2026-08-01&to=2026-08-31'), NOW)).toMatchObject({ ok: true, from: '2026-08-01', to: '2026-08-31' });
     expect(exportRange(q('from=2026-08-01&to=2026-09-01'), NOW)).toEqual({ ok: false, error: 'too-long' });
   });
 

@@ -42,7 +42,7 @@ export const SHAPES = new Map([
 export const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** The furthest points a play can report (SPEC §9.4). */
-export const FURTHEST = Object.freeze([0, 25, 50, 75, 100]);
+const FURTHEST = Object.freeze([0, 25, 50, 75, 100]);
 
 /** The longest search text kept, in UTF-16 code units (search.js sends at most this). */
 export const MAX_QUERY_LENGTH = 100;

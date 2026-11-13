@@ -21,13 +21,13 @@
 export const MAX_PARTS = 1000;
 
 /** How long one part may take. */
-export const PART_TIMEOUT_MS = 30_000;
+const PART_TIMEOUT_MS = 30_000;
 
 /** The least time between two announcements of progress. */
-export const ANNOUNCE_EVERY_MS = 5000;
+const ANNOUNCE_EVERY_MS = 5000;
 
 /** How long the saved file's object URL is kept before it is revoked. */
-export const REVOKE_AFTER_MS = 60_000;
+const REVOKE_AFTER_MS = 60_000;
 
 /** X-Export-Next, as the Worker writes it (cursorQuery in worker/lib/admin-data.js). */
 export const NEXT_RE = /^(?:type=[a-z_]+&)?ts=[0-9A-Za-z%.:-]+&skip=\d{1,7}$/;
@@ -40,7 +40,7 @@ const FILENAME_RE = /^[a-z]+-[a-z]+-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$
 // It sends staff to the summary, not to a reload of this page: after a
 // sign-in the return to /admin/export arrives cross-site, which the export
 // refuses with a bare 403 (SPEC §14.4 step 5); the summary accepts it.
-export const FAILED =
+const FAILED =
   "Couldn't download the data, so nothing was saved. If you've been signed out, choose 'Back to site data' below to sign in again, then start the download again.";
 
 const thousands = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');

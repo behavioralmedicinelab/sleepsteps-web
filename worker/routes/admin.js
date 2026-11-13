@@ -93,7 +93,7 @@ export const ADMIN_HEADERS = Object.freeze({
  * the var is well formed, because Chrome checks it on the redirect to
  * sign-in when the session has ended.
  */
-export function adminCsp(env, { scripts = false } = {}) {
+function adminCsp(env, { scripts = false } = {}) {
   let team = '';
   try {
     const domain = env?.ACCESS_TEAM_DOMAIN;

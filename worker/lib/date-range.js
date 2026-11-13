@@ -16,8 +16,8 @@
 // gap and each holds rows that can no longer change.
 
 /** The first and last years a date may name. Nothing was stored before 2026. */
-export const MIN_YEAR = 2026;
-export const MAX_YEAR = 2099;
+const MIN_YEAR = 2026;
+const MAX_YEAR = 2099;
 export const MIN_DAY = `${MIN_YEAR}-01-01`;
 export const MAX_DAY = `${MAX_YEAR}-12-31`;
 
@@ -64,10 +64,10 @@ export function parseDay(text) {
 }
 
 /** A valid day -> the time its UTC midnight starts, in ms. */
-export const dayMs = (day) => Date.parse(`${day}T00:00:00.000Z`);
+const dayMs = (day) => Date.parse(`${day}T00:00:00.000Z`);
 
 /** A time in ms -> its UTC day. */
-export const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
+const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
 
 /** The day `n` days after `day` (before, for negative `n`). */
 export const addDays = (day, n) => dayOf(dayMs(day) + n * DAY_MS);
@@ -144,7 +144,7 @@ export function summaryRange(params, nowMs) {
  * An export's range, from the `from` and `to` query parameters: both absent
  * means the previous calendar month; otherwise both must be valid days, with
  * from <= to <= yesterday and at most MAX_EXPORT_DAYS days.
- * @returns {{ ok: true, from: string, to: string, start: string, end: string, days: number, isDefault: boolean }
+ * @returns {{ ok: true, from: string, to: string, start: string, end: string }
  *   | { ok: false, error: 'one-date' | 'date' | 'order' | 'incomplete' | 'too-long' }}
  */
 export function exportRange(params, nowMs) {
@@ -164,7 +164,7 @@ export function exportRange(params, nowMs) {
   if (from > to) return { ok: false, error: 'order' };
   if (to >= todayDay(nowMs)) return { ok: false, error: 'incomplete' };
   if (daysIncluding(from, to) > MAX_EXPORT_DAYS) return { ok: false, error: 'too-long' };
-  return { ok: true, from, to, ...bounds(from, to), days: daysIncluding(from, to), isDefault: rawFrom === null };
+  return { ok: true, from, to, ...bounds(from, to) };
 }
 
 /**

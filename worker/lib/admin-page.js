@@ -29,7 +29,7 @@ export const DOWNLOAD_TABLES = Object.freeze([
 ]);
 
 /** The free plan's rows read a day, for the whole account (SPEC §17). */
-export const DAILY_ROWS_READ = 5_000_000;
+const DAILY_ROWS_READ = 5_000_000;
 
 /**
  * A summary load that reads more than this (10% of a day's allowance) says

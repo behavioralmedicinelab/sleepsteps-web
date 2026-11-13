@@ -10,17 +10,16 @@
 const stringSet = (list) => new Set(Array.isArray(list) ? list.filter((item) => typeof item === 'string') : []);
 
 /**
- * pages.json -> Map(page_id -> { url, title, pageView, videos: Set,
- * worksheets: Set }). A Map, so ids such as "__proto__" or "constructor" can
- * never match. `worksheets` holds the worksheet_ids the page's open solution
- * cards link (SPEC §7.6): empty for most pages, and for a file without the
- * key.
+ * pages.json -> Map(page_id -> { title, pageView, videos: Set, worksheets:
+ * Set }). A Map, so ids such as "__proto__" or "constructor" can never match.
+ * `worksheets` holds the worksheet_ids the page's open solution cards link
+ * (SPEC §7.6): empty for most pages, and for a file without the key. An
+ * entry's `url` is left out: nothing in the Worker reads it.
  */
 export function pageIndex(json) {
   const index = new Map();
   for (const [id, page] of Object.entries(json ?? {})) {
     index.set(id, {
-      url: String(page?.url ?? ''),
       title: String(page?.title ?? ''),
       pageView: page?.page_view === true,
       videos: stringSet(page?.videos),
