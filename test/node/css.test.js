@@ -387,6 +387,15 @@ describe('admin.css', () => {
     expect(css).toMatch(/\.range__submit,\s*\.admin-button \{[^}]*min-height: var\(--target-lg\);/);
   });
 
+  it("resets button and input fonts at one class's weight, so a button's class still sets its weight", () => {
+    // `.admin button { font: inherit }` (0,1,1) outranked `.admin-button`
+    // (0,1,0) and reset its font-weight: "Show" and the download button
+    // rendered at 400.
+    expect(css).toMatch(/\n\.admin :where\(button, input\) \{\s*font: inherit;\s*\}/);
+    expect(css).not.toMatch(/\.admin (?:button|input)\b[^{]*\{\s*font: inherit;/);
+    expect(css).toMatch(/\.range__submit,\s*\.admin-button \{[^}]*font-weight: var\(--weight-semibold\);/);
+  });
+
   it('is the only stylesheet that styles the admin pages, and styles nothing on the public site', () => {
     for (const { file, css: sheet } of sheets) {
       if (file !== 'admin.css') expect(sheet, file).not.toMatch(/\.admin\b|admin-/);

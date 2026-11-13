@@ -59,8 +59,9 @@ body.admin {
   font-family: var(--font-heading);
 }
 
-.admin button,
-.admin input {
+/* :where() keeps this at one class's weight, so a button's own class, later
+   in the file, still sets its font-weight. */
+.admin :where(button, input) {
   font: inherit;
 }
 
