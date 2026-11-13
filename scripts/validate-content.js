@@ -282,6 +282,21 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     if (!dirNames.has(dir)) dirNames.set(dir, new Set(existsSync(at(dir)) ? readdirSync(at(dir)) : []));
     return dirNames.get(dir);
   };
+  // A file a spreadsheet names (a video's media, a worksheet): it is in its
+  // folder under exactly that name and within the static asset limit.
+  // `section` is where SPEC says so for that kind of file.
+  const checkFile = (fail, field, dir, value, section) => {
+    const target = at(dir, value);
+    const names = namesIn(dir);
+    if (!names.has(value) || !statSync(target).isFile()) {
+      const near = [...names].find((name) => name !== value && name.toLowerCase() === value.toLowerCase());
+      fail(field, near
+        ? `${dir}/${value} does not exist: did you mean ${near}? (capitals must match exactly)`
+        : `${dir}/${value} does not exist`);
+    } else if (statSync(target).size > MAX_FILE_BYTES) {
+      fail(field, `${dir}/${value} is over 25 MiB, the most a static file can be (SPEC ${section})`);
+    }
+  };
 
   // Which rows name each audio and handout file, and each YouTube video, for
   // the "its own files" and "its own link" rules below.
@@ -349,16 +364,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
         fail(field, `"${value}" must be a ${extensions.join(' or ')} file`);
         continue;
       }
-      const target = at(dir, value);
-      const names = namesIn(dir);
-      if (!names.has(value) || !statSync(target).isFile()) {
-        const near = [...names].find((name) => name !== value && name.toLowerCase() === value.toLowerCase());
-        fail(field, near
-          ? `${dir}/${value} does not exist: did you mean ${near}? (capitals must match exactly)`
-          : `${dir}/${value} does not exist`);
-      } else if (statSync(target).size > MAX_FILE_BYTES) {
-        fail(field, `${dir}/${value} is over 25 MiB, the most a static file can be (SPEC §9.2)`);
-      }
+      checkFile(fail, field, dir, value, '§9.2');
       if (field in filesUsed) {
         if (!filesUsed[field].has(value)) filesUsed[field].set(value, []);
         filesUsed[field].get(value).push({ row, id, placeholder, fail });
@@ -508,16 +514,7 @@ export function validateContent(rootDir = process.cwd(), { launch = false } = {}
     } else if (path.extname(file).toLowerCase() !== '.pdf') {
       fail('file', `"${file}" must be a .pdf file`);
     } else {
-      const target = at(WORKSHEETS_DIR, file);
-      const names = namesIn(WORKSHEETS_DIR);
-      if (!names.has(file) || !statSync(target).isFile()) {
-        const near = [...names].find((name) => name !== file && name.toLowerCase() === file.toLowerCase());
-        fail('file', near
-          ? `${WORKSHEETS_DIR}/${file} does not exist: did you mean ${near}? (capitals must match exactly)`
-          : `${WORKSHEETS_DIR}/${file} does not exist`);
-      } else if (statSync(target).size > MAX_FILE_BYTES) {
-        fail('file', `${WORKSHEETS_DIR}/${file} is over 25 MiB, the most a static file can be (SPEC §7.6)`);
-      }
+      checkFile(fail, 'file', WORKSHEETS_DIR, file, '§7.6');
       // The shared stand-in: a video on YouTube has its own worksheets, as
       // it has its own handout; until then the build lists the stand-ins,
       // and the launch check allows none.

@@ -437,15 +437,15 @@ describe('data/worksheets.csv after the team\'s edits', () => {
     const dir = edited((root, sheets) => {
       // (No folder is no worksheets yet: git keeps no empty folder.)
       mkdirSync(path.join(root, WORKSHEETS_DIR), { recursive: true });
-      writeFileSync(path.join(root, WORKSHEETS_DIR, 'Sleep-Diary.pdf'), '%PDF-1.4\n%%EOF\n');
+      writeFileSync(path.join(root, WORKSHEETS_DIR, 'Zz-Test-Own-Worksheet.pdf'), '%PDF-1.4\n%%EOF\n');
       // On a video that isn't on YouTube yet a real worksheet is fine too.
-      for (const { record } of sheets.rows.slice(0, 1)) Object.assign(record, { title: 'Sleep diary: a two-week record of your nights', file: 'Sleep-Diary.pdf' });
+      for (const { record } of sheets.rows.slice(0, 1)) Object.assign(record, { title: 'Sleep diary: a two-week record of your nights', file: 'Zz-Test-Own-Worksheet.pdf' });
     });
     worksheetRules(dir);
     it('holds the row with its own file, no longer a placeholder', () => {
       if (!committed.length) return;
       const { model } = validateContent(dir);
-      expect(model.worksheets.get(committed[0].worksheet_id).data).toMatchObject({ title: 'Sleep diary: a two-week record of your nights', file: 'Sleep-Diary.pdf', placeholder: false });
+      expect(model.worksheets.get(committed[0].worksheet_id).data).toMatchObject({ title: 'Sleep diary: a two-week record of your nights', file: 'Zz-Test-Own-Worksheet.pdf', placeholder: false });
     });
   });
 });

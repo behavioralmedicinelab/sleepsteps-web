@@ -406,6 +406,7 @@ describe('the video a message is about (SPEC §13, §14.2; migration 0003)', () 
     ['body before video: a key missing with a bad video', { page_id: 'pain', video_id: 'zq', message: 'zq' }, 400, 'body'],
     ['page before video: an unknown page with a video', about('pain-about', 'zq'), 400, 'page'],
     ['video before message: a bad video with an empty message', { ...about('zq'), message: '' }, 400, 'video'],
+    ['video before message: a bad video with a message that is not a string', { ...about('zq'), message: 5 }, 400, 'video'],
     ['video before token: a bad video with no token', { ...about(null), turnstile_token: '' }, 400, 'video'],
     ['message after video: a good video with an empty message', { ...about('pain-about'), message: ' ' }, 400, 'message'],
     ['token after video: a good video with an empty token', { ...about('pain-about'), turnstile_token: '' }, 403, 'turnstile'],

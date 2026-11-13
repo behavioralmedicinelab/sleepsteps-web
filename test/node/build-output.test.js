@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, inject, it } from 'vitest';
+import { parseFrontMatter } from '../../scripts/validate-content.js';
 import { attr, pageAt, readHtmlPages, tags, text } from './helpers.js';
 
 const site = inject('builtSiteOn');
@@ -161,7 +162,7 @@ describe('the site icons (SPEC §7.5)', () => {
 });
 
 // Browser tab titles are the page title alone, with no site name after it
-// (SPEC §7.5, §22, 2026-11-06); Home's is "Sleep during and after cancer".
+// (SPEC §7.5, §22, 2026-11-06); Home's is its own `title`, not its H1.
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const decode = (s) =>
   s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, ref) => {
@@ -190,8 +191,11 @@ function pageTitle(file) {
 }
 
 describe('browser tab titles', () => {
-  it('give Home the title "Sleep during and after cancer"', () => {
-    expect(pages.find((p) => p.file === 'index.html').html).toContain('<title>Sleep during and after cancer</title>');
+  // Home's title is its own (content/index.njk's `title`, the team's to
+  // reword), not its H1.
+  it('give Home its own title, from content/index.njk', () => {
+    const { title } = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
+    expect(text(pages.find((p) => p.file === 'index.html').html.match(/<title>([\s\S]*?)<\/title>/)[1])).toBe(title);
   });
 
   it.each(pages.map((p) => [p.file, p.html]))('%s: the page title alone', (file, html) => {

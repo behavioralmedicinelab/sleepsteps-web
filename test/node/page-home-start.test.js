@@ -94,14 +94,19 @@ function childTags(element) {
   return out;
 }
 
+// Home's wording is the team's (content/index.njk's front matter, README
+// "Other content"), and `npm test` runs before every deploy: the tests read
+// what they expect from that front matter, never from a copy of it here.
+const copy = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
+
 describe('Home (/)', () => {
   const html = pageAt(site, '/');
   const main = mainOf(html);
 
   it('has the hero H1 and no title band', () => {
     expect(tags(html, 'h1')).toHaveLength(1);
-    expect(text(elementByClass(html, 'home-hero__title', 'h1'))).toBe('Sleep can be hard after cancer. It can also get better.');
-    expect(text(elementByClass(html, 'home-hero__eyebrow', 'p'))).toBe('Free · Short videos · At your own pace');
+    expect(text(elementByClass(html, 'home-hero__title', 'h1'))).toBe(copy.hero.heading);
+    expect(text(elementByClass(html, 'home-hero__eyebrow', 'p'))).toBe(copy.hero.eyebrow);
     expect(main).toMatch(/^<main id="main" class="home">/);
     expect(html).not.toMatch(/class="band[ "]/);
     expect(html).toContain('<link rel="stylesheet" href="/css/pages/home.css">');
@@ -132,7 +137,7 @@ describe('Home (/)', () => {
     if (imgs.length) {
       for (const img of imgs) expect([attr(img, 'alt'), attr(img, 'src')?.startsWith('/img/')]).toEqual(['', true]);
     } else {
-      expect(text(photo)).toMatch(/^\[Photo: .+\]$/);
+      expect(text(photo)).toBe(copy.hero.photo_text);
     }
   });
 
@@ -144,15 +149,16 @@ describe('Home (/)', () => {
     const words = visibleText(main);
     expect(words).not.toMatch(/Three small steps|How it works|Step [123]\b|Go to the introduction|See sleep problems|See all \d+ sleep problems/);
     expect(words).not.toMatch(/What's getting in the way of your sleep|Rate each video|Listen without watching|Read, print or keep|every video also has/);
-    // "Watch, listen or read" is now only the end of the hero line.
-    expect(words.match(/Watch, listen or read/g)).toHaveLength(1);
+    // "Watch, listen or read" was the panel's heading: only the hero line
+    // may still say it.
+    expect(words).toContain(copy.summary);
+    expect(words.replace(copy.summary, '')).not.toMatch(/Watch, listen or read/);
     expect(main).not.toMatch(/data-rating|Was this helpful|<fieldset|data-js-only/);
   });
 
   it('promises no transcript anywhere: hero line, meta description, headings or text (project lead, 2026-11-06)', () => {
-    expect(text(elementByClass(html, 'home-hero__lede', 'p'))).toMatch(/Watch, listen or read, whichever suits you\.$/);
+    expect(text(elementByClass(html, 'home-hero__lede', 'p'))).toBe(copy.summary);
     const description = attr(tags(html, 'meta').find((t) => attr(t, 'name') === 'description'), 'content');
-    expect(description).toMatch(/Watch, listen or read, whichever suits you\.$/);
     // The meta description is the hero line, not the list's lede.
     expect(text(description)).toBe(text(elementByClass(html, 'home-hero__lede', 'p')));
     expect(`${description} ${visibleText(html)}`).not.toMatch(/transcript|Watch, listen, read or print/i);
@@ -164,8 +170,7 @@ describe('Home (/)', () => {
       ['/about/', 'More about us and the trial'],
       ['/help/', 'Referral info'],
     ]);
-    const { trial_text } = parseFrontMatter(readFileSync('content/index.njk', 'utf8')).data;
-    expect(text(elementByClass(trial, 'home-trial__main', 'section'))).toBe(`About the trial Part of a research study ${trial_text} More about us and the trial`);
+    expect(text(elementByClass(trial, 'home-trial__main', 'section'))).toBe(`About the trial Part of a research study ${copy.trial_text} More about us and the trial`);
   });
 
   it('ends with the disclaimer, linking to Getting urgent help', () => {
@@ -177,8 +182,8 @@ describe('Home (/)', () => {
   it('has one H1, then H2 sections, with an H3 for each area of sleep problems', () => {
     const count = (a) => problems.filter((p) => p.data.area === a.area_id).length;
     expect(headings(main)).toEqual([
-      '1 Sleep can be hard after cancer. It can also get better.',
-      "2 What's keeping you up?",
+      `1 ${copy.hero.heading}`,
+      `2 ${copy.sleep_problems.heading}`,
       ...areas.map((a) => `3 ${a.name} ${a.description} ${count(a)} ${count(a) === 1 ? 'topic' : 'topics'}`),
       '2 Part of a research study',
       '2 Need more help?',
@@ -222,18 +227,19 @@ describe('Home: the list of sleep problems (built HTML, no JavaScript)', () => {
 
   it('is a section named by its h2, with an eyebrow and the lede, where /#sleep-problems leads', () => {
     expect(tags(section, 'section')[0]).toBe('<section class="problems-section container" id="sleep-problems" aria-labelledby="sleep-problems-title">');
-    expect(text(elementByClass(section, 'problems-section__eyebrow', 'p'))).toBe('Sleep problems');
+    expect(text(elementByClass(section, 'problems-section__eyebrow', 'p'))).toBe(copy.sleep_problems.eyebrow);
     const h2s = [...section.matchAll(/<h2\b[^>]*>[\s\S]*?<\/h2>/g)].map((m) => m[0]);
     expect(h2s).toHaveLength(1);
     expect(tags(h2s[0], 'h2')[0]).toBe('<h2 class="section-heading" id="sleep-problems-title">');
-    expect(text(h2s[0])).toBe("What's keeping you up?");
+    expect(text(h2s[0])).toBe(copy.sleep_problems.heading);
     const lede = elementByClass(section, 'problems-section__lede', 'p');
-    // The sentence about the controls, as on Problems-A.
-    const tools = 'Open an area to see its topics, or search in your own words.';
-    expect(text(lede)).toBe(`${tools} Choose as many as sound like you.`);
+    // The sentence about the controls, then the one that is true either way.
+    const { lede_tools: tools, lede: always } = copy.sleep_problems;
+    expect(text(lede)).toBe(`${tools} ${always}`);
     // Without JavaScript there is no filter and no group button, so the
     // sentence about them is hidden until problems.js shows them.
-    expect(lede).toContain(`<span data-problems-hint hidden>${tools} </span>Choose as many`);
+    const [, hint, rest] = lede.match(/<span data-problems-hint hidden>([\s\S]*?) <\/span>([\s\S]*)<\/p>$/);
+    expect([text(hint), text(rest)]).toEqual([tools, always]);
     // The whole list is inside the section: nothing of it sits elsewhere.
     expect(main.split('data-problems').length).toBe(section.split('data-problems').length);
     expect(tags(main, 'section').filter((t) => /group-list__group/.test(t))).toHaveLength(areaSections.length);

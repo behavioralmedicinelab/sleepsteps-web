@@ -498,7 +498,7 @@ describe('players.js', () => {
   const cardsPage = env.renderString(
     '<!doctype html><html lang="en-AU"><head><title>T</title></head><body><main><h1>A page</h1>' +
       '{% from "problem/solutions.njk" import solutionsSection %}' +
-      '{{ solutionsSection("main", items, "a-page") }}</main></body></html>',
+      '{{ solutionsSection("main", items) }}</main></body></html>',
     {
       items: filters.solutionsByTier(
         [

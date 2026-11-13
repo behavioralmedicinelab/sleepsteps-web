@@ -382,14 +382,23 @@ button.group-list__header[aria-expanded="true"] {
   }
 }
 
-/* Print every group on screen open, and no controls. */
+/* Print every group on screen open, and no controls, nor the lede's
+   sentence about them. */
 @media print {
   .problems-tools,
-  .group-list__chevron {
+  .group-list__chevron,
+  [data-problems-hint] {
     display: none;
   }
 
   .group-list__problems[hidden] {
     display: block !important;
+  }
+}
+
+/* A group that was closed prints as an open one does: the grid, from 600px. */
+@media print and (min-width: 37.5em) {
+  .group-list__problems[hidden] {
+    display: grid !important;
   }
 }

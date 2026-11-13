@@ -15,9 +15,9 @@ import path from 'node:path';
 export const TRANSCRIPTS_DIR = 'data/transcripts';
 
 /**
- * An id (SPEC §7): a video_id, a page_id and an area_id are each lowercase
- * words joined by hyphens. The one pattern for the content check, the
- * transcripts' file names and pages.json (scripts/build-data.js).
+ * An id (SPEC §7): a video_id, a page_id, an area_id and a worksheet_id are
+ * each lowercase words joined by hyphens. The one pattern for the content
+ * check, the transcripts' file names and pages.json (scripts/build-data.js).
  */
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

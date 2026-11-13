@@ -403,7 +403,7 @@ describe.each(builds)('$name', ({ features, dir }) => {
       expect(dom.document.querySelector('dialog') !== null).toBe(on('feedback') && url !== '/404.html');
       // A "Feedback" button under each video, shown by feedback.js, only while its switch is on.
       const videos = dom.document.querySelectorAll('[data-video]').length;
-      expect(videos > 0).toBe(/problems\/|start/.test(url) && url !== '/problems/');
+      expect(videos > 0).toBe(/problems\/|start/.test(url));
       expect(dom.document.querySelectorAll('button[data-feedback-video]').map((b) => b.hidden)).toEqual(on('feedback') ? Array.from({ length: videos }, () => false) : []);
     });
   });

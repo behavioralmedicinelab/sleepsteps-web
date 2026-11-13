@@ -639,7 +639,7 @@ describe('solutionsSection with a playable video', () => {
     ];
     const solutions = [{ tier: 'main', video: 'full', blurb: 'Try this.' }, { tier: 'main', video: 'bare', blurb: 'Or this.' }];
     const renderWith = (rows, { ratings = false, feedback = false, list = solutions } = {}) =>
-      env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page", ratings, feedback) }}', {
+      env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, ratings, feedback) }}', {
         items: filters.solutionsByTier(list, videos, rows).main,
         ratings,
         feedback,
@@ -669,7 +669,7 @@ describe('solutionsSection with a playable video', () => {
       expect(section).toContain('Plan &amp; &quot;do&quot; &lt;now&gt;<span class="visually-hidden"> (PDF)</span>');
       expect(section).not.toMatch(/<now>|"do"/);
       const quoted = [videoRow('q', { title: 'Settling "your" <body>', description: 'D.', youtube_url: 'https://youtu.be/AbCdEfGhIj1', duration: '2:00', handout: 'q.pdf', audio: 'q.mp3' })];
-      const html = env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page") }}', {
+      const html = env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items) }}', {
         items: filters.solutionsByTier([{ tier: 'main', video: 'q' }], quoted, [row('q-one', 'q', 'One')]).main,
       });
       expect(elementByClass(html, 'worksheets__title', 'h4')).toBe(
@@ -716,7 +716,7 @@ describe('solutionsSection with a playable video', () => {
       ];
       const list = [{ tier: 'main', video: 'full', blurb: 'Try this. The worksheets below help you plan.' }, { tier: 'main', video: 'bare' }];
       const renderWordy = (rows) =>
-        env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items, "a-page") }}', {
+        env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("main", items) }}', {
           items: filters.solutionsByTier(list, wordy, rows).main,
         });
       const none = renderWordy([]);
@@ -743,11 +743,13 @@ describe('solutionsSection with a playable video', () => {
         const panel = elementByClass(card, 'solution__panel', 'div');
         const rowOfControls = elementByClass(panel, 'video-controls', 'div');
         expect(panel.indexOf(sectionOf(card))).toBeGreaterThan(panel.indexOf(rowOfControls) + rowOfControls.length);
+        // The switches reached the row: its stars and its "Feedback" button.
+        expect([/class="rating"/.test(rowOfControls), /data-feedback-trigger/.test(rowOfControls)]).toEqual([options.ratings === true, options.feedback === true]);
       }
     });
 
     it('gives a video the same section on another problem, whatever its tier and number', () => {
-      const elsewhere = env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("extra", items, "another-page") }}', {
+      const elsewhere = env.renderString('{% from "problem/solutions.njk" import solutionsSection %}{{ solutionsSection("extra", items) }}', {
         items: filters.solutionsByTier([{ tier: 'main', video: 'bare' }, { tier: 'extra', video: 'full' }], videos, worksheets).extra,
       });
       expect(sectionOf(elsewhere)).toBe(sectionOf(sheetsFull));
