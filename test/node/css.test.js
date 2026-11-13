@@ -372,6 +372,23 @@ describe('the worksheets of an open solution card (pages/problem.css)', () => {
   });
 });
 
+// Forced colours (site.css hides every settling arc: the SVG keeps its own
+// fill, a block of teal on the visitor's chosen ground).
+describe('forced colours', () => {
+  it('hides the settling arc in the video frames too, where a heavier rule shows it from 600px (components.css)', () => {
+    const css = sheets.find((s) => s.file === 'components.css').css;
+    const site = sheets.find((s) => s.file === 'site.css').css;
+    expect(site).toMatch(/@media \(forced-colors: active\) \{[^}]*\n {2}\.arc \{\s*display: none;\s*\}/);
+    // (0,2,0) from 600px: site.css's `.arc` (0,1,0) can't hide it.
+    const shown = css.indexOf('  .video__media .arc {\n    display: block;\n  }');
+    expect(shown).toBeGreaterThan(-1);
+    const forced = css.slice(css.indexOf('@media (forced-colors: active) {'));
+    expect(forced).toMatch(/^@media \(forced-colors: active\) \{[\s\S]*?\n {2}\.video__media \.arc \{\s*display: none;\s*\}[\s\S]*?\n\}/);
+    // The same weight as the rule that shows it, so it must come later.
+    expect(css.indexOf('@media (forced-colors: active) {')).toBeGreaterThan(shown);
+  });
+});
+
 // On paper: backgrounds don't print, so paper text on a teal or ink ground
 // comes out pale grey or not at all, and a control that can't be used on
 // paper has no place there.

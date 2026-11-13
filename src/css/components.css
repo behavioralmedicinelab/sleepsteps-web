@@ -786,8 +786,14 @@ button.format-button {
 }
 
 /* Forced colours: fill the chosen stars with the system text colour, so
-   they stand out on the system ground whatever becomes of warm-clay. */
+   they stand out on the system ground whatever becomes of warm-clay. And
+   no arc in a video frame, as on the bands (site.css, whose `.arc` rule
+   the 600px rule above outweighs). */
 @media (forced-colors: active) {
+  .video__media .arc {
+    display: none;
+  }
+
   .rating__input:checked + .rating__star .rating__icon {
     fill: currentColor;
   }
