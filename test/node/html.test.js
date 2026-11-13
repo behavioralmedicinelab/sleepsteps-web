@@ -52,4 +52,13 @@ describe('html``', () => {
     const fake = Object.create(Html.prototype);
     expect(() => String(html`${fake}`)).toThrow(TypeError);
   });
+
+  it('lets nothing but html`` make an Html: the class is no way to insert text unescaped', () => {
+    // `new Html('<script>…')` used to pass through html`` as it was.
+    const text = '<script>alert(1)</script>';
+    expect(() => new Html(text)).toThrow(TypeError);
+    expect(() => new (html`x`.constructor)(text)).toThrow(TypeError);
+    expect(() => new Html(undefined, text)).toThrow(TypeError);
+    expect(() => new Html(Symbol('html'), text)).toThrow(TypeError);
+  });
 });

@@ -19,11 +19,20 @@ export function escapeHtml(value) {
   return String(value).replace(CONTROLS, '\uFFFD').replace(/[&<>"']/g, (c) => ESCAPES[c]);
 }
 
-/** Markup built by html``. Only html`` makes one, so nothing from D1 or a request can be an Html. */
+// What html`` hands the Html constructor. It never leaves this module, so
+// no other code can make an Html.
+const MADE_HERE = Symbol('html');
+
+/**
+ * Markup built by html``. Only html`` makes one (the constructor refuses
+ * anyone else), so nothing from D1 or a request can be an Html, and the
+ * class is no way to insert text unescaped. Exported for instanceof only.
+ */
 export class Html {
   #text;
 
-  constructor(text) {
+  constructor(key, text) {
+    if (key !== MADE_HERE) throw new TypeError('html: only html`` makes an Html');
     this.#text = text;
   }
 
@@ -50,5 +59,5 @@ function part(value) {
 export function html(strings, ...values) {
   let out = strings[0];
   for (let i = 0; i < values.length; i += 1) out += part(values[i]) + strings[i + 1];
-  return new Html(out);
+  return new Html(MADE_HERE, out);
 }
