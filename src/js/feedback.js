@@ -30,6 +30,12 @@
 // notice is the dialog's description. Escape, Cancel or Close close it,
 // keep the draft in memory (never stored) and return focus to the control
 // that opened it.
+// Opening also pauses the page's media, whichever control opened the dialog
+// (project lead, 2026-11-13): a video or "Audio only" that is playing would
+// carry on behind the modal dialog, where its controls can't be reached.
+// players.js does the pausing (pauseWithin), which is why this module
+// imports it, and keeps a video that was still loading from starting behind
+// the dialog. Nothing starts again when the dialog closes.
 // Escape does nothing while focus is inside Turnstile's frame, whose key
 // presses never reach this page (another origin); Tab leaves the frame, and
 // Escape works from there.
@@ -104,6 +110,7 @@
 // address's query, or putting the message anywhere but the request body.
 
 import { REANNOUNCE_MS, SEND_FAILED, SLUG, postJson, succeeded } from './api.js';
+import { pauseWithin } from './players.js';
 
 const ENDPOINT = '/api/feedback';
 const CONTACT_URL = '/contact/';
@@ -518,6 +525,8 @@ export function init() {
       window.location.href = CONTACT_URL;
       return;
     }
+    // The page behind the modal dialog is inert: pause what is playing there.
+    pauseWithin(document);
     title.focus();
     followViewport();
     // Reserve the widget's box at its size before it renders.

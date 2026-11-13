@@ -569,6 +569,83 @@ describe('players.js', () => {
     player.becomes(PAUSED);
     expect(player.calls).toEqual([]);
   });
+
+  // The feedback dialog is modal: the page behind it is inert, so its
+  // players can't be reached while it is open. feedback.js pauses them as it
+  // opens (SPEC §13). The page: a playable video with its "Feedback" button,
+  // the footer's link and the dialog, with no usable Turnstile key, so
+  // nothing loads from Cloudflare.
+  const dialogPage = env.renderString(
+    '<!doctype html><html lang="en-AU"><head><title>T</title></head><body data-page-id="a-page"><main><h1>A page</h1>' +
+      '{% from "partials/video-block.njk" import videoBlock %}' +
+      '{{ videoBlock(v, feedback=true) }}</main>' +
+      '<footer><a href="/contact/" data-feedback-trigger>Send feedback</a></footer>' +
+      '{% include "partials/feedback-dialog.njk" %}</body></html>',
+    { v: filters.videoById('full', videos), site: { turnstileSiteKey: '<PUBLIC_SITE_KEY>' } },
+  );
+  /** Close the dialog and let its "close" event, which comes in a later task, arrive. */
+  const closeDialog = async () => {
+    dom.document.querySelector('dialog').close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  it('pauses the playing video or audio when the feedback dialog opens, from the footer or a video, and starts nothing when it closes', async () => {
+    await load(dialogPage, ['players', 'feedback']);
+    const { document, window } = dom;
+    const dialog = document.querySelector('dialog');
+    document.querySelector('button.video__facade').click();
+    window.YT = fakeYouTube(document);
+    window.onYouTubeIframeAPIReady();
+    await settle();
+    const [player] = created;
+    player.options.events.onReady();
+    player.becomes(PLAYING);
+    expect(player.calls).toEqual(['play']);
+
+    document.querySelector('footer button[data-feedback-trigger]').click();
+    expect(dialog.open).toBe(true);
+    expect(player.calls).toEqual(['play', 'pause']);
+    player.becomes(PAUSED);
+    await closeDialog();
+    expect(player.calls).toEqual(['play', 'pause']);
+
+    const audio = document.querySelector('audio');
+    audio.paused = false;
+    audio.dispatchEvent(new Event('play'));
+    document.querySelector('button[data-feedback-video="full"]').click();
+    expect(dialog.open).toBe(true);
+    expect(audio.paused).toBe(true);
+    await closeDialog();
+    expect(audio.paused).toBe(true);
+    expect(player.calls).toEqual(['play', 'pause']);
+  });
+
+  it('does not start a video that was still loading when the feedback dialog opened; the visitor starts it after closing', async () => {
+    await load(dialogPage, ['players', 'feedback']);
+    const { document, window } = dom;
+    document.querySelector('button.video__facade').click();
+    document.querySelector('footer button[data-feedback-trigger]').click();
+    expect(document.querySelector('dialog').open).toBe(true);
+    const focused = document.activeElement;
+    window.YT = fakeYouTube(document);
+    window.onYouTubeIframeAPIReady();
+    await settle();
+    const [player] = created;
+    player.options.events.onReady();
+    expect(player.calls).toEqual([]);
+    // Focus stays in the dialog.
+    expect(document.activeElement).toBe(focused);
+    player.becomes(BUFFERING);
+    player.becomes(PLAYING);
+    expect(player.calls).toEqual(['pause', 'pause']);
+    player.becomes(PAUSED);
+
+    await closeDialog();
+    player.calls.length = 0;
+    player.becomes(PLAYING);
+    player.becomes(PAUSED);
+    expect(player.calls).toEqual([]);
+  });
 });
 
 describe('solutions.js on /problems/cant-get-back-to-sleep/ (3 main, 3 extra)', () => {

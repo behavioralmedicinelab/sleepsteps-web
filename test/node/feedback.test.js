@@ -365,8 +365,11 @@ describe('feedback.js source (SPEC §13, §15.4, §16.2)', () => {
     expect(code.match(/https?:\/\/[^'"`\s]+/g)).toEqual([TURNSTILE_URL]);
   });
 
-  it('imports only api.js, and sends only to /api/feedback, exactly the keys the Worker requires', () => {
-    expect([...code.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1])).toEqual(['./api.js']);
+  it('imports only api.js and players.js, and sends only to /api/feedback, exactly the keys the Worker requires', () => {
+    expect([...code.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1])).toEqual(['./api.js', './players.js']);
+    // players.js only to pause the page's media, once, as the dialog opens (SPEC §13).
+    expect(code.match(/\bpauseWithin\b[^;\n]*/g)).toEqual(["pauseWithin } from './players.js'", 'pauseWithin(document)']);
+    expect(code).toMatch(/dialog\.showModal\(\);\s*\} catch \{[^}]*\}\s*pauseWithin\(document\);/);
     expect(code.match(/['"`]\/api\/[^'"`]*['"`]/g)).toEqual(["'/api/feedback'"]);
     // One call, with one of two bodies: the three keys, or, about a video, those and video_id.
     expect(code.match(/postJson\(/g)).toHaveLength(1);
@@ -878,6 +881,29 @@ describe('feedback.js in the browser (SPEC §11, §13)', () => {
       expect(scripts[0].hasAttribute('integrity') || scripts[0].hasAttribute('crossorigin')).toBe(false);
       expect(said()).toEqual([]);
       expect(requests).toEqual([]);
+    });
+
+    // The page behind the modal dialog is inert, so what plays there can't
+    // be reached: players.js pauses it (the video's side is tested in
+    // browser-modules.test.js).
+    it('pauses the page\'s playing "Audio only" as it opens, from the footer or a video\'s button, and starts nothing when it closes', async () => {
+      await open();
+      const [audio, other] = dom.document.querySelectorAll('audio[data-media]');
+      audio.paused = false;
+      trigger().click();
+      expect(dialog().open).toBe(true);
+      expect(audio.paused).toBe(true);
+      dialog().close();
+      await tick();
+      expect([audio.paused, other.paused]).toEqual([true, true]);
+
+      other.paused = false;
+      videoButton(FIRST).click();
+      expect(dialog().open).toBe(true);
+      expect(other.paused).toBe(true);
+      dialog().close();
+      await tick();
+      expect([audio.paused, other.paused]).toEqual([true, true]);
     });
 
     it('renders the widget into its box when the script loads, with the test key on a local host', async () => {

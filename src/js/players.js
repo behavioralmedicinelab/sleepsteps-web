@@ -16,7 +16,8 @@
 //   worksheet links (SPEC §7.6), through report() (SPEC §9.4, §10.2), for
 //   events.js to send: see below.
 //
-// Exports, for page scripts (solutions.js): pauseWithin(root).
+// Exports, for solutions.js (a card being closed) and feedback.js (the
+// feedback dialog opening over the page): pauseWithin(root).
 //
 // Usage statistics: report() only dispatches a `sleepsteps:event`
 // CustomEvent on document, with detail { type, detail } in the SPEC §10.2
@@ -109,10 +110,11 @@ function pauseOthers(except) {
 }
 
 /**
- * Pause every video and audio inside `root` (e.g. a card being closed). A
- * video that is still loading isn't playing yet, so there is nothing to
- * pause: onReady and onStateChange keep it from starting where the visitor
- * can't get to it (outOfReach).
+ * Pause every video and audio inside `root`: a card being closed, or the
+ * whole document as the feedback dialog opens over it. A video that is
+ * still loading isn't playing yet, so there is nothing to pause: onReady
+ * and onStateChange keep it from starting where the visitor can't get to
+ * it (outOfReach).
  */
 export function pauseWithin(root) {
   players.forEach((entry, wrapper) => {
@@ -124,10 +126,14 @@ export function pauseWithin(root) {
 /**
  * Whether the visitor can't get to this video: it is inside something
  * hidden, as when its solution card was closed while it loaded
- * (solutions.js). A video must not start playing there by itself.
+ * (solutions.js), or behind an open dialog (the feedback dialog, the site's
+ * only one, is modal: the page behind it is inert; feedback.js). A video
+ * must not start playing there by itself.
  */
 function outOfReach(wrapper) {
-  return wrapper.closest('[hidden]') !== null;
+  if (wrapper.closest('[hidden]')) return true;
+  const dialog = document.querySelector('dialog[open]');
+  return dialog !== null && !dialog.contains(wrapper);
 }
 
 // ---- YouTube player --------------------------------------------------------------
@@ -200,8 +206,8 @@ function onStateChange(wrapper, state) {
   const states = window.YT?.PlayerState;
   if (!entry || !states) return;
   // Its first start, where the visitor can't get to it (`autoplay: 1` starts
-  // a video that was still loading when its card closed): pause it, pause
-  // nothing else and report no play. Once the visitor has played it, a later
+  // a video that was still loading when its card closed, or when the
+  // feedback dialog opened): pause it, pause nothing else and report no play. Once the visitor has played it, a later
   // start there is theirs (the browser's media controls, a media key).
   if (!entry.started && (state === states.PLAYING || state === states.BUFFERING) && outOfReach(wrapper)) {
     try {
@@ -270,7 +276,8 @@ function play(wrapper, button) {
             wrapper.classList.remove('is-loading');
             // Autoplay may be blocked (iOS); YouTube then shows its own play
             // button, which the focused iframe makes the next thing to press.
-            // Not if the visitor has closed its card meanwhile.
+            // Not if the visitor has closed its card, or opened the feedback
+            // dialog, meanwhile.
             if (!outOfReach(wrapper)) player.playVideo();
             if (moveFocus) iframe.focus();
           },
